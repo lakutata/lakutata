@@ -7,6 +7,7 @@ import {Configurable, Singleton} from '@lakutata/core/decorator/di'
 import type {EntityManager, ObjectLiteral, SelectQueryBuilder, UpdateQueryBuilder} from '@lakutata/orm'
 import type {Database} from '@lakutata/orm/com/database'
 import {
+    type AttributeTypeAndValue,
     type AttributeTypeDefinition,
     attributeTypeOf,
     type BackendCapabilities,
@@ -22,6 +23,7 @@ import {
     type LDAPBackend,
     LDAPConstraintViolationException,
     type LDAPInProcessConnection,
+    LDAPNoSuchObjectException,
     type LDAPServerEngine,
     LDAPUnwillingToPerformException,
     LDAPEntryAlreadyExistsException,
@@ -1063,106 +1065,122 @@ export class DirectoryBackend extends Component implements LDAPBackend {
 
     /**
      * Apply the changes of a modify to the values the entry has once it is locked: the rows of the values removed
-     * deleted, the values added inserted after the others, the rows of the values kept left as they are. A value added
-     * that the attribute has already is not added again (two writers adding it at once); an attribute of one value given
-     * a second (two writers adding one at once) refuses the change.
+     * deleted, the values added inserted, the rows of the values kept left as they are. A value added that the attribute
+     * has already is not added again (two writers adding it at once); an attribute of one value given a second (two
+     * writers adding one at once) refuses the change.
      * @param context The context.
      * @param dn The DN.
      * @param changes The changes.
+     * @throws {LDAPNoSuchObjectException} When the entry was deleted or renamed before it was locked.
      */
     public async modify(context: WriteContext, dn: DN, changes: DirectoryChange[]): Promise<void> {
         const schema: Schema = this.use(context)
         await this.write(context, async (manager: EntityManager): Promise<void> => {
             const row: LDAPEntryRecord | null = await this.lockedRow(manager, dn, schema)
-            if (!row) return
-            //The rows of the values, by the descriptions they compare by, in the order of their positions
-            const stored: {id: number | string, description: string, position: number | string, value: string, binary: boolean | number}[] = await manager.createQueryBuilder(this.#valueEntity, 'v')
-                .select('v.id', 'id')
-                .addSelect('v.description', 'description')
-                .addSelect('v.position', 'position')
-                .addSelect('v.value', 'value')
-                .addSelect('v.binary', 'binary')
-                .where('v.entryId = :id', {id: row.id})
-                .orderBy('v.position', 'ASC')
-                .addOrderBy('v.id', 'ASC')
-                .getRawMany()
-            const rows: Map<string, typeof stored> = new Map()
-            const attributes: Map<string, PartialAttribute> = new Map()
-            for (const item of stored) {
-                const key: string = descriptionKey(item.description, schema)
-                if (!rows.has(key)) {
-                    rows.set(key, [])
-                    attributes.set(key, {type: item.description, values: []})
-                }
-                rows.get(key)!.push(item)
-                attributes.get(key)!.values.push(valueBytes(item.value, item.binary))
-            }
-            const touched: Set<string> = new Set()
-            for (const change of changes) {
-                const key: string = descriptionKey(change.attribute.type, schema)
-                const type: string = schema.primaryName(attributeTypeOf(change.attribute.type)).toLowerCase()
-                touched.add(key)
-                const current: PartialAttribute | undefined = attributes.get(key)
-                const values: Buffer[] = change.attribute.values
-                if (change.operation === 'add') {
-                    //The values the attribute has, by the forms they compare by
-                    const present: Set<string> = new Set((current?.values ?? []).map((value: Buffer): string => valueHashOf(type, value, schema)))
-                    const added: Buffer[] = values.filter((value: Buffer): boolean => {
-                        const hash: string = valueHashOf(type, value, schema)
-                        if (present.has(hash)) return false
-                        present.add(hash)
-                        return true
-                    })
-                    if (current) current.values.push(...added)
-                    else if (added.length) attributes.set(key, {type: change.attribute.type, values: added})
-                } else if (change.operation === 'replace') {
-                    if (values.length) attributes.set(key, {type: current?.type ?? change.attribute.type, values: [...values]})
-                    else attributes.delete(key)
-                } else if (current) {
-                    current.values = values.length ? current.values.filter((value: Buffer): boolean => !values.some((item: Buffer): boolean => item.equals(value))) : []
-                    if (!current.values.length) attributes.delete(key)
-                }
-            }
-            const removed: (number | string)[] = []
-            const inserted: Partial<LDAPValueRecord>[] = []
-            for (const key of touched) {
-                const attribute: PartialAttribute | undefined = attributes.get(key)
-                if (attribute && attribute.values.length > 1 && schema.isSingleValued(attributeTypeOf(attribute.type))) throw new LDAPConstraintViolationException(`${attribute.type}: the attribute has one value`)
-                //The rows of the values kept stay, by their bytes; the others go
-                const remaining: Map<string, number> = new Map()
-                for (const value of attribute?.values ?? []) remaining.set(value.toString('base64'), (remaining.get(value.toString('base64')) ?? 0) + 1)
-                const taken: Set<number> = new Set()
-                for (const item of rows.get(key) ?? []) {
-                    const bytes: string = valueBytes(item.value, item.binary).toString('base64')
-                    if (remaining.get(bytes)) {
-                        remaining.set(bytes, remaining.get(bytes)! - 1)
-                        taken.add(Number(item.position))
-                    } else {
-                        removed.push(item.id)
+            if (!row) throw new LDAPNoSuchObjectException(`The entry ${dn.toString()} is not in the backend`)
+            await this.change(manager, row, schema, (attributes: Map<string, PartialAttribute>, touched: Set<string>): void => {
+                for (const change of changes) {
+                    const key: string = descriptionKey(change.attribute.type, schema)
+                    const type: string = schema.primaryName(attributeTypeOf(change.attribute.type)).toLowerCase()
+                    touched.add(key)
+                    const current: PartialAttribute | undefined = attributes.get(key)
+                    const values: Buffer[] = change.attribute.values
+                    if (change.operation === 'add') {
+                        //The values the attribute has, by the forms they compare by
+                        const present: Set<string> = new Set((current?.values ?? []).map((value: Buffer): string => valueHashOf(type, value, schema)))
+                        const added: Buffer[] = values.filter((value: Buffer): boolean => {
+                            const hash: string = valueHashOf(type, value, schema)
+                            if (present.has(hash)) return false
+                            present.add(hash)
+                            return true
+                        })
+                        if (current) current.values.push(...added)
+                        else if (added.length) attributes.set(key, {type: change.attribute.type, values: added})
+                    } else if (change.operation === 'replace') {
+                        if (values.length) attributes.set(key, {type: current?.type ?? change.attribute.type, values: [...values]})
+                        else attributes.delete(key)
+                    } else if (current) {
+                        current.values = values.length ? current.values.filter((value: Buffer): boolean => !values.some((item: Buffer): boolean => item.equals(value))) : []
+                        if (!current.values.length) attributes.delete(key)
                     }
                 }
-                //The values added at the positions the values kept do not have (two at one position would hide one), the
-                //lowest first: the positions stay below the number of values
-                const added: Buffer[] = (attribute?.values ?? []).filter((value: Buffer): boolean => {
-                    const bytes: string = value.toString('base64')
-                    if (!remaining.get(bytes)) return false
-                    remaining.set(bytes, remaining.get(bytes)! - 1)
-                    return true
-                })
-                if (added.length) {
-                    const valueRows: Partial<LDAPValueRecord>[] = await this.valueRows(manager, row.id, [{type: attribute!.type, values: added}], schema)
-                    let position: number = 0
-                    for (const valueRow of valueRows) {
-                        while (taken.has(position)) position++
-                        valueRow.position = position++
-                    }
-                    inserted.push(...valueRows)
-                }
-            }
-            for (let index: number = 0; index < removed.length; index += 500) await manager.createQueryBuilder().delete().from(this.#valueEntity).where('id IN (:...ids)', {ids: removed.slice(index, index + 500)}).execute()
-            await this.insertValues(manager, inserted)
-            if ([...touched].some((key: string): boolean => this.uniqueTypes(schema).has(key.split(';')[0]) || ['gidnumber', 'objectclass'].includes(key.split(';')[0]))) await this.keepUnique(manager, row.id, [...attributes.values()], schema)
+            })
         })
+    }
+
+    /**
+     * Change the values of a locked entry: its values read, changed by a function, the rows of the attributes it touched
+     * written again where they differ (the rows of the values kept left as they are, the values added at the positions
+     * the values kept do not have)
+     * @param manager The entity manager of the transaction.
+     * @param row The row of the entry, locked.
+     * @param schema The schema.
+     * @param edit What changes the attributes, by the descriptions they compare by; it adds the keys it changes to touched.
+     */
+    protected async change(manager: EntityManager, row: LDAPEntryRecord, schema: Schema, edit: (attributes: Map<string, PartialAttribute>, touched: Set<string>) => void): Promise<void> {
+        //The rows of the values, by the descriptions they compare by, in the order of their positions
+        const stored: {id: number | string, description: string, position: number | string, value: string, binary: boolean | number}[] = await manager.createQueryBuilder(this.#valueEntity, 'v')
+            .select('v.id', 'id')
+            .addSelect('v.description', 'description')
+            .addSelect('v.position', 'position')
+            .addSelect('v.value', 'value')
+            .addSelect('v.binary', 'binary')
+            .where('v.entryId = :id', {id: row.id})
+            .orderBy('v.position', 'ASC')
+            .addOrderBy('v.id', 'ASC')
+            .getRawMany()
+        const rows: Map<string, typeof stored> = new Map()
+        const attributes: Map<string, PartialAttribute> = new Map()
+        for (const item of stored) {
+            const key: string = descriptionKey(item.description, schema)
+            if (!rows.has(key)) {
+                rows.set(key, [])
+                attributes.set(key, {type: item.description, values: []})
+            }
+            rows.get(key)!.push(item)
+            attributes.get(key)!.values.push(valueBytes(item.value, item.binary))
+        }
+        const touched: Set<string> = new Set()
+        edit(attributes, touched)
+        const removed: (number | string)[] = []
+        const inserted: Partial<LDAPValueRecord>[] = []
+        for (const key of touched) {
+            const attribute: PartialAttribute | undefined = attributes.get(key)
+            if (attribute && attribute.values.length > 1 && schema.isSingleValued(attributeTypeOf(attribute.type))) throw new LDAPConstraintViolationException(`${attribute.type}: the attribute has one value`)
+            //The rows of the values kept stay, by their bytes; the others go
+            const remaining: Map<string, number> = new Map()
+            for (const value of attribute?.values ?? []) remaining.set(value.toString('base64'), (remaining.get(value.toString('base64')) ?? 0) + 1)
+            const taken: Set<number> = new Set()
+            for (const item of rows.get(key) ?? []) {
+                const bytes: string = valueBytes(item.value, item.binary).toString('base64')
+                if (remaining.get(bytes)) {
+                    remaining.set(bytes, remaining.get(bytes)! - 1)
+                    taken.add(Number(item.position))
+                } else {
+                    removed.push(item.id)
+                }
+            }
+            //The values added at the positions the values kept do not have (two at one position would hide one), the
+            //lowest first: the positions stay below the number of values
+            const added: Buffer[] = (attribute?.values ?? []).filter((value: Buffer): boolean => {
+                const bytes: string = value.toString('base64')
+                if (!remaining.get(bytes)) return false
+                remaining.set(bytes, remaining.get(bytes)! - 1)
+                return true
+            })
+            if (added.length) {
+                const valueRows: Partial<LDAPValueRecord>[] = await this.valueRows(manager, row.id, [{type: attribute!.type, values: added}], schema)
+                let position: number = 0
+                for (const valueRow of valueRows) {
+                    while (taken.has(position)) position++
+                    valueRow.position = position++
+                }
+                inserted.push(...valueRows)
+            }
+        }
+        for (let index: number = 0; index < removed.length; index += 500) await manager.createQueryBuilder().delete().from(this.#valueEntity).where('id IN (:...ids)', {ids: removed.slice(index, index + 500)}).execute()
+        await this.insertValues(manager, inserted)
+        if ([...touched].some((key: string): boolean => this.uniqueTypes(schema).has(key.split(';')[0]) || ['gidnumber', 'objectclass'].includes(key.split(';')[0]))) await this.keepUnique(manager, row.id, [...attributes.values()], schema)
     }
 
     /**
@@ -1228,10 +1246,14 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     }
 
     /**
-     * Rename or move an entry, with the entries below it; the values naming them follow
+     * Rename or move an entry, with the entries below it; the values naming them follow. The values of the entry get
+     * what the rename changes (the values of the new RDN, the old ones deleteOldRDN removes, modifyTimestamp and
+     * modifiersName), applied to the values it has once it is locked: a write made since the engine read it is kept.
      * @param context The context.
      * @param dn The DN.
-     * @param entry The entry as it becomes.
+     * @param entry The entry as it becomes, as the engine made it.
+     * @throws {LDAPNoSuchObjectException} When the entry was deleted or renamed before it was locked.
+     * @throws {LDAPEntryAlreadyExistsException} When an entry took the new DN before the entry was locked.
      */
     public async modifyDN(context: WriteContext, dn: DN, entry: DirectoryEntry): Promise<void> {
         const schema: Schema = this.use(context)
@@ -1247,7 +1269,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      */
     protected async rename(manager: EntityManager, dn: DN, entry: DirectoryEntry, schema: Schema): Promise<void> {
         const row: LDAPEntryRecord | null = await this.lockedRow(manager, dn, schema)
-        if (!row) return
+        if (!row) throw new LDAPNoSuchObjectException(`The entry ${dn.toString()} is not in the backend`)
         let parentId: string = row.parentId
         let parentPath: string = row.path.slice(0, row.path.length - pathSegment(row.id).length)
         const newParent: DN | undefined = entry.dn.parent()
@@ -1266,13 +1288,17 @@ export class DirectoryBackend extends Component implements LDAPBackend {
             const dnKey: string = itemDN.key(schema)
             const path: string = newPath + item.path.slice(row.path.length)
             if (path.length > 760) throw new LDAPUnwillingToPerformException('An entry would be too deep in the directory')
-            await manager.update(LDAPEntryRecord, {id: item.id}, {dn: itemDN.toString(), dnKey: dnKey, dnHash: sha256(dnKey), path: path, ...item.id === row.id ? {parentId: parentId} : {}})
+            try {
+                await manager.update(LDAPEntryRecord, {id: item.id}, {dn: itemDN.toString(), dnKey: dnKey, dnHash: sha256(dnKey), path: path, ...item.id === row.id ? {parentId: parentId} : {}})
+            } catch {
+                //The DN of another entry, added since the engine checked it
+                throw new LDAPEntryAlreadyExistsException(`The entry ${itemDN.toString()} exists`)
+            }
             renamed.set(item.id, {dn: itemDN.toString(), dnKey: dnKey})
         }
-        //The values of the entry, its RDN changed
-        await manager.createQueryBuilder().delete().from(this.#valueEntity).where('entryId = :id', {id: row.id}).execute()
-        await this.insertValues(manager, await this.valueRows(manager, row.id, entry.attributes, schema))
-        await this.keepUnique(manager, row.id, entry.attributes, schema)
+        //The values of the entry: what the rename changes applied to the values it has now (the engine made the entry it
+        //gives from the values it read before the entry was locked)
+        await this.change(manager, row, schema, (attributes: Map<string, PartialAttribute>, touched: Set<string>): void => this.renameValues(attributes, touched, dn, entry, schema))
         //The values naming the moved entries
         const ids: string[] = [...renamed.keys()]
         for (let index: number = 0; index < ids.length; index += 200) {
@@ -1284,6 +1310,51 @@ export class DirectoryBackend extends Component implements LDAPBackend {
                 const bytes: Buffer = Buffer.from(value)
                 await manager.update(this.#valueEntity, {id: reference.id}, {value: value, binary: false, valueHash: valueHashOf(reference.attributeType, bytes, schema), valueKey: keyForm(reference.attributeType, bytes, schema) ?? null})
             }
+        }
+    }
+
+    /**
+     * Apply a rename to the values of an entry: the values of the new RDN added, the values of the old one the engine
+     * removed (deleteOldRDN) removed, modifyTimestamp and modifiersName as the engine gives them
+     * @param attributes The attributes of the entry, by the descriptions they compare by.
+     * @param touched The keys of the attributes changed.
+     * @param dn The DN of the entry before the rename.
+     * @param entry The entry as the engine gives it.
+     * @param schema The schema.
+     */
+    protected renameValues(attributes: Map<string, PartialAttribute>, touched: Set<string>, dn: DN, entry: DirectoryEntry, schema: Schema): void {
+        const typeOf = (type: string): string => schema.primaryName(attributeTypeOf(type)).toLowerCase()
+        const hashOf = (type: string, value: Buffer): string => valueHashOf(typeOf(type), value, schema)
+        const bytesOf = (ava: AttributeTypeAndValue): Buffer => ava.binary ?? Buffer.from(ava.value, 'utf8')
+        const given = (key: string): PartialAttribute | undefined => entry.attributes.find((attribute: PartialAttribute): boolean => descriptionKey(attribute.type, schema) === key)
+        const newRDN: readonly AttributeTypeAndValue[] = entry.dn.rdn()?.attributes ?? []
+        const kept: Set<string> = new Set(newRDN.map((ava: AttributeTypeAndValue): string => `${typeOf(ava.type)}=${hashOf(ava.type, bytesOf(ava))}`))
+        for (const ava of dn.rdn()?.attributes ?? []) {
+            const key: string = descriptionKey(ava.type, schema)
+            const hash: string = hashOf(ava.type, bytesOf(ava))
+            //Kept: a value of the new RDN too, or left by the rename (deleteOldRDN false)
+            if (kept.has(`${typeOf(ava.type)}=${hash}`) || given(key)?.values.some((value: Buffer): boolean => hashOf(ava.type, value) === hash)) continue
+            const attribute: PartialAttribute | undefined = attributes.get(key)
+            if (!attribute) continue
+            touched.add(key)
+            attribute.values = attribute.values.filter((value: Buffer): boolean => hashOf(ava.type, value) !== hash)
+            if (!attribute.values.length) attributes.delete(key)
+        }
+        for (const ava of newRDN) {
+            const key: string = descriptionKey(ava.type, schema)
+            const hash: string = hashOf(ava.type, bytesOf(ava))
+            const attribute: PartialAttribute | undefined = attributes.get(key)
+            if (attribute?.values.some((value: Buffer): boolean => hashOf(ava.type, value) === hash)) continue
+            touched.add(key)
+            if (attribute) attribute.values.push(bytesOf(ava))
+            else attributes.set(key, {type: given(key)?.type ?? schema.primaryName(attributeTypeOf(ava.type)), values: [bytesOf(ava)]})
+        }
+        for (const name of ['modifyTimestamp', 'modifiersName']) {
+            const key: string = descriptionKey(name, schema)
+            const attribute: PartialAttribute | undefined = given(key)
+            if (!attribute?.values.length) continue
+            touched.add(key)
+            attributes.set(key, {type: attributes.get(key)?.type ?? attribute.type, values: [...attribute.values]})
         }
     }
 

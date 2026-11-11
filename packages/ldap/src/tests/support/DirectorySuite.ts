@@ -432,6 +432,49 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             }
         })
 
+        it('keeps the changes made to an entry while it is renamed', {timeout: 60000}, async () => {
+            const before: string = `cn=renaming,${BASE}`
+            const after: string = `cn=renamed,${BASE}`
+            await admin.add(before, {objectClass: 'device', cn: 'renaming', description: 'initial'})
+            const renaming: Container = new Container()
+            try {
+                await renaming.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                await renaming.setNamed('ldap', LDAPServer, {
+                    port: false,
+                    schema: schema,
+                    backends: [{class: DirectoryBackend, suffix: BASE, database: 'database'}],
+                    access: {admins: [ADMIN]},
+                    //A change made once the engine has read the entry to rename, before the rename is written
+                    interceptors: [{name: 'between', operations: ['modifyDN'], beforeCommit: async (): Promise<void> => {
+                        await (await renaming.get<LDAPServer>('ldap')).connect(ADMIN).modify(before, [{operation: 'add', attribute: 'description', values: 'between'}, {operation: 'add', attribute: 'serialNumber', values: 'S-1'}])
+                    }}]
+                })
+                await (await renaming.get<LDAPServer>('ldap')).connect(ADMIN).modifyDN(before, 'cn=renamed')
+                const entry = (await admin.search(after, {scope: 'base', attributes: ['*', 'modifyTimestamp']})).entries[0]
+                assert.deepEqual(entry.get('description').sort(), ['between', 'initial'])
+                assert.deepEqual(entry.get('serialNumber'), ['S-1'])
+                assert.deepEqual(entry.get('cn'), ['renamed'])
+                assert.equal(entry.get('modifyTimestamp').length, 1)
+                //Writes to the entry while it is renamed: each one kept, or refused as it was renamed before it ran
+                const values: string[] = Array.from({length: 20}, (_: unknown, index: number): string => `during${String(index).padStart(2, '0')}`)
+                const results: PromiseSettledResult<unknown>[] = await Promise.allSettled([
+                    ...values.map((value: string) => ldap.connect(ADMIN).modify(after, {operation: 'add', attribute: 'description', values: value})),
+                    ldap.connect(ADMIN).modifyDN(after, 'cn=renamed-again')
+                ])
+                assert.equal(results[values.length].status, 'fulfilled', String((results[values.length] as PromiseRejectedResult).reason))
+                for (const result of results.slice(0, values.length)) {
+                    if (result.status === 'rejected') assert.ok(result.reason instanceof LDAPNoSuchObjectException, String(result.reason))
+                }
+                const kept: string[] = values.filter((_: string, index: number): boolean => results[index].status === 'fulfilled')
+                const again = (await admin.search(`cn=renamed-again,${BASE}`, {scope: 'base'})).entries[0]
+                assert.deepEqual(again.get('description').sort(), ['between', 'initial', ...kept].sort())
+                assert.deepEqual(again.get('cn'), ['renamed-again'])
+            } finally {
+                await renaming.destroy()
+                for (const dn of [before, after, `cn=renamed-again,${BASE}`]) await admin.delete(dn).catch((): undefined => undefined)
+            }
+        })
+
         it('runs the writes made in the transaction of another write, to its entry and to another one', {timeout: 60000}, async () => {
             const target: string = `cn=nesting,${BASE}`
             const other: string = `cn=nested,${BASE}`
@@ -439,7 +482,6 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             await admin.add(other, {objectClass: 'device', cn: 'nested'})
             const nesting: Container = new Container()
             try {
-                let server: LDAPServer | undefined
                 await nesting.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
                 await nesting.setNamed('ldap', LDAPServer, {
                     port: false,
@@ -449,12 +491,12 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                     interceptors: [{name: 'nesting', operations: ['modify'], beforeCommit: async (_context: unknown, request: {dn?: {toString(): string}}): Promise<void> => {
                         if (request.dn?.toString() !== target) return
                         //An operational attribute of the entry being modified, as a plugin keeps its state; a write to another entry
-                        await server!.engine.writeOperational(target, [{operation: 'replace', attribute: {type: 'modifyTimestamp', values: [Buffer.from('20260101000000Z')]}}])
-                        await server!.connect(ADMIN).modify(other, {operation: 'add', attribute: 'description', values: 'nested'})
+                        const server: LDAPServer = await nesting.get<LDAPServer>('ldap')
+                        await server.engine.writeOperational(target, [{operation: 'replace', attribute: {type: 'modifyTimestamp', values: [Buffer.from('20260101000000Z')]}}])
+                        await server.connect(ADMIN).modify(other, {operation: 'add', attribute: 'description', values: 'nested'})
                     }}]
                 })
-                server = await nesting.get<LDAPServer>('ldap')
-                await server.connect(ADMIN).modify(target, {operation: 'add', attribute: 'description', values: 'outer'})
+                await (await nesting.get<LDAPServer>('ldap')).connect(ADMIN).modify(target, {operation: 'add', attribute: 'description', values: 'outer'})
                 assert.deepEqual((await admin.search(target, {scope: 'base'})).entries[0].get('description'), ['outer'])
                 assert.deepEqual((await admin.search(other, {scope: 'base'})).entries[0].get('description'), ['nested'])
             } finally {
