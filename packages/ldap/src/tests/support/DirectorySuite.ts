@@ -12,6 +12,7 @@ import {
     LDAPAttributeOrValueExistsException,
     type LDAPClientConnection,
     LDAPConstraintViolationException,
+    LDAPEntryAlreadyExistsException,
     LDAPEntryRecord,
     type LDAPInProcessConnection,
     LDAPInvalidCredentialsException,
@@ -435,7 +436,8 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
         it('keeps the changes made to an entry while it is renamed', {timeout: 60000}, async () => {
             const before: string = `cn=renaming,${BASE}`
             const after: string = `cn=renamed,${BASE}`
-            await admin.add(before, {objectClass: 'device', cn: 'renaming', description: 'initial'})
+            await admin.add(before, {objectClass: 'device', cn: 'renaming', 'cn;lang-en': 'renaming', description: 'initial'})
+            assert.deepEqual((await admin.search(before, {scope: 'base'})).entries[0].get('cn;lang-en'), ['renaming'])
             const renaming: Container = new Container()
             try {
                 await renaming.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
@@ -454,6 +456,8 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                 assert.deepEqual(entry.get('description').sort(), ['between', 'initial'])
                 assert.deepEqual(entry.get('serialNumber'), ['S-1'])
                 assert.deepEqual(entry.get('cn'), ['renamed'])
+                //The old RDN value removed from each description of the type
+                assert.deepEqual(entry.get('cn;lang-en'), [])
                 assert.equal(entry.get('modifyTimestamp').length, 1)
                 //Writes to the entry while it is renamed: each one kept, or refused as it was renamed before it ran
                 const values: string[] = Array.from({length: 20}, (_: unknown, index: number): string => `during${String(index).padStart(2, '0')}`)
@@ -472,6 +476,34 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             } finally {
                 await renaming.destroy()
                 for (const dn of [before, after, `cn=renamed-again,${BASE}`]) await admin.delete(dn).catch((): undefined => undefined)
+            }
+        })
+
+        it('refuses a rename to a DN an entry took once the engine checked it, the entry left as it was', {timeout: 60000}, async () => {
+            const source: string = `cn=moving,${BASE}`
+            const taken: string = `cn=taken,${BASE}`
+            await admin.add(source, {objectClass: 'device', cn: 'moving', description: 'kept'})
+            const taking: Container = new Container()
+            try {
+                await taking.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                await taking.setNamed('ldap', LDAPServer, {
+                    port: false,
+                    schema: schema,
+                    backends: [{class: DirectoryBackend, suffix: BASE, database: 'database'}],
+                    access: {admins: [ADMIN]},
+                    //The new DN taken once the engine has checked it, before the rename is written
+                    interceptors: [{name: 'taking', operations: ['modifyDN'], beforeCommit: async (): Promise<void> => {
+                        await (await taking.get<LDAPServer>('ldap')).connect(ADMIN).add(taken, {objectClass: 'device', cn: 'taken'})
+                    }}]
+                })
+                await assert.rejects((await taking.get<LDAPServer>('ldap')).connect(ADMIN).modifyDN(source, 'cn=taken'), LDAPEntryAlreadyExistsException)
+                const entry = (await admin.search(source, {scope: 'base'})).entries[0]
+                assert.deepEqual([entry.get('cn'), entry.get('description')], [['moving'], ['kept']])
+                //The entry added in the transaction of the rename went back with it
+                await assert.rejects(admin.search(taken, {scope: 'base'}), LDAPNoSuchObjectException)
+            } finally {
+                await taking.destroy()
+                for (const dn of [source, taken]) await admin.delete(dn).catch((): undefined => undefined)
             }
         })
 
@@ -496,6 +528,8 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                         await server.connect(ADMIN).modify(other, {operation: 'add', attribute: 'description', values: 'nested'})
                     }}]
                 })
+                //The state of an entry that is not there is not written, without an error (a bind answers the same)
+                await (await nesting.get<LDAPServer>('ldap')).engine.writeOperational(`cn=missing,${BASE}`, [{operation: 'replace', attribute: {type: 'modifyTimestamp', values: [Buffer.from('20260101000000Z')]}}])
                 await (await nesting.get<LDAPServer>('ldap')).connect(ADMIN).modify(target, {operation: 'add', attribute: 'description', values: 'outer'})
                 assert.deepEqual((await admin.search(target, {scope: 'base'})).entries[0].get('description'), ['outer'])
                 assert.deepEqual((await admin.search(other, {scope: 'base'})).entries[0].get('description'), ['nested'])

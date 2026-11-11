@@ -187,6 +187,15 @@ function descriptionKey(description: string, schema: Schema): string {
 }
 
 /**
+ * Whether a database error is a unique key taken (PostgreSQL 23505, MySQL 1062, SQLite SQLITE_CONSTRAINT_UNIQUE)
+ * @param error The error.
+ */
+function isUniqueViolation(error: unknown): boolean {
+    const driverError: {code?: unknown, errno?: unknown} = ((error as {driverError?: unknown} | undefined)?.driverError ?? error ?? {}) as {code?: unknown, errno?: unknown}
+    return ['23505', 'ER_DUP_ENTRY', 'SQLITE_CONSTRAINT_UNIQUE', 'SQLITE_CONSTRAINT_PRIMARYKEY'].includes(String(driverError.code)) || driverError.errno === 1062
+}
+
+/**
  * The directory backend: the entries of a suffix in the application's database (PostgreSQL, MySQL or SQLite), stored
  * whatever their classes are (an entry table, a table of values, one row per value), as the schema of the server
  * decides. It finds the entries with the indexes of the forms of the values (equality, substrings, numbers and
@@ -1071,13 +1080,18 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      * @param context The context.
      * @param dn The DN.
      * @param changes The changes.
-     * @throws {LDAPNoSuchObjectException} When the entry was deleted or renamed before it was locked.
+     * @throws {LDAPNoSuchObjectException} When the entry was deleted or renamed before it was locked, for a write of a
+     * client; an internal write (the state the engine and its plugins keep, as on a bind) is then not made.
      */
     public async modify(context: WriteContext, dn: DN, changes: DirectoryChange[]): Promise<void> {
         const schema: Schema = this.use(context)
         await this.write(context, async (manager: EntityManager): Promise<void> => {
             const row: LDAPEntryRecord | null = await this.lockedRow(manager, dn, schema)
-            if (!row) throw new LDAPNoSuchObjectException(`The entry ${dn.toString()} is not in the backend`)
+            if (!row) {
+                //A bind answers the same whether its entry is there or not
+                if (context.internal) return
+                throw new LDAPNoSuchObjectException(`The entry ${dn.toString()} is not in the backend`)
+            }
             await this.change(manager, row, schema, (attributes: Map<string, PartialAttribute>, touched: Set<string>): void => {
                 for (const change of changes) {
                     const key: string = descriptionKey(change.attribute.type, schema)
@@ -1252,12 +1266,13 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      * @param context The context.
      * @param dn The DN.
      * @param entry The entry as it becomes, as the engine made it.
-     * @throws {LDAPNoSuchObjectException} When the entry was deleted or renamed before it was locked.
+     * @throws {LDAPNoSuchObjectException} When the entry was deleted or renamed before it was locked, for a rename of a
+     * client.
      * @throws {LDAPEntryAlreadyExistsException} When an entry took the new DN before the entry was locked.
      */
     public async modifyDN(context: WriteContext, dn: DN, entry: DirectoryEntry): Promise<void> {
         const schema: Schema = this.use(context)
-        await this.write(context, (manager: EntityManager): Promise<void> => this.rename(manager, dn, entry, schema))
+        await this.write(context, (manager: EntityManager): Promise<void> => this.rename(manager, dn, entry, schema, context.internal))
     }
 
     /**
@@ -1266,10 +1281,14 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      * @param dn The DN.
      * @param entry The entry as it becomes.
      * @param schema The schema.
+     * @param internal Whether the rename is internal: not made when the entry is not there, instead of noSuchObject.
      */
-    protected async rename(manager: EntityManager, dn: DN, entry: DirectoryEntry, schema: Schema): Promise<void> {
+    protected async rename(manager: EntityManager, dn: DN, entry: DirectoryEntry, schema: Schema, internal: boolean = false): Promise<void> {
         const row: LDAPEntryRecord | null = await this.lockedRow(manager, dn, schema)
-        if (!row) throw new LDAPNoSuchObjectException(`The entry ${dn.toString()} is not in the backend`)
+        if (!row) {
+            if (internal) return
+            throw new LDAPNoSuchObjectException(`The entry ${dn.toString()} is not in the backend`)
+        }
         let parentId: string = row.parentId
         let parentPath: string = row.path.slice(0, row.path.length - pathSegment(row.id).length)
         const newParent: DN | undefined = entry.dn.parent()
@@ -1290,9 +1309,10 @@ export class DirectoryBackend extends Component implements LDAPBackend {
             if (path.length > 760) throw new LDAPUnwillingToPerformException('An entry would be too deep in the directory')
             try {
                 await manager.update(LDAPEntryRecord, {id: item.id}, {dn: itemDN.toString(), dnKey: dnKey, dnHash: sha256(dnKey), path: path, ...item.id === row.id ? {parentId: parentId} : {}})
-            } catch {
+            } catch (error) {
                 //The DN of another entry, added since the engine checked it
-                throw new LDAPEntryAlreadyExistsException(`The entry ${itemDN.toString()} exists`)
+                if (isUniqueViolation(error)) throw new LDAPEntryAlreadyExistsException(`The entry ${itemDN.toString()} exists`)
+                throw error
             }
             renamed.set(item.id, {dn: itemDN.toString(), dnKey: dnKey})
         }
@@ -1330,15 +1350,18 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         const newRDN: readonly AttributeTypeAndValue[] = entry.dn.rdn()?.attributes ?? []
         const kept: Set<string> = new Set(newRDN.map((ava: AttributeTypeAndValue): string => `${typeOf(ava.type)}=${hashOf(ava.type, bytesOf(ava))}`))
         for (const ava of dn.rdn()?.attributes ?? []) {
-            const key: string = descriptionKey(ava.type, schema)
             const hash: string = hashOf(ava.type, bytesOf(ava))
-            //Kept: a value of the new RDN too, or left by the rename (deleteOldRDN false)
-            if (kept.has(`${typeOf(ava.type)}=${hash}`) || given(key)?.values.some((value: Buffer): boolean => hashOf(ava.type, value) === hash)) continue
-            const attribute: PartialAttribute | undefined = attributes.get(key)
-            if (!attribute) continue
-            touched.add(key)
-            attribute.values = attribute.values.filter((value: Buffer): boolean => hashOf(ava.type, value) !== hash)
-            if (!attribute.values.length) attributes.delete(key)
+            if (kept.has(`${typeOf(ava.type)}=${hash}`)) continue
+            //Left by the rename (deleteOldRDN false): the engine removes the value from every description of the type
+            if (entry.attributes.some((attribute: PartialAttribute): boolean => typeOf(attribute.type) === typeOf(ava.type) && attribute.values.some((value: Buffer): boolean => hashOf(ava.type, value) === hash))) continue
+            //Removed from each description of the type (cn, cn;lang-en)
+            for (const key of [...attributes.keys()].filter((name: string): boolean => name.split(';')[0] === typeOf(ava.type))) {
+                const attribute: PartialAttribute = attributes.get(key)!
+                if (!attribute.values.some((value: Buffer): boolean => hashOf(ava.type, value) === hash)) continue
+                touched.add(key)
+                attribute.values = attribute.values.filter((value: Buffer): boolean => hashOf(ava.type, value) !== hash)
+                if (!attribute.values.length) attributes.delete(key)
+            }
         }
         for (const ava of newRDN) {
             const key: string = descriptionKey(ava.type, schema)
