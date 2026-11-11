@@ -362,6 +362,12 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     #type: string = ''
 
     /**
+     * Whether the transactions of the writes are set to READ COMMITTED (MySQL; PostgreSQL when it or the Database
+     * component would give another level)
+     */
+    #readCommitted: boolean = false
+
+    /**
      * Get the Database component
      */
     protected async init(): Promise<void> {
@@ -374,6 +380,12 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         }
         const type: string = String((this.#database.driver.options as {type?: string}).type)
         this.#type = type
+        this.#readCommitted = isMySQL(type)
+        if (['postgres', 'aurora-postgres'].includes(type)) {
+            //Set on each transaction only when the server or the options would give another level (one statement less)
+            const level: unknown = ((await this.#database.query('SHOW default_transaction_isolation')) as {default_transaction_isolation?: unknown}[])[0]?.default_transaction_isolation
+            this.#readCommitted = level !== 'read committed' || (this.#database.driver.options as {isolationLevel?: unknown}).isolationLevel !== undefined
+        }
         this.#valueEntity = this.#database.hasMetadata(LDAPMySQLValueRecord) ? LDAPMySQLValueRecord : LDAPValueRecord
         if (isMySQL(type) && this.#valueEntity !== LDAPMySQLValueRecord) throw new InvalidValueException(`The directory backend on ${type} needs the entities of directoryEntities('${type}')`)
         if (!this.#database.hasMetadata(this.#valueEntity) || !this.#database.hasMetadata(LDAPEntryRecord)) throw new InvalidValueException(`The database ${this.database} has not the entities of the directory backend: add directoryEntities('${type}') to its entities`)
@@ -449,7 +461,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         }
         //Each statement reading what is committed, on PostgreSQL as on MySQL, whatever the database defaults to: the
         //values read once an entry is locked are the latest
-        const committedReads: boolean = isMySQL(this.#type) || ['postgres', 'aurora-postgres'].includes(this.#type)
+        const committedReads: boolean = this.#readCommitted
         //On SQLite the lock of the file taken first (a write changing no row), before anything is read: a connection of
         //another process waits for it (its busy timeout), where a write after a read would fail on a stale snapshot
         const begin = ROW_LOCKS.includes(this.#type) ? start : async (manager: EntityManager): Promise<T> => {
@@ -567,19 +579,69 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     }
 
     /**
-     * Fill the values naming an entry again once the transaction is committed (those written meanwhile by others), the
-     * entry locked (shared) and still of its DN then: not when it was deleted or renamed meanwhile, or when the write
-     * which added or renamed it was undone (a savepoint rolled back)
-     * @param id The ID of the entry.
-     * @param dnKey The key of its DN.
+     * Fill the values naming entries again once the transaction is committed (those written meanwhile by others): only
+     * when such values are there (most of the time none), the entries locked (shared) and still of their DNs then (not
+     * deleted or renamed meanwhile, nor added or renamed by a write undone in its savepoint)
+     * @param entries The IDs of the entries and the keys of their DNs.
      * @param schema The schema.
      */
-    protected backfillOnceCommitted(id: string, dnKey: string, schema: Schema): void {
-        this.afterCommit(`backfill:${id}`, (): Promise<void> => this.#transaction(async (manager: EntityManager): Promise<void> => {
-            const query: SelectQueryBuilder<LDAPEntryRecord> = manager.createQueryBuilder(LDAPEntryRecord, 'e').where('e.id = :id', {id: id})
-            const row: LDAPEntryRecord | null = await (ROW_LOCKS.includes(this.#type) ? query.setLock('pessimistic_read') : query).getOne()
-            if (row?.dnKey === dnKey && row.suffix === this.suffixKey) await this.backfill(manager, id, dnKey, schema)
-        }))
+    protected backfillOnceCommitted(entries: {id: string, dnKey: string}[], schema: Schema): void {
+        if (!entries.length) return
+        this.afterCommit(`backfill:${entries[0].id}:${entries.length}`, async (): Promise<void> => {
+            if (!(await this.namedByWaitingValues(this.db.manager, entries.map((entry: {id: string, dnKey: string}): string => entry.dnKey), schema))) return
+            await this.#transaction(async (manager: EntityManager): Promise<void> => {
+                const kept: {id: string, dnKey: string}[] = []
+                for (let index: number = 0; index < entries.length; index += 500) {
+                    const batch: {id: string, dnKey: string}[] = entries.slice(index, index + 500)
+                    const query: SelectQueryBuilder<LDAPEntryRecord> = manager.createQueryBuilder(LDAPEntryRecord, 'e').where('e.id IN (:...ids)', {ids: batch.map((entry: {id: string}): string => entry.id)}).orderBy('e.id', 'ASC')
+                    const rows: LDAPEntryRecord[] = await (ROW_LOCKS.includes(this.#type) ? query.setLock('pessimistic_read') : query).getMany()
+                    const keys: Map<string, string> = new Map(rows.filter((row: LDAPEntryRecord): boolean => row.suffix === this.suffixKey).map((row: LDAPEntryRecord): [string, string] => [row.id, row.dnKey]))
+                    kept.push(...batch.filter((entry: {id: string, dnKey: string}): boolean => keys.get(entry.id) === entry.dnKey))
+                }
+                await this.backfillMany(manager, kept, schema)
+            })
+        })
+    }
+
+    /**
+     * Whether values naming no entry name one of DNs (by the keys of the DNs)
+     * @param manager The entity manager.
+     * @param dnKeys The keys of the DNs.
+     * @param schema The schema.
+     */
+    protected async namedByWaitingValues(manager: EntityManager, dnKeys: string[], schema: Schema): Promise<boolean> {
+        const dnTypes: string[] = this.dnTypes(schema)
+        if (!dnTypes.length) return false
+        const uidTypes: string[] = dnTypes.filter((type: string): boolean => keyedByReference(type, schema))
+        for (let index: number = 0; index < dnKeys.length; index += 500) {
+            const batch: string[] = dnKeys.slice(index, index + 500)
+            const waiting = (): SelectQueryBuilder<ObjectLiteral> => manager.createQueryBuilder(this.#valueEntity, 'v').where('v.target IS NULL')
+            if (await waiting().andWhere('v.attributeType IN (:...types)', {types: dnTypes}).andWhere('v.valueHash IN (:...hashes)', {hashes: batch.map((key: string): string => sha256('rule:' + key))}).getExists()) return true
+            if (uidTypes.length && await waiting().andWhere('v.attributeType IN (:...types)', {types: uidTypes}).andWhere('v.valueKey IN (:...keys)', {keys: batch}).getExists()) return true
+        }
+        return false
+    }
+
+    /**
+     * Point the values naming entries by their DNs, naming no entry until now, at them (a rename moving many): the
+     * values found first, by batches (most of the time none), then pointed one by one
+     * @param manager The entity manager of the transaction.
+     * @param entries The IDs of the entries and the keys of their DNs.
+     * @param schema The schema.
+     */
+    protected async backfillMany(manager: EntityManager, entries: {id: string, dnKey: string}[], schema: Schema): Promise<void> {
+        const dnTypes: string[] = this.dnTypes(schema)
+        if (!dnTypes.length || !entries.length) return
+        const uidTypes: string[] = dnTypes.filter((type: string): boolean => keyedByReference(type, schema))
+        for (let index: number = 0; index < entries.length; index += 500) {
+            const batch: {id: string, dnKey: string}[] = entries.slice(index, index + 500)
+            const byHash: Map<string, string> = new Map(batch.map((entry: {id: string, dnKey: string}): [string, string] => [sha256('rule:' + entry.dnKey), entry.id]))
+            const byKey: Map<string, string> = new Map(batch.map((entry: {id: string, dnKey: string}): [string, string] => [entry.dnKey, entry.id]))
+            const waiting = (): SelectQueryBuilder<ObjectLiteral> => manager.createQueryBuilder(this.#valueEntity, 'v').select('v.id', 'id').addSelect('v.valueHash', 'hash').addSelect('v.valueKey', 'key').where('v.target IS NULL')
+            const found: {id: number | string, hash: string, key: string | null, target?: string}[] = (await waiting().andWhere('v.attributeType IN (:...types)', {types: dnTypes}).andWhere('v.valueHash IN (:...hashes)', {hashes: [...byHash.keys()]}).getRawMany()).map((row: {id: number | string, hash: string, key: string | null}) => ({...row, target: byHash.get(row.hash)}))
+            if (uidTypes.length) found.push(...(await waiting().andWhere('v.attributeType IN (:...types)', {types: uidTypes}).andWhere('v.valueKey IN (:...keys)', {keys: [...byKey.keys()]}).getRawMany()).map((row: {id: number | string, hash: string, key: string | null}) => ({...row, target: row.key === null ? undefined : byKey.get(row.key)})))
+            for (const row of found) if (row.target) await manager.update(this.#valueEntity, {id: row.id}, {target: row.target})
+        }
     }
 
     /**
@@ -1335,7 +1397,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         //The values naming this entry before it was added now point at it; again once committed, for those written
         //meanwhile by others, which this transaction did not see
         await this.backfill(manager, id, dnKey, schema)
-        this.backfillOnceCommitted(id, dnKey, schema)
+        this.backfillOnceCommitted([{id: id, dnKey: dnKey}], schema)
     }
 
     /**
@@ -1343,14 +1405,15 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      * changes of a modify and the entry of a rename from it, and checks them
      * @param context The context of the write.
      * @param dn The DN of the entry.
-     * @returns The entry, as get() gives it; undefined when it is not there.
+     * @returns The entry, as get() gives it without memberOf and email; undefined when it is not there.
      */
     public async lock(context: WriteContext, dn: DN): Promise<DirectoryEntry | undefined> {
         const schema: Schema = this.use(context)
         return this.write(context, async (manager: EntityManager): Promise<DirectoryEntry | undefined> => {
             const row: LDAPEntryRecord | null = await this.lockedRow(manager, dn, schema)
             if (!row) return undefined
-            const [entry] = await this.entries(manager, [row], schema, {memberOf: true, memberUid: true, email: true})
+            //Without memberOf and email, which no client writes and no check reads (memberOf follows the nested groups)
+            const [entry] = await this.entries(manager, [row], schema, {memberOf: false, memberUid: true, email: false})
             return entry
         })
     }
@@ -1600,11 +1663,12 @@ export class DirectoryBackend extends Component implements LDAPBackend {
                 throw error
             }
             renamed.set(item.id, {dn: itemDN.toString(), dnKey: dnKey})
-            //The values naming the new DN, naming no entry until now, point at it; again once committed, for those written
-            //meanwhile by others
-            await this.backfill(manager, item.id, dnKey, schema)
-            this.backfillOnceCommitted(item.id, dnKey, schema)
         }
+        //The values naming the new DNs, naming no entry until now, point at the entries; again once committed, for those
+        //written meanwhile by others
+        const moves: {id: string, dnKey: string}[] = [...renamed].map(([id, item]: [string, {dn: string, dnKey: string}]): {id: string, dnKey: string} => ({id: id, dnKey: item.dnKey}))
+        await this.backfillMany(manager, moves, schema)
+        this.backfillOnceCommitted(moves, schema)
         //The values of the entry: what the rename changes applied to the values it has now (the engine made the entry it
         //gives from the values it read before the entry was locked)
         await this.change(manager, row, schema, (attributes: Map<string, PartialAttribute>, touched: Set<string>): void => this.renameValues(attributes, touched, dn, entry, schema))
