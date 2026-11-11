@@ -124,8 +124,8 @@ await server.listen({path: '/run/directory/ldapi', mode: 0o666})
   in the operational attributes of the entries (pwdChangedTime, pwdAccountLockedTime…), so every backend keeps it. A
   locked account is answered as a wrong password unless `revealLocked` is set.
 - A backend may bring the schema files of the attributes it computes, interceptors of its own, a store shared by the
-  instances for the bind throttle, and `transaction()`, in which the interceptors' `beforeCommit()` and the write run
-  together.
+  instances for the bind throttle (its `update()` changes a state at once, so that failed binds made at the same time
+  each count), and `transaction()`, in which the interceptors' `beforeCommit()` and the write run together.
 
 ### Plugins
 

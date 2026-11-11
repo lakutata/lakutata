@@ -33,6 +33,13 @@ export interface ThrottleStore {
      * @param key The key.
      */
     delete(key: string): Promise<void> | void
+    /**
+     * Change the state of a key at once, nothing else changing it between its read and its write: the failures of
+     * binds made at once each counted. A store without it is read, then written: two failures at once may count as one.
+     * @param key The key.
+     * @param change The state made from the one kept (undefined forgets the key).
+     */
+    update?(key: string, change: (state: ThrottleState | undefined) => ThrottleState | undefined): Promise<void> | void
 }
 
 /**
@@ -90,6 +97,12 @@ export class MemoryThrottleStore implements ThrottleStore {
     public delete(key: string): void {
         this.states.delete(key)
     }
+
+    public update(key: string, change: (state: ThrottleState | undefined) => ThrottleState | undefined): void {
+        const next: ThrottleState | undefined = change(this.states.get(key))
+        if (next) this.set(key, next)
+        else this.delete(key)
+    }
 }
 
 /**
@@ -136,12 +149,17 @@ export class BindThrottle {
         const window: number = this.options.window ?? 300000
         for (const key of keys) {
             const limit: number = this.limit(key)
-            const state: ThrottleState = await this.store.get(key) ?? {failures: []}
-            const failures: number[] = [...state.failures.filter((time: number): boolean => time > now - window), now].slice(-Math.max(limit, 1) - 1)
-            const next: ThrottleState = {failures: failures}
-            if (state.lockedUntil !== undefined && state.lockedUntil > now) next.lockedUntil = state.lockedUntil
-            else if (limit > 0 && failures.length >= limit) next.lockedUntil = now + (this.options.lockout ?? 300000)
-            await this.store.set(key, next)
+            const failed = (kept: ThrottleState | undefined): ThrottleState => {
+                const state: ThrottleState = kept ?? {failures: []}
+                const failures: number[] = [...state.failures.filter((time: number): boolean => time > now - window), now].slice(-Math.max(limit, 1) - 1)
+                const next: ThrottleState = {failures: failures}
+                if (state.lockedUntil !== undefined && state.lockedUntil > now) next.lockedUntil = state.lockedUntil
+                else if (limit > 0 && failures.length >= limit) next.lockedUntil = now + (this.options.lockout ?? 300000)
+                return next
+            }
+            //At once where the store can: the failures of binds made at once each counted
+            if (this.store.update) await this.store.update(key, failed)
+            else await this.store.set(key, failed(await this.store.get(key)))
         }
     }
 

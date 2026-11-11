@@ -141,10 +141,10 @@ export class PasswordPolicyPlugin extends BaseLDAPPlugin {
         const host: LDAPPluginHost = context.server
         let policy: PasswordPolicy | undefined = this.policies.get(host)
         if (!policy) {
-            policy = new PasswordPolicy(this.options, host.schema, host.passwords, async (dn: DN): Promise<DirectoryEntry | undefined> => {
+            policy = new PasswordPolicy(this.options, host.schema, host.passwords, async (dn: DN, attributes: string[] = ['*']): Promise<DirectoryEntry | undefined> => {
                 const connection = host.connect({internal: true})
                 try {
-                    const entry: Entry | undefined = await readEntry(connection, dn, ['*'])
+                    const entry: Entry | undefined = await readEntry(connection, dn, attributes)
                     return entry ? {dn: DN.parse(entry.dn), attributes: [...entry.attributes]} : undefined
                 } finally {
                     await connection.close()

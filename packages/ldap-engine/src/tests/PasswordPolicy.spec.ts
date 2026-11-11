@@ -123,6 +123,25 @@ describe('the password policy', () => {
         await other.bind(ALICE, 'alice-password-2')
     })
 
+    it('counts each of the failures of binds made at once, the account locked as after one at a time', async () => {
+        const {server, admin} = await serve({pwdLockout: 'TRUE', pwdMaxFailure: '5', pwdLockoutDuration: '0'})
+        await Promise.allSettled(Array.from({length: 10}, () => server.connect().bind(ALICE, 'wrong')))
+        const entry = (await admin.search(ALICE, {scope: 'base', attributes: ['pwdAccountLockedTime', 'pwdFailureTime']})).entries[0]
+        assert.ok(entry.first('pwdAccountLockedTime'))
+        //The failures kept, as many as count
+        assert.equal(entry.get('pwdFailureTime').length, 5)
+        assert.equal(new Set(entry.get('pwdFailureTime')).size, 5)
+        await assert.rejects(server.connect().bind(ALICE, 'alice-password-1'), refused(49))
+        //The throttle of the failed binds, in memory: the failures made at once counted too
+        const throttled: LDAPServerEngine = createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ADMIN]}, passwords: {iterations: 1000}, bindThrottle: {maxFailures: 3, ipMaxFailures: 0, delay: 0, lockout: 60000}})
+        const writer: LDAPInProcessConnection = throttled.connect({as: ADMIN})
+        await writer.add(BASE, {objectClass: ['dcObject', 'organization'], dc: 'example', o: 'Example'})
+        await writer.add(`ou=people,${BASE}`, {objectClass: 'organizationalUnit', ou: 'people'})
+        await writer.add(BOB, {objectClass: 'inetOrgPerson', uid: 'bob', cn: 'bob', sn: 'bob', userPassword: 'bob-password-1'})
+        await Promise.allSettled(Array.from({length: 10}, () => throttled.connect().bind(BOB, 'wrong')))
+        await assert.rejects(throttled.connect().bind(BOB, 'bob-password-1'), LDAPInvalidCredentialsException)
+    })
+
     it('warns before a password expires, allows the grace binds, then refuses an expired password', async () => {
         const {server, backend} = await serve({pwdMaxAge: '86400', pwdExpireWarning: '3600', pwdGraceAuthNLimit: '2'})
         const session: LDAPInProcessConnection = server.connect()

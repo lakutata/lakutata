@@ -570,6 +570,29 @@ export class DirectoryBackend extends Component implements LDAPBackend {
             },
             delete: async (key: string): Promise<void> => {
                 await manager().delete(LDAPBindStateRecord, {key: key})
+            },
+            //In a transaction of its own, the row locked where the database locks rows (the writes one after another
+            //elsewhere): the failures of binds made at once, on one instance or several, each counted
+            update: async (key: string, change: (state: ThrottleState | undefined) => ThrottleState | undefined): Promise<void> => {
+                const attempt = (): Promise<void> => this.#transaction(async (transaction: EntityManager): Promise<void> => {
+                    const query: SelectQueryBuilder<LDAPBindStateRecord> = transaction.createQueryBuilder(LDAPBindStateRecord, 'b').where('b.key = :key', {key: key})
+                    const row: LDAPBindStateRecord | null = await (ROW_LOCKS.includes(this.#type) ? query.setLock('pessimistic_write') : query).getOne()
+                    const next: ThrottleState | undefined = change(row ? {failures: JSON.parse(row.failures) as number[], ...row.lockedUntil ? {lockedUntil: Number(row.lockedUntil)} : {}} : undefined)
+                    if (!next) {
+                        if (row) await transaction.delete(LDAPBindStateRecord, {key: key})
+                        return
+                    }
+                    const values: {failures: string, lockedUntil: string | null} = {failures: JSON.stringify(next.failures), lockedUntil: next.lockedUntil === undefined ? null : String(next.lockedUntil)}
+                    if (row) await transaction.update(LDAPBindStateRecord, {key: key}, values)
+                    else await transaction.insert(LDAPBindStateRecord, {key: key, ...values})
+                })
+                try {
+                    await attempt()
+                } catch (error) {
+                    //The first failures of a key at once: the row the other one added is locked and read this time
+                    if (!isUniqueViolation(error)) throw error
+                    await attempt()
+                }
             }
         }
     }

@@ -12,6 +12,7 @@ import {
     directoryEntities,
     findControl,
     LDAPAttributeOrValueExistsException,
+    LDAPBindStateRecord,
     type LDAPClientConnection,
     LDAPConstraintViolationException,
     LDAPEntryAlreadyExistsException,
@@ -726,6 +727,37 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             } finally {
                 held = undefined
                 await admin.delete(unit, {controls: [TreeDeleteControl.encode()]}).catch((): undefined => undefined)
+            }
+        })
+
+        it('counts each of the failed binds made at once, in the password policy and in the throttle the instances share', {timeout: 60000}, async () => {
+            const db: Database = await container.get<Database>('database')
+            const user: string = `uid=counted,${people}`
+            await admin.add(user, {objectClass: 'inetOrgPerson', uid: 'counted', cn: 'Counted', sn: 'Counted'})
+            await admin.passwordModify({userIdentity: user, newPassword: 'counted-password'})
+            const counting: Container = new Container()
+            try {
+                await counting.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                await counting.setNamed('ldap', LDAPServer, {
+                    port: false,
+                    schema: schema,
+                    backends: [{class: DirectoryBackend, suffix: BASE, database: 'database'}],
+                    access: {admins: [ADMIN]},
+                    passwords: {iterations: 1000},
+                    bindThrottle: {maxFailures: 3, ipMaxFailures: 0, delay: 0, lockout: 60000},
+                    passwordPolicy: {default: {lockout: true, maxFailure: 5, lockoutDuration: 0}}
+                })
+                const server: LDAPServer = await counting.get<LDAPServer>('ldap')
+                await Promise.allSettled(Array.from({length: 10}, () => server.connect().bind(user, 'wrong')))
+                const entry = (await admin.search(user, {scope: 'base', attributes: ['pwdAccountLockedTime', 'pwdFailureTime']})).entries[0]
+                assert.ok(entry.first('pwdAccountLockedTime'))
+                assert.equal(new Set(entry.get('pwdFailureTime')).size, 5)
+                const state: LDAPBindStateRecord | undefined = (await db.getRepository(LDAPBindStateRecord).find()).find((row: LDAPBindStateRecord): boolean => row.key.startsWith('dn:') && row.key.includes('uid=counted'))
+                assert.ok(state?.lockedUntil, JSON.stringify(state))
+                await assert.rejects(server.connect().bind(user, 'counted-password'), LDAPInvalidCredentialsException)
+            } finally {
+                await counting.destroy()
+                await admin.delete(user).catch((): undefined => undefined)
             }
         })
 

@@ -221,6 +221,18 @@ function timeOf(entry: DirectoryEntry, type: string, schema: Schema): number | u
     return value === undefined ? undefined : parseGeneralizedTime(value)
 }
 
+//The last time given to a failure by uniqueTime()
+let lastTime: number = 0
+
+/**
+ * A time in milliseconds after the one given before: two failures at once in one instance get times of their own
+ * @param now The time.
+ */
+function uniqueTime(now: number): number {
+    lastTime = Math.max(now, lastTime + 1)
+    return lastTime
+}
+
 /**
  * The password policy of the engine (draft-behera-ldap-password-policy): on the binds (locking, expiration, grace,
  * warnings, the password to change first) and on the password changes (who changes, the old password, the age, the
@@ -233,14 +245,15 @@ export class PasswordPolicy {
      * @param options The options.
      * @param schema The schema.
      * @param passwords The password schemes.
-     * @param getEntry An entry by its DN, in any backend (a pwdPolicy entry).
+     * @param getEntry An entry by its DN, in any backend (a pwdPolicy entry), with the attributes asked for (`*` by
+     * default).
      * @param writeState Write state changes to an entry, as the engine.
      */
     constructor(
         protected readonly options: PasswordPolicyOptions,
         protected readonly schema: Schema,
         protected readonly passwords: PasswordSchemes,
-        protected readonly getEntry: (dn: DN) => Promise<DirectoryEntry | undefined>,
+        protected readonly getEntry: (dn: DN, attributes?: string[]) => Promise<DirectoryEntry | undefined>,
         protected readonly writeState: (dn: DN, changes: DirectoryChange[]) => Promise<void>
     ) {
     }
@@ -318,13 +331,29 @@ export class PasswordPolicy {
             await verify()
         } catch (error) {
             if ((error as {code?: number}).code !== ResultCode.invalidCredentials) throw error
-            const failures: string[] = [...this.failures(rules, entry, now), formatGeneralizedTime(now)]
-            const kept: string[] = failures.slice(-Math.max(rules.maxRecordedFailure || rules.maxFailure || failures.length, 1))
-            const changes: DirectoryChange[] = [replace('pwdFailureTime', ...kept)]
-            const lockNow: boolean = rules.lockout === true && !!rules.maxFailure && kept.length >= rules.maxFailure
-            if (lockNow) changes.push(replace('pwdAccountLockedTime', formatGeneralizedTime(now)))
+            //The failure added to those kept, not written over them (the failures of binds made at once each kept), with a
+            //time of its own; those no longer counted removed
+            const time: string = formatGeneralizedTime(uniqueTime(now))
+            const counted = (state: DirectoryEntry): {stored: string[], counting: string[]} => ({
+                stored: valuesOfType(state, 'pwdFailureTime', this.schema).map((value: Buffer): string => value.toString('utf8')),
+                counting: this.failures(rules, state, now)
+            })
+            const before: {stored: string[], counting: string[]} = counted(entry)
+            const expired: string[] = before.stored.filter((value: string): boolean => !before.counting.includes(value))
+            const changes: DirectoryChange[] = [{operation: 'add', attribute: {type: 'pwdFailureTime', values: [Buffer.from(time)]}}]
+            if (expired.length) changes.push({operation: 'delete', attribute: {type: 'pwdFailureTime', values: expired.map((value: string): Buffer => Buffer.from(value))}})
             await this.writeState(dn, changes)
-            if (rules.minDelay) await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, Math.min(rules.minDelay! * 2 ** (kept.length - 1), rules.maxDelay ?? rules.minDelay!) * 1000))
+            //Counted once written, the failures written at once with this one among them: the last bind to read them
+            //reads them all, and keeps the newest of those recorded
+            const written: DirectoryEntry | undefined = await this.getEntry(dn, ['pwdFailureTime', 'pwdAccountLockedTime'])
+            const after: string[] = written ? counted(written).counting : [...before.counting, time]
+            const recorded: number = Math.max(rules.maxRecordedFailure || rules.maxFailure || after.length, 1)
+            const lockNow: boolean = rules.lockout === true && !!rules.maxFailure && after.length >= rules.maxFailure
+            const state: DirectoryChange[] = []
+            if (after.length > recorded) state.push({operation: 'delete', attribute: {type: 'pwdFailureTime', values: after.slice(0, after.length - recorded).map((value: string): Buffer => Buffer.from(value))}})
+            if (lockNow && !(written && valuesOfType(written, 'pwdAccountLockedTime', this.schema).length)) state.push(replace('pwdAccountLockedTime', formatGeneralizedTime(now)))
+            if (state.length) await this.writeState(dn, state)
+            if (rules.minDelay) await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, Math.min(rules.minDelay! * 2 ** (Math.min(after.length, recorded) - 1), rules.maxDelay ?? rules.minDelay!) * 1000))
             refuse(context, ResultCode.invalidCredentials, 'Invalid credentials', lockNow && this.options.revealLocked ? 'accountLocked' : undefined)
         }
         //The password is right
