@@ -77,6 +77,8 @@ interface RunningWrite {
     root?: RunningWrite
     //What runs once the transaction is committed, by key (the references written meanwhile by others resolved)
     afterCommit?: Map<string, () => Promise<void>>
+    //The key of the turns of the writes it holds (SQLite: its file)
+    turns?: object
 }
 
 //The write running in an asynchronous context: a write it makes on its database runs in a savepoint of its transaction
@@ -451,7 +453,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      * @param run The write.
      */
     #transaction<T>(run: (manager: EntityManager) => Promise<T>): Promise<T> {
-        const holder: {store?: RunningWrite} = {}
+        const holder: {store?: RunningWrite, turns?: object} = {}
         const start = (manager: EntityManager): Promise<T> => this.#running(manager, run, undefined, holder)
         //A contention with another transaction answered busy (51): the client may try again; not tried again here, the
         //interceptors' beforeCommit() would run twice
@@ -476,6 +478,11 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         }
         if (ROW_LOCKS.includes(this.#type)) return transaction().then(afterwards)
         const database: object = this.#turns()
+        //Made in the transaction of a write holding the turn of this file through another connection (another Database
+        //component on the same SQLite file): waiting for that turn would wait for itself
+        const running: RunningWrite | undefined = WRITING.getStore()
+        if (running?.active && running.root?.turns === database) return Promise.reject(new LDAPUnwillingToPerformException('A write made in the transaction of another write cannot go through another connection to the same SQLite file'))
+        holder.turns = database
         const previous: Promise<unknown> = WRITE_QUEUES.get(database) ?? Promise.resolve()
         QUEUED_WRITES.set(database, (QUEUED_WRITES.get(database) ?? 0) + 1)
         const result: Promise<T> = previous.then(transaction).finally((): void => {
@@ -502,12 +509,15 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      * @param manager The entity manager of the transaction.
      * @param run The write.
      * @param parent The write whose transaction it runs in (in a savepoint), if any.
-     * @param holder Where its store is kept (for what runs once its transaction is committed).
+     * @param holder Where its store is kept (for what runs once its transaction is committed), with the turns it holds.
      */
-    async #running<T>(manager: EntityManager, run: (manager: EntityManager) => Promise<T>, parent?: RunningWrite, holder?: {store?: RunningWrite}): Promise<T> {
+    async #running<T>(manager: EntityManager, run: (manager: EntityManager) => Promise<T>, parent?: RunningWrite, holder?: {store?: RunningWrite, turns?: object}): Promise<T> {
         const store: RunningWrite = {database: this.db, manager: manager, active: true, nested: Promise.resolve()}
         store.root = parent ? parent.root ?? parent : store
-        if (holder) holder.store = store
+        if (holder) {
+            holder.store = store
+            store.turns = (holder as {turns?: object}).turns
+        }
         try {
             const result: T = await WRITING.run(store, (): Promise<T> => run(manager))
             //A write made in it ended its transaction: it fails, whether it caught the error or not
@@ -769,23 +779,24 @@ export class DirectoryBackend extends Component implements LDAPBackend {
                 if (!row) return undefined
                 return {failures: JSON.parse(row.failures) as number[], ...row.lockedUntil ? {lockedUntil: Number(row.lockedUntil)} : {}}
             },
-            //In a transaction of their own: on SQLite, in the turns of the writes (not inside another's transaction)
+            //In a transaction of their own (on SQLite, in the turns of the writes), or in a savepoint of the write they are
+            //made in
             set: async (key: string, state: ThrottleState): Promise<void> => {
-                await this.#transaction(async (transaction: EntityManager): Promise<void> => {
+                await this.write(undefined, async (transaction: EntityManager): Promise<void> => {
                     await transaction.upsert(LDAPBindStateRecord, {key: key, failures: JSON.stringify(state.failures), lockedUntil: state.lockedUntil === undefined ? null : String(state.lockedUntil)}, ['key'])
                 })
             },
             delete: async (key: string): Promise<void> => {
                 //A bind which succeeds, without failures before (most of them), writes nothing and waits for no write
                 if (!(await manager().findOneBy(LDAPBindStateRecord, {key: key}))) return
-                await this.#transaction(async (transaction: EntityManager): Promise<void> => {
+                await this.write(undefined, async (transaction: EntityManager): Promise<void> => {
                     await transaction.delete(LDAPBindStateRecord, {key: key})
                 })
             },
             //In a transaction of its own, the row locked where the database locks rows (the writes one after another
             //elsewhere): the failures of binds made at once, on one instance or several, each counted
             update: async (key: string, change: (state: ThrottleState | undefined) => ThrottleState | undefined): Promise<void> => {
-                const attempt = (): Promise<void> => this.#transaction(async (transaction: EntityManager): Promise<void> => {
+                const attempt = (): Promise<void> => this.write(undefined, async (transaction: EntityManager): Promise<void> => {
                     const query: SelectQueryBuilder<LDAPBindStateRecord> = transaction.createQueryBuilder(LDAPBindStateRecord, 'b').where('b.key = :key', {key: key})
                     const row: LDAPBindStateRecord | null = await (ROW_LOCKS.includes(this.#type) ? query.setLock('pessimistic_write') : query).getOne()
                     const next: ThrottleState | undefined = change(row ? {failures: JSON.parse(row.failures) as number[], ...row.lockedUntil ? {lockedUntil: Number(row.lockedUntil)} : {}} : undefined)

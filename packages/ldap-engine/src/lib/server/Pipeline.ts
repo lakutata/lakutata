@@ -264,8 +264,29 @@ const PASSWORD_CHANGE: unique symbol = Symbol('the password change')
 //The changes the plugins give with a password change (the state of a password policy), applied after the schema checks
 const PASSWORD_STATE: unique symbol = Symbol('the changes given with a password change')
 const RESULT: unique symbol = Symbol('the entry as the write leaves it')
-//The changes of a modify as the schema step took them, and how many changes it made of them
+//The changes of a modify as the schema step took them, the changes it made of them (by identity) and a copy of each
 const SCHEMA_INPUT: unique symbol = Symbol('the changes of a modify before the schema step')
+
+/**
+ * The changes of a modify as the schema step took them and made them
+ */
+interface SchemaInput {
+    //The changes of the request, before the schema step
+    given: {operation: string, attribute: PartialAttribute}[]
+    //The changes it made of them, one each in order, then the object classes they imply (if any)
+    made: DirectoryChange[]
+    //A copy of each made change: one an interceptor edited after the schema step is not equal to its copy
+    copies: DirectoryChange[]
+}
+
+/**
+ * Whether two changes are the same: the operation, the attribute description and the values
+ * @param a A change.
+ * @param b Another change.
+ */
+function sameChange(a: DirectoryChange, b: DirectoryChange): boolean {
+    return a.operation === b.operation && a.attribute.type === b.attribute.type && a.attribute.values.length === b.attribute.values.length && a.attribute.values.every((value: Buffer, index: number): boolean => value.equals(b.attribute.values[index]))
+}
 //The attribute an unreadable attribute of a filter becomes: no schema defines it, so its items are Undefined
 const HIDDEN: string = 'x-hidden-attribute'
 
@@ -816,11 +837,13 @@ export class Pipeline {
      */
     protected async commit(mount: Mount, context: WriteContext, request: ServerRequest, write: () => Promise<void>): Promise<void> {
         const run = async (): Promise<void> => {
-            //The entry read again once locked, the changes made again from it, before the interceptors see them
-            if (mount.backend.transaction) await this.relock(mount, context, request)
             for (const interceptor of mount.chain) {
                 if (interceptor.beforeCommit && interceptor.operations.includes(context.operation)) await interceptor.beforeCommit(context, request)
             }
+            //The entry read again once locked, the changes made again from it, just before the write: the entry is not
+            //locked while the interceptors' beforeCommit() runs (a write they make through another connection would wait
+            //for it), and what they wrote is read
+            if (mount.backend.transaction) await this.relock(mount, context, request)
             await write()
         }
         if (mount.backend.transaction) await mount.backend.transaction(context, run)
@@ -1297,8 +1320,10 @@ export class Pipeline {
                     context.state.set(CURRENT, current)
                     const given: {operation: string, attribute: PartialAttribute}[] = [...request.changes]
                     const {changes, result} = this.modified(context, current, given)
-                    //Made again from the entry as it is once the backend locked it, in the transaction of the write
-                    context.state.set(SCHEMA_INPUT, {changes: given, made: changes.length})
+                    //Made again from the entry as it is once the backend locked it, in the transaction of the write, as far
+                    //as the interceptors after this step left them
+                    const input: SchemaInput = {given: given, made: [...changes], copies: changes.map((change: DirectoryChange): DirectoryChange => ({operation: change.operation, attribute: {type: change.attribute.type, values: change.attribute.values.map((value: Buffer): Buffer => Buffer.from(value))}}))}
+                    context.state.set(SCHEMA_INPUT, input)
                     request.changes = changes
                     context.state.set(RESULT, result)
                     return
@@ -1366,10 +1391,11 @@ export class Pipeline {
     }
 
     /**
-     * Read the entry of a modify or a rename again once the backend has locked it, in the transaction of the write, and
-     * make the changes and the entry of the write again from it: the checks of the schema and the values of the
-     * increments are those of the entry as it is, not as it was read before the transaction (another write may have
-     * changed it meanwhile). For a backend which locks its entries (lock()); the others keep what was made before.
+     * Read the entry of a modify or a rename again once the backend has locked it, in the transaction of the write, just
+     * before the write, and make the changes and the entry of the write again from it: the checks of the schema and the
+     * values of the increments are those of the entry as it is, not as it was read before the transaction (another write
+     * may have changed it meanwhile). What the interceptors after the schema step made of the changes (removed, edited,
+     * added) is kept. For a backend which locks its entries (lock()); the others keep what was made before.
      * @param mount The backend.
      * @param context The context of the write.
      * @param request The request.
@@ -1377,13 +1403,42 @@ export class Pipeline {
     protected async relock(mount: Mount, context: WriteContext, request: ServerRequest): Promise<void> {
         if (!mount.backend.lock || (request.type !== 'modify' && request.type !== 'modifyDN')) return
         if (request.type === 'modify') {
-            const input: {changes: {operation: string, attribute: PartialAttribute}[], made: number} | undefined = context.state.get(SCHEMA_INPUT) as {changes: {operation: string, attribute: PartialAttribute}[], made: number} | undefined
+            const input: SchemaInput | undefined = context.state.get(SCHEMA_INPUT) as SchemaInput | undefined
             if (!input) return
             const fresh: DirectoryEntry | undefined = await mount.backend.lock(context, request.dn)
             if (!fresh) fail(ResultCode.noSuchObject, `No entry ${request.dn.toString()}`)
-            const {changes, result} = this.modified(context, fresh, input.changes)
-            //The changes the steps after the schema added (the operational attributes, the state of the password policy)
-            request.changes = [...changes, ...(request.changes as DirectoryChange[]).slice(input.made)]
+            //The changes as the interceptors after the schema step left them, in their order: those the schema step made
+            //and nobody edited go back to the client's (made again from the locked entry: the increments, the values to
+            //delete as stored), the edited ones stay as they are, the object classes it implied are derived again; the
+            //changes added after it (the operational attributes, the state of the password policy) stay outside
+            const current: DirectoryChange[] = request.changes as DirectoryChange[]
+            const pass: {operation: string, attribute: PartialAttribute}[] = []
+            const positions: number[] = []
+            const kept: (DirectoryChange | undefined)[] = [...current]
+            current.forEach((change: DirectoryChange, position: number): void => {
+                const index: number = input.made.indexOf(change)
+                if (index < 0) return
+                if (index >= input.given.length) {
+                    kept[position] = undefined
+                    return
+                }
+                pass.push(sameChange(change, input.copies[index]) ? input.given[index] : change)
+                positions.push(position)
+            })
+            const {changes, result} = this.modified(context, fresh, pass)
+            positions.forEach((position: number, index: number): void => {
+                kept[position] = changes[index]
+            })
+            //The object classes implied, after the last change of the pass
+            const implied: DirectoryChange[] = changes.slice(pass.length)
+            const last: number = positions.length ? positions[positions.length - 1] : -1
+            const remade: DirectoryChange[] = []
+            kept.forEach((change: DirectoryChange | undefined, position: number): void => {
+                if (change) remade.push(change)
+                if (position === last) remade.push(...implied)
+            })
+            if (last < 0) remade.unshift(...implied)
+            request.changes = remade
             context.state.set(CURRENT, fresh)
             context.state.set(RESULT, result)
             return

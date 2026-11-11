@@ -1007,6 +1007,44 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             }
         })
 
+        it('runs a beforeCommit() writing the entry of the write, or adding below it, through another connection (refused on SQLite)', {timeout: 60000}, async () => {
+            const target: string = `ou=through-other,${BASE}`
+            await admin.add(target, {objectClass: 'organizationalUnit', ou: 'through-other'})
+            //Another Database component on the same database (on SQLite, the same file)
+            const otherContainer: Container = new Container()
+            const outerContainer: Container = new Container()
+            try {
+                await otherContainer.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                await otherContainer.setNamed('ldap', LDAPServer, {port: false, schema: schema, backends: [{class: DirectoryBackend, suffix: BASE, database: 'database'}], access: {admins: [ADMIN]}})
+                const other: LDAPServer = await otherContainer.get<LDAPServer>('ldap')
+                await outerContainer.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                await outerContainer.setNamed('ldap', LDAPServer, {
+                    port: false,
+                    schema: schema,
+                    backends: [{class: DirectoryBackend, suffix: BASE, database: 'database'}],
+                    access: {admins: [ADMIN]},
+                    interceptors: [{name: 'through-other', operations: ['modify'], beforeCommit: async (_context: unknown, request: {dn?: {toString(): string}}): Promise<void> => {
+                        if (request.dn?.toString() !== target) return
+                        await other.connect(ADMIN).modify(target, {operation: 'add', attribute: 'description', values: 'by the other'})
+                        await other.connect(ADMIN).add(`cn=child,${target}`, {objectClass: 'device', cn: 'child'})
+                    }}]
+                })
+                const writing: Promise<unknown> = (await outerContainer.get<LDAPServer>('ldap')).connect(ADMIN).modify(target, {operation: 'add', attribute: 'description', values: 'outer'})
+                if (label === 'SQLite') {
+                    //The other connection would wait for the turn of the file this write holds
+                    await assert.rejects(writing, LDAPUnwillingToPerformException)
+                    return
+                }
+                await writing
+                assert.deepEqual((await admin.search(target, {scope: 'base'})).entries[0].get('description').sort(), ['by the other', 'outer'])
+                assert.equal((await admin.search(`cn=child,${target}`, {scope: 'base'})).entries.length, 1)
+            } finally {
+                await outerContainer.destroy()
+                await otherContainer.destroy()
+                await admin.delete(target, {controls: [TreeDeleteControl.encode()]}).catch((): undefined => undefined)
+            }
+        })
+
         it('runs the writes made in the transaction of another write, to its entry and to another one, and the writes they make', {timeout: 60000}, async () => {
             const target: string = `cn=nesting,${BASE}`
             const other: string = `cn=nested,${BASE}`
