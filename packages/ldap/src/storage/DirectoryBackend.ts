@@ -461,7 +461,9 @@ export class DirectoryBackend extends Component implements LDAPBackend {
             //nothing of it, and the other goes on when it catches the error; one it does not wait for runs before its
             //next statements and before its commit
             return this.#inTurn(current, (): Promise<T> => {
+                //Not started before the write failed: refused with its error
                 if (current.ended !== undefined) throw current.ended
+                if (!current.active) return this.#transaction(run)
                 return current.manager.transaction((manager: EntityManager): Promise<T> => this.#running(manager, run, current))
             }).catch((error: unknown): never => {
                 //A contention ends the write it is made in too, caught or not: MySQL ended its transaction, and on
@@ -493,6 +495,18 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         const current: RunningWrite | undefined = WRITING.getStore()
         if (given && current?.active && current.database === this.db) return this.#inTurn(current, (): Promise<T> => read(given))
         return read(this.manager(context))
+    }
+
+    /**
+     * Wait until the operations queued in the turn of a write are done (they may queue more)
+     * @param store The write.
+     */
+    async #drained(store: RunningWrite): Promise<void> {
+        for (;;) {
+            const last: Promise<unknown> = store.turn
+            await last
+            if (store.turn === last) return
+        }
     }
 
     /**
@@ -585,13 +599,18 @@ export class DirectoryBackend extends Component implements LDAPBackend {
             store.turns = (holder as {turns?: object}).turns
         }
         try {
-            const result: T = await WRITING.run(store, (): Promise<T> => run(manager))
-            //The writes made in it it did not wait for, done before it ends (they may make more)
-            for (;;) {
-                const last: Promise<unknown> = store.turn
-                await last
-                if (store.turn === last) break
+            let result: T
+            try {
+                result = await WRITING.run(store, (): Promise<T> => run(manager))
+            } catch (error) {
+                //Failed: the writes made in it and not started yet refused with its error, the one running done before
+                //its transaction is undone (its statements not sent after the end of the transaction)
+                store.ended ??= new LDAPUnwillingToPerformException(`The write this one was made in failed: ${(error as Error)?.message ?? String(error)}`)
+                await this.#drained(store)
+                throw error
             }
+            //The writes made in it it did not wait for, done before it ends
+            await this.#drained(store)
             //A write made in it ended its transaction: it fails, whether it caught the error or not
             if (store.ended !== undefined) throw store.ended
             return result

@@ -1274,6 +1274,55 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             }
         })
 
+        it('undoes with a write that fails the writes made in its transaction it did not wait for, and goes on', {timeout: 60000}, async () => {
+            const outer: string = `cn=failing-outer,${BASE}`
+            const others: string[] = [`cn=failing-nested1,${BASE}`, `cn=failing-nested2,${BASE}`]
+            for (const dn of [outer, ...others]) await admin.add(dn, {objectClass: 'device', cn: DN.parse(dn).rdn()!.attributes[0].value})
+            const nested: Promise<unknown>[] = []
+            const failingContainer: Container = new Container()
+            try {
+                await failingContainer.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                await failingContainer.setNamed('ldap', LDAPServer, {
+                    port: false,
+                    schema: schema,
+                    backends: [{class: ReachingBackend, suffix: BASE, database: 'database'}],
+                    access: {admins: [ADMIN]},
+                    interceptors: [{name: 'failing', operations: ['modify'], beforeCommit: async (_context: unknown, request: {dn?: {toString(): string}}): Promise<void> => {
+                        if (request.dn?.toString() !== outer) return
+                        const server: LDAPServer = await failingContainer.get<LDAPServer>('ldap')
+                        const one: Promise<void> = new Promise<void>((resolve: () => void): void => {
+                            reaching = (): void => resolve()
+                        })
+                        //Started, not waited for; the write fails once the first is in its transaction
+                        for (const dn of others) {
+                            const writing: Promise<unknown> = server.connect(ADMIN).modify(dn, {operation: 'add', attribute: 'description', values: 'nested'})
+                            writing.catch((): undefined => undefined)
+                            nested.push(writing)
+                        }
+                        await Promise.race([one, new Promise<void>((resolve: () => void): void => {
+                            setTimeout(resolve, 5000)
+                        })])
+                        reaching = undefined
+                        throw new Error('refused by the interceptor')
+                    }}]
+                })
+                const server: LDAPServer = await failingContainer.get<LDAPServer>('ldap')
+                await assert.rejects(server.connect(ADMIN).modify(outer, {operation: 'add', attribute: 'description', values: 'outer'}))
+                //Each of them done or refused (those not started when it failed: unwillingToPerform); nothing of them, nor
+                //of the write, left
+                const settled: PromiseSettledResult<unknown>[] = await Promise.allSettled(nested)
+                for (const result of settled) if (result.status === 'rejected') assert.ok(result.reason instanceof LDAPUnwillingToPerformException, String(result.reason))
+                for (const dn of [outer, ...others]) assert.deepEqual((await admin.search(dn, {scope: 'base'})).entries[0].get('description'), [], dn)
+                //The server goes on
+                await server.connect(ADMIN).modify(others[0], {operation: 'add', attribute: 'description', values: 'after'})
+                assert.deepEqual((await admin.search(others[0], {scope: 'base'})).entries[0].get('description'), ['after'])
+            } finally {
+                reaching = undefined
+                await failingContainer.destroy()
+                for (const dn of [outer, ...others]) await admin.delete(dn).catch((): undefined => undefined)
+            }
+        })
+
         it('runs the writes made in the transaction of another write, to its entry and to another one, and the writes they make', {timeout: 60000}, async () => {
             const target: string = `cn=nesting,${BASE}`
             const other: string = `cn=nested,${BASE}`
