@@ -266,8 +266,8 @@ const options = buildLDAPServerOptions({
 - DN 类型的值（member、manager、seeAlso……）指向它们的条目：条目改名时跟着变，条目删除时被删掉；必需的属性被删空时，保留一个占位值（默认为空 DN）。
 - `memberOf` 在读取时计算，用它过滤可以找到一个组的成员（`nestedGroups` 会展开嵌套的组）。schema 自己定义了 memberOf 时，使用 `memberOf: {name, oid}` 或 `memberOf: false`。
 - POSIX：新增时没有 uidNumber 和 gidNumber 的条目会被分配这两个值（uidNumber 唯一，posixGroup 的 gidNumber 在组之间唯一）；posixGroup 条目的 memberUid 会被计算出来。POSIX 的对象类来自 rfc2307bis，需要在 `schema.bundled` 里写上。
-- `unique` 让属性的值在后缀内唯一；`authTimestamp` 给出最后一次绑定的时间（条目正被别的写操作占用时，绑定不会等它，这次的时间不记录）；`mailAlias` 把 mail 的值作为 email 给出（Grafana 读取 email）。
-- 每次写入都在一个事务里执行，拦截器的 `beforeCommit()` 也在其中。对同一条目的写入依次执行（在 PostgreSQL 和 MySQL 上，多个实例共用一个数据库时也是这样），所以两个客户端同时修改同一属性的不同值，双方的修改都会保留。
+- `unique` 让属性的值在后缀内唯一；`authTimestamp` 给出最后一次绑定的时间（条目正被别的写操作占用时，绑定不会等它，这次的时间不记录；SQLite 上只要有写操作在进行就是这样）；`mailAlias` 把 mail 的值作为 email 给出（Grafana 读取 email）。
+- 每次写入都在一个事务里执行，拦截器的 `beforeCommit()` 也在其中。对同一条目的写入依次执行，多个实例共用一个数据库时也是这样（SQLite 上，对同一个文件的所有写入都依次执行），所以两个客户端同时修改同一属性的不同值，双方的修改都会保留。
 
 | 选项 | 默认值 | 说明 |
 |---|---|---|

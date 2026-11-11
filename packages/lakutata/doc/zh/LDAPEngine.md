@@ -470,7 +470,7 @@ await server.listen({port: 389})
 ```
 
 - 后端有 `get()`（按 DN 取一个条目）、`search()`（搜索的条目，返回超集就够了），以及它支持的写操作（`add()`、`modify()`、`delete()`、`modifyDN()`）；后端不支持的写操作，服务器回 unwillingToPerform。如果不读取条目就能更快地判断它是否存在，可以实现 `exists()`。
-- 后端可以自己校验绑定（`bind()`），带上它计算出的属性所需的 schema 文件和它自己的拦截器，还可以提供 `transaction()`，让拦截器的 `beforeCommit()` 和写操作在同一个事务里运行。
+- 后端可以自己校验绑定（`bind()`），带上它计算出的属性所需的 schema 文件和它自己的拦截器，还可以提供 `transaction()`，让拦截器的 `beforeCommit()` 和写操作在同一个事务里运行。如果还提供了 `lock()`，引擎会在这个事务里、等后端锁住条目之后，重新读取修改或改名的条目，按读到的内容重新算出改动并重新检查：期间别人做的修改不会被覆盖，increment 按条目当前的值计算，必填属性也按当前的值检查。
 - 自己做排序、虚拟列表视图或分页的后端，要在 `capabilities` 里声明；`sortSearchItems()` 能按服务器的方式给它自己的记录排序。自己完成某个插件工作的后端（`memberOf`、`referentialIntegrity`、`idAllocation`、`lastBind`），也在这里声明，对应的插件就会退出它的链。
 
 ## 15. 协议

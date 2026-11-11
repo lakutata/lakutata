@@ -76,7 +76,7 @@ await server.listen({path: '/run/directory/ldapi', mode: 0o666})
 - 密码以 `{PBKDF2-SHA512}` 写入，格式和 OpenLDAP 的 pw-pbkdf2 模块相同；绑定时也能验证 OpenLDAP 的其他格式（`{SSHA}`、SHA-2 系列、`{CRYPT}`，以及 node:crypto 能运行 argon2 时的 `{ARGON2}`：Node.js 24.7 及以后可以，Electron 不行），验证成功后再按服务器的格式重新哈希。任何人都读不到 `userPassword`。
 - 默认情况下，匿名会话只能读 rootDSE 和 subschema，已绑定的会话可以读整个目录，`access.admins` 里的管理员可以写；给了 `access.check` 时先由它决定。同一个 DN 或同一个地址连续绑定失败时，响应会被放慢，之后锁定一段时间，所有失败一律返回 invalidCredentials。
 - 密码策略按 draft-behera-ldap-password-policy 实现（`passwordPolicy`，一个插件），和 OpenLDAP 的 ppolicy 用同一套属性：有一条默认策略（pwdPolicy 条目的 DN，或者直接给出规则），用户的 pwdPolicySubentry 可以换成别的策略；连续失败太多次就锁定账号，有过期、过期前提醒和宽限登录，管理员重置后必须先改密码，新密码有最短修改间隔、长度、复杂度（可以加自己的检查）和历史的限制。状态保存在条目的操作属性里（pwdChangedTime、pwdAccountLockedTime 等），所以任何后端都能保存。账号被锁定时默认和密码错误一样回答，除非设置 `revealLocked`。
-- 后端可以带上它计算的属性所需的 schema 文件、自己的拦截器、多个实例共用的绑定限速存储（它的 `update()` 一次改完一个状态，同时发生的几次绑定失败各算一次），以及 `transaction()`：拦截器的 `beforeCommit()` 和写操作在同一个事务里执行。
+- 后端可以带上它计算的属性所需的 schema 文件、自己的拦截器、多个实例共用的绑定限速存储（它的 `update()` 一步改完一个状态，同时发生的几次绑定失败各算一次）、`transaction()`（拦截器的 `beforeCommit()` 和写操作在同一个事务里执行），以及 `lock()`（引擎在这个事务里锁住条目后重新读取它，按读到的内容重新算出修改或改名的改动并检查）。
 
 ### 插件
 

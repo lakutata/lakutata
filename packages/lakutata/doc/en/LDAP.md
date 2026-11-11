@@ -328,11 +328,11 @@ one row per value.
   gidNumber of a posixGroup among the groups); memberUid is computed for the posixGroup entries. The POSIX classes
   come with rfc2307bis, which `schema.bundled` names.
 - `unique` keeps the values of attributes unique in the suffix; `authTimestamp` gives the time of the last bind (a
-  bind made while a write holds the entry does not wait for it, and leaves its time out); `mailAlias` gives email as
-  mail (Grafana reads email).
-- Each write runs in a transaction, with the interceptors' `beforeCommit()`. The writes to one entry take turns (on
-  PostgreSQL and MySQL, also when several instances share the database), so two clients changing different values of an
-  attribute at the same time both keep their changes.
+  bind made while a write holds the entry, or on SQLite while any write runs, does not wait for it and leaves its time
+  out); `mailAlias` gives email as mail (Grafana reads email).
+- Each write runs in a transaction, with the interceptors' `beforeCommit()`. The writes to one entry take turns, also
+  when several instances share the database (on SQLite, every write to the file takes its turn), so two clients changing
+  different values of an attribute at the same time both keep their changes.
 
 | Option | Default | What it is |
 |---|---|---|

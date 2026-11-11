@@ -82,8 +82,8 @@ Application.run(() => ({
 - 值里写的 DN（member、manager、seeAlso 等）指向对应的条目：条目改名时跟着改，条目删除时被移除（必需属性因此变空时，留下一个占位值，默认是空 DN）。
 - memberOf 在读取时计算，用它做过滤器可以找到一个组的成员；`nestedGroups` 可以展开嵌套组。posixGroup 条目会算出 memberUid，供 RFC 2307 的客户端使用。
 - 新增的 posixAccount 和 posixGroup 条目没有 uidNumber、gidNumber 时自动分配（从 10000 开始）；uidNumber 唯一，posixGroup 的 gidNumber 在各个组之间也唯一。POSIX 的对象类来自自带的 rfc2307bis，它默认不加载，要在 `schema.bundled` 里写上。
-- `unique` 里的属性，其值在整个后缀内唯一；最近一次成功绑定的时间作为 authTimestamp 返回（条目正被别的写操作占用时，绑定不会等它，这次的时间不记录）；绑定失败的记录存在数据库里，应用的多个实例共用，密码策略的状态也是这样；`mailAlias` 让 email 等于 mail。
-- 每个写操作在一个事务里执行，拦截器的 `beforeCommit()` 也在其中。对同一条目的写操作依次执行（在 PostgreSQL 和 MySQL 上，多个实例共用一个数据库时也是这样），所以两个客户端同时修改同一属性的不同值，双方的修改都会保留。
+- `unique` 里的属性，其值在整个后缀内唯一；最近一次成功绑定的时间作为 authTimestamp 返回（条目正被别的写操作占用时，绑定不会等它，这次的时间不记录；SQLite 上只要有写操作在进行就是这样）；绑定失败的记录存在数据库里，应用的多个实例共用，密码策略的状态也是这样；`mailAlias` 让 email 等于 mail。
+- 每个写操作在一个事务里执行，拦截器的 `beforeCommit()` 也在其中。对同一条目的写操作依次执行，多个实例共用一个数据库时也是这样（SQLite 上，对同一个文件的所有写操作都依次执行），所以两个客户端同时修改同一属性的不同值，双方的修改都会保留。
 - `@lakutata/ldap-engine` 里，做的事目录后端自己已经做了的插件（`MemberOfPlugin`、`ReferentialIntegrityPlugin`、`IdAllocationPlugin`、`LastBindPlugin`）不进它的处理链；其他插件（`UniquePlugin`、`AuditPlugin`、`ConstraintPlugin` 等）和在别的后端上一样运行。
 - `initialize` 在第一次启动时建立后缀条目和管理员（或者导入 LDIF），只做一次。
 

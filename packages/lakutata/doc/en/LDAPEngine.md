@@ -594,7 +594,10 @@ await server.listen({port: 389})
   writes it supports (`add()`, `modify()`, `delete()`, `modifyDN()`); the server answers the others with
   unwillingToPerform. `exists()` tells whether an entry exists without reading it, when that is cheaper.
 - A backend may check the binds itself (`bind()`), bring the schema files of the attributes it computes, interceptors
-  of its own, and `transaction()`, in which the interceptors' `beforeCommit()` and the write run together.
+  of its own, and `transaction()`, in which the interceptors' `beforeCommit()` and the write run together. With
+  `lock()` as well, the engine reads the entry of a modify or a rename again in that transaction once the backend has
+  locked it, and makes the changes and checks them from what it reads: a write made meanwhile is not undone,
+  increments are counted, and required attributes checked, on the entry as it is.
 - A backend that sorts, windows or pages itself declares it in its `capabilities`, and `sortSearchItems()` orders its
   own records as the server would. A backend doing the work of a plugin (`memberOf`, `referentialIntegrity`,
   `idAllocation`, `lastBind`) declares it there too, and the plugin leaves its chain.
