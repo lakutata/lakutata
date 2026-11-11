@@ -973,7 +973,13 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                 holdOn.release()
                 await modifying
                 await binding
-                assert.equal(answered, 'answered')
+                //A server that cannot skip a row another write holds (MySQL before 8.0, MariaDB before 10.6): the bind
+                //waits for the write, and its time is written
+                const version: string = ['mysql', 'mariadb'].includes(String(databaseOptions.type)) ? String(((await (await container.get<Database>('database')).query('SELECT VERSION() AS version')) as {version?: unknown}[])[0]?.version ?? '') : ''
+                const [major, minor] = version.split(/[.-]/).map((part: string): number => parseInt(part, 10) || 0)
+                const skips: boolean = !version || (/mariadb/i.test(version) ? major > 10 || (major === 10 && minor >= 6) : major >= 8)
+                assert.equal(answered, skips ? 'answered' : 'waiting')
+                if (!skips) assert.match((await admin.search(user, {scope: 'base', attributes: ['authTimestamp']})).entries[0].first('authTimestamp') ?? '', /^\d{14}Z$/)
             } finally {
                 held = undefined
                 await admin.delete(user).catch((): undefined => undefined)

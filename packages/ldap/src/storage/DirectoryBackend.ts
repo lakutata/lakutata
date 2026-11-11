@@ -387,7 +387,13 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     #engine: LDAPServerEngine | undefined
 
     /**
-     * Whether the database skips the rows other writes hold (SKIP LOCKED: PostgreSQL, MySQL from 8.0.1, MariaDB from
+     * The lock of the rows a write reads without changing them: shared, exclusive on a MariaDB server configured as
+     * mysql (TypeORM then writes FOR SHARE, which MariaDB does not have)
+     */
+    #shared: 'pessimistic_read' | 'pessimistic_write' = 'pessimistic_read'
+
+    /**
+     * Whether the database skips the rows other writes hold (SKIP LOCKED: PostgreSQL, MySQL 8.0 and later, MariaDB from
      * 10.6); without it, a bind writing authTimestamp waits for them
      */
     #skipLocked: boolean = false
@@ -406,12 +412,17 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         const type: string = String((this.#database.driver.options as {type?: string}).type)
         this.#type = type
         this.#readCommitted = isMySQL(type)
-        const version: number[] = String((this.#database.driver as {version?: unknown}).version ?? '').split(/[.-]/).slice(0, 3).map((part: string): number => parseInt(part, 10) || 0)
-        const atLeast = (wanted: number[]): boolean => {
-            for (let index: number = 0; index < wanted.length; index++) if ((version[index] ?? 0) !== wanted[index]) return (version[index] ?? 0) > wanted[index]
-            return true
+        this.#skipLocked = ['postgres', 'aurora-postgres', 'cockroachdb'].includes(type)
+        if (isMySQL(type)) {
+            //The version as the server gives it (a MariaDB server is told by it, whatever the type configured), by its
+            //major and minor numbers (every MySQL 8.0 released for production has SKIP LOCKED, from 8.0.11)
+            const version: string = String(((await this.#database.query('SELECT VERSION() AS version')) as {version?: unknown}[])[0]?.version ?? '')
+            const [major, minor] = version.split(/[.-]/).map((part: string): number => parseInt(part, 10) || 0)
+            const atLeast = (wantedMajor: number, wantedMinor: number): boolean => (major ?? 0) > wantedMajor || ((major ?? 0) === wantedMajor && (minor ?? 0) >= wantedMinor)
+            const mariadb: boolean = type === 'mariadb' || /mariadb/i.test(version)
+            this.#skipLocked = mariadb ? atLeast(10, 6) : atLeast(8, 0)
+            if (mariadb && type !== 'mariadb') this.#shared = 'pessimistic_write'
         }
-        this.#skipLocked = ['postgres', 'aurora-postgres', 'cockroachdb'].includes(type) || (type === 'mariadb' ? atLeast([10, 6, 0]) : isMySQL(type) && atLeast([8, 0, 1]))
         if (['postgres', 'aurora-postgres'].includes(type)) {
             //Set on each transaction only when the server or the options would give another level (one statement less)
             const level: unknown = ((await this.#database.query('SHOW default_transaction_isolation')) as {default_transaction_isolation?: unknown}[])[0]?.default_transaction_isolation
@@ -645,7 +656,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         if (!hashes.length) return targets
         if (ROW_NOT_INDEX_LOCKS.includes(this.#type)) {
             //One statement, in the order of the IDs
-            for (const row of await manager.createQueryBuilder(LDAPEntryRecord, 'e').where('e.suffix = :suffix', {suffix: this.suffixKey}).andWhere('e.dnHash IN (:...hashes)', {hashes: hashes}).orderBy('e.id', 'ASC').setLock('pessimistic_read').getMany()) targets.set(row.dnHash, row.id)
+            for (const row of await manager.createQueryBuilder(LDAPEntryRecord, 'e').where('e.suffix = :suffix', {suffix: this.suffixKey}).andWhere('e.dnHash IN (:...hashes)', {hashes: hashes}).orderBy('e.id', 'ASC').setLock(this.#shared).getMany()) targets.set(row.dnHash, row.id)
             return targets
         }
         const found: LDAPEntryRecord[] = await manager.createQueryBuilder(LDAPEntryRecord, 'e').where('e.suffix = :suffix', {suffix: this.suffixKey}).andWhere('e.dnHash IN (:...hashes)', {hashes: hashes}).getMany()
@@ -654,7 +665,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
             return targets
         }
         const wanted: Set<string> = new Set(hashes)
-        const locked: LDAPEntryRecord[] = await manager.createQueryBuilder(LDAPEntryRecord, 'e').where('e.id IN (:...ids)', {ids: found.map((row: LDAPEntryRecord): string => row.id)}).orderBy('e.id', 'ASC').setLock('pessimistic_read').getMany()
+        const locked: LDAPEntryRecord[] = await manager.createQueryBuilder(LDAPEntryRecord, 'e').where('e.id IN (:...ids)', {ids: found.map((row: LDAPEntryRecord): string => row.id)}).orderBy('e.id', 'ASC').setLock(this.#shared).getMany()
         //Renamed before it was locked: not the entry of the DN anymore
         for (const row of locked) if (row.suffix === this.suffixKey && wanted.has(row.dnHash)) targets.set(row.dnHash, row.id)
         return targets
@@ -703,7 +714,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
                 for (let index: number = 0; index < entries.length; index += 500) {
                     const batch: {id: string, dnKey: string}[] = entries.slice(index, index + 500)
                     const query: SelectQueryBuilder<LDAPEntryRecord> = manager.createQueryBuilder(LDAPEntryRecord, 'e').where('e.id IN (:...ids)', {ids: batch.map((entry: {id: string}): string => entry.id)}).orderBy('e.id', 'ASC')
-                    const rows: LDAPEntryRecord[] = await (ROW_LOCKS.includes(this.#type) ? query.setLock('pessimistic_read') : query).getMany()
+                    const rows: LDAPEntryRecord[] = await (ROW_LOCKS.includes(this.#type) ? query.setLock(this.#shared) : query).getMany()
                     const keys: Map<string, string> = new Map(rows.filter((row: LDAPEntryRecord): boolean => row.suffix === this.suffixKey).map((row: LDAPEntryRecord): [string, string] => [row.id, row.dnKey]))
                     kept.push(...batch.filter((entry: {id: string, dnKey: string}): boolean => keys.get(entry.id) === entry.dnKey))
                 }
@@ -1504,7 +1515,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         if (!entry.dn.equals(this.suffix, schema)) {
             //The parent locked (shared: the entries added below it at once do not wait for each other), so that it is
             //not renamed, moved or deleted before the entry is added
-            const parent: LDAPEntryRecord | null = await this.lockedRow(manager, entry.dn.parent()!, schema, 'pessimistic_read')
+            const parent: LDAPEntryRecord | null = await this.lockedRow(manager, entry.dn.parent()!, schema, this.#shared)
             if (!parent) throw new LDAPNoSuchObjectException(`The parent of ${entry.dn.toString()} is not in the backend`)
             parentId = parent.id
             path = parent.path + pathSegment(id)
@@ -1767,7 +1778,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         const newParent: DN | undefined = entry.dn.parent()
         if (newParent && !newParent.equals(dn.parent()!, schema)) {
             //Locked (shared) so that it is not renamed, moved or deleted before the entry is under it
-            const parent: LDAPEntryRecord | null = await this.lockedRow(manager, newParent, schema, 'pessimistic_read')
+            const parent: LDAPEntryRecord | null = await this.lockedRow(manager, newParent, schema, this.#shared)
             if (!parent) throw new LDAPNoSuchObjectException(`The new parent ${newParent.toString()} is not in the backend`)
             parentId = parent.id
             parentPath = parent.path
