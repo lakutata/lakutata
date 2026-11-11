@@ -413,6 +413,7 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             const user: string = `uid=concurrent,${people}`
             const unit: string = `ou=concurrent-members,${BASE}`
             const group: string = `cn=concurrent,${groups}`
+            const bulk: string = `ou=concurrent-bulk,${BASE}`
             //Each writer on a connection of its own, more of them than the connections of a pool, the instances in turn
             const writer = (index: number): LDAPInProcessConnection => instances[index % instances.length].connect(ADMIN)
             const writers = (count: number): LDAPInProcessConnection[] => Array.from({length: count}, (_: unknown, index: number): LDAPInProcessConnection => writer(index))
@@ -458,6 +459,10 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                     ...members.slice(10).map((dn: string, index: number) => writer(index + 1).modify(group, {operation: 'add', attribute: 'member', values: dn}))
                 ])
                 assert.deepEqual(await read(group, 'member'), [...members.slice(5)].sort())
+                //Forty entries added under one parent at once: they share the lock of the parent, and all are kept
+                await directory.createOrganizationalUnit(BASE, {ou: 'concurrent-bulk'})
+                await Promise.all(Array.from({length: 40}, (_: unknown, index: number) => writer(index).add(`cn=bulk${index},${bulk}`, {objectClass: 'device', cn: `bulk${index}`})))
+                assert.equal((await admin.search(bulk, {scope: 'one', paged: false})).entries.length, 40)
                 //No attribute of one value holds two, the operational ones written by each write among them
                 for (const dn of [device, user, group]) {
                     const counts: Map<string, number> = new Map()
@@ -472,6 +477,7 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                 await admin.delete(user)
                 await admin.delete(group)
                 await admin.delete(unit, {controls: [TreeDeleteControl.encode()]})
+                await admin.delete(bulk, {controls: [TreeDeleteControl.encode()]}).catch((): undefined => undefined)
             }
         })
 

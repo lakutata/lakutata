@@ -385,7 +385,8 @@ export class DirectoryBackend extends Component implements LDAPBackend {
             //In a savepoint of the transaction of the write it is made by: a write failing there leaves nothing of it,
             //and the other goes on when it catches the error. The writes it makes take turns (one connection, one
             //savepoint at a time); those they make wait for them only.
-            const result: Promise<T> = current.nested.then((): Promise<T> => current.manager.transaction((manager: EntityManager): Promise<T> => this.#running(manager, run)))
+            //(one the write did not wait for, its turn come once the write is done, runs in a transaction of its own)
+            const result: Promise<T> = current.nested.then((): Promise<T> => current.active ? current.manager.transaction((manager: EntityManager): Promise<T> => this.#running(manager, run)) : this.#transaction(run))
             current.nested = result.catch((): undefined => undefined)
             return result
         }
@@ -1088,7 +1089,16 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      */
     public async add(context: WriteContext, entry: DirectoryEntry): Promise<void> {
         const schema: Schema = this.use(context)
-        const manager: EntityManager = this.manager(context)
+        await this.write(context, (manager: EntityManager): Promise<void> => this.insert(manager, entry, schema))
+    }
+
+    /**
+     * Add an entry in a transaction, its parent locked
+     * @param manager The entity manager of the transaction.
+     * @param entry The entry.
+     * @param schema The schema.
+     */
+    protected async insert(manager: EntityManager, entry: DirectoryEntry, schema: Schema): Promise<void> {
         const uuid: string | undefined = entry.attributes.find((attribute: PartialAttribute): boolean => schema.primaryName(attributeTypeOf(attribute.type)).toLowerCase() === 'entryuuid')?.values[0]?.toString()
         const id: string = uuid && /^[0-9a-f-]{36}$/i.test(uuid) ? uuid.toLowerCase() : randomUUID()
         let parentId: string = ''
