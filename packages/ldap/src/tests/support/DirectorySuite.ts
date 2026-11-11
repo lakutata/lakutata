@@ -45,6 +45,30 @@ const ADMIN: string = 'cn=admin,dc=example,dc=com'
 let held: {reached: () => void, release: Promise<void>} | undefined
 
 /**
+ * Hold the next add, modify, rename or delete of a HoldingBackend: told when it is held, let go by release()
+ */
+function holdNext(): {reached: Promise<void>, release: () => void} {
+    let reached: () => void = (): void => undefined
+    let release: () => void = (): void => undefined
+    const reachedPromise: Promise<void> = new Promise<void>((resolve: () => void): void => {
+        reached = resolve
+    })
+    held = {reached: (): void => reached(), release: new Promise<void>((resolve: () => void): void => {
+        release = resolve
+    })}
+    return {reached: reachedPromise, release: (): void => release()}
+}
+
+/**
+ * Wait a while: the writes started meanwhile reach the locks of a held write
+ */
+function waitAWhile(): Promise<void> {
+    return new Promise<void>((resolve: () => void): void => {
+        setTimeout(resolve, 300)
+    })
+}
+
+/**
  * Hold the write of a HoldingBackend when the test asked for it
  */
 async function hold(): Promise<void> {
@@ -56,12 +80,17 @@ async function hold(): Promise<void> {
 }
 
 /**
- * A directory backend holding its adds, renames and deletes in their transactions once they are written, until the test
+ * A directory backend holding its adds, modifies, renames and deletes in their transactions once they are written, until the test
  * lets them go: the writes made meanwhile on other connections meet their locks
  */
 class HoldingBackend extends DirectoryBackend {
     public async add(context: WriteContext, entry: DirectoryEntry): Promise<void> {
         await super.add(context, entry)
+        await hold()
+    }
+
+    public async modify(context: WriteContext, dn: Parameters<DirectoryBackend['modify']>[1], changes: Parameters<DirectoryBackend['modify']>[2]): Promise<void> {
+        await super.modify(context, dn, changes)
         await hold()
     }
 
@@ -93,6 +122,11 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
         const groups: string = `ou=groups,${BASE}`
         //The POSIX accounts and the SSH public keys of the users, besides the default schemas
         const schema = {bundled: ['core', 'cosine', 'inetorgperson', 'rfc2307bis', 'openssh-lpk'] as BundledSchemaName[]}
+        //A server of a HoldingBackend on the database of the suite (its writes taking turns with the suite's on SQLite)
+        const holdingServer = async (): Promise<LDAPServer> => {
+            if (!container.has('holding')) await container.setNamed('holding', LDAPServer, {port: false, schema: schema, backends: [{class: HoldingBackend, suffix: BASE, database: 'database'}], access: {admins: [ADMIN]}})
+            return container.get<LDAPServer>('holding')
+        }
 
         /**
          * Start the server on the database
@@ -602,23 +636,7 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
 
         it('keeps the tree whole when entries are added or moved under one being renamed or deleted', {timeout: 60000}, async () => {
             const db: Database = await container.get<Database>('database')
-            await container.setNamed('holding', LDAPServer, {port: false, schema: schema, backends: [{class: HoldingBackend, suffix: BASE, database: 'database'}], access: {admins: [ADMIN]}})
-            const holding: LDAPServer = await container.get<LDAPServer>('holding')
-            //Hold the next rename or delete of the holding server
-            const holdNext = (): {reached: Promise<void>, release: () => void} => {
-                let reached: () => void = (): void => undefined
-                let release: () => void = (): void => undefined
-                const reachedPromise: Promise<void> = new Promise<void>((resolve: () => void): void => {
-                    reached = resolve
-                })
-                held = {reached: (): void => reached(), release: new Promise<void>((resolve: () => void): void => {
-                    release = resolve
-                })}
-                return {reached: reachedPromise, release: (): void => release()}
-            }
-            const waitAWhile = (): Promise<void> => new Promise<void>((resolve: () => void): void => {
-                setTimeout(resolve, 300)
-            })
+            const holding: LDAPServer = await holdingServer()
             //Each entry under its parent: the parent there, the path and the DN made of the parent's
             const whole = async (): Promise<void> => {
                 const rows: LDAPEntryRecord[] = await db.getRepository(LDAPEntryRecord).find()
@@ -727,6 +745,30 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             } finally {
                 held = undefined
                 await admin.delete(unit, {controls: [TreeDeleteControl.encode()]}).catch((): undefined => undefined)
+            }
+        })
+
+        it('does not hold a bind behind a write to its entry, the authTimestamp of the bind left out', {timeout: 60000}, async () => {
+            const user: string = `uid=binding,${people}`
+            await admin.add(user, {objectClass: 'inetOrgPerson', uid: 'binding', cn: 'Binding', sn: 'Binding'})
+            await admin.passwordModify({userIdentity: user, newPassword: 'binding-password'})
+            const holding: LDAPServer = await holdingServer()
+            try {
+                const holdOn: {reached: Promise<void>, release: () => void} = holdNext()
+                const modifying: Promise<unknown> = holding.connect(ADMIN).modify(user, {operation: 'replace', attribute: 'description', values: 'held'})
+                await holdOn.reached
+                //The bind answered while the write holds the entry
+                const binding: Promise<unknown> = ldap.connect().bind(user, 'binding-password')
+                const answered: unknown = await Promise.race([binding.then((): string => 'answered'), new Promise<string>((resolve: (value: string) => void): void => {
+                    setTimeout((): void => resolve('waiting'), 3000)
+                })])
+                holdOn.release()
+                await modifying
+                await binding
+                assert.equal(answered, 'answered')
+            } finally {
+                held = undefined
+                await admin.delete(user).catch((): undefined => undefined)
             }
         })
 

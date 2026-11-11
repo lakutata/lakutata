@@ -79,6 +79,8 @@ const WRITING: AsyncLocalStorage<RunningWrite> = new AsyncLocalStorage()
 //The last write of each database without row locks (SQLite: its connection runs one transaction at a time), the next
 //one starting once it is done
 const WRITE_QUEUES: WeakMap<object, Promise<unknown>> = new WeakMap()
+//The writes of each database without row locks running or waiting for their turn
+const QUEUED_WRITES: WeakMap<object, number> = new WeakMap()
 
 /**
  * An entry of a sorted search before it is read: its row and the values of the sort keys, by their types
@@ -435,9 +437,13 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         }
         const transaction = (): Promise<T> => (isMySQL(this.#type) ? this.db.transaction('READ COMMITTED', start) : this.db.transaction(start)).catch(busy)
         if (ROW_LOCKS.includes(this.#type)) return transaction()
-        const previous: Promise<unknown> = WRITE_QUEUES.get(this.db) ?? Promise.resolve()
-        const result: Promise<T> = previous.then(transaction)
-        WRITE_QUEUES.set(this.db, result.catch((): undefined => undefined))
+        const database: object = this.db
+        const previous: Promise<unknown> = WRITE_QUEUES.get(database) ?? Promise.resolve()
+        QUEUED_WRITES.set(database, (QUEUED_WRITES.get(database) ?? 0) + 1)
+        const result: Promise<T> = previous.then(transaction).finally((): void => {
+            QUEUED_WRITES.set(database, QUEUED_WRITES.get(database)! - 1)
+        })
+        WRITE_QUEUES.set(database, result.catch((): undefined => undefined))
         return result
     }
 
@@ -467,13 +473,15 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      * @param schema The schema.
      * @param mode The lock: for an update (the entry written), or shared (the parent of an entry added or moved, which
      * the writes below it take together).
+     * @param skipLocked Whether an entry another transaction has locked is skipped (null) instead of waited for.
      */
-    protected async lockedRow(manager: EntityManager, dn: DN, schema: Schema, mode: 'pessimistic_write' | 'pessimistic_read' = 'pessimistic_write'): Promise<LDAPEntryRecord | null> {
+    protected async lockedRow(manager: EntityManager, dn: DN, schema: Schema, mode: 'pessimistic_write' | 'pessimistic_read' = 'pessimistic_write', skipLocked: boolean = false): Promise<LDAPEntryRecord | null> {
         const found: LDAPEntryRecord | null = await this.row(manager, dn, schema)
         if (!found || !ROW_LOCKS.includes(this.#type)) return found
         //Locked by its ID, as every entry is: MySQL locks the index it reads by, and two writes locking a row by two
         //indexes would wait for each other
-        const locked: LDAPEntryRecord | null = await manager.createQueryBuilder(LDAPEntryRecord, 'e').where('e.id = :id', {id: found.id}).setLock(mode).getOne()
+        const query: SelectQueryBuilder<LDAPEntryRecord> = manager.createQueryBuilder(LDAPEntryRecord, 'e').where('e.id = :id', {id: found.id}).setLock(mode)
+        const locked: LDAPEntryRecord | null = await (skipLocked ? query.setOnLocked('skip_locked') : query).getOne()
         //Renamed before it was locked: not the entry of the DN anymore
         return locked && locked.suffix === found.suffix && locked.dnHash === found.dnHash ? locked : null
     }
@@ -620,7 +628,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
                     operations: ['bind'],
                     around: async (context: OperationContext, request: ServerRequest, next: () => Promise<ServerOutcome>): Promise<ServerOutcome> => {
                         const outcome: ServerOutcome = await next()
-                        if (request.type === 'bind' && request.dn) await this.writeOperational(context, request.dn, 'authTimestamp', formatGeneralizedTime(new Date()).replace(/\.\d+Z$/, 'Z')).catch((): undefined => undefined)
+                        if (request.type === 'bind' && request.dn) await this.writeOperational(context, request.dn, 'authTimestamp', formatGeneralizedTime(new Date()).replace(/\.\d+Z$/, 'Z'), true).catch((): undefined => undefined)
                         return outcome
                     }
                 }
@@ -1504,12 +1512,16 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      * @param dn The DN of the entry.
      * @param type The attribute.
      * @param value The value.
+     * @param skipLocked Whether the value is left out when another write holds the entry (authTimestamp: a bind does not
+     * wait for the write).
      */
-    protected async writeOperational(context: OperationContext, dn: DN, type: string, value: string): Promise<void> {
+    protected async writeOperational(context: OperationContext, dn: DN, type: string, value: string, skipLocked: boolean = false): Promise<void> {
         const schema: Schema = this.use(context)
+        //Without row locks, left out while a write runs or waits for its turn
+        if (skipLocked && !ROW_LOCKS.includes(this.#type) && (QUEUED_WRITES.get(this.db) ?? 0) > 0) return
         //The entry locked: two writes at once leave one value, not one each
         await this.write(context, async (manager: EntityManager): Promise<void> => {
-            const row: LDAPEntryRecord | null = await this.lockedRow(manager, dn, schema)
+            const row: LDAPEntryRecord | null = await this.lockedRow(manager, dn, schema, 'pessimistic_write', skipLocked)
             if (!row) return
             const name: string = schema.primaryName(type).toLowerCase()
             await manager.createQueryBuilder().delete().from(this.#valueEntity).where('entryId = :id', {id: row.id}).andWhere('attributeType = :type', {type: name}).execute()
