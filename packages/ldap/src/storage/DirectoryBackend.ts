@@ -1197,10 +1197,26 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     }
 
     /**
+     * Lock an entry for the write in progress, in its transaction, and give it as it is now: the engine makes the
+     * changes of a modify and the entry of a rename from it, and checks them
+     * @param context The context of the write.
+     * @param dn The DN of the entry.
+     * @returns The entry, as get() gives it; undefined when it is not there.
+     */
+    public async lock(context: WriteContext, dn: DN): Promise<DirectoryEntry | undefined> {
+        const schema: Schema = this.use(context)
+        return this.write(context, async (manager: EntityManager): Promise<DirectoryEntry | undefined> => {
+            const row: LDAPEntryRecord | null = await this.lockedRow(manager, dn, schema)
+            if (!row) return undefined
+            const [entry] = await this.entries(manager, [row], schema, {memberOf: true, memberUid: true, email: true})
+            return entry
+        })
+    }
+
+    /**
      * Apply the changes of a modify to the values the entry has once it is locked: the rows of the values removed
-     * deleted, the values added inserted, the rows of the values kept left as they are. A value added that the attribute
-     * has already is not added again (two writers adding it at once); an attribute of one value given a second (two
-     * writers adding one at once) refuses the change.
+     * deleted, the values added inserted, the rows of the values kept left as they are. The engine made the changes from
+     * the entry as lock() gave it; a value an internal write adds that the attribute has already is not added again.
      * @param context The context.
      * @param dn The DN.
      * @param changes The changes.
@@ -1284,7 +1300,6 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         const inserted: Partial<LDAPValueRecord>[] = []
         for (const key of touched) {
             const attribute: PartialAttribute | undefined = attributes.get(key)
-            if (attribute && attribute.values.length > 1 && schema.isSingleValued(attributeTypeOf(attribute.type))) throw new LDAPConstraintViolationException(`${attribute.type}: the attribute has one value`)
             //The rows of the values kept stay, by their bytes; the others go
             const remaining: Map<string, number> = new Map()
             for (const value of attribute?.values ?? []) remaining.set(value.toString('base64'), (remaining.get(value.toString('base64')) ?? 0) + 1)

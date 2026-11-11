@@ -22,6 +22,7 @@ import {
     LDAPMySQLValueRecord,
     LDAPNoSuchObjectException,
     LDAPNotAllowedOnNonLeafException,
+    LDAPObjectClassViolationException,
     LDAPServer,
     LDAPUnavailableException,
     LDAPUnwillingToPerformException,
@@ -745,6 +746,35 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             } finally {
                 held = undefined
                 await admin.delete(unit, {controls: [TreeDeleteControl.encode()]}).catch((): undefined => undefined)
+            }
+        })
+
+        it('makes a modify from the entry as it is once locked: increments each counted, a required attribute not emptied', {timeout: 60000}, async () => {
+            const counter: string = `uid=counter,${people}`
+            const team: string = `cn=team,${groups}`
+            await admin.add(counter, {objectClass: ['account', 'posixAccount'], uid: 'counter', cn: 'counter', uidNumber: '20000', gidNumber: '100', homeDirectory: '/home/counter'})
+            await admin.add(team, {objectClass: 'groupOfNames', cn: 'team', member: [`uid=user1,${people}`, `uid=user2,${people}`]})
+            const holding: LDAPServer = await holdingServer()
+            try {
+                //Ten increments at once: each one counted
+                await Promise.all(Array.from({length: 10}, () => ldap.connect(ADMIN).modify(counter, {operation: 'increment', attribute: 'gidNumber', values: '1'})))
+                assert.equal((await admin.search(counter, {scope: 'base'})).entries[0].first('gidNumber'), '110')
+                //Each of two writers deletes one of the two values of a required attribute: the second leaves none, refused
+                const holdOn: {reached: Promise<void>, release: () => void} = holdNext()
+                const first: Promise<unknown> = holding.connect(ADMIN).modify(team, {operation: 'delete', attribute: 'member', values: `uid=user1,${people}`})
+                await holdOn.reached
+                const second: Promise<PromiseSettledResult<unknown>[]> = Promise.allSettled([admin.modify(team, {operation: 'delete', attribute: 'member', values: `uid=user2,${people}`})])
+                await waitAWhile()
+                holdOn.release()
+                await first
+                const refusedSecond: PromiseSettledResult<unknown> = (await second)[0]
+                assert.equal(refusedSecond.status, 'rejected')
+                assert.ok((refusedSecond as PromiseRejectedResult).reason instanceof LDAPObjectClassViolationException, String((refusedSecond as PromiseRejectedResult).reason))
+                assert.deepEqual((await admin.search(team, {scope: 'base'})).entries[0].get('member'), [`uid=user2,${people}`])
+            } finally {
+                held = undefined
+                await admin.delete(counter).catch((): undefined => undefined)
+                await admin.delete(team).catch((): undefined => undefined)
             }
         })
 

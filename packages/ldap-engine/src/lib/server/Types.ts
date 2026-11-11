@@ -371,6 +371,15 @@ export interface LDAPBackend {
      * @param run What runs in the transaction.
      */
     transaction?(context: WriteContext, run: () => Promise<void>): Promise<void>
+    /**
+     * Lock an entry for the write in progress, in its transaction, and give it as it is now (undefined when it is not
+     * there): the engine makes the changes of a modify and the entry of a rename again from it and checks them again,
+     * so that a write made meanwhile by another is not undone and the checks are those of the entry being written.
+     * For a backend with transaction(); the engine calls it in the transaction, before the interceptors' beforeCommit().
+     * @param context The context of the write.
+     * @param dn The DN of the entry.
+     */
+    lock?(context: WriteContext, dn: DN): Promise<DirectoryEntry | undefined>
 }
 
 /**

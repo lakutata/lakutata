@@ -264,6 +264,8 @@ const PASSWORD_CHANGE: unique symbol = Symbol('the password change')
 //The changes the plugins give with a password change (the state of a password policy), applied after the schema checks
 const PASSWORD_STATE: unique symbol = Symbol('the changes given with a password change')
 const RESULT: unique symbol = Symbol('the entry as the write leaves it')
+//The changes of a modify as the schema step took them, and how many changes it made of them
+const SCHEMA_INPUT: unique symbol = Symbol('the changes of a modify before the schema step')
 //The attribute an unreadable attribute of a filter becomes: no schema defines it, so its items are Undefined
 const HIDDEN: string = 'x-hidden-attribute'
 
@@ -814,6 +816,8 @@ export class Pipeline {
      */
     protected async commit(mount: Mount, context: WriteContext, request: ServerRequest, write: () => Promise<void>): Promise<void> {
         const run = async (): Promise<void> => {
+            //The entry read again once locked, the changes made again from it, before the interceptors see them
+            if (mount.backend.transaction) await this.relock(mount, context, request)
             for (const interceptor of mount.chain) {
                 if (interceptor.beforeCommit && interceptor.operations.includes(context.operation)) await interceptor.beforeCommit(context, request)
             }
@@ -916,7 +920,8 @@ export class Pipeline {
                     }
                     if (!entry.dn.equals(request.dn, this.schema) && await this.exists(mount, write, entry.dn)) fail(ResultCode.entryAlreadyExists, `The entry ${entry.dn.toString()} exists`)
                     if (!mount.backend.modifyDN) fail(ResultCode.unwillingToPerform, 'The backend does not rename entries')
-                    await this.commit(mount, write, request, (): Promise<void> => mount.backend.modifyDN!(write, request.dn, entry))
+                    //The entry as made again once the backend locked it
+                    await this.commit(mount, write, request, (): Promise<void> => mount.backend.modifyDN!(write, request.dn, write.state.get(RESULT) as DirectoryEntry))
                     return {resultCode: ResultCode.success}
                 }
                 default:
@@ -1290,46 +1295,111 @@ export class Pipeline {
                 if (request.type === 'modify') {
                     const current: DirectoryEntry = (context.state.get(CURRENT) as DirectoryEntry | undefined) ?? await this.required(mount, context, request.dn)
                     context.state.set(CURRENT, current)
-                    const applied: {entry: DirectoryEntry, changes: DirectoryChange[]} = applyChanges(current, request.changes, schema)
-                    const changed: Set<string> = new Set(request.changes.map((change: {attribute: PartialAttribute}): string => schema.primaryName(attributeTypeOf(change.attribute.type)).toLowerCase()))
-                    const admin: boolean = !context.internal && this.access.isAdmin(context.session.identity)
-                    const result: DirectoryEntry = checkEntry(applied.entry, schema, {internal: context.internal, changed: changed, ...admin ? {importable: ADMIN_POLICY_STATE} : {}})
-                    //The structural object class does not change (RFC 4512 §2.4.2)
-                    if (changed.has('objectclass') && structuralClassOf(objectClassesOf(current, schema), schema)?.oid !== structuralClassOf(objectClassesOf(result, schema), schema)?.oid) fail(ResultCode.objectClassModsProhibited, 'The structural object class of an entry cannot change')
-                    const added: Buffer[] = valuesOfType(result, 'objectClass', schema).filter((value: Buffer): boolean => !valuesOfType(applied.entry, 'objectClass', schema).some((item: Buffer): boolean => item.equals(value)))
-                    if (added.length) applied.changes.push({operation: 'add', attribute: {type: 'objectClass', values: added}})
-                    request.changes = applied.changes
+                    const given: {operation: string, attribute: PartialAttribute}[] = [...request.changes]
+                    const {changes, result} = this.modified(context, current, given)
+                    //Made again from the entry as it is once the backend locked it, in the transaction of the write
+                    context.state.set(SCHEMA_INPUT, {changes: given, made: changes.length})
+                    request.changes = changes
                     context.state.set(RESULT, result)
                     return
                 }
                 if (request.type === 'modifyDN') {
                     const current: DirectoryEntry = await this.required(mount, context, request.dn)
-                    const parent: DN | undefined = request.newSuperior ?? request.dn.parent()
-                    const dn: DN = parent ? parent.child(request.newRDN) : DN.parse(request.newRDN.toString())
-                    const entry: DirectoryEntry = cloneEntry({dn: dn, attributes: current.attributes})
-                    const newKeys: Set<string> = new Set(request.newRDN.attributes.map((ava) => `${schema.primaryName(ava.type).toLowerCase()}=${equalityKey(ava.type, avaBytes(ava), schema)}`))
-                    if (request.deleteOldRDN) {
-                        for (const ava of request.dn.rdn()?.attributes ?? []) {
-                            if (newKeys.has(`${schema.primaryName(ava.type).toLowerCase()}=${equalityKey(ava.type, avaBytes(ava), schema)}`)) continue
-                            const key: string | undefined = equalityKey(ava.type, avaBytes(ava), schema)
-                            for (const attribute of entry.attributes) {
-                                if (schema.primaryName(attributeTypeOf(attribute.type)).toLowerCase() !== schema.primaryName(ava.type).toLowerCase()) continue
-                                attribute.values = attribute.values.filter((value: Buffer): boolean => equalityKey(ava.type, value, schema) !== key)
-                            }
-                        }
-                        entry.attributes = entry.attributes.filter((attribute: PartialAttribute): boolean => attribute.values.length > 0)
-                    }
-                    for (const ava of request.newRDN.attributes) {
-                        const key: string | undefined = equalityKey(ava.type, avaBytes(ava), schema)
-                        if (valuesOfType(entry, ava.type, schema).some((value: Buffer): boolean => equalityKey(ava.type, value, schema) === key)) continue
-                        const existing: PartialAttribute | undefined = findAttribute(entry, ava.type, schema)
-                        if (existing) existing.values.push(avaBytes(ava))
-                        else entry.attributes.push({type: storedType(ava.type, schema), values: [avaBytes(ava)]})
-                    }
-                    context.state.set(RESULT, checkEntry(entry, schema, {internal: true}))
+                    //Made again from the entry as it is once the backend locked it, in the transaction of the write
+                    context.state.set(RESULT, this.renamed(current, request))
                 }
             }
         }
+    }
+
+    /**
+     * The changes of a modify made from an entry, and the entry they leave, checked by the schema: what the engine
+     * writes (the values the increments give, the object classes the new ones imply)
+     * @param context The context of the write.
+     * @param current The entry before the write.
+     * @param given The changes of the request.
+     */
+    protected modified(context: OperationContext, current: DirectoryEntry, given: {operation: string, attribute: PartialAttribute}[]): {changes: DirectoryChange[], result: DirectoryEntry} {
+        const schema: Schema = this.schema
+        const applied: {entry: DirectoryEntry, changes: DirectoryChange[]} = applyChanges(current, given, schema)
+        const changed: Set<string> = new Set(given.map((change: {attribute: PartialAttribute}): string => schema.primaryName(attributeTypeOf(change.attribute.type)).toLowerCase()))
+        const admin: boolean = !context.internal && this.access.isAdmin(context.session.identity)
+        const result: DirectoryEntry = checkEntry(applied.entry, schema, {internal: context.internal, changed: changed, ...admin ? {importable: ADMIN_POLICY_STATE} : {}})
+        //The structural object class does not change (RFC 4512 §2.4.2)
+        if (changed.has('objectclass') && structuralClassOf(objectClassesOf(current, schema), schema)?.oid !== structuralClassOf(objectClassesOf(result, schema), schema)?.oid) fail(ResultCode.objectClassModsProhibited, 'The structural object class of an entry cannot change')
+        const added: Buffer[] = valuesOfType(result, 'objectClass', schema).filter((value: Buffer): boolean => !valuesOfType(applied.entry, 'objectClass', schema).some((item: Buffer): boolean => item.equals(value)))
+        if (added.length) applied.changes.push({operation: 'add', attribute: {type: 'objectClass', values: added}})
+        return {changes: applied.changes, result: result}
+    }
+
+    /**
+     * The entry a rename leaves, made from the entry before it and checked by the schema: its new DN, the values of the
+     * new RDN added, those of the old one removed when the request says so
+     * @param current The entry before the rename.
+     * @param request The rename.
+     */
+    protected renamed(current: DirectoryEntry, request: {dn: DN, newRDN: RDN, deleteOldRDN: boolean, newSuperior?: DN}): DirectoryEntry {
+        const schema: Schema = this.schema
+        const parent: DN | undefined = request.newSuperior ?? request.dn.parent()
+        const dn: DN = parent ? parent.child(request.newRDN) : DN.parse(request.newRDN.toString())
+        const entry: DirectoryEntry = cloneEntry({dn: dn, attributes: current.attributes})
+        const newKeys: Set<string> = new Set(request.newRDN.attributes.map((ava) => `${schema.primaryName(ava.type).toLowerCase()}=${equalityKey(ava.type, avaBytes(ava), schema)}`))
+        if (request.deleteOldRDN) {
+            for (const ava of request.dn.rdn()?.attributes ?? []) {
+                if (newKeys.has(`${schema.primaryName(ava.type).toLowerCase()}=${equalityKey(ava.type, avaBytes(ava), schema)}`)) continue
+                const key: string | undefined = equalityKey(ava.type, avaBytes(ava), schema)
+                for (const attribute of entry.attributes) {
+                    if (schema.primaryName(attributeTypeOf(attribute.type)).toLowerCase() !== schema.primaryName(ava.type).toLowerCase()) continue
+                    attribute.values = attribute.values.filter((value: Buffer): boolean => equalityKey(ava.type, value, schema) !== key)
+                }
+            }
+            entry.attributes = entry.attributes.filter((attribute: PartialAttribute): boolean => attribute.values.length > 0)
+        }
+        for (const ava of request.newRDN.attributes) {
+            const key: string | undefined = equalityKey(ava.type, avaBytes(ava), schema)
+            if (valuesOfType(entry, ava.type, schema).some((value: Buffer): boolean => equalityKey(ava.type, value, schema) === key)) continue
+            const existing: PartialAttribute | undefined = findAttribute(entry, ava.type, schema)
+            if (existing) existing.values.push(avaBytes(ava))
+            else entry.attributes.push({type: storedType(ava.type, schema), values: [avaBytes(ava)]})
+        }
+        return checkEntry(entry, schema, {internal: true})
+    }
+
+    /**
+     * Read the entry of a modify or a rename again once the backend has locked it, in the transaction of the write, and
+     * make the changes and the entry of the write again from it: the checks of the schema and the values of the
+     * increments are those of the entry as it is, not as it was read before the transaction (another write may have
+     * changed it meanwhile). For a backend which locks its entries (lock()); the others keep what was made before.
+     * @param mount The backend.
+     * @param context The context of the write.
+     * @param request The request.
+     */
+    protected async relock(mount: Mount, context: WriteContext, request: ServerRequest): Promise<void> {
+        if (!mount.backend.lock || (request.type !== 'modify' && request.type !== 'modifyDN')) return
+        if (request.type === 'modify') {
+            const input: {changes: {operation: string, attribute: PartialAttribute}[], made: number} | undefined = context.state.get(SCHEMA_INPUT) as {changes: {operation: string, attribute: PartialAttribute}[], made: number} | undefined
+            if (!input) return
+            const fresh: DirectoryEntry | undefined = await mount.backend.lock(context, request.dn)
+            if (!fresh) fail(ResultCode.noSuchObject, `No entry ${request.dn.toString()}`)
+            const {changes, result} = this.modified(context, fresh, input.changes)
+            //The changes the steps after the schema added (the operational attributes, the state of the password policy)
+            request.changes = [...changes, ...(request.changes as DirectoryChange[]).slice(input.made)]
+            context.state.set(CURRENT, fresh)
+            context.state.set(RESULT, result)
+            return
+        }
+        const before: DirectoryEntry | undefined = context.state.get(RESULT) as DirectoryEntry | undefined
+        const fresh: DirectoryEntry | undefined = await mount.backend.lock(context, request.dn)
+        if (!fresh) fail(ResultCode.noSuchObject, `No entry ${request.dn.toString()}`)
+        const result: DirectoryEntry = this.renamed(fresh, request)
+        //The operational attributes the engine wrote on the entry before (the time and the author of the rename)
+        for (const name of ['modifyTimestamp', 'modifiersName']) {
+            const given: PartialAttribute | undefined = before ? findAttribute(before, name, this.schema) : undefined
+            if (!given) continue
+            result.attributes = result.attributes.filter((attribute: PartialAttribute): boolean => this.schema.primaryName(attributeTypeOf(attribute.type)).toLowerCase() !== name.toLowerCase())
+            result.attributes.push({type: given.type, values: [...given.values]})
+        }
+        context.state.set(RESULT, result)
     }
 
     /**
