@@ -1045,6 +1045,49 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             }
         })
 
+        it('runs the writes made in the transaction of a write it does not wait for, none of them alongside its statements', {timeout: 60000}, async () => {
+            const outer: string = `cn=not-awaiting,${BASE}`
+            const others: string[] = [`cn=unawaited1,${BASE}`, `cn=unawaited2,${BASE}`]
+            for (const dn of [outer, ...others]) await admin.add(dn, {objectClass: 'device', cn: DN.parse(dn).rdn()!.attributes[0].value})
+            const errors: unknown[] = []
+            const notAwaiting: Container = new Container()
+            try {
+                await notAwaiting.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                await notAwaiting.setNamed('ldap', LDAPServer, {
+                    port: false,
+                    schema: schema,
+                    backends: [{class: DirectoryBackend, suffix: BASE, database: 'database'}],
+                    access: {admins: [ADMIN]},
+                    interceptors: [{name: 'not-awaiting', operations: ['modify'], beforeCommit: async (_context: unknown, request: {dn?: {toString(): string}}): Promise<void> => {
+                        if (request.dn?.toString() !== outer) return
+                        const server: LDAPServer = await notAwaiting.get<LDAPServer>('ldap')
+                        //Started, not waited for
+                        for (const dn of others) void server.connect(ADMIN).modify(dn, {operation: 'add', attribute: 'description', values: 'unawaited'}).catch((error: unknown): void => {
+                            errors.push(error)
+                        })
+                    }}]
+                })
+                const server: LDAPServer = await notAwaiting.get<LDAPServer>('ldap')
+                server.engine.events.on('error', (error: unknown): void => {
+                    errors.push(error)
+                })
+                await server.connect(ADMIN).modify(outer, {operation: 'add', attribute: 'description', values: 'outer'})
+                //Each made in the transaction of the write (before its commit) or, reaching the backend once it is done,
+                //in a transaction of its own; none of them on its connection alongside its statements
+                const made = async (): Promise<boolean> => {
+                    for (const dn of others) if (!(await admin.search(dn, {scope: 'base'})).entries[0].get('description').includes('unawaited')) return false
+                    return true
+                }
+                for (let attempt: number = 0; attempt < 50 && !(await made()); attempt++) await new Promise((resolve) => setTimeout(resolve, 100))
+                assert.ok(await made())
+                assert.deepEqual((await admin.search(outer, {scope: 'base'})).entries[0].get('description'), ['outer'])
+                assert.deepEqual(errors.map(String), [])
+            } finally {
+                await notAwaiting.destroy()
+                for (const dn of [outer, ...others]) await admin.delete(dn).catch((): undefined => undefined)
+            }
+        })
+
         it('runs the writes made in the transaction of another write, to its entry and to another one, and the writes they make', {timeout: 60000}, async () => {
             const target: string = `cn=nesting,${BASE}`
             const other: string = `cn=nested,${BASE}`

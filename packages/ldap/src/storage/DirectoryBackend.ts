@@ -70,7 +70,9 @@ interface RunningWrite {
     database: object
     manager: EntityManager
     active: boolean
-    nested: Promise<unknown>
+    //The last of the operations on its transaction (its own and the writes made in it), one after another: one
+    //connection, one statement and one savepoint at a time
+    turn: Promise<unknown>
     //The error of the database which ended its transaction in a write made in it (a deadlock): it fails with it
     ended?: unknown
     //The write whose transaction this one is part of (itself for a transaction of its own)
@@ -83,6 +85,8 @@ interface RunningWrite {
 
 //The write running in an asynchronous context: a write it makes on its database runs in a savepoint of its transaction
 const WRITING: AsyncLocalStorage<RunningWrite> = new AsyncLocalStorage()
+//The write whose turn an asynchronous context holds: what it runs there takes no other turn of that write
+const HOLDING: AsyncLocalStorage<RunningWrite> = new AsyncLocalStorage()
 //The last write of each database without row locks (SQLite: its connection runs one transaction at a time), the next
 //one starting once it is done
 const WRITE_QUEUES: WeakMap<object, Promise<unknown>> = new WeakMap()
@@ -425,25 +429,37 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         const current: RunningWrite | undefined = WRITING.getStore()
         //A transaction a deadlock ended runs nothing more (on MySQL its statements would each be committed alone)
         if (current?.active && current.ended !== undefined && current.database === this.db) throw current.ended
-        if (given) return run(given)
+        //The operation's own transaction: in the turn of its write, after the writes made in it before
+        if (given) return current?.active && current.database === this.db ? this.#inTurn(current, (): Promise<T> => run(given)) : run(given)
         if (current?.active && current.database === this.db) {
-            //In a savepoint of the transaction of the write it is made by: a write failing there leaves nothing of it,
-            //and the other goes on when it catches the error. The writes it makes take turns (one connection, one
-            //savepoint at a time); those they make wait for them only.
-            //(one the write did not wait for, its turn come once the write is done, runs in a transaction of its own)
-            const result: Promise<T> = current.nested.then((): Promise<T> => {
+            //In a savepoint of the transaction of the write it is made by, in its turn: a write failing there leaves
+            //nothing of it, and the other goes on when it catches the error; one it does not wait for runs before its
+            //next statements and before its commit
+            return this.#inTurn(current, (): Promise<T> => {
                 if (current.ended !== undefined) throw current.ended
-                return current.active ? current.manager.transaction((manager: EntityManager): Promise<T> => this.#running(manager, run, current)) : this.#transaction(run)
+                return current.manager.transaction((manager: EntityManager): Promise<T> => this.#running(manager, run, current))
             }).catch((error: unknown): never => {
                 //A contention ends the write it is made in too, caught or not: MySQL ended its transaction, and on
                 //PostgreSQL the write is answered busy as a whole
                 if (current.active && isContention(error)) current.ended ??= error
                 throw error
             })
-            current.nested = result.catch((): undefined => undefined)
-            return result
         }
         return this.#transaction(run)
+    }
+
+    /**
+     * Run an operation on the transaction of a write in its turn: after the operations queued before (its own, the
+     * writes made in it); at once in a context holding that turn already (an operation making another, as a delete
+     * writing the entries naming the deleted one)
+     * @param store The write.
+     * @param operation The operation.
+     */
+    #inTurn<T>(store: RunningWrite, operation: () => Promise<T>): Promise<T> {
+        if (HOLDING.getStore() === store) return operation()
+        const result: Promise<T> = store.turn.then((): Promise<T> => HOLDING.run(store, operation))
+        store.turn = result.catch((): undefined => undefined)
+        return result
     }
 
     /**
@@ -512,7 +528,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      * @param holder Where its store is kept (for what runs once its transaction is committed), with the turns it holds.
      */
     async #running<T>(manager: EntityManager, run: (manager: EntityManager) => Promise<T>, parent?: RunningWrite, holder?: {store?: RunningWrite, turns?: object}): Promise<T> {
-        const store: RunningWrite = {database: this.db, manager: manager, active: true, nested: Promise.resolve()}
+        const store: RunningWrite = {database: this.db, manager: manager, active: true, turn: Promise.resolve()}
         store.root = parent ? parent.root ?? parent : store
         if (holder) {
             holder.store = store
@@ -520,6 +536,12 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         }
         try {
             const result: T = await WRITING.run(store, (): Promise<T> => run(manager))
+            //The writes made in it it did not wait for, done before it ends (they may make more)
+            for (;;) {
+                const last: Promise<unknown> = store.turn
+                await last
+                if (store.turn === last) break
+            }
             //A write made in it ended its transaction: it fails, whether it caught the error or not
             if (store.ended !== undefined) throw store.ended
             return result
