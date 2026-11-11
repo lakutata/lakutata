@@ -114,7 +114,9 @@ migrations are the application's, as for its other entities.
 - The values of the attributes of `unique` are unique in the suffix; the time of the last bind is given as
   authTimestamp; the failed binds are kept in the database, so the instances of an application share them, as they
   share the state of the password policy; `mailAlias` gives email as mail.
-- Each write runs in a transaction, with the interceptors' `beforeCommit()`.
+- Each write runs in a transaction, with the interceptors' `beforeCommit()`. The writes to one entry take turns (on
+  PostgreSQL and MySQL, also when several instances share the database), so two clients changing different values of an
+  attribute at the same time both keep their changes.
 - The plugins of `@lakutata/ldap-engine` doing what the backend does itself (`MemberOfPlugin`,
   `ReferentialIntegrityPlugin`, `IdAllocationPlugin`, `LastBindPlugin`) leave its chain; the others (`UniquePlugin`,
   `AuditPlugin`, `ConstraintPlugin`…) run for it as for any backend.

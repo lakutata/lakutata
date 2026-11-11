@@ -9,13 +9,17 @@ import {
     DirectoryBackend,
     directoryEntities,
     findControl,
+    LDAPAttributeOrValueExistsException,
     type LDAPClientConnection,
     LDAPConstraintViolationException,
+    LDAPEntryRecord,
     type LDAPInProcessConnection,
     LDAPInvalidCredentialsException,
+    LDAPMySQLValueRecord,
     LDAPNoSuchObjectException,
     LDAPServer,
     LDAPUnwillingToPerformException,
+    LDAPValueRecord,
     SortRequestControl,
     SortResponseControl,
     TreeDeleteControl,
@@ -348,6 +352,115 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             assert.equal((await admin.search(BASE, {filter: '(cn=refused)'})).entries.length, 0)
             } finally {
                 await refusing.destroy()
+            }
+        })
+
+        it('keeps every change of concurrent writes to one entry, from one instance or two, and one value in an attribute of one value', {timeout: 120000}, async () => {
+            const db: Database = await container.get<Database>('database')
+            //A second instance on the database where it has row locks (SQLite takes one write at a time in an instance)
+            const second: Container = new Container()
+            let instances: LDAPServer[] = [ldap]
+            if (String(databaseOptions.type) !== 'better-sqlite3') {
+                await second.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                await second.setNamed('ldap', LDAPServer, {port: false, schema: schema, backends: [{class: DirectoryBackend, suffix: BASE, database: 'database', unique: ['uid'], nestedGroups: 2, mailAlias: true}], access: {admins: [ADMIN]}})
+                instances = [ldap, await second.get<LDAPServer>('ldap')]
+            }
+            const valueEntity = String(databaseOptions.type) === 'mysql' ? LDAPMySQLValueRecord : LDAPValueRecord
+            const device: string = `cn=concurrent,${BASE}`
+            const user: string = `uid=concurrent,${people}`
+            const unit: string = `ou=concurrent-members,${BASE}`
+            const group: string = `cn=concurrent,${groups}`
+            //Each writer on a connection of its own, more of them than the connections of a pool, the instances in turn
+            const writer = (index: number): LDAPInProcessConnection => instances[index % instances.length].connect(ADMIN)
+            const writers = (count: number): LDAPInProcessConnection[] => Array.from({length: count}, (_: unknown, index: number): LDAPInProcessConnection => writer(index))
+            const idOf = async (dn: string): Promise<string> => (await db.getRepository(LDAPEntryRecord).findOneByOrFail({dn: dn})).id
+            //The values as the database keeps them, not as a search filters them
+            const stored = async (dn: string, type: string): Promise<string[]> => (await db.getRepository(valueEntity).findBy({entryId: await idOf(dn), attributeType: type})).map((row: LDAPValueRecord): string => row.value).sort()
+            const read = async (dn: string, type: string): Promise<string[]> => (await admin.search(dn, {scope: 'base'})).entries[0].get(type).sort()
+            const refused = (results: PromiseSettledResult<unknown>[], ...types: (new (...args: never[]) => Error)[]): void => {
+                for (const result of results) {
+                    if (result.status === 'rejected') assert.ok(types.some((type: new (...args: never[]) => Error): boolean => result.reason instanceof type), String(result.reason))
+                }
+            }
+            const stale: string[] = Array.from({length: 40}, (_: unknown, index: number): string => `stale${String(index).padStart(2, '0')}`)
+            const added: string[] = Array.from({length: 40}, (_: unknown, index: number): string => `added${String(index).padStart(2, '0')}`)
+            await admin.add(device, {objectClass: 'device', cn: 'concurrent', description: stale})
+            await admin.add(user, {objectClass: 'inetOrgPerson', uid: 'concurrent', cn: 'Concurrent', sn: 'Writer'})
+            await directory.createOrganizationalUnit(BASE, {ou: 'concurrent-members'})
+            const members: string[] = []
+            for (let index: number = 0; index < 20; index++) members.push(await directory.createUser(unit, {uid: `member${index}`, cn: `Member ${index}`, sn: 'Member'}))
+            await directory.createGroup(groups, {cn: 'concurrent'}, members.slice(0, 10))
+            try {
+                //Forty writers each deleting a value of their own, then forty each adding one
+                await Promise.all(writers(40).map((connection: LDAPInProcessConnection, index: number) => connection.modify(device, {operation: 'delete', attribute: 'description', values: stale[index]})))
+                assert.deepEqual(await stored(device, 'description'), [])
+                await Promise.all(writers(40).map((connection: LDAPInProcessConnection, index: number) => connection.modify(device, {operation: 'add', attribute: 'description', values: added[index]})))
+                assert.deepEqual(await stored(device, 'description'), added)
+                //Each value read back: two at one position would hide one of them
+                assert.deepEqual(await read(device, 'description'), added)
+                //Ten writers adding the same value: it is kept once
+                refused(await Promise.allSettled(writers(10).map((connection: LDAPInProcessConnection) => connection.modify(device, {operation: 'add', attribute: 'description', values: 'same'}))), LDAPAttributeOrValueExistsException)
+                assert.deepEqual((await stored(device, 'description')).filter((value: string): boolean => value === 'same'), ['same'])
+                //An attribute of one value: ten writers replacing it, then ten adding a value to it while it has none
+                await Promise.all(writers(10).map((connection: LDAPInProcessConnection, index: number) => connection.modify(user, {operation: 'replace', attribute: 'displayName', values: `Name ${index}`})))
+                assert.equal((await stored(user, 'displayname')).length, 1)
+                await admin.modify(user, {operation: 'delete', attribute: 'displayName'})
+                const adding: PromiseSettledResult<unknown>[] = await Promise.allSettled(writers(10).map((connection: LDAPInProcessConnection, index: number) => connection.modify(user, {operation: 'add', attribute: 'displayName', values: `Added ${index}`})))
+                refused(adding, LDAPConstraintViolationException, LDAPAttributeOrValueExistsException)
+                assert.ok(adding.some((result: PromiseSettledResult<unknown>): boolean => result.status === 'fulfilled'))
+                assert.equal((await stored(user, 'displayname')).length, 1)
+                //The members deleted while other members are added: the values naming the deleted ones go, the added ones stay
+                await Promise.all([
+                    ...members.slice(0, 5).map((dn: string, index: number) => writer(index).delete(dn)),
+                    ...members.slice(10).map((dn: string, index: number) => writer(index + 1).modify(group, {operation: 'add', attribute: 'member', values: dn}))
+                ])
+                assert.deepEqual(await read(group, 'member'), [...members.slice(5)].sort())
+                //No attribute of one value holds two, the operational ones written by each write among them
+                for (const dn of [device, user, group]) {
+                    const counts: Map<string, number> = new Map()
+                    for (const row of await db.getRepository(valueEntity).findBy({entryId: await idOf(dn)})) counts.set(row.attributeType, (counts.get(row.attributeType) ?? 0) + 1)
+                    for (const [type, count] of counts) {
+                        if (ldap.engine.schema.isSingleValued(type)) assert.equal(count, 1, `${dn}: ${type}`)
+                    }
+                }
+            } finally {
+                await second.destroy()
+                await admin.delete(device)
+                await admin.delete(user)
+                await admin.delete(group)
+                await admin.delete(unit, {controls: [TreeDeleteControl.encode()]})
+            }
+        })
+
+        it('runs the writes made in the transaction of another write, to its entry and to another one', {timeout: 60000}, async () => {
+            const target: string = `cn=nesting,${BASE}`
+            const other: string = `cn=nested,${BASE}`
+            await admin.add(target, {objectClass: 'device', cn: 'nesting'})
+            await admin.add(other, {objectClass: 'device', cn: 'nested'})
+            const nesting: Container = new Container()
+            try {
+                let server: LDAPServer | undefined
+                await nesting.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                await nesting.setNamed('ldap', LDAPServer, {
+                    port: false,
+                    schema: schema,
+                    backends: [{class: DirectoryBackend, suffix: BASE, database: 'database'}],
+                    access: {admins: [ADMIN]},
+                    interceptors: [{name: 'nesting', operations: ['modify'], beforeCommit: async (_context: unknown, request: {dn?: {toString(): string}}): Promise<void> => {
+                        if (request.dn?.toString() !== target) return
+                        //An operational attribute of the entry being modified, as a plugin keeps its state; a write to another entry
+                        await server!.engine.writeOperational(target, [{operation: 'replace', attribute: {type: 'modifyTimestamp', values: [Buffer.from('20260101000000Z')]}}])
+                        await server!.connect(ADMIN).modify(other, {operation: 'add', attribute: 'description', values: 'nested'})
+                    }}]
+                })
+                server = await nesting.get<LDAPServer>('ldap')
+                await server.connect(ADMIN).modify(target, {operation: 'add', attribute: 'description', values: 'outer'})
+                assert.deepEqual((await admin.search(target, {scope: 'base'})).entries[0].get('description'), ['outer'])
+                assert.deepEqual((await admin.search(other, {scope: 'base'})).entries[0].get('description'), ['nested'])
+            } finally {
+                await nesting.destroy()
+                await admin.delete(target)
+                await admin.delete(other)
             }
         })
     })

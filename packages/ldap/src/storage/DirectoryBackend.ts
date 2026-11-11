@@ -1,3 +1,4 @@
+import {AsyncLocalStorage} from 'node:async_hooks'
 import {randomUUID} from 'node:crypto'
 import {existsSync} from 'node:fs'
 import {readFile} from 'node:fs/promises'
@@ -53,6 +54,13 @@ const BATCH: number = 200
 const ID_BATCH: number = 20000
 //The rows exists() found during an operation, by the hashes of their DNs, in the state of the operation
 const FOUND_ROWS: unique symbol = Symbol('FOUND_ROWS')
+//The databases locking the rows a transaction reads for an update (SELECT … FOR UPDATE)
+const ROW_LOCKS: string[] = ['postgres', 'aurora-postgres', 'cockroachdb', 'mysql', 'mariadb', 'aurora-mysql']
+//The write running in an asynchronous context, with its database: a write it makes on that database joins its transaction
+const WRITING: AsyncLocalStorage<{database: object, manager: EntityManager, active: boolean}> = new AsyncLocalStorage()
+//The last write of each database without row locks (SQLite: its connection runs one transaction at a time), the next
+//one starting once it is done
+const WRITE_QUEUES: WeakMap<object, Promise<unknown>> = new WeakMap()
 
 /**
  * An entry of a sorted search before it is read: its row and the values of the sort keys, by their types
@@ -182,8 +190,9 @@ function descriptionKey(description: string, schema: Schema): string {
  * decides. It finds the entries with the indexes of the forms of the values (equality, substrings, numbers and
  * times), keeps the DNs that values name pointing at their entries (renamed with them, removed with them), computes
  * memberOf and memberUid when they are read, allocates uidNumber and gidNumber, keeps the time of the last bind, the
- * failed binds and the unique values in the database, and runs each write in a transaction. `database` names the
- * Database component of the application it uses; add `directoryEntities()` of the type of the database to its entities.
+ * failed binds and the unique values in the database, and runs each write in a transaction, the writes to one entry
+ * taking turns. `database` names the Database component of the application it uses; add `directoryEntities()` of the
+ * type of the database to its entities.
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
@@ -296,6 +305,11 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     #suffixKey: string | undefined
 
     /**
+     * The type of the database
+     */
+    #type: string = ''
+
+    /**
      * Get the Database component
      */
     protected async init(): Promise<void> {
@@ -307,6 +321,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
             throw new InvalidValueException(`The directory backend of ${this.suffix} finds no Database component named ${this.database}: ${(error as Error).message}`)
         }
         const type: string = String((this.#database.driver.options as {type?: string}).type)
+        this.#type = type
         this.#valueEntity = this.#database.hasMetadata(LDAPMySQLValueRecord) ? LDAPMySQLValueRecord : LDAPValueRecord
         if (isMySQL(type) && this.#valueEntity !== LDAPMySQLValueRecord) throw new InvalidValueException(`The directory backend on ${type} needs the entities of directoryEntities('${type}')`)
         if (!this.#database.hasMetadata(this.#valueEntity) || !this.#database.hasMetadata(LDAPEntryRecord)) throw new InvalidValueException(`The database ${this.database} has not the entities of the directory backend: add directoryEntities('${type}') to its entities`)
@@ -331,6 +346,72 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      */
     protected manager(context?: OperationContext): EntityManager {
         return ((context as {transaction?: unknown} | undefined)?.transaction as EntityManager | undefined) ?? this.db.manager
+    }
+
+    /**
+     * Run a write in a transaction: the one of the operation, else the one of the write it is made by (a write of the
+     * same database in progress in its asynchronous context), else a transaction of its own
+     * @param context The context.
+     * @param run The write.
+     */
+    protected async write<T>(context: OperationContext | undefined, run: (manager: EntityManager) => Promise<T>): Promise<T> {
+        const given: EntityManager | undefined = (context as {transaction?: unknown} | undefined)?.transaction as EntityManager | undefined
+        if (given) return run(given)
+        const current: {database: object, manager: EntityManager, active: boolean} | undefined = WRITING.getStore()
+        if (current?.active && current.database === this.db) return run(current.manager)
+        return this.#transaction(run)
+    }
+
+    /**
+     * Run a write in a transaction of its own. On MySQL each statement of it reads what is committed (READ COMMITTED,
+     * as PostgreSQL does): the values read once the entry is locked are the latest. On a database without row locks
+     * (SQLite) the writes run one after another.
+     * @param run The write.
+     */
+    #transaction<T>(run: (manager: EntityManager) => Promise<T>): Promise<T> {
+        const start = async (manager: EntityManager): Promise<T> => {
+            const store: {database: object, manager: EntityManager, active: boolean} = {database: this.db, manager: manager, active: true}
+            try {
+                return await WRITING.run(store, (): Promise<T> => run(manager))
+            } finally {
+                //What the write left running (an event listener) makes writes of its own
+                store.active = false
+            }
+        }
+        const transaction = (): Promise<T> => isMySQL(this.#type) ? this.db.transaction('READ COMMITTED', start) : this.db.transaction(start)
+        if (ROW_LOCKS.includes(this.#type)) return transaction()
+        const previous: Promise<unknown> = WRITE_QUEUES.get(this.db) ?? Promise.resolve()
+        const result: Promise<T> = previous.then(transaction)
+        WRITE_QUEUES.set(this.db, result.catch((): undefined => undefined))
+        return result
+    }
+
+    /**
+     * The row of an entry by its DN, locked until the end of the transaction where the database locks rows: the writes
+     * to an entry run one after another, each reading the values the previous one left
+     * @param manager The entity manager of the transaction.
+     * @param dn The DN.
+     * @param schema The schema.
+     */
+    protected async lockedRow(manager: EntityManager, dn: DN, schema: Schema): Promise<LDAPEntryRecord | null> {
+        const found: LDAPEntryRecord | null = await this.row(manager, dn, schema)
+        if (!found || !ROW_LOCKS.includes(this.#type)) return found
+        //Locked by its ID, as every entry is: MySQL locks the index it reads by, and two writes locking a row by two
+        //indexes would wait for each other
+        const locked: LDAPEntryRecord | null = await manager.createQueryBuilder(LDAPEntryRecord, 'e').where('e.id = :id', {id: found.id}).setLock('pessimistic_write').getOne()
+        //Renamed before it was locked: not the entry of the DN anymore
+        return locked && locked.suffix === found.suffix && locked.dnHash === found.dnHash ? locked : null
+    }
+
+    /**
+     * Lock the rows of entries until the end of the transaction where the database locks rows, in the order of their IDs
+     * (two writes locking the same entries do not wait for each other)
+     * @param manager The entity manager of the transaction.
+     * @param ids The IDs of the entries.
+     */
+    protected async lockRows(manager: EntityManager, ids: string[]): Promise<void> {
+        if (!ROW_LOCKS.includes(this.#type) || !ids.length) return
+        await manager.createQueryBuilder(LDAPEntryRecord, 'e').select('e.id').where('e.id IN (:...ids)', {ids: ids}).orderBy('e.id', 'ASC').setLock('pessimistic_write').getMany()
     }
 
     /**
@@ -931,7 +1012,9 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      * @param run The interceptors and the write.
      */
     public async transaction(context: WriteContext, run: () => Promise<void>): Promise<void> {
-        await this.db.transaction(async (manager: EntityManager): Promise<void> => {
+        //A write made by another (an interceptor writing through the server) joins its transaction: one of its own would
+        //wait for the rows the other locked
+        await this.write(undefined, async (manager: EntityManager): Promise<void> => {
             context.transaction = manager
             try {
                 await run()
@@ -979,40 +1062,107 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     }
 
     /**
-     * Apply the changes of a modify: the attributes they change written again
+     * Apply the changes of a modify to the values the entry has once it is locked: the rows of the values removed
+     * deleted, the values added inserted after the others, the rows of the values kept left as they are. A value added
+     * that the attribute has already is not added again (two writers adding it at once); an attribute of one value given
+     * a second (two writers adding one at once) refuses the change.
      * @param context The context.
      * @param dn The DN.
      * @param changes The changes.
      */
     public async modify(context: WriteContext, dn: DN, changes: DirectoryChange[]): Promise<void> {
         const schema: Schema = this.use(context)
-        const manager: EntityManager = this.manager(context)
-        const row: LDAPEntryRecord | null = await this.row(manager, dn, schema)
-        if (!row) return
-        const [entry] = await this.entries(manager, [row], schema, {memberOf: false, memberUid: false, email: false})
-        const attributes: Map<string, PartialAttribute> = new Map(entry.attributes.map((attribute: PartialAttribute): [string, PartialAttribute] => [descriptionKey(attribute.type, schema), attribute]))
-        const touched: Set<string> = new Set()
-        for (const change of changes) {
-            const key: string = descriptionKey(change.attribute.type, schema)
-            touched.add(key)
-            const current: PartialAttribute | undefined = attributes.get(key)
-            const values: Buffer[] = change.attribute.values
-            if (change.operation === 'add') {
-                if (current) current.values.push(...values)
-                else attributes.set(key, {type: change.attribute.type, values: [...values]})
-            } else if (change.operation === 'replace') {
-                if (values.length) attributes.set(key, {type: current?.type ?? change.attribute.type, values: [...values]})
-                else attributes.delete(key)
-            } else if (current) {
-                current.values = values.length ? current.values.filter((value: Buffer): boolean => !values.some((item: Buffer): boolean => item.equals(value))) : []
-                if (!current.values.length) attributes.delete(key)
+        await this.write(context, async (manager: EntityManager): Promise<void> => {
+            const row: LDAPEntryRecord | null = await this.lockedRow(manager, dn, schema)
+            if (!row) return
+            //The rows of the values, by the descriptions they compare by, in the order of their positions
+            const stored: {id: number | string, description: string, position: number | string, value: string, binary: boolean | number}[] = await manager.createQueryBuilder(this.#valueEntity, 'v')
+                .select('v.id', 'id')
+                .addSelect('v.description', 'description')
+                .addSelect('v.position', 'position')
+                .addSelect('v.value', 'value')
+                .addSelect('v.binary', 'binary')
+                .where('v.entryId = :id', {id: row.id})
+                .orderBy('v.position', 'ASC')
+                .addOrderBy('v.id', 'ASC')
+                .getRawMany()
+            const rows: Map<string, typeof stored> = new Map()
+            const attributes: Map<string, PartialAttribute> = new Map()
+            for (const item of stored) {
+                const key: string = descriptionKey(item.description, schema)
+                if (!rows.has(key)) {
+                    rows.set(key, [])
+                    attributes.set(key, {type: item.description, values: []})
+                }
+                rows.get(key)!.push(item)
+                attributes.get(key)!.values.push(valueBytes(item.value, item.binary))
             }
-        }
-        const descriptions: string[] = entry.attributes.filter((attribute: PartialAttribute): boolean => touched.has(descriptionKey(attribute.type, schema))).map((attribute: PartialAttribute): string => attribute.type)
-        if (descriptions.length) await manager.createQueryBuilder().delete().from(this.#valueEntity).where('entryId = :id', {id: row.id}).andWhere('description IN (:...descriptions)', {descriptions: descriptions}).execute()
-        const written: PartialAttribute[] = [...attributes.entries()].filter(([key]: [string, PartialAttribute]): boolean => touched.has(key)).map(([, attribute]: [string, PartialAttribute]): PartialAttribute => attribute)
-        await this.insertValues(manager, await this.valueRows(manager, row.id, written, schema))
-        if ([...touched].some((key: string): boolean => this.uniqueTypes(schema).has(key.split(';')[0]) || ['gidnumber', 'objectclass'].includes(key.split(';')[0]))) await this.keepUnique(manager, row.id, [...attributes.values()], schema)
+            const touched: Set<string> = new Set()
+            for (const change of changes) {
+                const key: string = descriptionKey(change.attribute.type, schema)
+                const type: string = schema.primaryName(attributeTypeOf(change.attribute.type)).toLowerCase()
+                touched.add(key)
+                const current: PartialAttribute | undefined = attributes.get(key)
+                const values: Buffer[] = change.attribute.values
+                if (change.operation === 'add') {
+                    //The values the attribute has, by the forms they compare by
+                    const present: Set<string> = new Set((current?.values ?? []).map((value: Buffer): string => valueHashOf(type, value, schema)))
+                    const added: Buffer[] = values.filter((value: Buffer): boolean => {
+                        const hash: string = valueHashOf(type, value, schema)
+                        if (present.has(hash)) return false
+                        present.add(hash)
+                        return true
+                    })
+                    if (current) current.values.push(...added)
+                    else if (added.length) attributes.set(key, {type: change.attribute.type, values: added})
+                } else if (change.operation === 'replace') {
+                    if (values.length) attributes.set(key, {type: current?.type ?? change.attribute.type, values: [...values]})
+                    else attributes.delete(key)
+                } else if (current) {
+                    current.values = values.length ? current.values.filter((value: Buffer): boolean => !values.some((item: Buffer): boolean => item.equals(value))) : []
+                    if (!current.values.length) attributes.delete(key)
+                }
+            }
+            const removed: (number | string)[] = []
+            const inserted: Partial<LDAPValueRecord>[] = []
+            for (const key of touched) {
+                const attribute: PartialAttribute | undefined = attributes.get(key)
+                if (attribute && attribute.values.length > 1 && schema.isSingleValued(attributeTypeOf(attribute.type))) throw new LDAPConstraintViolationException(`${attribute.type}: the attribute has one value`)
+                //The rows of the values kept stay, by their bytes; the others go
+                const remaining: Map<string, number> = new Map()
+                for (const value of attribute?.values ?? []) remaining.set(value.toString('base64'), (remaining.get(value.toString('base64')) ?? 0) + 1)
+                const taken: Set<number> = new Set()
+                for (const item of rows.get(key) ?? []) {
+                    const bytes: string = valueBytes(item.value, item.binary).toString('base64')
+                    if (remaining.get(bytes)) {
+                        remaining.set(bytes, remaining.get(bytes)! - 1)
+                        taken.add(Number(item.position))
+                    } else {
+                        removed.push(item.id)
+                    }
+                }
+                //The values added at the positions the values kept do not have (two at one position would hide one), the
+                //lowest first: the positions stay below the number of values
+                const added: Buffer[] = (attribute?.values ?? []).filter((value: Buffer): boolean => {
+                    const bytes: string = value.toString('base64')
+                    if (!remaining.get(bytes)) return false
+                    remaining.set(bytes, remaining.get(bytes)! - 1)
+                    return true
+                })
+                if (added.length) {
+                    const valueRows: Partial<LDAPValueRecord>[] = await this.valueRows(manager, row.id, [{type: attribute!.type, values: added}], schema)
+                    let position: number = 0
+                    for (const valueRow of valueRows) {
+                        while (taken.has(position)) position++
+                        valueRow.position = position++
+                    }
+                    inserted.push(...valueRows)
+                }
+            }
+            for (let index: number = 0; index < removed.length; index += 500) await manager.createQueryBuilder().delete().from(this.#valueEntity).where('id IN (:...ids)', {ids: removed.slice(index, index + 500)}).execute()
+            await this.insertValues(manager, inserted)
+            if ([...touched].some((key: string): boolean => this.uniqueTypes(schema).has(key.split(';')[0]) || ['gidnumber', 'objectclass'].includes(key.split(';')[0]))) await this.keepUnique(manager, row.id, [...attributes.values()], schema)
+        })
     }
 
     /**
@@ -1024,26 +1174,35 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      */
     public async delete(context: WriteContext, dn: DN, options: {subtree: boolean}): Promise<void> {
         const schema: Schema = this.use(context)
-        const manager: EntityManager = this.manager(context)
-        const row: LDAPEntryRecord | null = await this.row(manager, dn, schema)
-        if (!row) return
-        const ids: string[] = options.subtree
-            ? (await manager.createQueryBuilder(LDAPEntryRecord, 'e').select('e.id', 'id').where(subtreeOf(row.path, true).sql, subtreeOf(row.path, true).parameters).getRawMany()).map((item: {id: string}): string => item.id)
-            : [row.id]
-        for (let index: number = 0; index < ids.length; index += 200) {
-            const batch: string[] = ids.slice(index, index + 200)
-            const references: LDAPValueRecord[] = await manager.createQueryBuilder(this.#valueEntity, 'v').where('v.target IN (:...ids)', {ids: batch}).getMany()
-            const referring: Map<string, LDAPValueRecord[]> = new Map()
-            for (const reference of references.filter((item: LDAPValueRecord): boolean => !ids.includes(item.entryId))) {
-                const list: LDAPValueRecord[] = referring.get(reference.entryId) ?? []
-                list.push(reference)
-                referring.set(reference.entryId, list)
+        await this.write(context, async (manager: EntityManager): Promise<void> => {
+            const row: LDAPEntryRecord | null = await this.lockedRow(manager, dn, schema)
+            if (!row) return
+            const ids: string[] = options.subtree
+                ? (await manager.createQueryBuilder(LDAPEntryRecord, 'e').select('e.id', 'id').where(subtreeOf(row.path, true).sql, subtreeOf(row.path, true).parameters).getRawMany()).map((item: {id: string}): string => item.id)
+                : [row.id]
+            const deleted: Set<string> = new Set(ids)
+            for (let index: number = 0; index < ids.length; index += 200) {
+                const batch: string[] = ids.slice(index, index + 200)
+                await this.lockRows(manager, batch)
+                //The entries naming them, each locked before its values are read, in the order of their IDs; again until
+                //none is left (a write which named one before it was locked)
+                for (;;) {
+                    const owners: string[] = (await manager.createQueryBuilder(this.#valueEntity, 'v').select('v.entryId', 'entryId').distinct(true).where('v.target IN (:...ids)', {ids: batch}).getRawMany())
+                        .map((item: {entryId: string}): string => item.entryId)
+                        .filter((entryId: string): boolean => !deleted.has(entryId))
+                        .sort()
+                    if (!owners.length) break
+                    for (const entryId of owners) {
+                        await this.lockRows(manager, [entryId])
+                        const removed: LDAPValueRecord[] = await manager.createQueryBuilder(this.#valueEntity, 'v').where('v.entryId = :entryId', {entryId: entryId}).andWhere('v.target IN (:...ids)', {ids: batch}).getMany()
+                        if (removed.length) await this.removeReferences(manager, entryId, removed, schema)
+                    }
+                }
+                await manager.createQueryBuilder().delete().from(this.#valueEntity).where('entryId IN (:...ids)', {ids: batch}).execute()
+                await manager.createQueryBuilder().delete().from(LDAPUniqueRecord).where('entryId IN (:...ids)', {ids: batch}).execute()
+                await manager.createQueryBuilder().delete().from(LDAPEntryRecord).where('id IN (:...ids)', {ids: batch}).execute()
             }
-            for (const [entryId, removed] of referring) await this.removeReferences(manager, entryId, removed, schema)
-            await manager.createQueryBuilder().delete().from(this.#valueEntity).where('entryId IN (:...ids)', {ids: batch}).execute()
-            await manager.createQueryBuilder().delete().from(LDAPUniqueRecord).where('entryId IN (:...ids)', {ids: batch}).execute()
-            await manager.createQueryBuilder().delete().from(LDAPEntryRecord).where('id IN (:...ids)', {ids: batch}).execute()
-        }
+        })
     }
 
     /**
@@ -1076,8 +1235,18 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      */
     public async modifyDN(context: WriteContext, dn: DN, entry: DirectoryEntry): Promise<void> {
         const schema: Schema = this.use(context)
-        const manager: EntityManager = this.manager(context)
-        const row: LDAPEntryRecord | null = await this.row(manager, dn, schema)
+        await this.write(context, (manager: EntityManager): Promise<void> => this.rename(manager, dn, entry, schema))
+    }
+
+    /**
+     * Rename or move an entry in a transaction, the entry locked
+     * @param manager The entity manager of the transaction.
+     * @param dn The DN.
+     * @param entry The entry as it becomes.
+     * @param schema The schema.
+     */
+    protected async rename(manager: EntityManager, dn: DN, entry: DirectoryEntry, schema: Schema): Promise<void> {
+        const row: LDAPEntryRecord | null = await this.lockedRow(manager, dn, schema)
         if (!row) return
         let parentId: string = row.parentId
         let parentPath: string = row.path.slice(0, row.path.length - pathSegment(row.id).length)
@@ -1127,12 +1296,14 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      */
     protected async writeOperational(context: OperationContext, dn: DN, type: string, value: string): Promise<void> {
         const schema: Schema = this.use(context)
-        const manager: EntityManager = this.manager(context)
-        const row: LDAPEntryRecord | null = await this.row(manager, dn, schema)
-        if (!row) return
-        const name: string = schema.primaryName(type).toLowerCase()
-        await manager.createQueryBuilder().delete().from(this.#valueEntity).where('entryId = :id', {id: row.id}).andWhere('attributeType = :type', {type: name}).execute()
-        await this.insertValues(manager, await this.valueRows(manager, row.id, [{type: schema.primaryName(type), values: [Buffer.from(value)]}], schema))
+        //The entry locked: two writes at once leave one value, not one each
+        await this.write(context, async (manager: EntityManager): Promise<void> => {
+            const row: LDAPEntryRecord | null = await this.lockedRow(manager, dn, schema)
+            if (!row) return
+            const name: string = schema.primaryName(type).toLowerCase()
+            await manager.createQueryBuilder().delete().from(this.#valueEntity).where('entryId = :id', {id: row.id}).andWhere('attributeType = :type', {type: name}).execute()
+            await this.insertValues(manager, await this.valueRows(manager, row.id, [{type: schema.primaryName(type), values: [Buffer.from(value)]}], schema))
+        })
     }
 
     /**

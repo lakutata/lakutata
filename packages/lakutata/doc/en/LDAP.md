@@ -329,7 +329,9 @@ one row per value.
   come with rfc2307bis, which `schema.bundled` names.
 - `unique` keeps the values of attributes unique in the suffix; `authTimestamp` gives the time of the last bind;
   `mailAlias` gives email as mail (Grafana reads email).
-- Each write runs in a transaction, with the interceptors' `beforeCommit()`.
+- Each write runs in a transaction, with the interceptors' `beforeCommit()`. The writes to one entry take turns (on
+  PostgreSQL and MySQL, also when several instances share the database), so two clients changing different values of an
+  attribute at the same time both keep their changes.
 
 | Option | Default | What it is |
 |---|---|---|
