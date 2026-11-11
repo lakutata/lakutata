@@ -133,6 +133,21 @@ class MeetingBackend extends DirectoryBackend {
 }
 
 /**
+ * The last CapturedBackend started
+ */
+let captured: DirectoryBackend | undefined
+
+/**
+ * A directory backend the test reaches once it is started
+ */
+class CapturedBackend extends DirectoryBackend {
+    protected async init(): Promise<void> {
+        await super.init()
+        captured = this
+    }
+}
+
+/**
  * Told of each modify reaching a ReachingBackend, by its DN
  */
 let reaching: ((dn: string) => void) | undefined
@@ -993,6 +1008,25 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             } finally {
                 await counting.destroy()
                 await admin.delete(user).catch((): undefined => undefined)
+            }
+        })
+
+        it('keeps one value when an internal write adds a value the attribute has (two instances recording one time)', {timeout: 60000}, async () => {
+            const dn: string = `cn=same-value,${BASE}`
+            await admin.add(dn, {objectClass: 'device', cn: 'same-value'})
+            const capturing: Container = new Container()
+            try {
+                await capturing.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                await capturing.setNamed('ldap', LDAPServer, {port: false, schema: schema, backends: [{class: CapturedBackend, suffix: BASE, database: 'database'}], access: {admins: [ADMIN]}})
+                const server: LDAPServer = await capturing.get<LDAPServer>('ldap')
+                //As the engine writes the state it keeps (the failures of the binds): an internal write, twice the same value
+                const context = (): never => ({schema: server.engine.schema, internal: true, operation: 'modify', state: new Map()}) as never
+                for (let time: number = 0; time < 2; time++) await captured!.modify(context(), DN.parse(dn), [{operation: 'add', attribute: {type: 'description', values: [Buffer.from('20261111102915.325Z')]}}])
+                assert.deepEqual((await admin.search(dn, {scope: 'base'})).entries[0].get('description'), ['20261111102915.325Z'])
+            } finally {
+                captured = undefined
+                await capturing.destroy()
+                await admin.delete(dn).catch((): undefined => undefined)
             }
         })
 

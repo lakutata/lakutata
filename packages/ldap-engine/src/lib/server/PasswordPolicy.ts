@@ -335,12 +335,16 @@ export class PasswordPolicy {
             if ((error as {code?: number}).code !== ResultCode.invalidCredentials) throw error
             //The failure added to those kept, not written over them (the failures of binds made at once each kept), with a
             //time of its own; those no longer counted removed
-            const time: string = formatGeneralizedTime(uniqueTime(now))
             const counted = (state: DirectoryEntry): {stored: string[], counting: string[]} => ({
                 stored: valuesOfType(state, 'pwdFailureTime', this.schema).map((value: Buffer): string => value.toString('utf8')),
                 counting: this.failures(rules, state, now)
             })
             const before: {stored: string[], counting: string[]} = counted(entry)
+            //Not the millisecond of a failure read (one another instance recorded): the times compare by the millisecond
+            const taken: Set<number> = new Set(before.stored.map((value: string): number | undefined => parseGeneralizedTime(value)).filter((at: number | undefined): at is number => at !== undefined).map((at: number): number => Math.round(at)))
+            let at: number = uniqueTime(now)
+            while (taken.has(at)) at = uniqueTime(at + 1)
+            const time: string = formatGeneralizedTime(at)
             const expired: string[] = before.stored.filter((value: string): boolean => !before.counting.includes(value))
             const changes: DirectoryChange[] = [{operation: 'add', attribute: {type: 'pwdFailureTime', values: [Buffer.from(time)]}}]
             if (expired.length) changes.push({operation: 'delete', attribute: {type: 'pwdFailureTime', values: expired.map((value: string): Buffer => Buffer.from(value))}})

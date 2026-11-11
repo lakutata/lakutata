@@ -167,6 +167,21 @@ describe('the password policy', () => {
         assert.ok(times[0] <= Date.now(), JSON.stringify(times.map((time: number): string => formatGeneralizedTime(time))))
     })
 
+    it('gives a failure a millisecond of its own when another instance recorded one in the same millisecond', async () => {
+        const {server, backend, admin} = await serve({pwdMaxFailure: '5'})
+        //Another instance sharing the backend recorded a failure in the millisecond this one fails in
+        const now: () => number = Date.now
+        const time: number = now() + 10000
+        await backend.modify({schema: server.schema} as never, DN.parse(ALICE), [{operation: 'replace', attribute: {type: 'pwdFailureTime', values: [Buffer.from(formatGeneralizedTime(time))]}}])
+        Date.now = (): number => time
+        try {
+            await assert.rejects(server.connect().bind(ALICE, 'wrong'), refused(49))
+        } finally {
+            Date.now = now
+        }
+        assert.deepEqual((await admin.search(ALICE, {scope: 'base', attributes: ['pwdFailureTime']})).entries[0].get('pwdFailureTime').sort(), [formatGeneralizedTime(time), formatGeneralizedTime(time + 1)])
+    })
+
     it('warns before a password expires, allows the grace binds, then refuses an expired password', async () => {
         const {server, backend} = await serve({pwdMaxAge: '86400', pwdExpireWarning: '3600', pwdGraceAuthNLimit: '2'})
         const session: LDAPInProcessConnection = server.connect()
