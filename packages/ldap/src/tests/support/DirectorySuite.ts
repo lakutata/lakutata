@@ -107,6 +107,32 @@ class HoldingBackend extends DirectoryBackend {
 }
 
 /**
+ * Two writes of a MeetingBackend to meet once each has locked its entry, before they write: each then meets the lock of
+ * the other (at most 5 seconds, then they go on)
+ */
+let meeting: {arrived: number, met: Promise<void>, meet: () => void} | undefined
+
+/**
+ * A directory backend whose writes, once the entry of each is locked, wait for each other when the test asks for it
+ */
+class MeetingBackend extends DirectoryBackend {
+    public async lock(context: WriteContext, dn: Parameters<DirectoryBackend['lock']>[1]): Promise<Awaited<ReturnType<DirectoryBackend['lock']>>> {
+        const entry: Awaited<ReturnType<DirectoryBackend['lock']>> = await super.lock(context, dn)
+        const current: {arrived: number, met: Promise<void>, meet: () => void} | undefined = meeting
+        if (current) {
+            if (++current.arrived === 2) {
+                meeting = undefined
+                current.meet()
+            }
+            await Promise.race([current.met, new Promise<void>((resolve: () => void): void => {
+                setTimeout(resolve, 5000)
+            })])
+        }
+        return entry
+    }
+}
+
+/**
  * Register the tests of the directory backend on a database
  * @param label The name of the database.
  * @param options The options of the database (its type and where it is), or what makes them; undefined skips the tests.
@@ -943,6 +969,38 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             } finally {
                 await counting.destroy()
                 await admin.delete(user).catch((): undefined => undefined)
+            }
+        })
+
+        it('answers busy one of two writes naming the entry of each other, their locks in a cycle', {timeout: 60000, skip: label === 'SQLite' ? 'SQLite takes one write at a time' : false}, async () => {
+            const [one, two] = ['cycle-1', 'cycle-2'].map((name: string): string => `cn=${name},${groups}`)
+            for (const dn of [one, two]) await admin.add(dn, {objectClass: 'groupOfNames', cn: DN.parse(dn).rdn()!.attributes[0].value, member: `uid=user1,${people}`})
+            const meetingContainer: Container = new Container()
+            try {
+                await meetingContainer.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                await meetingContainer.setNamed('ldap', LDAPServer, {port: false, schema: schema, backends: [{class: MeetingBackend, suffix: BASE, database: 'database'}], access: {admins: [ADMIN]}})
+                const server: LDAPServer = await meetingContainer.get<LDAPServer>('ldap')
+                let meet: () => void = (): void => undefined
+                meeting = {arrived: 0, met: new Promise<void>((resolve: () => void): void => {
+                    meet = resolve
+                }), meet: (): void => meet()}
+                //Each write holds its group and waits for the group of the other, which its values name
+                const results: PromiseSettledResult<unknown>[] = await Promise.allSettled([
+                    server.connect(ADMIN).modify(one, {operation: 'add', attribute: 'member', values: two}),
+                    server.connect(ADMIN).modify(two, {operation: 'add', attribute: 'member', values: one})
+                ])
+                const refused: PromiseRejectedResult[] = results.filter((result: PromiseSettledResult<unknown>): result is PromiseRejectedResult => result.status === 'rejected')
+                assert.equal(refused.length, 1, JSON.stringify(results.map((result: PromiseSettledResult<unknown>): string => result.status)))
+                assert.ok(refused[0].reason instanceof LDAPUnavailableException && refused[0].reason.code === 51, String(refused[0].reason))
+                //The other is written, the refused one left nothing
+                const members = async (dn: string): Promise<string[]> => (await admin.search(dn, {scope: 'base'})).entries[0].get('member').map((value: string): string => value.toLowerCase()).sort()
+                const [kept, lost] = results[0].status === 'fulfilled' ? [one, two] : [two, one]
+                assert.deepEqual(await members(kept), [lost, `uid=user1,${people}`].sort())
+                assert.deepEqual(await members(lost), [`uid=user1,${people}`])
+            } finally {
+                meeting = undefined
+                await meetingContainer.destroy()
+                for (const dn of [one, two]) await admin.delete(dn).catch((): undefined => undefined)
             }
         })
 
