@@ -24,6 +24,7 @@ import {
     LDAPConstraintViolationException,
     type LDAPInProcessConnection,
     LDAPNoSuchObjectException,
+    LDAPNotAllowedOnNonLeafException,
     type LDAPServerEngine,
     LDAPUnwillingToPerformException,
     LDAPEntryAlreadyExistsException,
@@ -360,8 +361,8 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     }
 
     /**
-     * Run a write in a transaction: the one of the operation, else the one of the write it is made by (a write of the
-     * same database in progress in its asynchronous context), else a transaction of its own
+     * Run a write in a transaction: the one of the operation, else a savepoint of the one of the write it is made by (a
+     * write of the same database in progress in its asynchronous context), else a transaction of its own
      * @param context The context.
      * @param run The write.
      */
@@ -369,7 +370,9 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         const given: EntityManager | undefined = (context as {transaction?: unknown} | undefined)?.transaction as EntityManager | undefined
         if (given) return run(given)
         const current: {database: object, manager: EntityManager, active: boolean} | undefined = WRITING.getStore()
-        if (current?.active && current.database === this.db) return run(current.manager)
+        //In a savepoint of the transaction of the write it is made by: a write failing there leaves nothing of it, and
+        //the other goes on when it catches the error
+        if (current?.active && current.database === this.db) return current.manager.transaction((manager: EntityManager): Promise<T> => run(manager))
         return this.#transaction(run)
     }
 
@@ -403,15 +406,35 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      * @param manager The entity manager of the transaction.
      * @param dn The DN.
      * @param schema The schema.
+     * @param mode The lock: for an update (the entry written), or shared (the parent of an entry added or moved, which
+     * the writes below it take together).
      */
-    protected async lockedRow(manager: EntityManager, dn: DN, schema: Schema): Promise<LDAPEntryRecord | null> {
+    protected async lockedRow(manager: EntityManager, dn: DN, schema: Schema, mode: 'pessimistic_write' | 'pessimistic_read' = 'pessimistic_write'): Promise<LDAPEntryRecord | null> {
         const found: LDAPEntryRecord | null = await this.row(manager, dn, schema)
         if (!found || !ROW_LOCKS.includes(this.#type)) return found
         //Locked by its ID, as every entry is: MySQL locks the index it reads by, and two writes locking a row by two
         //indexes would wait for each other
-        const locked: LDAPEntryRecord | null = await manager.createQueryBuilder(LDAPEntryRecord, 'e').where('e.id = :id', {id: found.id}).setLock('pessimistic_write').getOne()
+        const locked: LDAPEntryRecord | null = await manager.createQueryBuilder(LDAPEntryRecord, 'e').where('e.id = :id', {id: found.id}).setLock(mode).getOne()
         //Renamed before it was locked: not the entry of the DN anymore
         return locked && locked.suffix === found.suffix && locked.dnHash === found.dnHash ? locked : null
+    }
+
+    /**
+     * The rows of an entry and of the entries below it, locked where the database locks rows: read again once locked,
+     * until no entry was added below meanwhile (an entry added takes a shared lock on its parent, and waits for these)
+     * @param manager The entity manager of the transaction.
+     * @param path The path of the entry.
+     */
+    protected async lockedSubtree(manager: EntityManager, path: string): Promise<LDAPEntryRecord[]> {
+        const subtree: {sql: string, parameters: Record<string, string>} = subtreeOf(path, true)
+        const locked: Set<string> = new Set()
+        for (;;) {
+            const rows: LDAPEntryRecord[] = await manager.createQueryBuilder(LDAPEntryRecord, 'e').where(subtree.sql, subtree.parameters).getMany()
+            const fresh: string[] = rows.map((row: LDAPEntryRecord): string => row.id).filter((id: string): boolean => !locked.has(id))
+            if (!fresh.length || !ROW_LOCKS.includes(this.#type)) return rows
+            for (let index: number = 0; index < fresh.length; index += 1000) await this.lockRows(manager, fresh.slice(index, index + 1000))
+            for (const id of fresh) locked.add(id)
+        }
     }
 
     /**
@@ -1048,8 +1071,10 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         let parentId: string = ''
         let path: string = pathSegment(id)
         if (!entry.dn.equals(this.suffix, schema)) {
-            const parent: LDAPEntryRecord | null = await this.row(manager, entry.dn.parent()!, schema)
-            if (!parent) throw new LDAPUnwillingToPerformException(`The parent of ${entry.dn.toString()} is not in the backend`)
+            //The parent locked (shared: the entries added below it at once do not wait for each other), so that it is
+            //not renamed, moved or deleted before the entry is added
+            const parent: LDAPEntryRecord | null = await this.lockedRow(manager, entry.dn.parent()!, schema, 'pessimistic_read')
+            if (!parent) throw new LDAPNoSuchObjectException(`The parent of ${entry.dn.toString()} is not in the backend`)
             parentId = parent.id
             path = parent.path + pathSegment(id)
         }
@@ -1209,9 +1234,9 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         await this.write(context, async (manager: EntityManager): Promise<void> => {
             const row: LDAPEntryRecord | null = await this.lockedRow(manager, dn, schema)
             if (!row) return
-            const ids: string[] = options.subtree
-                ? (await manager.createQueryBuilder(LDAPEntryRecord, 'e').select('e.id', 'id').where(subtreeOf(row.path, true).sql, subtreeOf(row.path, true).parameters).getRawMany()).map((item: {id: string}): string => item.id)
-                : [row.id]
+            //An entry added below it since the engine checked it (the entry locked, none can be added now)
+            if (!options.subtree && await manager.createQueryBuilder(LDAPEntryRecord, 'e').where('e.parentId = :id', {id: row.id}).getExists()) throw new LDAPNotAllowedOnNonLeafException(`The entry ${dn.toString()} has entries below it`)
+            const ids: string[] = options.subtree ? (await this.lockedSubtree(manager, row.path)).map((item: LDAPEntryRecord): string => item.id) : [row.id]
             const deleted: Set<string> = new Set(ids)
             for (let index: number = 0; index < ids.length; index += 200) {
                 const batch: string[] = ids.slice(index, index + 200)
@@ -1293,14 +1318,15 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         let parentPath: string = row.path.slice(0, row.path.length - pathSegment(row.id).length)
         const newParent: DN | undefined = entry.dn.parent()
         if (newParent && !newParent.equals(dn.parent()!, schema)) {
-            const parent: LDAPEntryRecord | null = await this.row(manager, newParent, schema)
-            if (!parent) throw new LDAPUnwillingToPerformException('The new parent is not in the backend')
+            //Locked (shared) so that it is not renamed, moved or deleted before the entry is under it
+            const parent: LDAPEntryRecord | null = await this.lockedRow(manager, newParent, schema, 'pessimistic_read')
+            if (!parent) throw new LDAPNoSuchObjectException(`The new parent ${newParent.toString()} is not in the backend`)
             parentId = parent.id
             parentPath = parent.path
         }
         const newPath: string = parentPath + pathSegment(row.id)
-        const subtree: {sql: string, parameters: Record<string, string>} = subtreeOf(row.path, true)
-        const moved: LDAPEntryRecord[] = await manager.createQueryBuilder(LDAPEntryRecord, 'e').where(subtree.sql, subtree.parameters).getMany()
+        //The entries below, locked: none added, moved or renamed while their DNs and paths are written
+        const moved: LDAPEntryRecord[] = await this.lockedSubtree(manager, row.path)
         const renamed: Map<string, {dn: string, dnKey: string}> = new Map()
         for (const item of moved) {
             const itemDN: DN = item.id === row.id ? entry.dn : new DN([...DN.parse(item.dn).rdns.slice(0, DN.parse(item.dn).length - dn.length), ...entry.dn.rdns])

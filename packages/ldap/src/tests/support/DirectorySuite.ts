@@ -7,6 +7,7 @@ import {
     connectLDAP,
     type Directory,
     DirectoryBackend,
+    type DirectoryEntry,
     directoryEntities,
     findControl,
     LDAPAttributeOrValueExistsException,
@@ -18,6 +19,7 @@ import {
     LDAPInvalidCredentialsException,
     LDAPMySQLValueRecord,
     LDAPNoSuchObjectException,
+    LDAPNotAllowedOnNonLeafException,
     LDAPServer,
     LDAPUnwillingToPerformException,
     LDAPValueRecord,
@@ -25,12 +27,46 @@ import {
     SortResponseControl,
     TreeDeleteControl,
     VLVRequestControl,
-    VLVResponseControl
+    VLVResponseControl,
+    type WriteContext
 } from '../../exports/LDAP.js'
 import type {BundledSchemaName} from '../../exports/Schemas.js'
 
 const BASE: string = 'dc=example,dc=com'
 const ADMIN: string = 'cn=admin,dc=example,dc=com'
+
+/**
+ * The next rename or delete of a HoldingBackend to hold in its transaction, its locks kept: told when it is held, let go
+ * when the test says
+ */
+let held: {reached: () => void, release: Promise<void>} | undefined
+
+/**
+ * Hold the write of a HoldingBackend when the test asked for it
+ */
+async function hold(): Promise<void> {
+    const current: {reached: () => void, release: Promise<void>} | undefined = held
+    if (!current) return
+    held = undefined
+    current.reached()
+    await current.release
+}
+
+/**
+ * A directory backend holding its renames and deletes in their transactions once they are written, until the test lets
+ * them go: the writes made meanwhile on other connections meet their locks
+ */
+class HoldingBackend extends DirectoryBackend {
+    public async modifyDN(context: WriteContext, dn: Parameters<DirectoryBackend['modifyDN']>[1], entry: DirectoryEntry): Promise<void> {
+        await super.modifyDN(context, dn, entry)
+        await hold()
+    }
+
+    public async delete(context: WriteContext, dn: Parameters<DirectoryBackend['delete']>[1], options: {subtree: boolean}): Promise<void> {
+        await super.delete(context, dn, options)
+        await hold()
+    }
+}
 
 /**
  * Register the tests of the directory backend on a database
@@ -504,6 +540,128 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             } finally {
                 await taking.destroy()
                 for (const dn of [source, taken]) await admin.delete(dn).catch((): undefined => undefined)
+            }
+        })
+
+        it('leaves nothing of a write that failed in the transaction of another, which goes on', {timeout: 60000}, async () => {
+            const outer: string = `cn=outer,${BASE}`
+            const failing: string = `cn=failing,${people}`
+            await admin.add(outer, {objectClass: 'device', cn: 'outer'})
+            await admin.add(failing, {objectClass: 'inetOrgPerson', cn: 'failing', sn: 'Failing', uid: 'failing'})
+            const failingWrites: Container = new Container()
+            let refused: unknown
+            try {
+                await failingWrites.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                await failingWrites.setNamed('ldap', LDAPServer, {
+                    port: false,
+                    schema: schema,
+                    backends: [{class: DirectoryBackend, suffix: BASE, database: 'database', unique: ['uid']}],
+                    access: {admins: [ADMIN]},
+                    //A write in the transaction of another, refused once it has written a value (uid taken), the error caught
+                    interceptors: [{name: 'failing', operations: ['modify'], beforeCommit: async (_context: unknown, request: {dn?: {toString(): string}}): Promise<void> => {
+                        if (request.dn?.toString() !== outer) return
+                        await (await failingWrites.get<LDAPServer>('ldap')).connect(ADMIN).modify(failing, [{operation: 'add', attribute: 'description', values: 'written before the refusal'}, {operation: 'replace', attribute: 'uid', values: 'user0'}]).catch((error: unknown): void => {
+                            refused = error
+                        })
+                    }}]
+                })
+                await (await failingWrites.get<LDAPServer>('ldap')).connect(ADMIN).modify(outer, {operation: 'add', attribute: 'description', values: 'outer'})
+                assert.ok(refused instanceof LDAPConstraintViolationException, String(refused))
+                assert.deepEqual((await admin.search(outer, {scope: 'base'})).entries[0].get('description'), ['outer'])
+                const entry = (await admin.search(failing, {scope: 'base'})).entries[0]
+                assert.deepEqual([entry.get('description'), entry.get('uid')], [[], ['failing']])
+            } finally {
+                await failingWrites.destroy()
+                for (const dn of [outer, failing]) await admin.delete(dn).catch((): undefined => undefined)
+            }
+        })
+
+        it('keeps the tree whole when entries are added or moved under one being renamed or deleted', {timeout: 60000}, async () => {
+            const db: Database = await container.get<Database>('database')
+            await container.setNamed('holding', LDAPServer, {port: false, schema: schema, backends: [{class: HoldingBackend, suffix: BASE, database: 'database'}], access: {admins: [ADMIN]}})
+            const holding: LDAPServer = await container.get<LDAPServer>('holding')
+            //Hold the next rename or delete of the holding server
+            const holdNext = (): {reached: Promise<void>, release: () => void} => {
+                let reached: () => void = (): void => undefined
+                let release: () => void = (): void => undefined
+                const reachedPromise: Promise<void> = new Promise<void>((resolve: () => void): void => {
+                    reached = resolve
+                })
+                held = {reached: (): void => reached(), release: new Promise<void>((resolve: () => void): void => {
+                    release = resolve
+                })}
+                return {reached: reachedPromise, release: (): void => release()}
+            }
+            const waitAWhile = (): Promise<void> => new Promise<void>((resolve: () => void): void => {
+                setTimeout(resolve, 300)
+            })
+            //Each entry under its parent: the parent there, the path and the DN made of the parent's
+            const whole = async (): Promise<void> => {
+                const rows: LDAPEntryRecord[] = await db.getRepository(LDAPEntryRecord).find()
+                const byId: Map<string, LDAPEntryRecord> = new Map(rows.map((row: LDAPEntryRecord): [string, LDAPEntryRecord] => [row.id, row]))
+                for (const row of rows) {
+                    if (!row.parentId) continue
+                    const parent: LDAPEntryRecord | undefined = byId.get(row.parentId)
+                    assert.ok(parent, `${row.dn}: its parent is not there`)
+                    assert.equal(row.path, parent.path + row.id.replace(/-/g, '').toLowerCase(), `${row.dn}: its path`)
+                    assert.equal(row.dn.slice(row.dn.indexOf(',') + 1).toLowerCase(), parent.dn.toLowerCase(), `${row.dn}: its DN`)
+                }
+            }
+            const unit: string = await directory.createOrganizationalUnit(BASE, {ou: 'tree'})
+            try {
+                //An entry added under one being renamed
+                const parent: string = await directory.createOrganizationalUnit(unit, {ou: 'parent'})
+                let holdOn: {reached: Promise<void>, release: () => void} = holdNext()
+                const renaming: Promise<unknown> = holding.connect(ADMIN).modifyDN(parent, 'ou=parent-renamed')
+                await holdOn.reached
+                const adding: Promise<PromiseSettledResult<unknown>[]> = Promise.allSettled([admin.add(`cn=child,${parent}`, {objectClass: 'device', cn: 'child'})])
+                await waitAWhile()
+                holdOn.release()
+                await renaming
+                for (const result of await adding) if (result.status === 'rejected') assert.ok(result.reason instanceof LDAPNoSuchObjectException, String(result.reason))
+                await whole()
+                //An entry moved under one being deleted
+                const going: string = await directory.createOrganizationalUnit(unit, {ou: 'going'})
+                const mover: string = await directory.createOrganizationalUnit(unit, {ou: 'mover'})
+                holdOn = holdNext()
+                const deleting: Promise<PromiseSettledResult<unknown>[]> = Promise.allSettled([holding.connect(ADMIN).delete(going)])
+                await holdOn.reached
+                const moving: Promise<PromiseSettledResult<unknown>[]> = Promise.allSettled([admin.modifyDN(mover, 'ou=mover', {newSuperior: going})])
+                await waitAWhile()
+                holdOn.release()
+                const [deleted, moved] = [(await deleting)[0], (await moving)[0]]
+                assert.ok(deleted.status === 'fulfilled' || (deleted.reason instanceof LDAPNotAllowedOnNonLeafException), String((deleted as PromiseRejectedResult).reason))
+                if (moved.status === 'rejected') assert.ok(moved.reason instanceof LDAPNoSuchObjectException, String(moved.reason))
+                await whole()
+                //An entry moved under one being renamed, the other way round: the move held, the rename made meanwhile
+                const destination: string = await directory.createOrganizationalUnit(unit, {ou: 'destination'})
+                const traveller: string = await directory.createOrganizationalUnit(unit, {ou: 'traveller'})
+                holdOn = holdNext()
+                const travelling: Promise<unknown> = holding.connect(ADMIN).modifyDN(traveller, 'ou=traveller', {newSuperior: destination})
+                await holdOn.reached
+                const renamingDestination: Promise<PromiseSettledResult<unknown>[]> = Promise.allSettled([admin.modifyDN(destination, 'ou=destination-renamed')])
+                await waitAWhile()
+                holdOn.release()
+                await travelling
+                const renamedDestination: PromiseSettledResult<unknown> = (await renamingDestination)[0]
+                assert.equal(renamedDestination.status, 'fulfilled', String((renamedDestination as PromiseRejectedResult).reason))
+                await whole()
+                //An entry added under one being deleted
+                const leaf: string = await directory.createOrganizationalUnit(unit, {ou: 'leaf'})
+                holdOn = holdNext()
+                const removing: Promise<unknown> = holding.connect(ADMIN).delete(leaf)
+                await holdOn.reached
+                const addingUnder: Promise<PromiseSettledResult<unknown>[]> = Promise.allSettled([admin.add(`cn=orphan,${leaf}`, {objectClass: 'device', cn: 'orphan'})])
+                await waitAWhile()
+                holdOn.release()
+                await removing
+                const addedUnder: PromiseSettledResult<unknown> = (await addingUnder)[0]
+                assert.equal(addedUnder.status, 'rejected')
+                assert.ok((addedUnder as PromiseRejectedResult).reason instanceof LDAPNoSuchObjectException, String((addedUnder as PromiseRejectedResult).reason))
+                await whole()
+            } finally {
+                held = undefined
+                await admin.delete(unit, {controls: [TreeDeleteControl.encode()]}).catch((): undefined => undefined)
             }
         })
 
