@@ -133,6 +133,21 @@ class MeetingBackend extends DirectoryBackend {
 }
 
 /**
+ * Told of each modify reaching a ReachingBackend, by its DN
+ */
+let reaching: ((dn: string) => void) | undefined
+
+/**
+ * A directory backend telling the test of the modifies reaching it, before they run
+ */
+class ReachingBackend extends DirectoryBackend {
+    public async modify(context: WriteContext, dn: Parameters<DirectoryBackend['modify']>[1], changes: Parameters<DirectoryBackend['modify']>[2]): Promise<void> {
+        reaching?.(dn.toString())
+        await super.modify(context, dn, changes)
+    }
+}
+
+/**
  * A directory backend whose work once a transaction is committed fails (the references of an entry resolved)
  */
 class FailingAfterCommitBackend extends DirectoryBackend {
@@ -1172,6 +1187,55 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                 assert.deepEqual(errors.map(String), [])
             } finally {
                 await notAwaiting.destroy()
+                for (const dn of [outer, ...others]) await admin.delete(dn).catch((): undefined => undefined)
+            }
+        })
+
+        it('commits with a write the writes made in its transaction it does not wait for, once they reached the backend', {timeout: 60000}, async () => {
+            const outer: string = `cn=reaching-outer,${BASE}`
+            const others: string[] = [`cn=reaching1,${BASE}`, `cn=reaching2,${BASE}`]
+            for (const dn of [outer, ...others]) await admin.add(dn, {objectClass: 'device', cn: DN.parse(dn).rdn()!.attributes[0].value})
+            const errors: unknown[] = []
+            const reachingContainer: Container = new Container()
+            try {
+                await reachingContainer.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                await reachingContainer.setNamed('ldap', LDAPServer, {
+                    port: false,
+                    schema: schema,
+                    backends: [{class: ReachingBackend, suffix: BASE, database: 'database'}],
+                    access: {admins: [ADMIN]},
+                    interceptors: [{name: 'not-awaiting', operations: ['modify'], beforeCommit: async (_context: unknown, request: {dn?: {toString(): string}}): Promise<void> => {
+                        if (request.dn?.toString() !== outer) return
+                        const server: LDAPServer = await reachingContainer.get<LDAPServer>('ldap')
+                        const reached: Set<string> = new Set()
+                        const all: Promise<void> = new Promise<void>((resolve: () => void): void => {
+                            reaching = (dn: string): void => {
+                                reached.add(dn)
+                                if (others.every((other: string): boolean => reached.has(other))) resolve()
+                            }
+                        })
+                        //Started, not waited for; this write goes on once they are in its transaction
+                        for (const dn of others) void server.connect(ADMIN).modify(dn, {operation: 'add', attribute: 'description', values: 'reached'}).catch((error: unknown): void => {
+                            errors.push(error)
+                        })
+                        await Promise.race([all, new Promise<void>((resolve: () => void): void => {
+                            setTimeout(resolve, 5000)
+                        })])
+                        reaching = undefined
+                    }}]
+                })
+                const server: LDAPServer = await reachingContainer.get<LDAPServer>('ldap')
+                server.engine.events.on('error', (error: unknown): void => {
+                    errors.push(error)
+                })
+                await server.connect(ADMIN).modify(outer, {operation: 'add', attribute: 'description', values: 'outer'})
+                //Committed with it: there once it is answered
+                for (const dn of others) assert.deepEqual((await admin.search(dn, {scope: 'base'})).entries[0].get('description'), ['reached'])
+                assert.deepEqual((await admin.search(outer, {scope: 'base'})).entries[0].get('description'), ['outer'])
+                assert.deepEqual(errors.map(String), [])
+            } finally {
+                reaching = undefined
+                await reachingContainer.destroy()
                 for (const dn of [outer, ...others]) await admin.delete(dn).catch((): undefined => undefined)
             }
         })

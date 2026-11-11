@@ -474,6 +474,28 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     }
 
     /**
+     * Run a write of the bind throttle: in a transaction of its own where rows are locked, in a savepoint of a write in
+     * progress on SQLite (where a transaction of its own would wait for the turn that write holds)
+     * @param run The write.
+     */
+    #throttleWrite(run: (manager: EntityManager) => Promise<void>): Promise<void> {
+        return ROW_LOCKS.includes(this.#type) ? this.#transaction(run) : this.write(undefined, run)
+    }
+
+    /**
+     * Run a read through the entity manager of an operation: in the transaction of a write given in its context, in the
+     * turn of that write (after the writes made in it before, not alongside their statements)
+     * @param context The context.
+     * @param read The read.
+     */
+    #reading<T>(context: OperationContext | undefined, read: (manager: EntityManager) => Promise<T>): Promise<T> {
+        const given: EntityManager | undefined = (context as {transaction?: unknown} | undefined)?.transaction as EntityManager | undefined
+        const current: RunningWrite | undefined = WRITING.getStore()
+        if (given && current?.active && current.database === this.db) return this.#inTurn(current, (): Promise<T> => read(given))
+        return read(this.manager(context))
+    }
+
+    /**
      * Run an operation on the transaction of a write in its turn: after the operations queued before (its own, the
      * writes made in it); at once in a context holding that turn already (an operation making another, as a delete
      * writing the entries naming the deleted one)
@@ -843,24 +865,24 @@ export class DirectoryBackend extends Component implements LDAPBackend {
                 if (!row) return undefined
                 return {failures: JSON.parse(row.failures) as number[], ...row.lockedUntil ? {lockedUntil: Number(row.lockedUntil)} : {}}
             },
-            //In a transaction of their own (on SQLite, in the turns of the writes), or in a savepoint of the write they are
-            //made in
+            //In a transaction of their own, not undone with a write they are made in; on SQLite, in the turns of the writes,
+            //in a savepoint of the write they are made in (its turn would wait for it)
             set: async (key: string, state: ThrottleState): Promise<void> => {
-                await this.write(undefined, async (transaction: EntityManager): Promise<void> => {
+                await this.#throttleWrite(async (transaction: EntityManager): Promise<void> => {
                     await transaction.upsert(LDAPBindStateRecord, {key: key, failures: JSON.stringify(state.failures), lockedUntil: state.lockedUntil === undefined ? null : String(state.lockedUntil)}, ['key'])
                 })
             },
             delete: async (key: string): Promise<void> => {
                 //A bind which succeeds, without failures before (most of them), writes nothing and waits for no write
                 if (!(await manager().findOneBy(LDAPBindStateRecord, {key: key}))) return
-                await this.write(undefined, async (transaction: EntityManager): Promise<void> => {
+                await this.#throttleWrite(async (transaction: EntityManager): Promise<void> => {
                     await transaction.delete(LDAPBindStateRecord, {key: key})
                 })
             },
             //In a transaction of its own, the row locked where the database locks rows (the writes one after another
             //elsewhere): the failures of binds made at once, on one instance or several, each counted
             update: async (key: string, change: (state: ThrottleState | undefined) => ThrottleState | undefined): Promise<void> => {
-                const attempt = (): Promise<void> => this.write(undefined, async (transaction: EntityManager): Promise<void> => {
+                const attempt = (): Promise<void> => this.#throttleWrite(async (transaction: EntityManager): Promise<void> => {
                     const query: SelectQueryBuilder<LDAPBindStateRecord> = transaction.createQueryBuilder(LDAPBindStateRecord, 'b').where('b.key = :key', {key: key})
                     const row: LDAPBindStateRecord | null = await (ROW_LOCKS.includes(this.#type) ? query.setLock('pessimistic_write') : query).getOne()
                     const next: ThrottleState | undefined = change(row ? {failures: JSON.parse(row.failures) as number[], ...row.lockedUntil ? {lockedUntil: Number(row.lockedUntil)} : {}} : undefined)
@@ -957,7 +979,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      */
     public async exists(context: OperationContext, dn: DN): Promise<boolean> {
         const schema: Schema = this.use(context)
-        const row: LDAPEntryRecord | null = await this.row(this.manager(context), dn, schema)
+        const row: LDAPEntryRecord | null = await this.#reading(context, (manager: EntityManager): Promise<LDAPEntryRecord | null> => this.row(manager, dn, schema))
         if (!row) return false
         const found: Map<string, LDAPEntryRecord> = (context.state.get(FOUND_ROWS) as Map<string, LDAPEntryRecord> | undefined) ?? new Map()
         found.set(row.dnHash, row)
@@ -972,11 +994,12 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      */
     public async get(context: OperationContext, dn: DN): Promise<DirectoryEntry | undefined> {
         const schema: Schema = this.use(context)
-        const manager: EntityManager = this.manager(context)
-        const row: LDAPEntryRecord | null = await this.row(manager, dn, schema)
-        if (!row) return undefined
-        const [entry] = await this.entries(manager, [row], schema, {memberOf: true, memberUid: true, email: true})
-        return entry
+        return this.#reading(context, async (manager: EntityManager): Promise<DirectoryEntry | undefined> => {
+            const row: LDAPEntryRecord | null = await this.row(manager, dn, schema)
+            if (!row) return undefined
+            const [entry] = await this.entries(manager, [row], schema, {memberOf: true, memberUid: true, email: true})
+            return entry
+        })
     }
 
     /**
@@ -1109,8 +1132,16 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      * @param context The search.
      */
     public async search(context: SearchContext): Promise<BackendSearchResult> {
+        return this.#reading(context, (manager: EntityManager): Promise<BackendSearchResult> => this.#searching(context, manager))
+    }
+
+    /**
+     * The entries of a search, read through an entity manager
+     * @param context The search.
+     * @param manager The entity manager.
+     */
+    async #searching(context: SearchContext, manager: EntityManager): Promise<BackendSearchResult> {
         const schema: Schema = this.use(context)
-        const manager: EntityManager = this.manager(context)
         const base: LDAPEntryRecord | null = (context.state.get(FOUND_ROWS) as Map<string, LDAPEntryRecord> | undefined)?.get(sha256(context.base.key(schema))) ?? await this.row(manager, context.base, schema)
         if (!base) return {entries: [], exact: true}
         const virtual: VirtualAttributes = this.virtual(schema)
