@@ -13,6 +13,7 @@ import {
     type LDAPServerEngine,
     MemoryBackend,
     type OperationContext,
+    parseGeneralizedTime,
     type PasswordPolicyOptions,
     PasswordPolicyPlugin,
     PasswordPolicyRequestControl,
@@ -140,6 +141,30 @@ describe('the password policy', () => {
         await writer.add(BOB, {objectClass: 'inetOrgPerson', uid: 'bob', cn: 'bob', sn: 'bob', userPassword: 'bob-password-1'})
         await Promise.allSettled(Array.from({length: 10}, () => throttled.connect().bind(BOB, 'wrong')))
         await assert.rejects(throttled.connect().bind(BOB, 'bob-password-1'), LDAPInvalidCredentialsException)
+    })
+
+    it('keeps the newest failures by their times, whatever their form, and gives no failure a time ahead of the clock', async () => {
+        const {server, backend, admin} = await serve({pwdMaxFailure: '2'})
+        //Two failures of the same second, the first written without milliseconds: the first is the oldest
+        const second: number = Math.floor((Date.now() - 10000) / 1000) * 1000
+        const [oldest, newer] = [formatGeneralizedTime(second), formatGeneralizedTime(second + 250)]
+        await backend.modify({schema: server.schema} as never, DN.parse(ALICE), [{operation: 'replace', attribute: {type: 'pwdFailureTime', values: [Buffer.from(oldest), Buffer.from(newer)]}}])
+        await assert.rejects(server.connect().bind(ALICE, 'wrong'), refused(49))
+        const kept: string[] = (await admin.search(ALICE, {scope: 'base', attributes: ['pwdFailureTime']})).entries[0].get('pwdFailureTime')
+        assert.equal(kept.length, 2)
+        assert.ok(kept.includes(newer) && !kept.includes(oldest), JSON.stringify(kept))
+        //A failure while the clock was an hour ahead, then one once it is put back: the second is given the time of the clock
+        const now: () => number = Date.now
+        Date.now = (): number => now() + 3600000
+        try {
+            await assert.rejects(server.connect().bind(BOB, 'wrong'), refused(49))
+        } finally {
+            Date.now = now
+        }
+        await assert.rejects(server.connect().bind(BOB, 'wrong'), refused(49))
+        const times: number[] = (await admin.search(BOB, {scope: 'base', attributes: ['pwdFailureTime']})).entries[0].get('pwdFailureTime').map((value: string): number => parseGeneralizedTime(value)!).sort((left: number, right: number): number => left - right)
+        assert.equal(times.length, 2)
+        assert.ok(times[0] <= Date.now(), JSON.stringify(times.map((time: number): string => formatGeneralizedTime(time))))
     })
 
     it('warns before a password expires, allows the grace binds, then refuses an expired password', async () => {

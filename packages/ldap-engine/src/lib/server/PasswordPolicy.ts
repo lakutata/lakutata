@@ -225,11 +225,12 @@ function timeOf(entry: DirectoryEntry, type: string, schema: Schema): number | u
 let lastTime: number = 0
 
 /**
- * A time in milliseconds after the one given before: two failures at once in one instance get times of their own
+ * A time in milliseconds after the one given before while it is that close: two failures at once in one instance get
+ * times of their own; the time of the clock once it was put back (the time given before more than a second ahead)
  * @param now The time.
  */
 function uniqueTime(now: number): number {
-    lastTime = Math.max(now, lastTime + 1)
+    lastTime = now > lastTime || lastTime - now >= 1000 ? now : lastTime + 1
     return lastTime
 }
 
@@ -307,7 +308,8 @@ export class PasswordPolicy {
                 const time: number | undefined = parseGeneralizedTime(value)
                 return time !== undefined && (!rules.failureCountInterval || now - time < rules.failureCountInterval * 1000)
             })
-            .sort()
+            //By their times, not their texts: a time written without milliseconds sorts after the same second with them
+            .sort((left: string, right: string): number => parseGeneralizedTime(left)! - parseGeneralizedTime(right)!)
     }
 
     /**
