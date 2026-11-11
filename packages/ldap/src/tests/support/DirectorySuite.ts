@@ -133,6 +133,15 @@ class MeetingBackend extends DirectoryBackend {
 }
 
 /**
+ * A directory backend whose work once a transaction is committed fails (the references of an entry resolved)
+ */
+class FailingAfterCommitBackend extends DirectoryBackend {
+    protected async resolveReferences(): Promise<void> {
+        throw new Error('the references not resolved')
+    }
+}
+
+/**
  * Register the tests of the directory backend on a database
  * @param label The name of the database.
  * @param options The options of the database (its type and where it is), or what makes them; undefined skips the tests.
@@ -969,6 +978,27 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             } finally {
                 await counting.destroy()
                 await admin.delete(user).catch((): undefined => undefined)
+            }
+        })
+
+        it('tells the errors of its work once a write is committed as errors of the server, the write done', {timeout: 60000}, async () => {
+            const failing: Container = new Container()
+            const dn: string = `cn=failing-after-commit,${BASE}`
+            try {
+                await failing.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                await failing.setNamed('ldap', LDAPServer, {port: false, schema: schema, backends: [{class: FailingAfterCommitBackend, suffix: BASE, database: 'database'}], access: {admins: [ADMIN]}})
+                const server: LDAPServer = await failing.get<LDAPServer>('ldap')
+                const errors: unknown[] = []
+                server.engine.events.on('error', (error: unknown): void => {
+                    errors.push(error)
+                })
+                //A value naming no entry: its references resolved once committed
+                await server.connect(ADMIN).add(dn, {objectClass: 'device', cn: 'failing-after-commit', seeAlso: `cn=nobody,${BASE}`})
+                assert.equal((await admin.search(dn, {scope: 'base'})).entries.length, 1)
+                assert.deepEqual(errors.map((error: unknown): string => (error as Error).message), ['the references not resolved'])
+            } finally {
+                await failing.destroy()
+                await admin.delete(dn).catch((): undefined => undefined)
             }
         })
 

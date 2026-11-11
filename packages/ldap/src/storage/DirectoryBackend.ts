@@ -382,6 +382,11 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     #readCommitted: boolean = false
 
     /**
+     * The engine of the server, once it started the backend (initializeWith()): the events it tells errors by
+     */
+    #engine: LDAPServerEngine | undefined
+
+    /**
      * Whether the database skips the rows other writes hold (SKIP LOCKED: PostgreSQL, MySQL from 8.0.1, MariaDB from
      * 10.6); without it, a bind writing authTimestamp waits for them
      */
@@ -509,7 +514,10 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         const transaction = (): Promise<T> => (committedReads ? this.db.transaction('READ COMMITTED', begin) : this.db.transaction(begin)).catch(busy)
         //Once committed (and out of the turns of the writes, where its own would wait for it), what it left to do
         const afterwards = async (value: T): Promise<T> => {
-            for (const task of holder.store?.afterCommit?.values() ?? []) await task().catch((): undefined => undefined)
+            //Their errors are errors of the server (its events), the write done all the same
+            for (const task of holder.store?.afterCommit?.values() ?? []) await task().catch((error: unknown): void => {
+                this.#engine?.events.emit('error', error)
+            })
             return value
         }
         if (ROW_LOCKS.includes(this.#type)) return transaction().then(afterwards)
@@ -1877,10 +1885,12 @@ export class DirectoryBackend extends Component implements LDAPBackend {
 
     /**
      * Create the entry of the suffix and the administrator on the first start (the LDAPServer component runs it once its
-     * engine is made); nothing when the entry of the suffix exists
+     * engine is made); nothing when the entry of the suffix exists. The backend tells the errors of its work once a write
+     * is committed as `error` events of the engine.
      * @param engine The engine of the server.
      */
     public async initializeWith(engine: LDAPServerEngine): Promise<void> {
+        this.#engine = engine
         const options: DirectoryInitialization | undefined = this.initialize
         if (!options) return
         const schema: Schema = engine.schema
