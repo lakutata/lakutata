@@ -22,6 +22,7 @@ import {
     LDAPNoSuchObjectException,
     LDAPNotAllowedOnNonLeafException,
     LDAPServer,
+    LDAPUnavailableException,
     LDAPUnwillingToPerformException,
     LDAPValueRecord,
     SortRequestControl,
@@ -725,6 +726,67 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             } finally {
                 held = undefined
                 await admin.delete(unit, {controls: [TreeDeleteControl.encode()]}).catch((): undefined => undefined)
+            }
+        })
+
+        it('fails the whole write whose transaction a deadlock of a write made in it ended, as busy', {timeout: 60000, skip: label === 'SQLite' ? 'SQLite takes one write at a time' : false}, async () => {
+            const names: string[] = ['deadlock-x', 'deadlock-y', 'deadlock-p', 'deadlock-q']
+            const [x, y, p, q] = names.map((name: string): string => `cn=${name},${BASE}`)
+            for (const [index, dn] of [x, y, p, q].entries()) await admin.add(dn, {objectClass: 'device', cn: names[index]})
+            //Two writes each making two writes in its transaction, in the opposite orders: the database ends one of them
+            const latch = (): {open: () => void, wait: () => Promise<void>} => {
+                let open: () => void = (): void => undefined
+                const opened: Promise<void> = new Promise<void>((resolve: () => void): void => {
+                    open = resolve
+                })
+                return {open: (): void => open(), wait: (): Promise<void> => Promise.race([opened, new Promise<void>((resolve: () => void): void => {
+                    setTimeout(resolve, 5000)
+                })])}
+            }
+            const xHasP = latch()
+            const yHasQ = latch()
+            const caught: Record<string, unknown> = {}
+            const deadlocking: Container = new Container()
+            try {
+                await deadlocking.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                await deadlocking.setNamed('ldap', LDAPServer, {
+                    port: false,
+                    schema: schema,
+                    backends: [{class: DirectoryBackend, suffix: BASE, database: 'database'}],
+                    access: {admins: [ADMIN]},
+                    interceptors: [{name: 'deadlocking', operations: ['modify'], beforeCommit: async (_context: unknown, request: {dn?: {toString(): string}}): Promise<void> => {
+                        const server: LDAPServer = await deadlocking.get<LDAPServer>('ldap')
+                        const own: string | undefined = request.dn?.toString() === x ? 'x' : request.dn?.toString() === y ? 'y' : undefined
+                        if (!own) return
+                        const [first, second, mine, theirs] = own === 'x' ? [p, q, xHasP, yHasQ] : [q, p, yHasQ, xHasP]
+                        await server.connect(ADMIN).modify(first, {operation: 'add', attribute: 'description', values: own})
+                        mine.open()
+                        await theirs.wait()
+                        //The error of the write ended by the deadlock caught: the write it is made in must fail all the same
+                        await server.connect(ADMIN).modify(second, {operation: 'add', attribute: 'description', values: own}).catch((error: unknown): void => {
+                            caught[own] = error
+                        })
+                    }}]
+                })
+                const server: LDAPServer = await deadlocking.get<LDAPServer>('ldap')
+                const results: PromiseSettledResult<unknown>[] = await Promise.allSettled([
+                    server.connect(ADMIN).modify(x, {operation: 'add', attribute: 'description', values: 'outer'}),
+                    server.connect(ADMIN).modify(y, {operation: 'add', attribute: 'description', values: 'outer'})
+                ])
+                const refused: PromiseRejectedResult[] = results.filter((result: PromiseSettledResult<unknown>): result is PromiseRejectedResult => result.status === 'rejected')
+                assert.equal(refused.length, 1, JSON.stringify(results.map((result: PromiseSettledResult<unknown>): string => result.status)))
+                assert.ok(refused[0].reason instanceof LDAPUnavailableException && refused[0].reason.code === 51, String(refused[0].reason))
+                //Nothing of the write ended: neither its value nor the values of the writes made in it; all of the other
+                const lost: string = results[0].status === 'rejected' ? 'x' : 'y'
+                const kept: string = lost === 'x' ? 'y' : 'x'
+                const description = async (dn: string): Promise<string[]> => (await admin.search(dn, {scope: 'base'})).entries[0].get('description').sort()
+                assert.deepEqual(await description(lost === 'x' ? x : y), [])
+                assert.deepEqual(await description(kept === 'x' ? x : y), ['outer'])
+                assert.deepEqual(await description(p), [kept])
+                assert.deepEqual(await description(q), [kept])
+            } finally {
+                await deadlocking.destroy()
+                for (const dn of [x, y, p, q]) await admin.delete(dn).catch((): undefined => undefined)
             }
         })
 

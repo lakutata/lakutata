@@ -26,12 +26,14 @@ import {
     LDAPNoSuchObjectException,
     LDAPNotAllowedOnNonLeafException,
     type LDAPServerEngine,
+    LDAPUnavailableException,
     LDAPUnwillingToPerformException,
     LDAPEntryAlreadyExistsException,
     matchFilter,
     type ObjectClassDefinition,
     type OperationContext,
     type PartialAttribute,
+    ResultCode,
     type Schema,
     type SearchContext,
     type ServerOutcome,
@@ -68,6 +70,8 @@ interface RunningWrite {
     manager: EntityManager
     active: boolean
     nested: Promise<unknown>
+    //The error of the database which ended its transaction in a write made in it (a deadlock): it fails with it
+    ended?: unknown
 }
 
 //The write running in an asynchronous context: a write it makes on its database runs in a savepoint of its transaction
@@ -196,6 +200,18 @@ export interface DirectoryBackendOptions {
  */
 function descriptionKey(description: string, schema: Schema): string {
     return [schema.primaryName(attributeTypeOf(description)).toLowerCase(), ...description.split(';').slice(1).map((option: string): string => option.toLowerCase()).sort()].join(';')
+}
+
+/**
+ * Whether a database error is a contention with another transaction, which a later try may not meet: a deadlock
+ * (PostgreSQL 40P01, MySQL 1213, where it ends the whole transaction), a lock waited for too long (PostgreSQL 55P03, MySQL
+ * 1205), a serialization failure (PostgreSQL 40001), a database file locked (SQLite SQLITE_BUSY, SQLITE_LOCKED)
+ * @param error The error.
+ */
+function isContention(error: unknown): boolean {
+    const driverError: {code?: unknown, errno?: unknown} = ((error as {driverError?: unknown} | undefined)?.driverError ?? error ?? {}) as {code?: unknown, errno?: unknown}
+    const code: string = String(driverError.code)
+    return ['40P01', '55P03', '40001', 'ER_LOCK_DEADLOCK', 'ER_LOCK_WAIT_TIMEOUT'].includes(code) || driverError.errno === 1213 || driverError.errno === 1205 || code.startsWith('SQLITE_BUSY') || code.startsWith('SQLITE_LOCKED')
 }
 
 /**
@@ -379,14 +395,24 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      */
     protected async write<T>(context: OperationContext | undefined, run: (manager: EntityManager) => Promise<T>): Promise<T> {
         const given: EntityManager | undefined = (context as {transaction?: unknown} | undefined)?.transaction as EntityManager | undefined
-        if (given) return run(given)
         const current: RunningWrite | undefined = WRITING.getStore()
+        //A transaction a deadlock ended runs nothing more (on MySQL its statements would each be committed alone)
+        if (current?.active && current.ended !== undefined && current.database === this.db) throw current.ended
+        if (given) return run(given)
         if (current?.active && current.database === this.db) {
             //In a savepoint of the transaction of the write it is made by: a write failing there leaves nothing of it,
             //and the other goes on when it catches the error. The writes it makes take turns (one connection, one
             //savepoint at a time); those they make wait for them only.
             //(one the write did not wait for, its turn come once the write is done, runs in a transaction of its own)
-            const result: Promise<T> = current.nested.then((): Promise<T> => current.active ? current.manager.transaction((manager: EntityManager): Promise<T> => this.#running(manager, run)) : this.#transaction(run))
+            const result: Promise<T> = current.nested.then((): Promise<T> => {
+                if (current.ended !== undefined) throw current.ended
+                return current.active ? current.manager.transaction((manager: EntityManager): Promise<T> => this.#running(manager, run)) : this.#transaction(run)
+            }).catch((error: unknown): never => {
+                //A contention ends the write it is made in too, caught or not: MySQL ended its transaction, and on
+                //PostgreSQL the write is answered busy as a whole
+                if (current.active && isContention(error)) current.ended ??= error
+                throw error
+            })
             current.nested = result.catch((): undefined => undefined)
             return result
         }
@@ -401,7 +427,13 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      */
     #transaction<T>(run: (manager: EntityManager) => Promise<T>): Promise<T> {
         const start = (manager: EntityManager): Promise<T> => this.#running(manager, run)
-        const transaction = (): Promise<T> => isMySQL(this.#type) ? this.db.transaction('READ COMMITTED', start) : this.db.transaction(start)
+        //A contention with another transaction answered busy (51): the client may try again; not tried again here, the
+        //interceptors' beforeCommit() would run twice
+        const busy = (error: unknown): never => {
+            if (isContention(error)) throw new LDAPUnavailableException(ResultCode.busy, 'The entries are being written by another operation: try again')
+            throw error
+        }
+        const transaction = (): Promise<T> => (isMySQL(this.#type) ? this.db.transaction('READ COMMITTED', start) : this.db.transaction(start)).catch(busy)
         if (ROW_LOCKS.includes(this.#type)) return transaction()
         const previous: Promise<unknown> = WRITE_QUEUES.get(this.db) ?? Promise.resolve()
         const result: Promise<T> = previous.then(transaction)
@@ -417,7 +449,10 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     async #running<T>(manager: EntityManager, run: (manager: EntityManager) => Promise<T>): Promise<T> {
         const store: RunningWrite = {database: this.db, manager: manager, active: true, nested: Promise.resolve()}
         try {
-            return await WRITING.run(store, (): Promise<T> => run(manager))
+            const result: T = await WRITING.run(store, (): Promise<T> => run(manager))
+            //A write made in it ended its transaction: it fails, whether it caught the error or not
+            if (store.ended !== undefined) throw store.ended
+            return result
         } finally {
             //What the write left running (an event listener) makes writes of its own
             store.active = false
