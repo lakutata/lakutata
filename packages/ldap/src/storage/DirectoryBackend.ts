@@ -382,6 +382,12 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     #readCommitted: boolean = false
 
     /**
+     * Whether the database skips the rows other writes hold (SKIP LOCKED: PostgreSQL, MySQL from 8.0.1, MariaDB from
+     * 10.6); without it, a bind writing authTimestamp waits for them
+     */
+    #skipLocked: boolean = false
+
+    /**
      * Get the Database component
      */
     protected async init(): Promise<void> {
@@ -395,6 +401,12 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         const type: string = String((this.#database.driver.options as {type?: string}).type)
         this.#type = type
         this.#readCommitted = isMySQL(type)
+        const version: number[] = String((this.#database.driver as {version?: unknown}).version ?? '').split(/[.-]/).slice(0, 3).map((part: string): number => parseInt(part, 10) || 0)
+        const atLeast = (wanted: number[]): boolean => {
+            for (let index: number = 0; index < wanted.length; index++) if ((version[index] ?? 0) !== wanted[index]) return (version[index] ?? 0) > wanted[index]
+            return true
+        }
+        this.#skipLocked = ['postgres', 'aurora-postgres', 'cockroachdb'].includes(type) || (type === 'mariadb' ? atLeast([10, 6, 0]) : isMySQL(type) && atLeast([8, 0, 1]))
         if (['postgres', 'aurora-postgres'].includes(type)) {
             //Set on each transaction only when the server or the options would give another level (one statement less)
             const level: unknown = ((await this.#database.query('SHOW default_transaction_isolation')) as {default_transaction_isolation?: unknown}[])[0]?.default_transaction_isolation
@@ -724,14 +736,14 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         if (ROW_NOT_INDEX_LOCKS.includes(this.#type)) {
             //One statement: renamed or deleted by a write it waited for, the row no longer matches and is not given
             const query: SelectQueryBuilder<LDAPEntryRecord> = manager.createQueryBuilder(LDAPEntryRecord, 'e').where('e.suffix = :suffix', {suffix: this.suffixKey}).andWhere('e.dnHash = :hash', {hash: sha256(dn.key(schema))}).setLock(mode)
-            return (skipLocked ? query.setOnLocked('skip_locked') : query).getOne()
+            return (skipLocked && this.#skipLocked ? query.setOnLocked('skip_locked') : query).getOne()
         }
         const found: LDAPEntryRecord | null = await this.row(manager, dn, schema)
         if (!found || !ROW_LOCKS.includes(this.#type)) return found
         //Locked by its ID, as every entry is: MySQL locks the index it reads by, and two writes locking a row by two
         //indexes would wait for each other
         const query: SelectQueryBuilder<LDAPEntryRecord> = manager.createQueryBuilder(LDAPEntryRecord, 'e').where('e.id = :id', {id: found.id}).setLock(mode)
-        const locked: LDAPEntryRecord | null = await (skipLocked ? query.setOnLocked('skip_locked') : query).getOne()
+        const locked: LDAPEntryRecord | null = await (skipLocked && this.#skipLocked ? query.setOnLocked('skip_locked') : query).getOne()
         //Renamed before it was locked: not the entry of the DN anymore
         return locked && locked.suffix === found.suffix && locked.dnHash === found.dnHash ? locked : null
     }
@@ -1797,7 +1809,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      * @param type The attribute.
      * @param value The value.
      * @param skipLocked Whether the value is left out when another write holds the entry (authTimestamp: a bind does not
-     * wait for the write).
+     * wait for the write), where the database can skip it.
      */
     protected async writeOperational(context: OperationContext, dn: DN, type: string, value: string, skipLocked: boolean = false): Promise<void> {
         const schema: Schema = this.use(context)
