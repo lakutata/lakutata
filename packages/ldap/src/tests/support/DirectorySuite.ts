@@ -437,14 +437,11 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
 
         it('keeps every change of concurrent writes to one entry, from one instance or two, and one value in an attribute of one value', {timeout: 120000}, async () => {
             const db: Database = await container.get<Database>('database')
-            //A second instance on the database where it has row locks (SQLite takes one write at a time in an instance)
+            //A second instance on the same database (on SQLite, a second connection to the same file)
             const second: Container = new Container()
-            let instances: LDAPServer[] = [ldap]
-            if (String(databaseOptions.type) !== 'better-sqlite3') {
-                await second.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
-                await second.setNamed('ldap', LDAPServer, {port: false, schema: schema, backends: [{class: DirectoryBackend, suffix: BASE, database: 'database', unique: ['uid'], nestedGroups: 2, mailAlias: true}], access: {admins: [ADMIN]}})
-                instances = [ldap, await second.get<LDAPServer>('ldap')]
-            }
+            await second.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+            await second.setNamed('ldap', LDAPServer, {port: false, schema: schema, backends: [{class: DirectoryBackend, suffix: BASE, database: 'database', unique: ['uid'], nestedGroups: 2, mailAlias: true}], access: {admins: [ADMIN]}})
+            const instances: LDAPServer[] = [ldap, await second.get<LDAPServer>('ldap')]
             const valueEntity = String(databaseOptions.type) === 'mysql' ? LDAPMySQLValueRecord : LDAPValueRecord
             const device: string = `cn=concurrent,${BASE}`
             const user: string = `uid=concurrent,${people}`
@@ -775,6 +772,85 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                 held = undefined
                 await admin.delete(counter).catch((): undefined => undefined)
                 await admin.delete(team).catch((): undefined => undefined)
+            }
+        })
+
+        it('points the values written while the entries they name are added, renamed or deleted at the entries as they are', {timeout: 60000}, async () => {
+            const db: Database = await container.get<Database>('database')
+            const valueEntity = String(databaseOptions.type) === 'mysql' ? LDAPMySQLValueRecord : LDAPValueRecord
+            const holding: LDAPServer = await holdingServer()
+            const team: string = `cn=references,${groups}`
+            const named = (uid: string): string => `uid=${uid},${people}`
+            await admin.add(team, {objectClass: 'groupOfNames', cn: 'references', member: named('user3')})
+            //The row of the member value naming a DN, as the database keeps it
+            const member = async (dn: string): Promise<LDAPValueRecord | undefined> => {
+                const group: LDAPEntryRecord = await db.getRepository(LDAPEntryRecord).findOneByOrFail({dn: team})
+                return (await db.getRepository(valueEntity).findBy({entryId: group.id, attributeType: 'member'})).find((row: LDAPValueRecord): boolean => row.value.toLowerCase() === dn.toLowerCase())
+            }
+            const idOf = async (dn: string): Promise<string | undefined> => (await db.getRepository(LDAPEntryRecord).findOneBy({dn: dn}))?.id
+            try {
+                //A member named while its entry is being added: pointed at it
+                let holdOn: {reached: Promise<void>, release: () => void} = holdNext()
+                const adding: Promise<unknown> = holding.connect(ADMIN).add(named('arriving'), {objectClass: 'account', uid: 'arriving'})
+                await holdOn.reached
+                const naming: Promise<unknown> = admin.modify(team, {operation: 'add', attribute: 'member', values: named('arriving')})
+                await waitAWhile()
+                holdOn.release()
+                await adding
+                await naming
+                assert.equal((await member(named('arriving')))?.target, await idOf(named('arriving')))
+                assert.ok((await admin.search(named('arriving'), {scope: 'base', attributes: ['memberOf']})).entries[0].get('memberOf').includes(team))
+                //A member named by the DN of an entry being renamed: the name of no entry once the rename is made
+                await admin.add(named('leaving'), {objectClass: 'account', uid: 'leaving'})
+                holdOn = holdNext()
+                const renaming: Promise<unknown> = holding.connect(ADMIN).modifyDN(named('leaving'), 'uid=left')
+                await holdOn.reached
+                const namingOld: Promise<PromiseSettledResult<unknown>[]> = Promise.allSettled([admin.modify(team, {operation: 'add', attribute: 'member', values: named('leaving')})])
+                await waitAWhile()
+                holdOn.release()
+                await renaming
+                if ((await namingOld)[0].status === 'fulfilled') assert.equal((await member(named('leaving')))?.target ?? null, null)
+                //A member named while its entry is being deleted: pointing at no entry, not at the deleted one
+                await admin.add(named('going'), {objectClass: 'account', uid: 'going'})
+                const going: string | undefined = await idOf(named('going'))
+                holdOn = holdNext()
+                const deleting: Promise<unknown> = holding.connect(ADMIN).delete(named('going'))
+                await holdOn.reached
+                const namingGone: Promise<PromiseSettledResult<unknown>[]> = Promise.allSettled([admin.modify(team, {operation: 'add', attribute: 'member', values: named('going')})])
+                await waitAWhile()
+                holdOn.release()
+                await deleting
+                if ((await namingGone)[0].status === 'fulfilled') assert.notEqual((await member(named('going')))?.target ?? null, going)
+                //An entry renamed to a DN members name already: they point at it
+                await admin.modify(team, {operation: 'add', attribute: 'member', values: named('future')})
+                await admin.add(named('present'), {objectClass: 'account', uid: 'present'})
+                await admin.modifyDN(named('present'), 'uid=future')
+                assert.equal((await member(named('future')))?.target, await idOf(named('future')))
+            } finally {
+                held = undefined
+                await admin.delete(team).catch((): undefined => undefined)
+                for (const uid of ['arriving', 'left', 'leaving', 'going', 'future', 'present']) await admin.delete(named(uid)).catch((): undefined => undefined)
+            }
+        })
+
+        it('answers noSuchObject to a client deleting an entry another deleted once the engine read it', {timeout: 60000}, async () => {
+            const holding: LDAPServer = await holdingServer()
+            const doomed: string = `cn=doomed,${BASE}`
+            await admin.add(doomed, {objectClass: 'device', cn: 'doomed'})
+            try {
+                const holdOn: {reached: Promise<void>, release: () => void} = holdNext()
+                const first: Promise<unknown> = holding.connect(ADMIN).delete(doomed)
+                await holdOn.reached
+                const second: Promise<PromiseSettledResult<unknown>[]> = Promise.allSettled([admin.delete(doomed)])
+                await waitAWhile()
+                holdOn.release()
+                await first
+                const result: PromiseSettledResult<unknown> = (await second)[0]
+                assert.equal(result.status, 'rejected')
+                assert.ok((result as PromiseRejectedResult).reason instanceof LDAPNoSuchObjectException, String((result as PromiseRejectedResult).reason))
+            } finally {
+                held = undefined
+                await admin.delete(doomed).catch((): undefined => undefined)
             }
         })
 
