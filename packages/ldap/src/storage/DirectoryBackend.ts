@@ -225,12 +225,15 @@ function isContention(error: unknown): boolean {
 }
 
 /**
- * Whether a database error is a unique key taken (PostgreSQL 23505, MySQL 1062, SQLite SQLITE_CONSTRAINT_UNIQUE)
+ * Whether a database error is a unique key taken (PostgreSQL 23505, MySQL 1062, SQLite SQLITE_CONSTRAINT_UNIQUE, or the
+ * message of a driver without codes)
  * @param error The error.
  */
 function isUniqueViolation(error: unknown): boolean {
     const driverError: {code?: unknown, errno?: unknown} = ((error as {driverError?: unknown} | undefined)?.driverError ?? error ?? {}) as {code?: unknown, errno?: unknown}
-    return ['23505', 'ER_DUP_ENTRY', 'SQLITE_CONSTRAINT_UNIQUE', 'SQLITE_CONSTRAINT_PRIMARYKEY'].includes(String(driverError.code)) || driverError.errno === 1062
+    if (['23505', 'ER_DUP_ENTRY', 'SQLITE_CONSTRAINT_UNIQUE', 'SQLITE_CONSTRAINT_PRIMARYKEY'].includes(String(driverError.code)) || driverError.errno === 1062) return true
+    //The drivers giving only a message (sql.js)
+    return /UNIQUE constraint failed|duplicate key value|Duplicate entry/i.test(String((error as {message?: unknown} | undefined)?.message ?? ''))
 }
 
 /**
@@ -561,6 +564,22 @@ export class DirectoryBackend extends Component implements LDAPBackend {
                 if (target) await manager.update(this.#valueEntity, {id: id}, {target: target})
             }
         })
+    }
+
+    /**
+     * Fill the values naming an entry again once the transaction is committed (those written meanwhile by others), the
+     * entry locked (shared) and still of its DN then: not when it was deleted or renamed meanwhile, or when the write
+     * which added or renamed it was undone (a savepoint rolled back)
+     * @param id The ID of the entry.
+     * @param dnKey The key of its DN.
+     * @param schema The schema.
+     */
+    protected backfillOnceCommitted(id: string, dnKey: string, schema: Schema): void {
+        this.afterCommit(`backfill:${id}`, (): Promise<void> => this.#transaction(async (manager: EntityManager): Promise<void> => {
+            const query: SelectQueryBuilder<LDAPEntryRecord> = manager.createQueryBuilder(LDAPEntryRecord, 'e').where('e.id = :id', {id: id})
+            const row: LDAPEntryRecord | null = await (ROW_LOCKS.includes(this.#type) ? query.setLock('pessimistic_read') : query).getOne()
+            if (row?.dnKey === dnKey && row.suffix === this.suffixKey) await this.backfill(manager, id, dnKey, schema)
+        }))
     }
 
     /**
@@ -1316,7 +1335,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         //The values naming this entry before it was added now point at it; again once committed, for those written
         //meanwhile by others, which this transaction did not see
         await this.backfill(manager, id, dnKey, schema)
-        this.afterCommit(`backfill:${id}`, (): Promise<void> => this.#transaction((transaction: EntityManager): Promise<void> => this.backfill(transaction, id, dnKey, schema)))
+        this.backfillOnceCommitted(id, dnKey, schema)
     }
 
     /**
@@ -1584,7 +1603,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
             //The values naming the new DN, naming no entry until now, point at it; again once committed, for those written
             //meanwhile by others
             await this.backfill(manager, item.id, dnKey, schema)
-            this.afterCommit(`backfill:${item.id}`, (): Promise<void> => this.#transaction((transaction: EntityManager): Promise<void> => this.backfill(transaction, item.id, dnKey, schema)))
+            this.backfillOnceCommitted(item.id, dnKey, schema)
         }
         //The values of the entry: what the rename changes applied to the values it has now (the engine made the entry it
         //gives from the values it read before the entry was locked)

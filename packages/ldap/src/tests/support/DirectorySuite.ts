@@ -833,6 +833,43 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             }
         })
 
+        it('fills the values naming a new DN once committed only for an entry which has it', {timeout: 60000}, async () => {
+            const db: Database = await container.get<Database>('database')
+            const valueEntity = String(databaseOptions.type) === 'mysql' ? LDAPMySQLValueRecord : LDAPValueRecord
+            const outer: string = `cn=backfilling,${BASE}`
+            const team: string = `cn=backfilled,${groups}`
+            const wanted: string = `uid=wanted,${people}`
+            const renamable: string = `uid=renamable,${people}`
+            await admin.add(outer, {objectClass: 'device', cn: 'backfilling'})
+            await admin.add(team, {objectClass: 'groupOfNames', cn: 'backfilled', member: wanted})
+            await admin.add(renamable, {objectClass: 'account', uid: 'renamable'})
+            //The uid of the new RDN taken elsewhere: the rename is refused after it filled the values naming its new DN
+            await admin.add(`uid=wanted,${groups}`, {objectClass: 'account', uid: 'wanted'})
+            const backfilling: Container = new Container()
+            try {
+                await backfilling.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                await backfilling.setNamed('ldap', LDAPServer, {
+                    port: false,
+                    schema: schema,
+                    backends: [{class: DirectoryBackend, suffix: BASE, database: 'database', unique: ['uid']}],
+                    access: {admins: [ADMIN]},
+                    interceptors: [{name: 'backfilling', operations: ['modify'], beforeCommit: async (_context: unknown, request: {dn?: {toString(): string}}): Promise<void> => {
+                        if (request.dn?.toString() !== outer) return
+                        await assert.rejects((await backfilling.get<LDAPServer>('ldap')).connect(ADMIN).modifyDN(renamable, 'uid=wanted'), LDAPConstraintViolationException)
+                    }}]
+                })
+                await (await backfilling.get<LDAPServer>('ldap')).connect(ADMIN).modify(outer, {operation: 'add', attribute: 'description', values: 'outer'})
+                //The value naming the DN the rename did not take names no entry
+                const group: LDAPEntryRecord = await db.getRepository(LDAPEntryRecord).findOneByOrFail({dn: team})
+                const row: LDAPValueRecord | undefined = (await db.getRepository(valueEntity).findBy({entryId: group.id, attributeType: 'member'})).find((item: LDAPValueRecord): boolean => item.value.toLowerCase() === wanted.toLowerCase())
+                assert.equal(row?.target ?? null, null)
+                assert.equal((await admin.search(renamable, {scope: 'base'})).entries.length, 1)
+            } finally {
+                await backfilling.destroy()
+                for (const dn of [outer, team, renamable, `uid=wanted,${groups}`]) await admin.delete(dn).catch((): undefined => undefined)
+            }
+        })
+
         it('answers noSuchObject to a client deleting an entry another deleted once the engine read it', {timeout: 60000}, async () => {
             const holding: LDAPServer = await holdingServer()
             const doomed: string = `cn=doomed,${BASE}`
