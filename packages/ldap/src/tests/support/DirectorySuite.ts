@@ -6,6 +6,7 @@ import {Database} from '@lakutata/orm/com/database'
 import {
     connectLDAP,
     type Directory,
+    DN,
     DirectoryBackend,
     type DirectoryEntry,
     directoryEntities,
@@ -36,7 +37,7 @@ const BASE: string = 'dc=example,dc=com'
 const ADMIN: string = 'cn=admin,dc=example,dc=com'
 
 /**
- * The next rename or delete of a HoldingBackend to hold in its transaction, its locks kept: told when it is held, let go
+ * The next add, rename or delete of a HoldingBackend to hold in its transaction, its locks kept: told when it is held, let go
  * when the test says
  */
 let held: {reached: () => void, release: Promise<void>} | undefined
@@ -53,10 +54,15 @@ async function hold(): Promise<void> {
 }
 
 /**
- * A directory backend holding its renames and deletes in their transactions once they are written, until the test lets
- * them go: the writes made meanwhile on other connections meet their locks
+ * A directory backend holding its adds, renames and deletes in their transactions once they are written, until the test
+ * lets them go: the writes made meanwhile on other connections meet their locks
  */
 class HoldingBackend extends DirectoryBackend {
+    public async add(context: WriteContext, entry: DirectoryEntry): Promise<void> {
+        await super.add(context, entry)
+        await hold()
+    }
+
     public async modifyDN(context: WriteContext, dn: Parameters<DirectoryBackend['modifyDN']>[1], entry: DirectoryEntry): Promise<void> {
         await super.modifyDN(context, dn, entry)
         await hold()
@@ -543,11 +549,13 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             }
         })
 
-        it('leaves nothing of a write that failed in the transaction of another, which goes on', {timeout: 60000}, async () => {
+        it('leaves nothing of a write that failed in the transaction of another, which goes on, with others made at once', {timeout: 60000}, async () => {
             const outer: string = `cn=outer,${BASE}`
             const failing: string = `cn=failing,${people}`
+            const siblings: string[] = [`cn=sibling1,${BASE}`, `cn=sibling2,${BASE}`]
             await admin.add(outer, {objectClass: 'device', cn: 'outer'})
             await admin.add(failing, {objectClass: 'inetOrgPerson', cn: 'failing', sn: 'Failing', uid: 'failing'})
+            for (const dn of siblings) await admin.add(dn, {objectClass: 'device', cn: DN.parse(dn).rdn()!.attributes[0].value})
             const failingWrites: Container = new Container()
             let refused: unknown
             try {
@@ -557,12 +565,18 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                     schema: schema,
                     backends: [{class: DirectoryBackend, suffix: BASE, database: 'database', unique: ['uid']}],
                     access: {admins: [ADMIN]},
-                    //A write in the transaction of another, refused once it has written a value (uid taken), the error caught
+                    //Writes in the transaction of another, at once: one refused once it has written a value (uid taken), the
+                    //error caught, the others made
                     interceptors: [{name: 'failing', operations: ['modify'], beforeCommit: async (_context: unknown, request: {dn?: {toString(): string}}): Promise<void> => {
                         if (request.dn?.toString() !== outer) return
-                        await (await failingWrites.get<LDAPServer>('ldap')).connect(ADMIN).modify(failing, [{operation: 'add', attribute: 'description', values: 'written before the refusal'}, {operation: 'replace', attribute: 'uid', values: 'user0'}]).catch((error: unknown): void => {
-                            refused = error
-                        })
+                        const server: LDAPServer = await failingWrites.get<LDAPServer>('ldap')
+                        await Promise.all([
+                            server.connect(ADMIN).modify(siblings[0], {operation: 'add', attribute: 'description', values: 'first'}),
+                            server.connect(ADMIN).modify(failing, [{operation: 'add', attribute: 'description', values: 'written before the refusal'}, {operation: 'replace', attribute: 'uid', values: 'user0'}]).catch((error: unknown): void => {
+                                refused = error
+                            }),
+                            server.connect(ADMIN).modify(siblings[1], {operation: 'add', attribute: 'description', values: 'second'})
+                        ])
                     }}]
                 })
                 await (await failingWrites.get<LDAPServer>('ldap')).connect(ADMIN).modify(outer, {operation: 'add', attribute: 'description', values: 'outer'})
@@ -570,9 +584,11 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                 assert.deepEqual((await admin.search(outer, {scope: 'base'})).entries[0].get('description'), ['outer'])
                 const entry = (await admin.search(failing, {scope: 'base'})).entries[0]
                 assert.deepEqual([entry.get('description'), entry.get('uid')], [[], ['failing']])
+                assert.deepEqual((await admin.search(siblings[0], {scope: 'base'})).entries[0].get('description'), ['first'])
+                assert.deepEqual((await admin.search(siblings[1], {scope: 'base'})).entries[0].get('description'), ['second'])
             } finally {
                 await failingWrites.destroy()
-                for (const dn of [outer, failing]) await admin.delete(dn).catch((): undefined => undefined)
+                for (const dn of [outer, failing, ...siblings]) await admin.delete(dn).catch((): undefined => undefined)
             }
         })
 
@@ -659,17 +675,60 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                 assert.equal(addedUnder.status, 'rejected')
                 assert.ok((addedUnder as PromiseRejectedResult).reason instanceof LDAPNoSuchObjectException, String((addedUnder as PromiseRejectedResult).reason))
                 await whole()
+                //An entry deleted while an entry is moved under it: refused, as it has one below it now
+                const keeper: string = await directory.createOrganizationalUnit(unit, {ou: 'keeper'})
+                const kept: string = await directory.createOrganizationalUnit(unit, {ou: 'kept'})
+                holdOn = holdNext()
+                const keeping: Promise<unknown> = holding.connect(ADMIN).modifyDN(kept, 'ou=kept', {newSuperior: keeper})
+                await holdOn.reached
+                const deletingKeeper: Promise<PromiseSettledResult<unknown>[]> = Promise.allSettled([admin.delete(keeper)])
+                await waitAWhile()
+                holdOn.release()
+                await keeping
+                const keeperDeleted: PromiseSettledResult<unknown> = (await deletingKeeper)[0]
+                assert.equal(keeperDeleted.status, 'rejected')
+                assert.ok((keeperDeleted as PromiseRejectedResult).reason instanceof LDAPNotAllowedOnNonLeafException, String((keeperDeleted as PromiseRejectedResult).reason))
+                await whole()
+                //An entry added two levels below one being renamed, then below one being deleted with its subtree: the
+                //rename and the delete take it too
+                const top: string = await directory.createOrganizationalUnit(unit, {ou: 'top'})
+                const middle: string = await directory.createOrganizationalUnit(top, {ou: 'middle'})
+                holdOn = holdNext()
+                const addingDeep: Promise<unknown> = holding.connect(ADMIN).add(`cn=deep,${middle}`, {objectClass: 'device', cn: 'deep'})
+                await holdOn.reached
+                const renamingTop: Promise<PromiseSettledResult<unknown>[]> = Promise.allSettled([admin.modifyDN(top, 'ou=top-renamed')])
+                await waitAWhile()
+                holdOn.release()
+                await addingDeep
+                const topRenamed: PromiseSettledResult<unknown> = (await renamingTop)[0]
+                assert.equal(topRenamed.status, 'fulfilled', String((topRenamed as PromiseRejectedResult).reason))
+                await whole()
+                assert.equal((await admin.search(`ou=top-renamed,${unit}`, {filter: '(cn=deep)'})).entries.length, 1)
+                const renamedMiddle: string = `ou=middle,ou=top-renamed,${unit}`
+                holdOn = holdNext()
+                const addingDeeper: Promise<unknown> = holding.connect(ADMIN).add(`cn=deeper,${renamedMiddle}`, {objectClass: 'device', cn: 'deeper'})
+                await holdOn.reached
+                const deletingTop: Promise<PromiseSettledResult<unknown>[]> = Promise.allSettled([admin.delete(`ou=top-renamed,${unit}`, {controls: [TreeDeleteControl.encode()]})])
+                await waitAWhile()
+                holdOn.release()
+                await addingDeeper
+                const topDeleted: PromiseSettledResult<unknown> = (await deletingTop)[0]
+                assert.equal(topDeleted.status, 'fulfilled', String((topDeleted as PromiseRejectedResult).reason))
+                await whole()
+                assert.equal((await db.getRepository(LDAPEntryRecord).find()).filter((row: LDAPEntryRecord): boolean => row.dn.startsWith('cn=deep')).length, 0)
             } finally {
                 held = undefined
                 await admin.delete(unit, {controls: [TreeDeleteControl.encode()]}).catch((): undefined => undefined)
             }
         })
 
-        it('runs the writes made in the transaction of another write, to its entry and to another one', {timeout: 60000}, async () => {
+        it('runs the writes made in the transaction of another write, to its entry and to another one, and the writes they make', {timeout: 60000}, async () => {
             const target: string = `cn=nesting,${BASE}`
             const other: string = `cn=nested,${BASE}`
+            const third: string = `cn=nested-twice,${BASE}`
             await admin.add(target, {objectClass: 'device', cn: 'nesting'})
             await admin.add(other, {objectClass: 'device', cn: 'nested'})
+            await admin.add(third, {objectClass: 'device', cn: 'nested-twice'})
             const nesting: Container = new Container()
             try {
                 await nesting.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
@@ -679,9 +738,11 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                     backends: [{class: DirectoryBackend, suffix: BASE, database: 'database'}],
                     access: {admins: [ADMIN]},
                     interceptors: [{name: 'nesting', operations: ['modify'], beforeCommit: async (_context: unknown, request: {dn?: {toString(): string}}): Promise<void> => {
+                        const server: LDAPServer = await nesting.get<LDAPServer>('ldap')
+                        //A write made by the nested write: it does not wait behind the write it is made by
+                        if (request.dn?.toString() === other) await server.connect(ADMIN).modify(third, {operation: 'add', attribute: 'description', values: 'nested twice'})
                         if (request.dn?.toString() !== target) return
                         //An operational attribute of the entry being modified, as a plugin keeps its state; a write to another entry
-                        const server: LDAPServer = await nesting.get<LDAPServer>('ldap')
                         await server.engine.writeOperational(target, [{operation: 'replace', attribute: {type: 'modifyTimestamp', values: [Buffer.from('20260101000000Z')]}}])
                         await server.connect(ADMIN).modify(other, {operation: 'add', attribute: 'description', values: 'nested'})
                     }}]
@@ -691,10 +752,12 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                 await (await nesting.get<LDAPServer>('ldap')).connect(ADMIN).modify(target, {operation: 'add', attribute: 'description', values: 'outer'})
                 assert.deepEqual((await admin.search(target, {scope: 'base'})).entries[0].get('description'), ['outer'])
                 assert.deepEqual((await admin.search(other, {scope: 'base'})).entries[0].get('description'), ['nested'])
+                assert.deepEqual((await admin.search(third, {scope: 'base'})).entries[0].get('description'), ['nested twice'])
             } finally {
                 await nesting.destroy()
                 await admin.delete(target)
                 await admin.delete(other)
+                await admin.delete(third)
             }
         })
     })

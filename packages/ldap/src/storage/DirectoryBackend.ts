@@ -59,8 +59,19 @@ const ID_BATCH: number = 20000
 const FOUND_ROWS: unique symbol = Symbol('FOUND_ROWS')
 //The databases locking the rows a transaction reads for an update (SELECT … FOR UPDATE)
 const ROW_LOCKS: string[] = ['postgres', 'aurora-postgres', 'cockroachdb', 'mysql', 'mariadb', 'aurora-mysql']
-//The write running in an asynchronous context, with its database: a write it makes on that database joins its transaction
-const WRITING: AsyncLocalStorage<{database: object, manager: EntityManager, active: boolean}> = new AsyncLocalStorage()
+/**
+ * A write running in a transaction: its database, its entity manager, whether it still runs, and the last of the writes
+ * it makes (in savepoints of its transaction, one after another)
+ */
+interface RunningWrite {
+    database: object
+    manager: EntityManager
+    active: boolean
+    nested: Promise<unknown>
+}
+
+//The write running in an asynchronous context: a write it makes on its database runs in a savepoint of its transaction
+const WRITING: AsyncLocalStorage<RunningWrite> = new AsyncLocalStorage()
 //The last write of each database without row locks (SQLite: its connection runs one transaction at a time), the next
 //one starting once it is done
 const WRITE_QUEUES: WeakMap<object, Promise<unknown>> = new WeakMap()
@@ -369,10 +380,15 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     protected async write<T>(context: OperationContext | undefined, run: (manager: EntityManager) => Promise<T>): Promise<T> {
         const given: EntityManager | undefined = (context as {transaction?: unknown} | undefined)?.transaction as EntityManager | undefined
         if (given) return run(given)
-        const current: {database: object, manager: EntityManager, active: boolean} | undefined = WRITING.getStore()
-        //In a savepoint of the transaction of the write it is made by: a write failing there leaves nothing of it, and
-        //the other goes on when it catches the error
-        if (current?.active && current.database === this.db) return current.manager.transaction((manager: EntityManager): Promise<T> => run(manager))
+        const current: RunningWrite | undefined = WRITING.getStore()
+        if (current?.active && current.database === this.db) {
+            //In a savepoint of the transaction of the write it is made by: a write failing there leaves nothing of it,
+            //and the other goes on when it catches the error. The writes it makes take turns (one connection, one
+            //savepoint at a time); those they make wait for them only.
+            const result: Promise<T> = current.nested.then((): Promise<T> => current.manager.transaction((manager: EntityManager): Promise<T> => this.#running(manager, run)))
+            current.nested = result.catch((): undefined => undefined)
+            return result
+        }
         return this.#transaction(run)
     }
 
@@ -383,21 +399,28 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      * @param run The write.
      */
     #transaction<T>(run: (manager: EntityManager) => Promise<T>): Promise<T> {
-        const start = async (manager: EntityManager): Promise<T> => {
-            const store: {database: object, manager: EntityManager, active: boolean} = {database: this.db, manager: manager, active: true}
-            try {
-                return await WRITING.run(store, (): Promise<T> => run(manager))
-            } finally {
-                //What the write left running (an event listener) makes writes of its own
-                store.active = false
-            }
-        }
+        const start = (manager: EntityManager): Promise<T> => this.#running(manager, run)
         const transaction = (): Promise<T> => isMySQL(this.#type) ? this.db.transaction('READ COMMITTED', start) : this.db.transaction(start)
         if (ROW_LOCKS.includes(this.#type)) return transaction()
         const previous: Promise<unknown> = WRITE_QUEUES.get(this.db) ?? Promise.resolve()
         const result: Promise<T> = previous.then(transaction)
         WRITE_QUEUES.set(this.db, result.catch((): undefined => undefined))
         return result
+    }
+
+    /**
+     * Run a write in its transaction (or its savepoint), as the write running in its asynchronous context
+     * @param manager The entity manager of the transaction.
+     * @param run The write.
+     */
+    async #running<T>(manager: EntityManager, run: (manager: EntityManager) => Promise<T>): Promise<T> {
+        const store: RunningWrite = {database: this.db, manager: manager, active: true, nested: Promise.resolve()}
+        try {
+            return await WRITING.run(store, (): Promise<T> => run(manager))
+        } finally {
+            //What the write left running (an event listener) makes writes of its own
+            store.active = false
+        }
     }
 
     /**
