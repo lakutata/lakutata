@@ -26,6 +26,7 @@ import {
     LDAPObjectClassViolationException,
     LDAPResultException,
     LDAPServer,
+    LDAPUnavailableCriticalExtensionException,
     LDAPUnavailableException,
     LDAPUnwillingToPerformException,
     LDAPValueRecord,
@@ -346,6 +347,8 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                 const from = await connection.search(people, {scope: 'one', paged: false, controls: [SortRequestControl.encode([{attribute: 'cn'}], true), VLVRequestControl.encode({beforeCount: 1, afterCount: 2, greaterThanOrEqual: Buffer.from('user 2')}, true)]})
                 assert.deepEqual(from.entries.map((entry) => entry.first('cn')), ['User 19', 'User 20', 'User 21', 'User 22'])
                 assert.deepEqual(VLVResponseControl.decode(findControl(from.controls, VLVResponseControl)!), {targetPosition: 21, contentCount: 30, result: 0})
+                //A critical view with a sort the backend cannot do, not critical: refused, not every entry unsorted
+                await assert.rejects(connection.search(people, {scope: 'one', paged: false, controls: [SortRequestControl.encode([{attribute: 'jpegPhoto'}]), VLVRequestControl.encode({beforeCount: 0, afterCount: 4, offset: {offset: 1, contentCount: 0}}, true)]}), LDAPUnavailableCriticalExtensionException)
                 //A virtual attribute (email, mail under another name) sorted on the entries themselves
                 const byEmail = await connection.search(people, {scope: 'one', sort: [{attribute: 'email'}], window: {offset: 1, limit: 3}})
                 assert.deepEqual(byEmail.entries.map((entry) => entry.first('uid')), ['user0', 'user10', 'user11'])

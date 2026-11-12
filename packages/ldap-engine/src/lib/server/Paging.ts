@@ -323,7 +323,8 @@ export function sortSearchItems<T>(items: T[], valuesOf: SortValues<T>, context:
     const {ordered, unordered} = orderedKeys(SortRequestControl.decode(sortControl), schema)
     if (unordered !== undefined) {
         context.responseControls.push(SortResponseControl.encode({result: ResultCode.inappropriateMatching, attribute: unordered}))
-        if (sortControl.critical) fail(ResultCode.unavailableCriticalExtension, `No ordering rule for ${unordered}`)
+        //A critical view is not done without its sort either (RFC 4511 §4.1.11)
+        if (sortControl.critical || findControl(context.controls, VLVRequestControl)?.critical) fail(ResultCode.unavailableCriticalExtension, `No ordering rule for ${unordered}`)
         return items
     }
     return sortAndWindow(items, ordered, valuesOf, findControl(context.controls, VLVRequestControl), context)
@@ -438,7 +439,8 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
                 }
                 if (problem) {
                     context.responseControls.push(SortResponseControl.encode(problem))
-                    if (sortControl.critical) {
+                    //A critical view is not done without its sort either (RFC 4511 §4.1.11)
+                    if (sortControl.critical || vlvControl?.critical) {
                         void iterator.return?.()
                         fail(ResultCode.unavailableCriticalExtension, problem.result === ResultCode.adminLimitExceeded ? `More than ${options.sortCandidates} entries to sort` : `No ordering rule for ${problem.attribute}`)
                     }

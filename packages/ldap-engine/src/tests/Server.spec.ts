@@ -30,6 +30,7 @@ import {
     SortRequestControl,
     SortResponseControl,
     TreeDeleteControl,
+    VLVRequestControl,
     type WriteContext
 } from '../exports/LDAPEngine.js'
 import {
@@ -523,6 +524,12 @@ describe('the server engine', () => {
         const unsorted = await small.admin.search(`ou=people,${BASE}`, {scope: 'one', sort: [{attribute: 'cn'}], paged: false})
         assert.equal(unsorted.entries.length, 30)
         assert.equal(SortResponseControl.decode(findControl(unsorted.controls, SortResponseControl)!).result, 11)
+        //A critical view with a sort it cannot do, not critical: refused, not every entry unsorted (RFC 4511 §4.1.11)
+        const view = (sort: string) => [SortRequestControl.encode([{attribute: sort}]), VLVRequestControl.encode({beforeCount: 0, afterCount: 4, offset: {offset: 1, contentCount: 0}}, true)]
+        await assert.rejects(admin.search(`ou=people,${BASE}`, {scope: 'one', paged: false, controls: view('jpegPhoto')}), LDAPUnavailableCriticalExtensionException)
+        await assert.rejects(small.admin.search(`ou=people,${BASE}`, {scope: 'one', paged: false, controls: view('cn')}), LDAPUnavailableCriticalExtensionException)
+        //The view not critical either: not applied, the entries as they come
+        assert.equal((await small.admin.search(`ou=people,${BASE}`, {scope: 'one', paged: false, controls: [SortRequestControl.encode([{attribute: 'jpegPhoto'}]), VLVRequestControl.encode({beforeCount: 0, afterCount: 4, offset: {offset: 1, contentCount: 0}})]})).entries.length, 30)
     })
 
     it('refuses a critical control it does not know', async () => {
