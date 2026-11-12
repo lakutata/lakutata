@@ -178,6 +178,21 @@ describe('the server engine on the network', () => {
         assert.ok(events.includes(0))
     })
 
+    it('lets a session that must change its password start TLS to change it', async () => {
+        const POLICY: string = `cn=default,ou=policies,${BASE}`
+        const {server: policed, url: policedURL} = await serve({passwordPolicy: {default: POLICY}})
+        const owner = policed.connect({as: ADMIN})
+        await owner.add(`ou=policies,${BASE}`, {objectClass: 'organizationalUnit', ou: 'policies'})
+        await owner.add(POLICY, {objectClass: ['organizationalRole', 'pwdPolicy'], cn: 'default', pwdAttribute: 'userPassword', pwdMustChange: 'TRUE'})
+        //Reset by an administrator: the user must change it, and binds in clear first
+        await owner.modify(`uid=user1,ou=people,${BASE}`, {operation: 'replace', attribute: 'userPassword', values: 'reset-by-admin'})
+        const connection: LDAPClientConnection = await client({url: policedURL, tls: TLS})
+        await connection.bind(`uid=user1,ou=people,${BASE}`, 'reset-by-admin')
+        await connection.startTLS(TLS)
+        assert.equal(connection.secure, true)
+        await connection.passwordModify({oldPassword: 'reset-by-admin', newPassword: 'chosen-over-tls'})
+    })
+
     it('refuses data sent after a StartTLS request before the handshake', async () => {
         const socket: Socket = createConnection({port: port, host: '127.0.0.1'})
         await once(socket, 'connect')

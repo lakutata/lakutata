@@ -144,7 +144,8 @@ export class PasswordPolicyPlugin extends BaseLDAPPlugin {
             case 'bindRequest':
                 return true
             case 'extendedRequest':
-                return request.name === ExtendedOperation.passwordModify || request.name === ExtendedOperation.whoAmI
+                //StartTLS too, so that the change is made over TLS (it goes through the plugins since 3c9b1862)
+                return request.name === ExtendedOperation.passwordModify || request.name === ExtendedOperation.whoAmI || request.name === ExtendedOperation.startTLS
             case 'modifyRequest':
                 return identity !== undefined && DN.isValid(request.object) && DN.parse(request.object).equals(identity, schema) && request.changes.every((change) => schema.primaryName(attributeTypeOf(change.modification.type)).toLowerCase() === 'userpassword')
             default:
