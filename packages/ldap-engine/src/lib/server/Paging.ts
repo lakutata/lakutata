@@ -57,9 +57,10 @@ export interface SearchSource {
      */
     signal: AbortSignal
     /**
-     * The keys of the DNs of the entries the access check let through and not yet sent, when kept
+     * The entries the access check let through, when kept: an entry an interceptor adds or makes anew is not among them
+     * (the engine's own steps keep an entry let through when they add attributes to it)
      */
-    approved?: Set<string>
+    approved?: WeakSet<DirectoryEntry>
 }
 
 /**

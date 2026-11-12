@@ -707,6 +707,22 @@ describe('the server engine', () => {
         await reader.bind(`uid=user1,ou=people,${BASE}`, 'password1')
         assert.deepEqual((await reader.search(`ou=people,${BASE}`, {scope: 'one', filter: '(uid=user1)'})).entries.map((entry) => entry.dn), [`uid=user1,ou=people,${BASE}`])
         assert.equal((await owner.search(`ou=people,${BASE}`, {scope: 'one', filter: '(uid=user1)'})).entries.length, 2)
+        //Placed before the access step, outside it; and an entry swapped for another with the same DN: checked as well
+        const {server: outside} = await directory({
+            access: {admins: [ADMIN], check: (request: {operation: string, identity?: {toString(): string}, dn: {toString(): string}, entry?: DirectoryEntry}): boolean | undefined => request.operation === 'read' && String(request.identity) !== ADMIN && (String(request.dn).startsWith('uid=user4,') || request.entry?.attributes.some((attribute) => attribute.type === 'description' && attribute.values.some((value: Buffer) => value.toString() === 'secret'))) ? false : undefined},
+            interceptors: [{interceptor: {name: 'outside', operations: ['search'], around: async (_context: unknown, _request: unknown, next: () => Promise<{entries?: AsyncIterable<DirectoryEntry>}>): Promise<unknown> => {
+                const outcome = await next()
+                const entries: AsyncIterable<DirectoryEntry> | undefined = outcome.entries
+                const added: DirectoryEntry = {dn: DN.parse(`uid=user4,ou=people,${BASE}`), attributes: [{type: 'objectClass', values: [Buffer.from('inetOrgPerson')]}, {type: 'uid', values: [Buffer.from('user4')]}]}
+                return {...outcome, entries: entries && (async function* () {
+                    for await (const entry of entries) yield entry.dn.toString().startsWith('uid=user2,') ? {dn: entry.dn, attributes: [...entry.attributes, {type: 'description', values: [Buffer.from('secret')]}]} : entry
+                    yield added
+                })()}
+            }}, before: 'access'} as never]
+        })
+        const outsider: LDAPInProcessConnection = outside.connect()
+        await outsider.bind(`uid=user1,ou=people,${BASE}`, 'password1')
+        assert.deepEqual((await outsider.search(`ou=people,${BASE}`, {scope: 'one', filter: '(|(uid=user1)(uid=user2))'})).entries.map((entry) => entry.dn), [`uid=user1,ou=people,${BASE}`])
         //Each page within the time limit of its own request, however long the client waits between them
         const now: () => number = Date.now
         let offset: number = 0

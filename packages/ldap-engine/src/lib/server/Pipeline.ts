@@ -437,7 +437,7 @@ export class Pipeline {
      */
     protected chainOf(mount: Mount): LDAPInterceptor[] {
         const chain: LDAPInterceptor[] = [
-            this.accessInterceptor(mount),
+            this.accessInterceptor(),
             this.passwordInterceptor(mount),
             this.schemaInterceptor(mount),
             this.operationalInterceptor(mount),
@@ -872,7 +872,7 @@ export class Pipeline {
         } else {
             const mount: Mount | undefined = this.route(base)
             if (!mount) fail(ResultCode.noSuchObject, `No entry ${base.toString()}`)
-            outcome = await this.run(mount, searchContext, search, () => this.backendSearch(mount, searchContext, search))
+            outcome = this.rechecked(mount, searchContext, await this.run(mount, searchContext, search, () => this.backendSearch(mount, searchContext, search)))
         }
         return this.output(searchContext, outcome, selection, Number.isFinite(sizeLimit) ? sizeLimit : 0, deadline, responder)
     }
@@ -946,7 +946,7 @@ export class Pipeline {
         const exact: boolean = result.exact
         //The deadline and the signal of the request reading the entries now (a later page's its own), and the entries let
         //through when an interceptor may add others after the check
-        const source: SearchSource = {deadline: context.deadline, signal: context.signal, ...checked && mount.rechecks ? {approved: new Set<string>()} : {}}
+        const source: SearchSource = {deadline: context.deadline, signal: context.signal, ...checked && mount.rechecks ? {approved: new WeakSet<DirectoryEntry>()} : {}}
         context.state.set(SEARCH_SOURCE, source)
         return {
             resultCode: ResultCode.success,
@@ -972,7 +972,7 @@ export class Pipeline {
                     if (!exact && (!inScope(entry.dn, base, scope, schema) || matchFilter(filter, {dn: entry.dn, attributes: entry.attributes}, schema) !== true)) continue
                     //Read as stored, as a compare reads it, before anything pages, sorts, windows or counts the entries
                     if (checked && !await access.allows({operation: 'read', session: context.session, identity: context.session.identity, dn: entry.dn, entry: entry})) continue
-                    source.approved?.add(entry.dn.key(schema))
+                    source.approved?.add(entry)
                     yield entry
                 }
             })()
@@ -1381,7 +1381,7 @@ export class Pipeline {
     /**
      * The engine's interceptor of the access control
      */
-    protected accessInterceptor(mount: Mount): LDAPInterceptor {
+    protected accessInterceptor(): LDAPInterceptor {
         const access: AccessPolicy = this.access
         const schema: Schema = this.schema
         return {
@@ -1430,16 +1430,28 @@ export class Pipeline {
                         return
                     }
                 }
-            },
-            //The entries an interceptor added or swapped after the check made at the source: checked as they are sent
-            transformEntry: async (context: SearchContext, entry: DirectoryEntry): Promise<DirectoryEntry | undefined> => {
-                if (!mount.rechecks || context.internal) return entry
-                const source: SearchSource | undefined = context.state.get(SEARCH_SOURCE) as SearchSource | undefined
-                //Let through at the source: taken off as it is sent (the set holds only the entries on their way)
-                if (source?.approved?.delete(entry.dn.key(schema))) return entry
-                return await access.allows({operation: 'read', session: context.session, identity: context.session.identity, dn: entry.dn, entry: entry}) ? entry : undefined
             }
         }
+    }
+
+    /**
+     * The entries of a search as the chain gives them, those an interceptor added or made anew after the check made at
+     * the source (wherever it is placed, before the access step too) checked as they are sent
+     * @param mount The backend.
+     * @param context The context of the search.
+     * @param outcome The outcome of the chain.
+     */
+    protected rechecked(mount: Mount, context: SearchContext, outcome: ServerOutcome): ServerOutcome {
+        const entries: AsyncIterable<DirectoryEntry> | undefined = outcome.entries
+        if (!mount.rechecks || context.internal || this.options.access.check === undefined || !entries) return outcome
+        const access: AccessPolicy = this.access
+        outcome.entries = (async function* (): AsyncGenerator<DirectoryEntry> {
+            for await (const entry of entries) {
+                const source: SearchSource | undefined = context.state.get(SEARCH_SOURCE) as SearchSource | undefined
+                if (source?.approved?.has(entry) || await access.allows({operation: 'read', session: context.session, identity: context.session.identity, dn: entry.dn, entry: entry})) yield entry
+            }
+        })()
+        return outcome
     }
 
     /**
@@ -1762,7 +1774,12 @@ export class Pipeline {
                     const structural = structuralClassOf(objectClassesOf(entry, schema), schema)
                     if (structural) added.push(text('structuralObjectClass', structural.names[0] ?? structural.oid))
                 }
-                return added.length ? {dn: entry.dn, attributes: [...entry.attributes, ...added]} : entry
+                if (!added.length) return entry
+                const shown: DirectoryEntry = {dn: entry.dn, attributes: [...entry.attributes, ...added]}
+                //An entry the access check let through stays so with the attributes the server computes
+                const source: SearchSource | undefined = context.state.get(SEARCH_SOURCE) as SearchSource | undefined
+                if (source?.approved?.has(entry)) source.approved.add(shown)
+                return shown
             }
         }
     }
