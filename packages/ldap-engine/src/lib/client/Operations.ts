@@ -1,7 +1,7 @@
 import {LDAPSizeLimitExceededException, resultException} from '../../exceptions/LDAPResultException.js'
 import {LDAPUsageException} from '../../exceptions/LDAPUsageException.js'
 import type {Control} from '../controls/Control.js'
-import {findControl, PagedResultsControl, type PagedResultsValue, SortRequestControl, VLVRequestControl, VLVResponseControl} from '../controls/Controls.js'
+import {findControl, PagedResultsControl, type PagedResultsValue, SortRequestControl, VLVRequestControl, VLVResponseControl, type VLVResponseValue} from '../controls/Controls.js'
 import type {DN} from '../dn/DN.js'
 import {ExtendedOperation, PasswordModifyRequest, PasswordModifyResponse, WhoAmIResponse} from '../extended/Extended.js'
 import type {Filter} from '../filter/Filter.js'
@@ -345,8 +345,14 @@ export abstract class LDAPOperations implements LDAPConnection {
             //Both critical: a server that cannot sort or window fails the search rather than giving every entry
             const controls: Control[] = [...extra, SortRequestControl.encode(options.sort, true), VLVRequestControl.encode({beforeCount: 0, afterCount: Math.max(options.window.limit - 1, 0), offset: {offset: options.window.offset, contentCount: 0}}, true)]
             const page = await this.searchPage(request, controls, options)
-            const truncated: boolean = await this.searchEnd(page.done, options, page.entries)
             const vlv: Control | undefined = findControl(page.done.controls, VLVResponseControl)
+            //A window past the last entry, which the server refuses (offsetRangeError): no entries, the count it gives
+            const response: LDAPResponse = page.done.response
+            if ('resultCode' in response && response.resultCode === ResultCode.virtualListViewError && vlv) {
+                const view: VLVResponseValue = VLVResponseControl.decode(vlv)
+                if (view.result === ResultCode.offsetRangeError && options.window.offset > view.contentCount) return {entries: [], references: page.references, controls: page.done.controls, truncated: false, total: view.contentCount}
+            }
+            const truncated: boolean = await this.searchEnd(page.done, options, page.entries)
             const result: SearchResult = {entries: [], references: page.references, controls: page.done.controls, truncated: truncated}
             if (vlv) result.total = VLVResponseControl.decode(vlv).contentCount
             for (const entry of page.entries) result.entries.push(await this.entryOf(entry, options))

@@ -4,7 +4,7 @@ import {findControl, PagedResultsControl, type PagedResultsValue, type SortKey, 
 import {stringifyFilter} from '../filter/FilterString.js'
 import {ResultCode} from '../protocol/ResultCode.js'
 import {byCodePoints, type MatchingRule} from '../schema/MatchingRules.js'
-import type {Schema} from '../schema/Schema.js'
+import {attributeTypeOf, type Schema} from '../schema/Schema.js'
 import {fail, valuesOfType} from './EntryTools.js'
 import type {BackendCapabilities, DirectoryEntry, LDAPInterceptor, OperationContext, SearchContext, ServerOutcome, ServerRequest, ServerSearchRequest} from './Types.js'
 
@@ -36,6 +36,10 @@ export interface PagedState {
      * Where its entries come from, as long as it pages on
      */
     source?: SearchSource
+    /**
+     * The sort response control of its first page, sent with every page (RFC 2891 §3)
+     */
+    sortResponse?: Control
 }
 
 /**
@@ -197,23 +201,40 @@ interface OrderedKey {
 }
 
 /**
- * The keys of a sort control with their rules, up to the first key nothing orders
+ * The keys of a sort control with their rules, up to the first key nothing orders, with the result of the sort for
+ * it: noSuchAttribute for an attribute the schema does not know, inappropriateMatching for a rule it does not know or
+ * that does not order the attribute (RFC 2891 §1.2)
  * @param keys The keys.
  * @param schema The schema.
  */
-function orderedKeys(keys: SortKey[], schema: Schema): {ordered: OrderedKey[], unordered?: string} {
+function orderedKeys(keys: SortKey[], schema: Schema): {ordered: OrderedKey[], unordered?: {result: number, attribute: string}} {
     const ordered: OrderedKey[] = []
     for (const key of keys) {
+        if (!schema.attributeType(attributeTypeOf(key.attribute))) return {ordered: ordered, unordered: {result: ResultCode.noSuchAttribute, attribute: key.attribute}}
         const rule: MatchingRule | undefined = orderingOf(key, schema)
-        if (!rule) return {ordered: ordered, unordered: key.attribute}
+        if (!rule) return {ordered: ordered, unordered: {result: ResultCode.inappropriateMatching, attribute: key.attribute}}
         ordered.push({key: key, rule: rule})
     }
     return {ordered: ordered}
 }
 
 /**
- * Sort items by keys (RFC 2891): an item without a value of a key comes after those with one; of several values, the
- * least counts (the greatest in reverse)
+ * The value of a sort key an item is sorted by: of several values, the least (the greatest in reverse, the first in
+ * the order of the sort); undefined without a value
+ * @param item The item.
+ * @param ordered The key with its rule.
+ * @param valuesOf The values of an attribute of an item.
+ */
+function sortValue<T>(item: T, ordered: OrderedKey, valuesOf: SortValues<T>): string | undefined {
+    const {key, rule} = ordered
+    const values: string[] = valuesOf(item, key.attribute).map((value: Buffer): string | undefined => rule.prepare(value)).filter((value: string | undefined): value is string => value !== undefined)
+    if (!values.length) return undefined
+    return values.reduce((chosen: string, value: string): string => (rule.compare!(value, chosen) < 0) !== (key.reverse === true) ? value : chosen)
+}
+
+/**
+ * Sort items by keys (RFC 2891): no value is greater than every value (an item without one comes after the others, and
+ * before them in reverse); of several values, the least counts (the greatest in reverse)
  * @param items The items.
  * @param keys The keys with their rules.
  * @param valuesOf The values of an attribute of an item.
@@ -221,21 +242,17 @@ function orderedKeys(keys: SortKey[], schema: Schema): {ordered: OrderedKey[], u
 function sortItems<T>(items: T[], keys: OrderedKey[], valuesOf: SortValues<T>): T[] {
     const prepared: {item: T, values: (string | undefined)[]}[] = items.map((item: T) => ({
         item: item,
-        values: keys.map(({key, rule}: OrderedKey): string | undefined => {
-            const values: string[] = valuesOf(item, key.attribute).map((value: Buffer): string | undefined => rule.prepare(value)).filter((value: string | undefined): value is string => value !== undefined)
-            if (!values.length) return undefined
-            return values.reduce((chosen: string, value: string): string => (rule.compare!(value, chosen) < 0) !== (key.reverse === true) ? value : chosen)
-        })
+        values: keys.map((ordered: OrderedKey): string | undefined => sortValue(item, ordered, valuesOf))
     }))
     prepared.sort((left, right): number => {
         for (let index: number = 0; index < keys.length; index++) {
             const [a, b] = [left.values[index], right.values[index]]
             if (a === b) continue
-            //No value is greater than every value
-            if (a === undefined) return 1
-            if (b === undefined) return -1
+            const reverse: boolean = keys[index].key.reverse === true
+            if (a === undefined) return reverse ? -1 : 1
+            if (b === undefined) return reverse ? 1 : -1
             const order: number = keys[index].rule.compare!(a, b)
-            if (order) return keys[index].key.reverse ? -order : order
+            if (order) return reverse ? -order : order
         }
         return 0
     })
@@ -253,15 +270,21 @@ function sortItems<T>(items: T[], keys: OrderedKey[], valuesOf: SortValues<T>): 
  */
 function vlvWindow<T>(sorted: T[], value: VLVRequestValue, first: OrderedKey, valuesOf: SortValues<T>, context: OperationContext): T[] {
     const count: number = sorted.length
+    checkContext(value, count, context)
     let target: number
     if (value.offset) {
-        target = offsetTarget(value.offset, count)
+        target = offsetTarget(value.offset, count, context)
     } else {
+        //The first item whose value of the first key is not less than the assertion (not greater in reverse), by the
+        //value the item is sorted by; no value is greater than every value (§4)
         const assertion: string | undefined = first.rule.prepare(value.greaterThanOrEqual ?? Buffer.alloc(0))
-        target = sorted.findIndex((item: T): boolean => valuesOf(item, first.key.attribute).some((candidate: Buffer): boolean => {
-            const prepared: string | undefined = first.rule.prepare(candidate)
-            return prepared !== undefined && assertion !== undefined && (first.rule.compare!(prepared, assertion) >= 0) !== (first.key.reverse === true)
-        }))
+        const reverse: boolean = first.key.reverse === true
+        target = assertion === undefined ? -1 : sorted.findIndex((item: T): boolean => {
+            const prepared: string | undefined = sortValue(item, first, valuesOf)
+            if (prepared === undefined) return !reverse
+            const order: number = first.rule.compare!(prepared, assertion)
+            return reverse ? order <= 0 : order >= 0
+        })
         if (target < 0) target = count
     }
     const {start, end} = windowAround(target, value, count, context)
@@ -269,26 +292,59 @@ function vlvWindow<T>(sorted: T[], value: VLVRequestValue, first: OrderedKey, va
 }
 
 /**
- * The position of the target of the offset form of the view among so many entries
+ * Fail a search for its virtual list view (virtualListViewError, RFC draft §6.2.1), the response control of the view
+ * saying why
+ * @param context The context.
+ * @param count The count of the entries.
+ * @param result The result of the view.
+ * @param message The message.
+ */
+function failView(context: OperationContext, count: number, result: number, message: string): never {
+    context.responseControls.push(VLVResponseControl.encode({targetPosition: 0, contentCount: count, result: result}))
+    return fail(ResultCode.virtualListViewError, message)
+}
+
+/**
+ * Refuse the context ID of a view: the engine gives none, so a context ID sent is not one of its own (§4: protocolError);
+ * an empty one stands for none
+ * @param value The request of the view.
+ * @param count The count of the entries.
+ * @param context The context.
+ */
+function checkContext(value: VLVRequestValue, count: number, context: OperationContext): void {
+    if (value.contextId?.length) failView(context, count, ResultCode.protocolError, 'The context ID of the virtual list view is not known')
+}
+
+/**
+ * The position (from 0) of the target of the offset form of the view among so many entries: the client's offset scaled
+ * to the real count (§5: Si = Sc × Ci / Cc, rounded; an offset of 1 the first entry, an offset equal to the client's
+ * count the last one, a count of 0 the server's count); an offset below 1, a count below zero, or a target past the
+ * last entry fail with offsetRangeError
  * @param offset The offset and the client's estimate of the count.
  * @param count The count.
+ * @param context The context.
  */
-function offsetTarget(offset: {offset: number, contentCount: number}, count: number): number {
-    if (offset.offset < 0 || offset.contentCount < 0) fail(ResultCode.virtualListViewError, 'A negative offset or count')
-    //The client's estimate scales its offset to the real count (§5)
-    const target: number = offset.offset === 0 ? 0 : offset.contentCount === 0 ? offset.offset - 1 : Math.round((offset.offset - 1) * count / Math.max(offset.contentCount, 1))
-    return Math.min(target, count)
+function offsetTarget(offset: {offset: number, contentCount: number}, count: number, context: OperationContext): number {
+    if (offset.offset < 1 || offset.contentCount < 0) failView(context, count, ResultCode.offsetRangeError, 'The offset of the virtual list view is below 1, or its count below 0')
+    if (!count) return 0
+    const position: number = offset.offset === 1 ? 1
+        : offset.contentCount === 0 ? offset.offset
+            : offset.offset === offset.contentCount ? count
+                : Math.max(1, Math.round(count * offset.offset / offset.contentCount))
+    if (position > count || (offset.contentCount && offset.offset > offset.contentCount)) failView(context, count, ResultCode.offsetRangeError, 'The offset of the virtual list view is past the last entry')
+    return position - 1
 }
 
 /**
  * The window around a target, its response control added to the context
- * @param target The position of the target.
+ * @param target The position of the target (from 0; the count when there is none).
  * @param value The request of the view.
  * @param count The count of the entries.
  * @param context The context.
  */
 function windowAround(target: number, value: VLVRequestValue, count: number, context: OperationContext): {start: number, end: number} {
-    context.responseControls.push(VLVResponseControl.encode({targetPosition: Math.min(target + 1, count + 1), contentCount: count, result: 0, ...value.contextId ? {contextId: value.contextId} : {}}))
+    //No entries: no target (position 0)
+    context.responseControls.push(VLVResponseControl.encode({targetPosition: count ? Math.min(target + 1, count + 1) : 0, contentCount: count, result: 0}))
     return {start: Math.max(0, target - value.beforeCount), end: Math.min(count, target + value.afterCount + 1)}
 }
 
@@ -317,9 +373,11 @@ export function sortWindowRange(context: OperationContext, count: number): {star
     const vlvControl: Control | undefined = findControl(context.controls, VLVRequestControl)
     const value: VLVRequestValue | undefined = vlvControl ? VLVRequestControl.decode(vlvControl) : undefined
     if (!value?.offset) return undefined
-    const target: number = offsetTarget(value.offset, count)
+    checkContext(value, count, context)
+    const target: number = offsetTarget(value.offset, count, context)
+    const range: {start: number, end: number} = windowAround(target, value, count, context)
     context.responseControls.push(SortResponseControl.encode({result: ResultCode.success}))
-    return windowAround(target, value, count, context)
+    return range
 }
 
 /**
@@ -333,8 +391,10 @@ export function sortWindowRange(context: OperationContext, count: number): {star
  */
 function sortAndWindow<T>(items: T[], keys: OrderedKey[], valuesOf: SortValues<T>, vlvControl: Control | undefined, context: OperationContext): T[] {
     const sorted: T[] = sortItems(items, keys, valuesOf)
+    //The sort response once the view is taken: a search failing for its view has none (RFC 2891 §2, scenario 6)
+    const windowed: T[] = vlvControl ? vlvWindow(sorted, VLVRequestControl.decode(vlvControl), keys[0], valuesOf, context) : sorted
     context.responseControls.push(SortResponseControl.encode({result: ResultCode.success}))
-    return vlvControl ? vlvWindow(sorted, VLVRequestControl.decode(vlvControl), keys[0], valuesOf, context) : sorted
+    return windowed
 }
 
 /**
@@ -370,9 +430,9 @@ export function sortSearchItems<T>(items: T[], valuesOf: SortValues<T>, context:
     if (!sortControl) return items
     const {ordered, unordered} = orderedKeys(SortRequestControl.decode(sortControl), schema)
     if (unordered !== undefined) {
-        context.responseControls.push(SortResponseControl.encode({result: ResultCode.inappropriateMatching, attribute: unordered}))
+        context.responseControls.push(SortResponseControl.encode(unordered))
         //A critical view is not done without its sort either (RFC 4511 §4.1.11)
-        if (sortControl.critical || findControl(context.controls, VLVRequestControl)?.critical) fail(ResultCode.unavailableCriticalExtension, `No ordering rule for ${unordered}`)
+        if (sortControl.critical || findControl(context.controls, VLVRequestControl)?.critical) fail(ResultCode.unavailableCriticalExtension, unordered.result === ResultCode.noSuchAttribute ? `No attribute ${unordered.attribute} to sort by` : `No ordering rule for ${unordered.attribute}`)
         return items
     }
     return sortAndWindow(items, ordered, valuesOf, findControl(context.controls, VLVRequestControl), context)
@@ -440,7 +500,8 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
             const vlvControl: Control | undefined = findControl(context.controls, VLVRequestControl)
             const pagedControl: Control | undefined = findControl(context.controls, PagedResultsControl)
             if (!sortControl && !vlvControl && !pagedControl) return next()
-            if (vlvControl && !sortControl) fail(ResultCode.sortControlMissing, 'The virtual list view needs the sort control')
+            //A view without its sort: sortControlMissing as the result of the view (RFC draft §6.1)
+            if (vlvControl && !sortControl) failView(context, 0, ResultCode.sortControlMissing, 'The virtual list view needs the sort control')
             if (vlvControl && pagedControl) fail(ResultCode.unwillingToPerform, 'The virtual list view and the paged results together')
             const states: PagedStates = options.pagedOf(context)
             //A paged search not continued for ten minutes is closed
@@ -476,6 +537,8 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
                     context.responseControls.push(PagedResultsControl.encode({size: 0, cookie: Buffer.alloc(0)}))
                     return {resultCode: ResultCode.success, entries: fromArray([])}
                 }
+                //The result of the sort with every page of the sorted entries
+                if (state.sortResponse) context.responseControls.push(state.sortResponse)
                 return page(context, states, state, paged.size, {resultCode: ResultCode.success})
             }
             //A first page of size 0 is a page of no entry, its cookie given while entries are left (RFC 2696 §2)
@@ -484,7 +547,7 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
             let iterator: AsyncIterator<DirectoryEntry> = outcome.entries[Symbol.asyncIterator]()
             if (sortControl && engineSorts) {
                 const {ordered, unordered} = orderedKeys(SortRequestControl.decode(sortControl), schema)
-                let problem: {result: number, attribute: string} | undefined = unordered === undefined ? undefined : {result: ResultCode.inappropriateMatching, attribute: unordered}
+                let problem: {result: number, attribute: string} | undefined = unordered
                 const collected: DirectoryEntry[] = []
                 if (!problem) {
                     for (let item: IteratorResult<DirectoryEntry> = await iterator.next(); !item.done; item = await iterator.next()) {
@@ -500,7 +563,7 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
                     //A critical view is not done without its sort either (RFC 4511 §4.1.11)
                     if (sortControl.critical || vlvControl?.critical) {
                         void iterator.return?.()
-                        fail(ResultCode.unavailableCriticalExtension, problem.result === ResultCode.adminLimitExceeded ? `More than ${options.sortCandidates} entries to sort` : `No ordering rule for ${problem.attribute}`)
+                        fail(ResultCode.unavailableCriticalExtension, problem.result === ResultCode.adminLimitExceeded ? `More than ${options.sortCandidates} entries to sort` : problem.result === ResultCode.noSuchAttribute ? `No attribute ${problem.attribute} to sort by` : `No ordering rule for ${problem.attribute}`)
                     }
                     //Unsorted, the entries read so far first (RFC 2891 §2, scenario 4)
                     const rest: AsyncIterator<DirectoryEntry> = iterator
@@ -530,7 +593,8 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
                 return outcome
             }
             const source: SearchSource | undefined = context.state.get(SEARCH_SOURCE) as SearchSource | undefined
-            return page(context, states, {key: key, iterator: iterator, used: Date.now(), ...sizeLimit ? {remaining: sizeLimit} : {}, ...source ? {source: source} : {}}, paged.size, outcome)
+            const sortResponse: Control | undefined = findControl(context.responseControls, SortResponseControl)
+            return page(context, states, {key: key, iterator: iterator, used: Date.now(), ...sizeLimit ? {remaining: sizeLimit} : {}, ...source ? {source: source} : {}, ...sortResponse ? {sortResponse: sortResponse} : {}}, paged.size, outcome)
         }
     }
 }

@@ -34,6 +34,7 @@ import {
     SortResponseControl,
     TreeDeleteControl,
     VLVRequestControl,
+    VLVResponseControl,
     type WriteContext
 } from '../exports/LDAPEngine.js'
 import {
@@ -769,6 +770,74 @@ describe('the server engine', () => {
         //Nothing to return: no cookie
         const none = await admin.search(people, {scope: 'one', filter: '(uid=nobody)', paged: false, controls: [PagedResultsControl.encode({size: 0, cookie: Buffer.alloc(0)})]})
         assert.equal(PagedResultsControl.decode(findControl(none.controls, PagedResultsControl)!).cookie.length, 0)
+    })
+
+    it('sorts and views the entries as RFC 2891 and the virtual list view draft say, as OpenLDAP does', async () => {
+        //The entries of the differential test against OpenLDAP: d3 and d6 without uidNumber, d1 with two values of cn
+        const viewing: LDAPServerEngine = createLDAPServer({backends: [new MemoryBackend(BASE)], schema: [...DEFAULTS, RFC2307BIS], access: {admins: [ADMIN]}})
+        const owner: LDAPInProcessConnection = viewing.connect({as: ADMIN})
+        await owner.add(BASE, {objectClass: ['dcObject', 'organization'], dc: 'example', o: 'Example'})
+        const numbers: Record<string, string> = {d1: '1040', d2: '1010', d4: '1030', d5: '1020', d7: '1060', d8: '1050'}
+        const names: Record<string, string> = {d1: 'One', d2: 'Two', d3: 'Three', d4: 'Four', d5: 'Five', d6: 'Six', d7: 'Seven', d8: 'Eight'}
+        for (const uid of Object.keys(names)) {
+            const person: Record<string, string | string[]> = {uid: uid, cn: uid === 'd1' ? ['Delta One', 'Delta Uno'] : `Delta ${names[uid]}`, sn: names[uid]}
+            await owner.add(`uid=${uid},${BASE}`, numbers[uid] ? {objectClass: ['inetOrgPerson', 'posixAccount'], ...person, uidNumber: numbers[uid], gidNumber: '100', homeDirectory: `/home/${uid}`} : {objectClass: 'inetOrgPerson', ...person})
+        }
+        const search = (controls: {oid: string, critical: boolean, value?: Buffer}[]) => owner.search(BASE, {scope: 'one', filter: '(objectClass=inetOrgPerson)', attributes: ['1.1'], paged: false, controls: controls}).then((result) => ({
+            code: 0,
+            uids: result.entries.map((entry) => entry.dn.split(',')[0].slice(4)),
+            sort: findControl(result.controls, SortResponseControl) ? SortResponseControl.decode(findControl(result.controls, SortResponseControl)!).result : undefined,
+            view: findControl(result.controls, VLVResponseControl) ? VLVResponseControl.decode(findControl(result.controls, VLVResponseControl)!) : undefined
+        }), (error: LDAPResultException) => ({
+            code: error.code,
+            uids: [] as string[],
+            sort: findControl(error.controls ?? [], SortResponseControl) ? SortResponseControl.decode(findControl(error.controls ?? [], SortResponseControl)!).result : undefined,
+            view: findControl(error.controls ?? [], VLVResponseControl) ? VLVResponseControl.decode(findControl(error.controls ?? [], VLVResponseControl)!) : undefined
+        }))
+        const byNumber = (reverse?: boolean) => SortRequestControl.encode([{attribute: 'uidNumber', ...reverse ? {reverse} : {}}])
+        const view = (value: Parameters<typeof VLVRequestControl.encode>[0]) => VLVRequestControl.encode(value)
+        //No value is greater than every value: last, and first in reverse
+        assert.deepEqual((await search([byNumber()])).uids, ['d2', 'd5', 'd4', 'd1', 'd8', 'd7', 'd3', 'd6'])
+        assert.deepEqual((await search([byNumber(true)])).uids, ['d3', 'd6', 'd7', 'd8', 'd1', 'd4', 'd5', 'd2'])
+        //An attribute the schema does not know: noSuchAttribute as the result of the sort; unsorted, or refused when critical
+        assert.deepEqual(await search([SortRequestControl.encode([{attribute: 'shoeSize'}])]).then((answer) => [answer.code, answer.sort, answer.uids.length]), [0, 16, 8])
+        assert.deepEqual(await search([SortRequestControl.encode([{attribute: 'shoeSize'}], true)]).then((answer) => [answer.code, answer.sort]), [12, 16])
+        assert.deepEqual(await search([SortRequestControl.encode([{attribute: 'uid', orderingRule: '1.2.3.4.5'}])]).then((answer) => answer.sort), 18)
+        //The offset scaled to the count (Si = Sc × Ci / Cc), an offset equal to the count the last entry
+        const at = (offset: number, contentCount: number, afterCount: number = 0) => search([byNumber(), view({beforeCount: 0, afterCount: afterCount, offset: {offset, contentCount}})])
+        assert.deepEqual(await at(2, 4, 1).then((answer) => [answer.uids, answer.view?.targetPosition]), [['d1', 'd8'], 4])
+        assert.deepEqual(await at(4, 4).then((answer) => [answer.uids, answer.view?.targetPosition]), [['d6'], 8])
+        assert.deepEqual(await at(3, 0).then((answer) => [answer.uids, answer.view?.targetPosition]), [['d4'], 3])
+        //An offset below 1, or past the last entry: virtualListViewError, offsetRangeError as the result of the view
+        for (const [offset, contentCount] of [[0, 0], [-1, 0], [9, 0], [5, 3], [9, 8]]) {
+            assert.deepEqual(await at(offset, contentCount).then((answer) => [answer.code, answer.view?.result, answer.sort]), [76, 61, undefined], `${offset}/${contentCount}`)
+        }
+        //The window of the client past the last entry: no entries, the count of the server
+        assert.deepEqual(await owner.search(BASE, {scope: 'one', filter: '(objectClass=inetOrgPerson)', sort: [{attribute: 'uidNumber'}], window: {offset: 20, limit: 5}}).then((result) => [result.entries.length, result.total]), [0, 8])
+        //No entries: no target
+        assert.deepEqual((await owner.search(BASE, {scope: 'one', filter: '(uid=nobody)', paged: false, controls: [byNumber(), view({beforeCount: 0, afterCount: 2, offset: {offset: 1, contentCount: 0}})]}).then((result) => VLVResponseControl.decode(findControl(result.controls, VLVResponseControl)!))), {targetPosition: 0, contentCount: 0, result: 0})
+        //The first entry not less than a value, not greater in reverse; no value is greater than every value
+        const from = (value: string, reverse?: boolean) => search([byNumber(reverse), view({beforeCount: 1, afterCount: 1, greaterThanOrEqual: Buffer.from(value)})]).then((answer) => [answer.uids, answer.view?.targetPosition])
+        assert.deepEqual(await from('1030'), [['d5', 'd4', 'd1'], 3])
+        assert.deepEqual(await from('1030', true), [['d1', 'd4', 'd5'], 6])
+        assert.deepEqual(await from('2000'), [['d7', 'd3', 'd6'], 7])
+        assert.deepEqual(await from('2000', true), [['d6', 'd7', 'd8'], 3])
+        assert.deepEqual(await from('900', true), [['d2'], 9])
+        //Of several values, the least one, as the sort takes it
+        assert.deepEqual(await search([SortRequestControl.encode([{attribute: 'cn', orderingRule: '2.5.13.3'}]), view({beforeCount: 0, afterCount: 2, greaterThanOrEqual: Buffer.from('Delta T')})]).then((answer) => [answer.uids, answer.view?.targetPosition]), [['d3', 'd2'], 7])
+        //A view without its sort: sortControlMissing; a context ID the server never gave: protocolError (2; the draft's
+        //list gives it 3, the code of timeLimitExceeded, a slip)
+        assert.deepEqual(await search([view({beforeCount: 0, afterCount: 1, offset: {offset: 1, contentCount: 0}})]).then((answer) => [answer.code, answer.view?.result]), [76, 60])
+        assert.deepEqual(await search([byNumber(), view({beforeCount: 0, afterCount: 1, offset: {offset: 1, contentCount: 0}, contextId: Buffer.from('nonsense')})]).then((answer) => [answer.code, answer.view?.result]), [76, 2])
+        //The result of the sort with every page
+        const results: (number | undefined)[] = []
+        let cookie: Buffer = Buffer.alloc(0)
+        do {
+            const page = await owner.search(BASE, {scope: 'one', filter: '(objectClass=inetOrgPerson)', attributes: ['1.1'], paged: false, controls: [byNumber(), PagedResultsControl.encode({size: 3, cookie: cookie})]})
+            results.push(findControl(page.controls, SortResponseControl) ? SortResponseControl.decode(findControl(page.controls, SortResponseControl)!).result : undefined)
+            cookie = PagedResultsControl.decode(findControl(page.controls, PagedResultsControl)!).cookie
+        } while (cookie.length)
+        assert.deepEqual(results, [0, 0, 0])
     })
 
     it('refuses a critical control it does not know', async () => {

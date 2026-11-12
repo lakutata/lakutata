@@ -392,9 +392,10 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                 const devices: [string, string[]][] = [['d1', ['m', 'b']], ['d2', ['x']], ['d3', []], ['d4', ['n', 'a']], ['d5', ['\u{20000}']], ['d6', ['\uFA0E']]]
                 for (const [cn, description] of devices) await admin.add(`cn=${cn},${unit}`, {objectClass: 'device', cn: cn, ...description.length ? {description: description} : {}})
                 const order = async (reverse: boolean): Promise<(string | undefined)[]> => (await admin.search(unit, {scope: 'one', sort: [{attribute: 'description', reverse: reverse}], window: {offset: 1, limit: 10}})).entries.map((entry) => entry.first('cn'))
-                //The least value orders an entry, the greatest in reverse; without one, last both ways; by code points
+                //The least value orders an entry, the greatest in reverse; without one, last, and first in reverse (no value is
+                //greater than every value, RFC 2891 §2.2); by code points
                 assert.deepEqual(await order(false), ['d4', 'd1', 'd2', 'd6', 'd5', 'd3'])
-                assert.deepEqual(await order(true), ['d5', 'd6', 'd2', 'd4', 'd1', 'd3'])
+                assert.deepEqual(await order(true), ['d3', 'd5', 'd6', 'd2', 'd4', 'd1'])
                 const window = await admin.search(unit, {scope: 'one', sort: [{attribute: 'description'}], window: {offset: 2, limit: 2}})
                 assert.deepEqual(window.entries.map((entry) => entry.first('cn')), ['d1', 'd2'])
                 assert.equal(window.total, 6)

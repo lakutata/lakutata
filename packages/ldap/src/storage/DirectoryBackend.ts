@@ -1304,8 +1304,8 @@ export class DirectoryBackend extends Component implements LDAPBackend {
                 if (start >= end) return fromArray([])
                 const page: SelectQueryBuilder<ObjectLiteral> = search.candidates().select(['e.id AS id', 'e.dn AS dn'])
                 keys.forEach((key: SortKey, index: number): void => {
-                    //The least value of an entry orders it, the greatest in reverse; an entry without one comes after the
-                    //others in both directions
+                    //The least value of an entry orders it, the greatest in reverse; no value is greater than every value
+                    //(an entry without one comes after the others, and before them in reverse: RFC 2891 §2.2)
                     const alias: string = `sk${index}`
                     page.leftJoin((query: SelectQueryBuilder<ObjectLiteral>): SelectQueryBuilder<ObjectLiteral> => {
                         query.select('s.entry_id', 'entry_id')
@@ -1315,7 +1315,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
                         if (few) query.andWhere(`s.entry_id IN (${ids.getQuery()})`).setParameters(ids.getParameters())
                         return query.groupBy('s.entry_id')
                     }, alias, `${alias}.entry_id = e.id`)
-                    page.addOrderBy(`CASE WHEN ${alias}.k IS NULL THEN 1 ELSE 0 END`, 'ASC').addOrderBy(`${alias}.k`, key.reverse ? 'DESC' : 'ASC')
+                    page.addOrderBy(`CASE WHEN ${alias}.k IS NULL THEN 1 ELSE 0 END`, key.reverse ? 'DESC' : 'ASC').addOrderBy(`${alias}.k`, key.reverse ? 'DESC' : 'ASC')
                 })
                 const rows: {id: string, dn: string}[] = await page.addOrderBy('e.path', 'ASC').offset(start).limit(end - start).getRawMany()
                 return this.inOrder(manager, rows, schema, search.virtual, context.signal)
