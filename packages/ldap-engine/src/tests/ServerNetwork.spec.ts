@@ -303,13 +303,16 @@ describe('the limits and the end of the server', () => {
         await secure.bind(`uid=user1,ou=people,${BASE}`, 'password1')
     })
 
-    it('refuses a password in clear in a write too when asked to (an entry added with its password), and takes it over StartTLS', async () => {
-        //Anyone may sign up below the people
-        const {url} = await serve({plaintextBind: 'none', access: {admins: [ADMIN], anonymousRead: true, check: (request: {operation: string, dn: {isDescendantOf(dn: string): boolean}}): boolean | undefined => request.operation === 'add' && request.dn.isDescendantOf(`ou=people,${BASE}`) ? true : undefined}})
+    it('refuses a password in clear in a write and a Password Modify too when asked to, and takes it over StartTLS', async () => {
+        //Anyone may sign up below the people, and change the entries there
+        const {url} = await serve({plaintextBind: 'none', access: {admins: [ADMIN], anonymousRead: true, check: (request: {operation: string, dn: {isDescendantOf(dn: string): boolean}}): boolean | undefined => ['add', 'modify'].includes(request.operation) && request.dn.isDescendantOf(`ou=people,${BASE}`) ? true : undefined}})
         const plain: LDAPClientConnection = await client(url)
         await assert.rejects(plain.add(`uid=signup1,ou=people,${BASE}`, {objectClass: 'inetOrgPerson', uid: 'signup1', cn: 'Signup', sn: 'S', userPassword: 'chosen-in-clear'}), (error: unknown) => error instanceof LDAPResultException && error.code === 13)
         //Without a password, or over TLS: added
         await plain.add(`uid=signup2,ou=people,${BASE}`, {objectClass: 'inetOrgPerson', uid: 'signup2', cn: 'Signup', sn: 'S'})
+        //A password written by a modify, or given to a Password Modify, in clear: refused
+        await assert.rejects(plain.modify(`uid=signup2,ou=people,${BASE}`, {operation: 'replace', attribute: 'userPassword', values: 'chosen-in-clear'}), (error: unknown) => error instanceof LDAPResultException && error.code === 13)
+        await assert.rejects(plain.passwordModify({userIdentity: `uid=user1,ou=people,${BASE}`, oldPassword: 'password1', newPassword: 'chosen-in-clear'}), (error: unknown) => error instanceof LDAPResultException && error.code === 13)
         const secure: LDAPClientConnection = await client({url: url, tls: TLS, startTLS: true})
         await secure.add(`uid=signup3,ou=people,${BASE}`, {objectClass: 'inetOrgPerson', uid: 'signup3', cn: 'Signup', sn: 'S', userPassword: 'chosen-over-tls'})
         await secure.bind(`uid=signup3,ou=people,${BASE}`, 'chosen-over-tls')
