@@ -1155,6 +1155,27 @@ describe('the server engine', () => {
         assert.throws(() => createLDAPServer({backends: [new MemoryBackend(BASE)], extendedOperations: {'1.3.6.1.4.1.99999.23': {handler: () => ({})} as never}}), LDAPUsageException)
     })
 
+    it('fails a bind with the outcome an interceptor of its chain returns, simple or SASL PLAIN', async () => {
+        //An interceptor answering for a user instead of throwing; another counting the checks that failed
+        const failed: string[] = []
+        const {server: answering} = await directory({interceptors: [{name: 'answering', operations: ['bind'], around: async (_context: unknown, request: {type: string, dn?: DN, authentication: {type: string}}, next: () => Promise<{resultCode: number}>) => {
+            try {
+                const outcome = await next()
+                return request.dn?.toString().startsWith('uid=user5,') ? {resultCode: 50, diagnosticMessage: 'Not this one'} : outcome
+            } catch (error) {
+                failed.push(request.authentication.type)
+                throw error
+            }
+        }} as never]})
+        await assert.rejects(answering.connect().bind(`uid=user5,ou=people,${BASE}`, 'password5'), code(50))
+        await assert.rejects(answering.connect().saslBind('PLAIN', Buffer.from(`\0dn:uid=user5,ou=people,${BASE}\0password5`)), code(50))
+        await answering.connect().bind(`uid=user6,ou=people,${BASE}`, 'password6')
+        //A wrong password, by either: seen by the interceptor around its check
+        await assert.rejects(answering.connect().bind(`uid=user6,ou=people,${BASE}`, 'wrong'), code(49))
+        await assert.rejects(answering.connect().saslBind('PLAIN', Buffer.from(`\0dn:uid=user6,ou=people,${BASE}\0wrong`)), code(49))
+        assert.deepEqual(failed, ['simple', 'sasl'])
+    })
+
     it('refuses a critical control it does not know', async () => {
         await assert.rejects(admin.search(BASE, {controls: [{oid: '1.2.3.4.5', critical: true}]}), LDAPUnavailableCriticalExtensionException)
         assert.ok((await admin.search(BASE, {scope: 'base', controls: [{oid: '1.2.3.4.5', critical: false}]})).entries.length)

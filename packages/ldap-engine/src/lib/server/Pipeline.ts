@@ -1308,7 +1308,9 @@ export class Pipeline {
             await this.authenticate(session, context, dn, password)
             return {resultCode: ResultCode.success}
         }
-        await (mount ? this.run(mount, context, bindRequest, verify) : verify())
+        //An interceptor of the chain may answer the bind instead of throwing: that answer fails it
+        const chained: ServerOutcome = await (mount ? this.run(mount, context, bindRequest, verify) : verify())
+        if (chained.resultCode !== ResultCode.success) return chained
         session.identity = dn
         session.authenticationMethod = 'simple'
         this.options.events.emit('bind', {session: session.id, dn: dn.toString(), method: 'simple'})
@@ -1395,7 +1397,9 @@ export class Pipeline {
                 }
                 const bindRequest: ServerBindRequest = {type: 'bind', name: name, dn: dn, authentication: {type: 'sasl', mechanism: mechanism.name, ...credentials ? {credentials: credentials} : {}}}
                 try {
-                    await (mount ? this.run(mount, context, bindRequest, verify) : verify())
+                    //An answer of an interceptor of the chain other than success fails the step with it
+                    const chained: ServerOutcome = await (mount ? this.run(mount, context, bindRequest, verify) : verify())
+                    if (chained.resultCode !== ResultCode.success) fail(chained.resultCode, chained.diagnosticMessage ?? 'The bind is refused')
                     return true
                 } catch (error) {
                     if (error instanceof LDAPResultException && error.code === ResultCode.invalidCredentials) return false
