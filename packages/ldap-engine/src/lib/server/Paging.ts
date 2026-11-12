@@ -69,6 +69,18 @@ export interface SearchSource {
 export const SEARCH_SOURCE: unique symbol = Symbol('the source of the entries of a search')
 
 /**
+ * Keep an entry the access check let through as such when a step of the server shows it changed (the operational
+ * attributes it computes, the groups a plugin of its own presents): the check saw it as stored
+ * @param context The context of the search.
+ * @param stored The entry as the check saw it.
+ * @param shown The entry as it is shown.
+ */
+export function keepApproval(context: OperationContext, stored: DirectoryEntry, shown: DirectoryEntry): void {
+    const source: SearchSource | undefined = context.state.get(SEARCH_SOURCE) as SearchSource | undefined
+    if (shown !== stored && source?.approved?.has(stored)) source.approved.add(shown)
+}
+
+/**
  * The paged searches of a session, by their cookies in hex
  */
 export type PagedStates = Map<string, PagedState>

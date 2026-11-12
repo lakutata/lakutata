@@ -953,6 +953,16 @@ describe('the server engine', () => {
         assert.equal((await owner.search(`uid=user9,ou=people,${BASE}`, {scope: 'base'})).entries.length, 1)
     })
 
+    it('checks the entries of GroupPresentationPlugin as they are stored, not as it shows them', async () => {
+        //Groups of unique names hidden from the users: a groupOfNames group, which the plugin also shows as one, is not
+        const {server: presented} = await directory({plugins: [new GroupPresentationPlugin()], access: {admins: [ADMIN], check: (request: {operation: string, identity?: {toString(): string}, entry?: DirectoryEntry}): boolean | undefined => request.operation === 'read' && String(request.identity) !== ADMIN && request.entry?.attributes.some((attribute) => attribute.type.toLowerCase() === 'objectclass' && attribute.values.some((value: Buffer) => value.toString().toLowerCase() === 'groupofuniquenames')) ? false : undefined}})
+        const reader: LDAPInProcessConnection = presented.connect()
+        await reader.bind(`uid=user1,ou=people,${BASE}`, 'password1')
+        const found = await reader.search(`ou=groups,${BASE}`, {scope: 'one', filter: '(cn=developers)'})
+        assert.deepEqual(found.entries.map((entry) => entry.dn), [`cn=developers,ou=groups,${BASE}`])
+        assert.ok(found.entries[0].get('objectClass').some((value: string) => value.toLowerCase() === 'groupofuniquenames'))
+    })
+
     it('refuses a critical control it does not know', async () => {
         await assert.rejects(admin.search(BASE, {controls: [{oid: '1.2.3.4.5', critical: true}]}), LDAPUnavailableCriticalExtensionException)
         assert.ok((await admin.search(BASE, {scope: 'base', controls: [{oid: '1.2.3.4.5', critical: false}]})).entries.length)

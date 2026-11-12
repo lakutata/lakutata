@@ -2,6 +2,7 @@ import {type Filter} from '../../filter/Filter.js'
 import type {PartialAttribute} from '../../protocol/Messages.js'
 import {attributeTypeOf, type Schema} from '../../schema/Schema.js'
 import type {DirectoryEntry, InterceptorPlacement, LDAPInterceptor, OperationContext, SearchContext, ServerRequest} from '../Types.js'
+import {keepApproval} from '../Paging.js'
 import {BaseLDAPPlugin, type BasePluginOptions} from './BaseLDAPPlugin.js'
 
 /**
@@ -22,7 +23,8 @@ export interface GroupPresentationOptions extends BasePluginOptions {
 /**
  * Each group of one class shown as a group of the other too, as lldap shows them: a groupOfNames entry is read with
  * groupOfUniqueNames and its members in uniqueMember as well, and the reverse, and a filter on either class or either
- * member attribute finds both. For the clients knowing one class only; the entries are not changed.
+ * member attribute finds both. For the clients knowing one class only; the entries are not changed. It runs before the
+ * paging, so a sort or a virtual list view uses the entries as stored, without the class and members it shows.
  * @example
  * ```typescript
  * import {createLDAPServer, GroupPresentationPlugin, MemoryBackend} from '@lakutata/ldap-engine'
@@ -120,7 +122,10 @@ function presentation(name: string, first: {objectClass: string, member: string}
             const members: Buffer[] = entry.attributes.filter((attribute: PartialAttribute): boolean => same(schema, attributeTypeOf(attribute.type), from.member)).flatMap((attribute: PartialAttribute): Buffer[] => attribute.values)
             const attributes: PartialAttribute[] = entry.attributes.map((attribute: PartialAttribute): PartialAttribute => attribute === classes ? {type: attribute.type, values: [...attribute.values, Buffer.from(to.objectClass)]} : attribute)
             if (members.length) attributes.push({type: to.member, values: members})
-            return {dn: entry.dn, attributes: attributes}
+            //The access check saw the group as stored
+            const shown: DirectoryEntry = {dn: entry.dn, attributes: attributes}
+            keepApproval(context, entry, shown)
+            return shown
         }
     }
 }

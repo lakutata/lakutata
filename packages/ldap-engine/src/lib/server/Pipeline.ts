@@ -41,7 +41,7 @@ import {
     timeOrderedUUID,
     valuesOfType
 } from './EntryTools.js'
-import {closePaged, endPagedSearch, pagingInterceptor, type PagedStates, SEARCH_SOURCE, type SearchSource} from './Paging.js'
+import {closePaged, endPagedSearch, keepApproval, pagingInterceptor, type PagedStates, SEARCH_SOURCE, type SearchSource} from './Paging.js'
 import type {PasswordSchemes} from './Passwords.js'
 import {rootDSEEntry, schemaConfigEntries, subschemaEntry} from './RootDSE.js'
 import type {SASLContext, SASLMechanism, SASLStep} from './SASL.js'
@@ -1819,8 +1819,7 @@ export class Pipeline {
                 if (!added.length) return entry
                 const shown: DirectoryEntry = {dn: entry.dn, attributes: [...entry.attributes, ...added]}
                 //An entry the access check let through stays so with the attributes the server computes
-                const source: SearchSource | undefined = context.state.get(SEARCH_SOURCE) as SearchSource | undefined
-                if (source?.approved?.has(entry)) source.approved.add(shown)
+                keepApproval(context, entry, shown)
                 return shown
             }
         }
