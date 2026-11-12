@@ -987,6 +987,35 @@ describe('the server engine', () => {
         assert.ok(found.entries[0].get('objectClass').some((value: string) => value.toLowerCase() === 'groupofuniquenames'))
     })
 
+    it('checks a critical control of a backend on binds and extended operations too, and gives it to the write of a Password Modify', async () => {
+        const OID: string = '1.3.6.1.4.1.99999.6'
+        const seen: string[][] = []
+        class Listing extends MemoryBackend {
+            public readonly capabilities = {controls: [OID]}
+
+            public async modify(context: WriteContext, dn: DN, changes: Parameters<MemoryBackend['modify']>[2]): Promise<void> {
+                seen.push(context.controls.map((control) => control.oid))
+                return super.modify(context, dn, changes)
+            }
+        }
+        const mixed: LDAPServerEngine = createLDAPServer({backends: [new MemoryBackend('dc=a,dc=example,dc=com'), new Listing('dc=b,dc=example,dc=com')], access: {admins: [ADMIN]}, passwords: {iterations: 1000}})
+        const owner: LDAPInProcessConnection = mixed.connect({as: ADMIN})
+        for (const name of ['a', 'b']) {
+            await owner.add(`dc=${name},dc=example,dc=com`, {objectClass: 'domain', dc: name})
+            await owner.add(`uid=u,dc=${name},dc=example,dc=com`, {objectClass: ['account', 'simpleSecurityObject'], uid: 'u', userPassword: 'secret-u'})
+        }
+        const critical = [{oid: OID, critical: true}]
+        //A bind and a Password Modify on the backend listing it: taken, the write of the Password Modify given it
+        await mixed.connect().bind('uid=u,dc=b,dc=example,dc=com', 'secret-u', {controls: critical})
+        seen.length = 0
+        await owner.passwordModify({userIdentity: 'uid=u,dc=b,dc=example,dc=com', newPassword: 'changed-u', controls: critical})
+        assert.ok(seen.some((oids) => oids.includes(OID)))
+        //On the other backend, and on an extended operation no backend runs: refused
+        await assert.rejects(mixed.connect().bind('uid=u,dc=a,dc=example,dc=com', 'secret-u', {controls: critical}), code(12))
+        await assert.rejects(owner.passwordModify({userIdentity: 'uid=u,dc=a,dc=example,dc=com', newPassword: 'changed-u', controls: critical}), code(12))
+        await assert.rejects(owner.whoAmI({controls: critical}), code(12))
+    })
+
     it('refuses a critical control it does not know', async () => {
         await assert.rejects(admin.search(BASE, {controls: [{oid: '1.2.3.4.5', critical: true}]}), LDAPUnavailableCriticalExtensionException)
         assert.ok((await admin.search(BASE, {scope: 'base', controls: [{oid: '1.2.3.4.5', critical: false}]})).entries.length)

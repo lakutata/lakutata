@@ -577,6 +577,8 @@ export class Pipeline {
                     dn = request.baseObject
                     return this.search(context, request, responder)
                 case 'extendedRequest':
+                    //No backend runs an extended operation but the write of a Password Modify, which checks its own
+                    if (request.name !== ExtendedOperation.passwordModify) this.checkMountControls(undefined, context.controls)
                     //StartTLS over a network connection: answered by the connection, which then upgrades it
                     if (request.name === ExtendedOperation.startTLS && responder.startTLS) return responder.startTLS()
                     return this.extended(context, request.name, request.value)
@@ -713,15 +715,24 @@ export class Pipeline {
     }
 
     /**
-     * Refuse a critical control only backends handle when the backend a request reaches does not list it: another
-     * backend listing it does not apply it there (RFC 4511 §4.1.11)
-     * @param mount The backend the request reaches.
+     * Whether only backends handle a control: neither the engine nor a plugin
+     * @param oid The OID of the control.
+     */
+    protected backendControl(oid: string): boolean {
+        return !ENGINE_CONTROLS.includes(oid) && !this.options.controls.has(oid)
+    }
+
+    /**
+     * Refuse a critical control only backends handle when the backend a request reaches does not list it, or when it
+     * reaches none (an extended operation, a SASL bind): another backend listing it does not apply it there (RFC 4511
+     * §4.1.11)
+     * @param mount The backend the request reaches, undefined for none.
      * @param controls The controls.
      */
-    protected checkMountControls(mount: Mount, controls: readonly Control[]): void {
+    protected checkMountControls(mount: Mount | undefined, controls: readonly Control[]): void {
         for (const control of controls) {
-            if (!control.critical || ENGINE_CONTROLS.includes(control.oid) || this.options.controls.has(control.oid)) continue
-            if (!mount.backend.capabilities?.controls?.includes(control.oid)) fail(ResultCode.unavailableCriticalExtension, `The critical control ${control.oid} is not supported by the backend of ${mount.suffix.toString()}`)
+            if (!control.critical || !this.backendControl(control.oid)) continue
+            if (!mount?.backend.capabilities?.controls?.includes(control.oid)) fail(ResultCode.unavailableCriticalExtension, mount ? `The critical control ${control.oid} is not supported by the backend of ${mount.suffix.toString()}` : `The critical control ${control.oid} is handled by backends, which this operation does not reach`)
         }
     }
 
@@ -1252,7 +1263,11 @@ export class Pipeline {
         session.authenticationMethod = undefined
         if (request.version !== 3) fail(ResultCode.protocolError, 'Only LDAPv3 is supported')
         const authentication = request.authentication
-        if (authentication.type === 'sasl') return this.saslBind(session, context, request.name, authentication.mechanism, authentication.credentials)
+        //A SASL bind reaches no backend's chain
+        if (authentication.type === 'sasl') {
+            this.checkMountControls(undefined, context.controls)
+            return this.saslBind(session, context, request.name, authentication.mechanism, authentication.credentials)
+        }
         session.sasl = undefined
         if (authentication.type !== 'simple') fail(ResultCode.authMethodNotSupported, 'An authentication method that is not supported')
         const password: Buffer = authentication.password
@@ -1269,6 +1284,7 @@ export class Pipeline {
         this.passwordsTaken(session)
         const bindRequest: ServerBindRequest = {type: 'bind', name: request.name, dn: dn, authentication: {type: 'simple', password: password}}
         const mount: Mount | undefined = this.route(dn)
+        this.checkMountControls(mount, context.controls)
         const verify = async (): Promise<ServerOutcome> => {
             await this.authenticate(session, context, dn, password)
             return {resultCode: ResultCode.success}
@@ -1415,8 +1431,10 @@ export class Pipeline {
         if (request.oldPassword !== undefined && !await this.verifyPassword(context.session, context, target, request.oldPassword)) fail(ResultCode.invalidCredentials, 'The old password is not right')
         const generated: string | undefined = request.newPassword === undefined ? generatePassword() : undefined
         const password: Buffer = request.newPassword ?? Buffer.from(generated!, 'utf8')
-        //The modify keeps the password policy request control, and tells the policy who changes the password
-        const modify: OperationContext = this.context(context.session, 'modify', context.controls.filter((control: Control): boolean => control.oid === PasswordPolicyRequestControl.oid), context.signal, true)
+        //The modify keeps the password policy request control and the controls of the backend it reaches, and tells the
+        //policy who changes the password
+        this.checkMountControls(this.route(target), context.controls)
+        const modify: OperationContext = this.context(context.session, 'modify', context.controls.filter((control: Control): boolean => control.oid === PasswordPolicyRequestControl.oid || this.backendControl(control.oid)), context.signal, true)
         modify.state.set(PASSWORD_CHANGE, {self: identity !== undefined && identity.equals(target, this.schema), oldGiven: request.oldPassword !== undefined})
         let outcome: ServerOutcome
         try {
