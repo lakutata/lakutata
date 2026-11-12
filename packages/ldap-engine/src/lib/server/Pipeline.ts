@@ -500,6 +500,19 @@ export class Pipeline {
     }
 
     /**
+     * Whether an entry is there for a session: it exists and, with access.check, the session may read it (an entry it
+     * may not read is told neither by an answer nor by a matched DN)
+     * @param mount The backend.
+     * @param context The context.
+     * @param dn The DN.
+     */
+    protected async shown(mount: Mount, context: OperationContext, dn: DN): Promise<boolean> {
+        if (this.options.access.check === undefined || context.internal) return this.exists(mount, context, dn)
+        const entry: DirectoryEntry | undefined = await mount.backend.get(context, dn)
+        return entry !== undefined && await this.access.allows({operation: 'read', session: context.session, identity: context.session.identity, dn: entry.dn, entry: entry})
+    }
+
+    /**
      * Fail with noSuchObject and the matched DN unless an entry exists
      * @param mount The backend.
      * @param context The context.
@@ -507,7 +520,7 @@ export class Pipeline {
      */
     protected async existing(mount: Mount, context: OperationContext, dn: DN): Promise<void> {
         if (await this.exists(mount, context, dn)) return
-        fail(ResultCode.noSuchObject, `No entry ${dn.toString()}`, await matchedDNOf(dn, (parent: DN): Promise<boolean> => this.exists(mount, context, parent), mount.suffix))
+        fail(ResultCode.noSuchObject, `No entry ${dn.toString()}`, await matchedDNOf(dn, (parent: DN): Promise<boolean> => this.shown(mount, context, parent), mount.suffix))
     }
 
     /**
@@ -519,7 +532,7 @@ export class Pipeline {
     protected async required(mount: Mount, context: OperationContext, dn: DN): Promise<DirectoryEntry> {
         const entry: DirectoryEntry | undefined = await mount.backend.get(context, dn)
         if (entry) return entry
-        fail(ResultCode.noSuchObject, `No entry ${dn.toString()}`, await matchedDNOf(dn, (parent: DN): Promise<boolean> => this.exists(mount, context, parent), mount.suffix))
+        fail(ResultCode.noSuchObject, `No entry ${dn.toString()}`, await matchedDNOf(dn, (parent: DN): Promise<boolean> => this.shown(mount, context, parent), mount.suffix))
     }
 
     /**
@@ -862,10 +875,10 @@ export class Pipeline {
         await this.existing(mount, context, context.base)
         const access: AccessPolicy = this.access
         const checked: boolean = this.options.access.check !== undefined && !context.internal
-        //A base the session may not read: as one that is not there
-        if (checked) {
+        //A base the session may not read, searched alone: as one that is not there (below it, the entries it may read)
+        if (checked && context.scope === 'base') {
             const base: DirectoryEntry | undefined = await mount.backend.get(context, context.base)
-            if (base && !await access.allows({operation: 'read', session: context.session, identity: context.session.identity, dn: base.dn, entry: base})) fail(ResultCode.noSuchObject, `No entry ${context.base.toString()}`, await matchedDNOf(context.base, (parent: DN): Promise<boolean> => this.exists(mount, context, parent), mount.suffix))
+            if (base && !await access.allows({operation: 'read', session: context.session, identity: context.session.identity, dn: base.dn, entry: base})) fail(ResultCode.noSuchObject, `No entry ${context.base.toString()}`, await matchedDNOf(context.base, (parent: DN): Promise<boolean> => this.shown(mount, context, parent), mount.suffix))
         }
         const pagedControl: Control | undefined = findControl(context.controls, PagedResultsControl)
         const sortControl: Control | undefined = findControl(context.controls, SortRequestControl)
@@ -1115,7 +1128,7 @@ export class Pipeline {
         const entry: DirectoryEntry = await this.required(mount, context, dn)
         //Read as a search reads it: an entry the session does not see is not there for it (its values and its existence
         //not told by the answer)
-        if (!context.internal && !await this.access.allows({operation: 'read', session: context.session, identity: context.session.identity, dn: entry.dn, entry: entry})) fail(ResultCode.noSuchObject, `No entry ${dn.toString()}`, await matchedDNOf(dn, (parent: DN): Promise<boolean> => this.exists(mount, context, parent), mount.suffix))
+        if (!context.internal && !await this.access.allows({operation: 'read', session: context.session, identity: context.session.identity, dn: entry.dn, entry: entry})) fail(ResultCode.noSuchObject, `No entry ${dn.toString()}`, await matchedDNOf(dn, (parent: DN): Promise<boolean> => this.shown(mount, context, parent), mount.suffix))
         if (!this.schema.equality(type)) fail(ResultCode.inappropriateMatching, `${attribute} has no equality matching rule`)
         const key: string | undefined = equalityKey(type, value, this.schema)
         let present: boolean = false

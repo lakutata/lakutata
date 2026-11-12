@@ -517,9 +517,18 @@ describe('the server engine', () => {
         const window = await reader.search(`ou=people,${BASE}`, {scope: 'one', filter: '(uid=user*)', sort: [{attribute: 'cn'}], window: {offset: 1, limit: 5}})
         assert.deepEqual([window.total, window.entries.length], [15, 5])
         assert.ok(window.entries.every((entry) => /[13579]$/.test(entry.first('uid')!)), JSON.stringify(window.entries.map((entry) => entry.dn)))
-        //A base it may not read: as one that is not there
+        //A base it may not read: as one that is not there; nor told by the matched DN of an entry below it
         const answer = (dn: string): Promise<string> => reader.search(dn, {scope: 'base'}).then((result): string => `found ${result.entries.length}`, (error: unknown): string => `${(error as LDAPResultException).code} ${(error as LDAPResultException).matchedDN}`)
         assert.equal(await answer(`uid=user4,ou=people,${BASE}`), await answer(`uid=nobody,ou=people,${BASE}`))
+        assert.equal(await answer(`cn=below,uid=user4,ou=people,${BASE}`), await answer(`cn=below,uid=nobody,ou=people,${BASE}`))
+        const compared = (dn: string): Promise<string> => reader.compare(dn, 'cn', 'x').then(String, (error: unknown): string => `${(error as LDAPResultException).code} ${(error as LDAPResultException).matchedDN}`)
+        assert.equal(await compared(`cn=below,uid=user4,ou=people,${BASE}`), await compared(`cn=below,uid=nobody,ou=people,${BASE}`))
+        //A base it may not read, searched below: the entries it reads below it
+        const {server: selves} = await directory({access: {admins: [ADMIN], check: (request: {operation: string, identity?: {toString(): string}, dn: {toString(): string}}): boolean | undefined => request.operation === 'read' && String(request.identity) !== ADMIN ? String(request.dn).toLowerCase() === String(request.identity).toLowerCase() : undefined}})
+        const self: LDAPInProcessConnection = selves.connect()
+        await self.bind(READER, 'password1')
+        assert.deepEqual((await self.search(BASE, {filter: '(uid=user1)'})).entries.map((entry) => entry.dn), [READER])
+        assert.equal((await self.search(BASE, {filter: '(uid=user2)'})).entries.length, 0)
         //A paged search does not go on after a bind on the session
         const session: LDAPInProcessConnection = hiding.connect()
         await session.bind(`uid=user2,ou=people,${BASE}`, 'password2')
