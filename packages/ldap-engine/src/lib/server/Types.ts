@@ -423,7 +423,8 @@ export interface ServerBindRequest {
      */
     name: string
     /**
-     * The DN of the bind; undefined for a name that is not a DN (a SASL bind)
+     * The DN of the bind: for a SASL bind, the DN whose password it verifies (PLAIN, which runs the chain of that DN's
+     * backend as a simple bind does); undefined for a name that is not a DN
      */
     dn?: DN
     /**

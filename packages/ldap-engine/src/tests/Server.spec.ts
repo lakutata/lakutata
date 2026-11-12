@@ -1148,6 +1148,9 @@ describe('the server engine', () => {
         const {server: kept, admin: owner} = await directory({plugins: [new LastBindPlugin()]})
         await kept.connect().saslBind('PLAIN', Buffer.from(`\0dn:uid=user3,ou=people,${BASE}\0password3`))
         assert.ok((await owner.search(`uid=user3,ou=people,${BASE}`, {scope: 'base', attributes: ['authTimestamp']})).entries[0].first('authTimestamp'))
+        //A wrong password: invalidCredentials, no time kept
+        await assert.rejects(kept.connect().saslBind('PLAIN', Buffer.from(`\0dn:uid=user4,ou=people,${BASE}\0wrong`)), code(49))
+        assert.equal((await owner.search(`uid=user4,ou=people,${BASE}`, {scope: 'base', attributes: ['authTimestamp']})).entries[0].first('authTimestamp'), undefined)
         //An extended operation that is not a function: refused at the start
         assert.throws(() => createLDAPServer({backends: [new MemoryBackend(BASE)], extendedOperations: {'1.3.6.1.4.1.99999.23': {handler: () => ({})} as never}}), LDAPUsageException)
     })

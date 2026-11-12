@@ -19,7 +19,7 @@ export interface LastBindPluginOptions extends BasePluginOptions {
  * The time of the last successful bind of an entry kept in its authTimestamp, as the lastbind overlay of OpenLDAP keeps
  * it, for finding the accounts nobody uses; with `precision`, a bind within that many seconds of the time kept does not
  * write it again. For the backends that do not keep it themselves (the directory backend of `@lakutata/ldap` does, and
- * the plugin leaves its chain). The binds with a password: simple binds, and SASL binds verifying one (PLAIN).
+ * the plugin leaves its chain). It records the binds that verify a password: simple binds and SASL PLAIN.
  * @example
  * ```typescript
  * import {createLDAPServer, LastBindPlugin, MemoryBackend} from '@lakutata/ldap-engine'
