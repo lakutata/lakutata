@@ -1179,6 +1179,15 @@ describe('the server engine', () => {
         await assert.rejects(answering.connect().bind(`uid=user6,ou=people,${BASE}`, 'wrong'), code(49))
         await assert.rejects(answering.connect().saslBind('PLAIN', Buffer.from(`\0dn:uid=user6,ou=people,${BASE}\0wrong`)), code(49))
         assert.deepEqual(failed, ['simple', 'sasl'])
+        //An interceptor returning nothing (an around written without its return): the bind as the chain made it
+        const {server: silent} = await directory({interceptors: [{name: 'silent', operations: ['bind'], around: async (_context: unknown, _request: unknown, next: () => Promise<unknown>) => {
+            await next()
+        }} as never]})
+        await silent.connect().bind(`uid=user6,ou=people,${BASE}`, 'password6')
+        await silent.connect().saslBind('PLAIN', Buffer.from(`\0dn:uid=user6,ou=people,${BASE}\0password6`))
+        //Its answer whole on PLAIN too: its message with invalidCredentials
+        const {server: holding} = await directory({interceptors: [{name: 'holding', operations: ['bind'], around: async () => ({resultCode: 49, diagnosticMessage: 'Held back for review'})} as never]})
+        await assert.rejects(holding.connect().saslBind('PLAIN', Buffer.from(`\0dn:uid=user6,ou=people,${BASE}\0password6`)), (error: unknown) => error instanceof LDAPResultException && error.code === 49 && error.diagnosticMessage === 'Held back for review')
     })
 
     it('refuses a critical control it does not know', async () => {

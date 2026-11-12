@@ -2,7 +2,7 @@ import {randomBytes} from 'node:crypto'
 import type {EventEmitter} from 'node:events'
 import {LDAPDecodeException} from '../../exceptions/LDAPDecodeException.js'
 import {LDAPException} from '../../exceptions/LDAPException.js'
-import {LDAPResultException, LDAPTimeLimitExceededException} from '../../exceptions/LDAPResultException.js'
+import {LDAPResultException, LDAPTimeLimitExceededException, resultException} from '../../exceptions/LDAPResultException.js'
 import type {Control} from '../controls/Control.js'
 import {
     findControl,
@@ -1314,8 +1314,9 @@ export class Pipeline {
             return {resultCode: ResultCode.success}
         }
         //An interceptor of the chain may answer the bind instead of throwing: that answer fails it
-        const chained: ServerOutcome = await (mount ? this.run(mount, context, bindRequest, verify) : verify())
-        if (chained.resultCode !== ResultCode.success) return chained
+        //(an interceptor returning nothing leaves the bind as the rest of the chain made it)
+        const chained: ServerOutcome | undefined = await (mount ? this.run(mount, context, bindRequest, verify) : verify())
+        if (chained && chained.resultCode !== ResultCode.success) return chained
         session.identity = dn
         session.authenticationMethod = 'simple'
         this.options.events.emit('bind', {session: session.id, dn: dn.toString(), method: 'simple'})
@@ -1403,13 +1404,18 @@ export class Pipeline {
                     return {resultCode: ResultCode.success}
                 }
                 const bindRequest: ServerBindRequest = {type: 'bind', name: name, dn: dn, authentication: {type: 'sasl', mechanism: mechanism.name, ...credentials ? {credentials: credentials} : {}}}
+                //An answer of an interceptor of the chain other than success fails the step with it, whole (its message, its
+                //matched DN, its referral), invalidCredentials too
+                let answered: LDAPResultException | undefined
                 try {
-                    //An answer of an interceptor of the chain other than success fails the step with it
-                    const chained: ServerOutcome = await (mount ? this.run(mount, context, bindRequest, verify) : verify())
-                    if (chained.resultCode !== ResultCode.success) fail(chained.resultCode, chained.diagnosticMessage ?? 'The bind is refused')
+                    const chained: ServerOutcome | undefined = await (mount ? this.run(mount, context, bindRequest, verify) : verify())
+                    if (chained && chained.resultCode !== ResultCode.success) {
+                        answered = resultException({resultCode: chained.resultCode, matchedDN: chained.matchedDN ?? '', diagnosticMessage: chained.diagnosticMessage ?? 'The bind is refused', ...chained.referral ? {referral: chained.referral} : {}})
+                        throw answered
+                    }
                     return true
                 } catch (error) {
-                    if (error instanceof LDAPResultException && error.code === ResultCode.invalidCredentials) return false
+                    if (error !== answered && error instanceof LDAPResultException && error.code === ResultCode.invalidCredentials) return false
                     throw error
                 }
             }
