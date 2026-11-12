@@ -381,8 +381,9 @@ process.on('SIGTERM', () => void server.close())
   is a transfer option and plays no part in the match. An attribute asked for by a range of its values
   (`member;range=0-1`, counted from 0, as in the range retrieval of Active Directory) returns those values under a
   description that carries the range. The end is `*` when the range includes the last value, and a range that starts
-  past the last value returns nothing. A one-level or subtree search from the empty DN is answered noSuchObject; the
-  root DSE is read with a base-scope search.
+  past the last value returns nothing. An attribute is returned at most once: when it is also asked for by name or by
+  `*`, it is returned whole and the range is left out. A one-level or subtree search from the empty DN is answered
+  noSuchObject; the root DSE is read with a base-scope search.
 - The server does not dereference aliases: it reads `derefAliases` and returns alias entries as they are. It accepts
   ManageDsaIT: the built-in backends keep no referral entries, so it changes nothing for them, and a backend of one's
   own that gives referrals finds it in `context.controls`.
@@ -609,7 +610,12 @@ await server.listen({port: 389})
   operations the server answers itself), around the check of a password (`authenticate`), and on the password changes
   while they are in clear (`passwordChange`, whose `importing` says whether the values that look hashed are hashes an
   administrator imports). It may bring schema files, controls, extended operations, SASL mechanisms and password
-  schemes, which the root DSE and the subschema publish. Two plugins claiming one OID stop the server at its start.
+  schemes, which the root DSE and the subschema publish. Two plugins claiming one OID stop the server at its start. The
+  root DSE and the subschema go through no backend's chain, so a plugin's control reaches them only when the plugin
+  applies it in `aroundRequest`. Such a plugin marks the control `serverEntries: true`; without the mark, a search of
+  those entries carrying the control as critical is refused. An extended operation is registered as its handler, or as
+  `{handler, controls}` when the handler itself applies controls of a backend: an extended operation reaches no backend,
+  so a critical backend control it does not list is refused.
 - Every plugin takes `name` and `suffixes` among its options: to have it twice, or for some backends only. The plugins
   keep the relations within one backend, as the overlays of OpenLDAP keep them within one database.
 - `interceptors` (an option of the server) takes interceptors alone, for what needs nothing else.
@@ -660,7 +666,10 @@ await server.listen({port: 389})
   `paging` that has a `transformEntry()` or an `around()` for searches), the server does the virtual list view and the
   paging itself. The backend still sorts a sorted search, but the server also sorts for a virtual list view. A backend
   doing the work of a plugin (`memberOf`, `referentialIntegrity`, `idAllocation`, `lastBind`) declares it there too, and
-  the plugin leaves its chain.
+  the plugin leaves its chain. The controls a backend handles go in `capabilities.controls`: a request with one of them
+  critical is refused when it reaches a different backend or none at all: an anonymous or unauthenticated bind, a SASL
+  bind that verifies no password, or an extended operation that does not list it. Password Modify is checked against the
+  backend of the entry it changes.
 
 ## 15. The protocol
 

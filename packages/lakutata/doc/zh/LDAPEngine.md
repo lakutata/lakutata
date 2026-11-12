@@ -290,7 +290,7 @@ process.on('SIGTERM', () => void server.close())
 - `MemoryBackend` 把条目放在内存里，适合测试和小型服务器。自己的后端见第 14 节；`@lakutata/ldap` 的 `DirectoryBackend` 把条目存进应用的数据库。
 - 排序遵循 RFC 2891：某个排序键没有值的条目排在其他条目之后，逆序时排在它们之前；有多个值时取最小的值（逆序时取最大的值）。排序键的属性不在 schema 里时，排序响应给出 noSuchAttribute；排序的分页搜索每一页都带排序响应。
 - 虚拟列表视图遵循 draft-ietf-ldapext-ldapv3-vlv-09：偏移量按服务器的条目数折算；偏移量小于 1 或超出最后一个条目时，搜索以 virtualListViewError 失败，视图的结果为 offsetRangeError；服务器不发 context ID，所以收到的 context ID 一律拒绝。
-- 请求带选项的属性（`description;lang-en`）时，返回带有这些选项的属性；`binary` 是传输选项，不参与比较。按值的范围请求属性时（`member;range=0-1`，从 0 起算，与 Active Directory 的分段读取相同），返回这一段的值，属性描述带上这个范围；范围包括最后一个值时，结尾写作 `*`；起点超出最后一个值时，不返回这个属性。从空 DN 开始的单层或子树搜索按 noSuchObject 回答；根 DSE 用 scope 为 base 的搜索读取。
+- 请求带选项的属性（`description;lang-en`）时，返回带有这些选项的属性；`binary` 是传输选项，不参与比较。按值的范围请求属性时（`member;range=0-1`，从 0 起算，与 Active Directory 的分段读取相同），返回这一段的值，属性描述带上这个范围；范围包括最后一个值时，结尾写作 `*`；起点超出最后一个值时，不返回这个属性。一个属性最多返回一次：同时按名字或用 `*` 请求它时，返回整个属性，不再带范围。从空 DN 开始的单层或子树搜索按 noSuchObject 回答；根 DSE 用 scope 为 base 的搜索读取。
 - 服务器不解引用别名：它读取 `derefAliases`，别名条目按原样返回。服务器接受 ManageDsaIT：内置的后端不保存引用（referral）条目，所以它对它们不改变任何行为；自己写的后端如果给出引用，可以在 `context.controls` 里看到这个控制。
 - `events`：`connection`、`disconnect`、`bind`、`bindFailure`、`operation`（操作、它的 DN、结果码和耗时的毫秒数）、`startTLS`、`connectionError`，以及后端或拦截器出现不属于结果码的错误时的 `error`。
 - `close()` 停止监听，用 Notice of Disconnection 结束各个会话，并停止插件。
@@ -447,7 +447,7 @@ await server.listen({port: 389})
 - 拦截器只在它列出的 `operations` 上运行：`before()` 检查或修改请求，`around()` 包住链上后面的部分运行，`transformEntry()` 修改搜索返回的条目，`beforeCommit()` 在写操作的事务里运行（后端支持事务时）。抛出 `LDAPResultException` 时，以它的结果码回应。
 - 拦截器可以放在服务器内置步骤（`access`、`password`、`schema`、`operational`、`paging`）的前面或后面，写法是 `{interceptor, before: 'schema'}`；不指定时放在链的末尾，也就是所有内置步骤之后，这时它往请求里加的内容不会经过 schema 检查。放在 `password` 之前的拦截器能看到明文密码。会把条目从搜索结果里去掉的拦截器（`transformEntry()` 返回 undefined，或者用 `around()` 替换条目），必须放在 `paging` 之后，链的末尾就在它之后。放在它之前时，分页和虚拟列表视图仍然会把被去掉的条目算进去。只修改条目的拦截器最好放在 `paging` 之前（`GroupPresentationPlugin` 就是这样放的），这样后端仍然可以自己排序、开窗和分页；这时排序和虚拟列表视图用的是存储的条目，不包括它做的修改。
 - 在拦截器和插件里，绑定时的 `context.session` 就是会话本身；其他操作拿到的是会话的一个视图，其中的身份始终是操作开始时的身份，不论这期间是否有新的绑定：会话的数据请放在 `session.state` 里，或者以 `session.id` 为键，不要以会话对象为键。
-- 插件还可以在每个请求前后运行（`aroundRequest`，能看到绑定、StartTLS 和服务器自己回答的扩展操作）、在校验密码前后运行（`authenticate`），以及在密码修改时、密码还是明文的时候运行（`passwordChange`，其中的 `importing` 表示看起来像哈希的值是不是管理员导入的哈希）。插件可以带上 schema 文件、控制、扩展操作、SASL 机制和密码格式，根 DSE 和子模式条目会公布它们。两个插件声明同一个 OID 时，服务器在启动时就会报错。
+- 插件还可以在每个请求前后运行（`aroundRequest`，能看到绑定、StartTLS 和服务器自己回答的扩展操作）、在校验密码前后运行（`authenticate`），以及在密码修改时、密码还是明文的时候运行（`passwordChange`，其中的 `importing` 表示看起来像哈希的值是不是管理员导入的哈希）。插件可以带上 schema 文件、控制、扩展操作、SASL 机制和密码格式，根 DSE 和子模式条目会公布它们。两个插件声明同一个 OID 时，服务器在启动时就会报错。根 DSE 和子模式条目不经过任何后端的链，插件的控制只有在 `aroundRequest` 里应用时才对它们有效；这样的控制要标上 `serverEntries: true`，否则带着这个关键控制搜索这些条目会被拒绝。扩展操作可以只给出处理函数；处理函数自己应用后端的控制时，写成 `{handler, controls}` 并列出这些控制：扩展操作不经过任何后端，没有列出的关键后端控制会被拒绝。
 - 每个插件的选项里都有 `name` 和 `suffixes`：用来同时使用两个同类插件，或者只作用于部分后端。插件维护的关系只在一个后端之内，就像 OpenLDAP 的 overlay 只在一个数据库之内维护关系一样。
 - 服务器的 `interceptors` 选项只接受拦截器，用于不需要插件其他部分的场合。
 
@@ -481,7 +481,7 @@ await server.listen({port: 389})
 - 后端有 `get()`（按 DN 取一个条目）、`search()`（搜索的条目，返回超集就够了），以及它支持的写操作（`add()`、`modify()`、`delete()`、`modifyDN()`）；后端不支持的写操作，服务器回 unwillingToPerform。如果不读取条目就能更快地判断它是否存在，可以实现 `exists()`。
 - 后端可以自己校验绑定（`bind()`），带上它计算出的属性所需的 schema 文件和它自己的拦截器，还可以提供 `transaction()`，让拦截器的 `beforeCommit()` 和写操作在同一个事务里运行。如果还提供了 `lock()`，引擎会在这个事务里，在拦截器的 `beforeCommit()` 之后、写入之前，等后端锁住条目，再重新读取修改或改名的条目，按读到的内容重新算出改动并重新检查：期间别人做的修改不会被覆盖，increment 按条目当前的值计算，必填属性也按当前的值检查。
 - 有 `lock()` 时，`beforeCommit()` 看到的是按事务开始前读到的条目算出的改动。之后，没有拦截器动过的改动按请求重新算出，被原地修改的改动按修改后的内容重新算出；拦截器删掉的改动不会恢复，它添加的改动（或换成新对象的改动）按原样写入。
-- 自己做排序、虚拟列表视图或分页的后端，要在 `capabilities` 里声明；`sortSearchItems()` 能按服务器的方式给它自己的记录排序。条目可能被逐条去掉时（设置了 `access.check`，或者 `paging` 之后有带 `transformEntry()` 或搜索上的 `around()` 的拦截器），虚拟列表视图和分页由服务器自己做。普通的排序搜索仍由后端排序；虚拟列表视图连排序也由服务器来做。自己完成某个插件工作的后端（`memberOf`、`referentialIntegrity`、`idAllocation`、`lastBind`），也在这里声明，对应的插件就会退出它的链。
+- 自己做排序、虚拟列表视图或分页的后端，要在 `capabilities` 里声明；`sortSearchItems()` 能按服务器的方式给它自己的记录排序。条目可能被逐条去掉时（设置了 `access.check`，或者 `paging` 之后有带 `transformEntry()` 或搜索上的 `around()` 的拦截器），虚拟列表视图和分页由服务器自己做。普通的排序搜索仍由后端排序；虚拟列表视图连排序也由服务器来做。自己完成某个插件工作的后端（`memberOf`、`referentialIntegrity`、`idAllocation`、`lastBind`），也在这里声明，对应的插件就会退出它的链。后端处理的控制写在 `capabilities.controls` 里：请求带着其中某个关键控制，却到达另一个后端，或者不到达任何后端（匿名绑定或不带密码的绑定、不校验密码的 SASL 绑定，或者没有列出它的扩展操作）时，会被拒绝。Password Modify 按它要修改的条目所在的后端检查。
 
 ## 15. 协议
 
