@@ -227,6 +227,26 @@ describe('the password policy', () => {
         assert.equal((await admin.search(ALICE, {scope: 'base', attributes: ['pwdReset']})).entries[0].has('pwdReset'), false)
     })
 
+    it('lets a session that must change its password go on once the change is written, and a bind start afresh', async () => {
+        const {server, backend, admin} = await serve({pwdMustChange: 'TRUE'})
+        await admin.passwordModify({userIdentity: ALICE, newPassword: 'set-by-admin'})
+        //Bob has changed the password the administrator gave him
+        await age(server, backend, BOB, {pwdReset: 'FALSE'})
+        const session: LDAPInProcessConnection = server.connect()
+        await session.bind(ALICE, 'set-by-admin')
+        //A change that fails (a value to delete it does not have): the password not changed, the session still held
+        await assert.rejects(session.modify(ALICE, [{operation: 'replace', attribute: 'userPassword', values: 'chosen-by-alice'}, {operation: 'delete', attribute: 'userPassword', values: 'not-a-password'}]), (error: unknown) => error instanceof LDAPResultException && error.code === 16)
+        await assert.rejects(session.search(BASE, {controls: ASK}), refused(50, 'changeAfterReset'))
+        //Another bind on the session: the identity before it no longer holds it
+        await session.bind(BOB, 'bob-password-1')
+        assert.ok((await session.search(BASE, {filter: '(uid=bob)'})).entries.length)
+        //Bound again as the user, still to change its password; a change written lets it go on
+        await session.bind(ALICE, 'set-by-admin')
+        await assert.rejects(session.search(BASE, {controls: ASK}), refused(50, 'changeAfterReset'))
+        await session.passwordModify({oldPassword: 'set-by-admin', newPassword: 'chosen-by-alice'})
+        assert.ok((await session.search(BASE, {filter: '(uid=bob)'})).entries.length)
+    })
+
     it('checks the length and the quality of the new passwords', async () => {
         const {server, admin} = await serve({pwdCheckQuality: '2', pwdMinLength: '8', pwdMaxLength: '20'}, {quality: (password: Buffer) => /\d/.test(password.toString()) || 'A password has a digit'})
         const session: LDAPInProcessConnection = server.connect()

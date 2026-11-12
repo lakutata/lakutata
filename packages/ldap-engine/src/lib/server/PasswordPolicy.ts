@@ -124,6 +124,12 @@ export interface PasswordPolicyOptions {
  */
 export const MUST_CHANGE: unique symbol = Symbol('the password must be changed first')
 
+/**
+ * The key of the session state telling that a request of the session changes its own password: once the request is
+ * done, the session no longer has to change it first
+ */
+export const CHANGING: unique symbol = Symbol('the password being changed')
+
 //The value of pwdAccountLockedTime locking an account for good
 const LOCKED_FOR_GOOD: string = '000001010000Z'
 //The syntax the history stores the passwords in (Octet String)
@@ -474,7 +480,8 @@ export class PasswordPolicy {
         changes.push(rules.mustChange && !change.self ? replace('pwdReset', 'TRUE') : replace('pwdReset'))
         //A password an administrator sets unlocks the account
         if (!change.self) changes.push(replace('pwdAccountLockedTime'))
-        if (change.self) context.session.state.delete(MUST_CHANGE)
+        //The session goes on once the change is written (the request done), not before
+        if (change.self) context.session.state.set(CHANGING, true)
         return changes
     }
 }

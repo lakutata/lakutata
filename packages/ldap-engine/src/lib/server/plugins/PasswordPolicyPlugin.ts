@@ -7,10 +7,11 @@ import type {LDAPRequest} from '../../protocol/Messages.js'
 import {attributeTypeOf, type Schema} from '../../schema/Schema.js'
 import type {SchemaSource} from '../../schema/SchemaDocument.js'
 import {PPOLICY} from '../../schema/bundled/Bundled.js'
-import {MUST_CHANGE, PasswordPolicy, type PasswordPolicyOptions} from '../PasswordPolicy.js'
+import {CHANGING, MUST_CHANGE, PasswordPolicy, type PasswordPolicyOptions} from '../PasswordPolicy.js'
 import type {DirectoryChange, DirectoryEntry, LDAPPluginHost, OperationContext, PasswordChange, PluginControl, ServerOutcome} from '../Types.js'
 import {BaseLDAPPlugin, type BasePluginOptions} from './BaseLDAPPlugin.js'
 import {readEntry} from './PluginTools.js'
+import {ResultCode} from '../../protocol/ResultCode.js'
 
 /**
  * The options of a {@link PasswordPolicyPlugin}: the policy, its name and its suffixes
@@ -83,14 +84,23 @@ export class PasswordPolicyPlugin extends BaseLDAPPlugin {
 
     /**
      * Refuse the requests of a session that must change its password first: all but binds, its own password change,
-     * Who Am I and the Password Modify
+     * Who Am I and the Password Modify. The session goes on once its password change is done; a bind starts it afresh
+     * (the identity before it no longer counts, RFC 4511 §4.2.1).
      * @param context The context.
      * @param request The request.
      * @param next The handling of the request.
      */
     public async aroundRequest(context: OperationContext, request: LDAPRequest, next: () => Promise<ServerOutcome>): Promise<ServerOutcome> {
-        if (context.session.state.get(MUST_CHANGE)) this.policyOf(context).guard(context, this.allowedBeforeChange(context, request))
-        return next()
+        const state: Map<string | symbol, unknown> = context.session.state
+        if (request.type === 'bindRequest') state.delete(MUST_CHANGE)
+        if (state.get(MUST_CHANGE)) this.policyOf(context).guard(context, this.allowedBeforeChange(context, request))
+        try {
+            const outcome: ServerOutcome = await next()
+            if (state.get(CHANGING) && outcome.resultCode === ResultCode.success) state.delete(MUST_CHANGE)
+            return outcome
+        } finally {
+            state.delete(CHANGING)
+        }
     }
 
     /**
