@@ -267,7 +267,9 @@ describe('the server engine on the network', () => {
             release = resolve
         })
         let starts: number = 0
+        //Anonymous sessions read: the refused cookie is told by the paging, not by the access control
         const {port: failingPort} = await serve({
+            access: {admins: [ADMIN], anonymousRead: true},
             sasl: [plainMechanism(), {name: 'COUNTED', requiresTLS: false, start: async () => {
                 starts++
                 return {done: false, serverCredentials: Buffer.from('next')}
@@ -306,7 +308,7 @@ describe('the server engine on the network', () => {
         await settle()
         assert.equal(answer(3), undefined)
         assert.equal(String((answer(5)!.protocolOp as {value?: Buffer}).value ?? ''), '')
-        assert.notEqual((answer(6)!.protocolOp as {resultCode: number}).resultCode, 0)
+        assert.equal((answer(6)!.protocolOp as {resultCode: number}).resultCode, 53)
         //A SASL exchange begun, then a bind that cannot be decoded: the exchange starts again
         socket.write(encodeMessage({messageId: 7, protocolOp: {type: 'bindRequest', version: 3, name: '', authentication: {type: 'sasl', mechanism: 'COUNTED', credentials: Buffer.from('first')}}}))
         await settle()
