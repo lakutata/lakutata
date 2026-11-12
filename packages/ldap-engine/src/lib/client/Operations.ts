@@ -236,6 +236,11 @@ export abstract class LDAPOperations implements LDAPConnection {
         const result: PartialAttribute[] = entry.attributes.filter((attribute: PartialAttribute): boolean => !ranged.includes(attribute))
         for (const attribute of ranged) {
             const base: string = attribute.type.replace(/;range=\d+-(\d+|\*)/i, '')
+            //Types only: the attribute without values, nothing more to read
+            if (options.typesOnly) {
+                if (!result.some((item: PartialAttribute): boolean => item.type.toLowerCase() === base.toLowerCase())) result.push({type: base, values: []})
+                continue
+            }
             const values: Buffer[] = attribute.values.slice()
             let current: string = attribute.type
             for (let round: number = 0; round < 10000; round++) {
@@ -250,7 +255,10 @@ export abstract class LDAPOperations implements LDAPConnection {
             }
             //Asked for by its name too: the values it already has once
             const existing: PartialAttribute | undefined = result.find((item: PartialAttribute): boolean => item.type.toLowerCase() === base.toLowerCase())
-            if (existing) existing.values.push(...values.filter((value: Buffer): boolean => !existing.values.some((held: Buffer): boolean => held.equals(value))))
+            if (existing) {
+                const held: Set<string> = new Set(existing.values.map((value: Buffer): string => value.toString('base64')))
+                existing.values.push(...values.filter((value: Buffer): boolean => !held.has(value.toString('base64'))))
+            }
             else result.push({type: base, values: values})
         }
         return result

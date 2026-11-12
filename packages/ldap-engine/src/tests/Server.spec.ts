@@ -1088,6 +1088,8 @@ describe('the server engine', () => {
         //The client reads them to the end, under the attribute's own name, once when the attribute is asked for too
         assert.equal((await owner.search(group, {scope: 'base', attributes: ['member;range=0-1']})).entries[0].get('member').length, 5)
         for (const attributes of [['member', 'member;range=0-1'], ['*', 'member;range=0-1']]) assert.equal((await owner.search(group, {scope: 'base', attributes: attributes})).entries[0].get('member').length, 5, attributes.join(' '))
+        //Types only: the attribute without its values, no range read after
+        assert.deepEqual((await owner.search(group, {scope: 'base', attributes: ['member;range=0-1'], typesOnly: true})).entries[0].attributes.map((item) => [item.type, item.values.length]), [['member', 0]])
     })
 
     it('refuses a critical control it does not know', async () => {
