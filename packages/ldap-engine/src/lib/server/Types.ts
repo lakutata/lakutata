@@ -150,6 +150,12 @@ export interface AttributeSelection {
      * The attributes asked for by name, as primary names in lower case
      */
     names: Set<string>
+    /**
+     * The attributes asked for with options (`description;lang-en`): their primary names in lower case and their
+     * options in lower case, `binary` left out (a transfer option). An attribute is returned for one when it is of
+     * that type or a subtype and has at least those options (RFC 4512 §2.5.2).
+     */
+    tagged?: {type: string, options: string[]}[]
 }
 
 /**

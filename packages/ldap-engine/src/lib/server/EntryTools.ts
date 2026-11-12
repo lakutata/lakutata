@@ -134,15 +134,22 @@ export function inScope(dn: DN, base: DN, scope: SearchScope, schema: Schema): b
  */
 export function attributeSelection(attributes: string[], schema: Schema): AttributeSelection {
     const names: Set<string> = new Set()
+    const tagged: {type: string, options: string[]}[] = []
     let allUser: boolean = attributes.length === 0
     let allOperational: boolean = false
     for (const attribute of attributes) {
         if (attribute === '*') allUser = true
         else if (attribute === '+') allOperational = true
-        else if (attribute !== '1.1') names.add(schema.primaryName(attributeTypeOf(attribute)).toLowerCase())
+        else if (attribute !== '1.1') {
+            //With options, the attributes having them (binary, a transfer option, is not one to have)
+            const type: string = schema.primaryName(attributeTypeOf(attribute)).toLowerCase()
+            const options: string[] = optionsOf(attribute).filter((option: string): boolean => option !== 'binary')
+            if (options.length) tagged.push({type: type, options: options})
+            else names.add(type)
+        }
     }
     //1.1 with other names asks for those names (RFC 4511 §4.5.1.8)
-    return {allUser: allUser, allOperational: allOperational, names: names}
+    return {allUser: allUser, allOperational: allOperational, names: names, ...tagged.length ? {tagged: tagged} : {}}
 }
 
 /**
@@ -170,7 +177,12 @@ export function returnedBy(selection: AttributeSelection, schema: Schema): (desc
         let answer: boolean | undefined = answers.get(description)
         if (answer === undefined) {
             const type: string = attributeTypeOf(description)
-            answer = schema.primaryName(type).toLowerCase() !== 'userpassword' && isSelected(type, selection, schema)
+            const primary: string = schema.primaryName(type).toLowerCase()
+            answer = primary !== 'userpassword' && (isSelected(type, selection, schema) || (selection.tagged ?? []).some((asked: {type: string, options: string[]}): boolean => {
+                if (primary !== asked.type && !schema.isSubtypeOf(type, asked.type)) return false
+                const options: string[] = optionsOf(description)
+                return asked.options.every((option: string): boolean => options.includes(option))
+            }))
             answers.set(description, answer)
         }
         return answer

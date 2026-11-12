@@ -899,6 +899,20 @@ describe('the server engine', () => {
         assert.equal((await admin.search(people, {scope: 'one', filter: '(|(shoeSize=*)(uid=user1))', paged: false})).entries.length, 1)
     })
 
+    it('returns for an attribute asked with options the attributes having them, as OpenLDAP does', async () => {
+        const {admin: owner} = await directory()
+        const dn: string = `cn=tagged,${BASE}`
+        await owner.add(dn, {objectClass: 'device', cn: 'tagged', description: 'plain', 'description;lang-en': 'english', 'description;lang-de': 'deutsch'})
+        const asked = async (attribute: string): Promise<string[]> => (await owner.search(dn, {scope: 'base', attributes: [attribute]})).entries[0].attributes.map((item) => `${item.type}=${item.values.map(String).join('|')}`).sort()
+        assert.deepEqual(await asked('description'), ['description;lang-de=deutsch', 'description;lang-en=english', 'description=plain'])
+        assert.deepEqual(await asked('description;lang-en'), ['description;lang-en=english'])
+        assert.deepEqual(await asked('DESCRIPTION;LANG-EN'), ['description;lang-en=english'])
+        assert.deepEqual(await asked('description;x-unknown'), [])
+        assert.deepEqual(await asked('cn;lang-en'), [])
+        //binary is a transfer option, not one an attribute has: as without it
+        assert.deepEqual(await asked('description;binary'), ['description;lang-de=deutsch', 'description;lang-en=english', 'description=plain'])
+    })
+
     it('refuses a critical control it does not know', async () => {
         await assert.rejects(admin.search(BASE, {controls: [{oid: '1.2.3.4.5', critical: true}]}), LDAPUnavailableCriticalExtensionException)
         assert.ok((await admin.search(BASE, {scope: 'base', controls: [{oid: '1.2.3.4.5', critical: false}]})).entries.length)
