@@ -586,6 +586,12 @@ export class Pipeline {
             const inner: () => Promise<ServerOutcome> = run
             run = (): Promise<ServerOutcome> => plugin.aroundRequest!(context, request, inner)
         }
+        //A bind ends the paged searches of the identity before it (their entries read for that identity), however it ends:
+        //also when it is refused before it is done (a control, a hook), which leaves the session anonymous
+        if (operation === 'bind') {
+            for (const state of session.paged.values()) closePaged(state)
+            session.paged.clear()
+        }
         try {
             this.checkControls(controls, operation)
             outcome = await run()
@@ -1161,12 +1167,10 @@ export class Pipeline {
      * @param request The request.
      */
     protected async bind(session: SessionState, context: OperationContext, request: LDAPRequest & {type: 'bindRequest'}): Promise<ServerOutcome> {
-        //A bind starts anonymous, and a failed one leaves the session so (RFC 4511 §4.2.1); the paged searches of the
-        //identity before it end (their entries read for that identity)
+        //A bind starts anonymous, and a failed one leaves the session so (RFC 4511 §4.2.1); handle() ended the paged
+        //searches of the identity before it
         session.identity = undefined
         session.authenticationMethod = undefined
-        for (const state of session.paged.values()) closePaged(state)
-        session.paged.clear()
         if (request.version !== 3) fail(ResultCode.protocolError, 'Only LDAPv3 is supported')
         const authentication = request.authentication
         if (authentication.type === 'sasl') return this.saslBind(session, context, request.name, authentication.mechanism, authentication.credentials)

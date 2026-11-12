@@ -558,6 +558,15 @@ describe('the server engine', () => {
         assert.ok(cookie.length)
         await session.bind(READER, 'password1')
         await assert.rejects(session.search(`ou=people,${BASE}`, {scope: 'one', filter: '(uid=user*)', paged: false, controls: [PagedResultsControl.encode({size: 4, cookie: cookie})]}), code(53))
+        //Nor after a bind refused before it is done (a critical control it does not know): the session anonymous, its
+        //paged search (entries read for the identity before) ended
+        const {server: open} = await directory({access: {admins: [ADMIN], anonymousRead: true, check: (request: {operation: string, identity?: {toString(): string}, dn: {toString(): string}}): boolean | undefined => request.operation === 'read' && request.identity === undefined && String(request.dn).startsWith('uid=user1') ? false : undefined}})
+        const refusing: LDAPInProcessConnection = open.connect()
+        await refusing.bind(`uid=user2,ou=people,${BASE}`, 'password2')
+        const begun = await refusing.search(`ou=people,${BASE}`, {scope: 'one', filter: '(uid=user*)', paged: false, controls: [PagedResultsControl.encode({size: 4, cookie: Buffer.alloc(0)})]})
+        const kept: Buffer = PagedResultsControl.decode(findControl(begun.controls, PagedResultsControl)!).cookie
+        await assert.rejects(refusing.bind(READER, 'password1', {controls: [{oid: '1.3.6.1.4.1.99999.1', critical: true}]}), code(12))
+        await assert.rejects(refusing.search(`ou=people,${BASE}`, {scope: 'one', filter: '(uid=user*)', paged: false, controls: [PagedResultsControl.encode({size: 4, cookie: kept})]}), code(53))
         //Hidden entries read past the time limit: timeLimitExceeded, not success without entries
         const now: () => number = Date.now
         Date.now = (): number => now() + offset
