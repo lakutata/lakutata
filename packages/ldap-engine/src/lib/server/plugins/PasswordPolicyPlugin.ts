@@ -46,7 +46,7 @@ export class PasswordPolicyPlugin extends BaseLDAPPlugin {
     /**
      * The control of the policy: its warnings and errors in the responses
      */
-    public readonly controls: PluginControl[] = [{oid: PasswordPolicyRequestControl.oid}]
+    public readonly controls: PluginControl[] = [{oid: PasswordPolicyRequestControl.oid, operations: ['bind', 'add', 'modify', 'extended']}]
 
     /**
      * The policy

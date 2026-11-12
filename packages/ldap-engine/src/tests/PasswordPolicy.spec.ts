@@ -312,6 +312,19 @@ describe('the password policy', () => {
         await admin.modify(BOB, {operation: 'replace', attribute: 'userPassword', values: '{SSHA}0H+zTv8o4MR4H43n03eCsvw1luG8LdB7'})
     })
 
+    it('takes its request control on binds, writes and extended operations, as OpenLDAP does, and refuses it critical on searches', async () => {
+        const {server, admin} = await serve({})
+        const critical = [{...PasswordPolicyRequestControl.encode(undefined), critical: true}]
+        await server.connect().bind(ALICE, 'alice-password-1', {controls: critical})
+        await admin.modify(BOB, {operation: 'replace', attribute: 'description', values: 'with the control'}, {controls: critical})
+        await admin.passwordModify({userIdentity: BOB, newPassword: 'bob-password-2', controls: critical})
+        //A search, of the entries of a backend or of the root DSE: the same answer
+        await assert.rejects(admin.search(ALICE, {scope: 'base', paged: false, controls: critical}), (error: unknown) => error instanceof LDAPResultException && error.code === 12)
+        await assert.rejects(admin.search('', {scope: 'base', paged: false, controls: critical}), (error: unknown) => error instanceof LDAPResultException && error.code === 12)
+        //Not critical: ignored there
+        assert.equal((await admin.search(ALICE, {scope: 'base', paged: false, controls: [PasswordPolicyRequestControl.encode(undefined)]})).entries.length, 1)
+    })
+
     it('keeps one password for an entry under a policy, as the policy assumes', async () => {
         const {server, admin} = await serve({pwdInHistory: '3'})
         const session: LDAPInProcessConnection = server.connect()
