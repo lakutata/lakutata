@@ -1181,12 +1181,14 @@ export class DirectoryBackend extends Component implements LDAPBackend {
             if (!inWrite) return result
             //In the turn of a write: read whole before the turn is given back, nothing of it read afterwards (once the write
             //is done, or while a write made in it holds the connection). An internal search whose filter is exact (the
-            //engine drops none of its entries) stops one past its size limit, which is all the engine reads of it.
+            //engine drops none of its entries) stops one past its size limit, which is all the engine reads of it; a
+            //search past its time limit reads no more (the engine answers timeLimitExceeded).
             const limit: number = result.exact && context.internal && context.sizeLimit ? context.sizeLimit + 1 : 0
             const entries: DirectoryEntry[] = []
             for await (const entry of result.entries) {
                 entries.push(entry)
                 if (limit && entries.length >= limit) break
+                if (context.deadline && Date.now() > context.deadline) break
             }
             return {...result, entries: fromArray(entries)}
         })

@@ -24,6 +24,7 @@ import {
     LDAPNoSuchObjectException,
     LDAPNotAllowedOnNonLeafException,
     LDAPObjectClassViolationException,
+    LDAPResultException,
     LDAPServer,
     LDAPUnavailableException,
     LDAPUnwillingToPerformException,
@@ -197,6 +198,21 @@ class QueueingBackend extends DirectoryBackend {
         const writing: Promise<void> = super.modify(context, dn, changes)
         queueing?.('modify', dn.toString())
         await writing
+    }
+}
+
+/**
+ * Told of each batch of entries a CountingBackend reads
+ */
+let readingEntries: (() => void) | undefined
+
+/**
+ * A directory backend telling the test of the batches of entries it reads
+ */
+class CountingBackend extends DirectoryBackend {
+    protected async entries(...parameters: Parameters<DirectoryBackend['entries']>): Promise<DirectoryEntry[]> {
+        readingEntries?.()
+        return super.entries(...parameters)
     }
 }
 
@@ -1615,13 +1631,13 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                             })])
                         }
                         //Started in the write made in the outer write, read by the outer write once that one is done: the
-                        //entry added before in the transaction among them
-                        if (dn === outer && value === 'nested') {
-                            await connection.add(`cn=zz-added,${unit}`, {objectClass: 'device', cn: 'zz-added'})
+                        //entry added before in the transaction among them, with its values
+                        if (dn === outer && value.startsWith('nested')) {
+                            await connection.add(`cn=zz-${value.replace(' ', '-')},${unit}`, {objectClass: 'device', cn: `zz-${value.replace(' ', '-')}`})
                             await modify(middle)
-                            seen.nested = await rest()
+                            seen[value] = await rest()
                         }
-                        if (dn === middle && value === 'nested') await start(true)
+                        if (dn === middle && value.startsWith('nested')) await start(value === 'nested')
                     }}]
                 })
                 const server: LDAPServer = await pagingContainer.get<LDAPServer>('ldap')
@@ -1640,11 +1656,75 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                     assert.equal((seen[value] as string[]).length, names.length)
                 }
                 await write('nested')
-                assert.deepEqual(seen.nested, [...names, 'zz-added'])
+                assert.deepEqual(seen.nested, [...names, 'zz-nested'])
+                await write('nested unsorted')
+                assert.deepEqual([...seen['nested unsorted'] as string[]].sort(), [...names, 'zz-nested', 'zz-nested-unsorted'])
             } finally {
                 await pagingContainer.destroy()
                 await admin.delete(unit, {controls: [TreeDeleteControl.encode()]}).catch((): undefined => undefined)
                 for (const dn of [outer, middle, inner]) await admin.delete(dn).catch((): undefined => undefined)
+            }
+        })
+
+        it('stops reading a search made in a write at its time limit, and an internal exact one past its size limit', {timeout: 120000}, async () => {
+            const unit: string = `ou=limited,${BASE}`
+            const outer: string = `cn=limited-outer,${BASE}`
+            //More entries than a batch of the backend (200)
+            await admin.add(unit, {objectClass: 'organizationalUnit', ou: 'limited'})
+            for (let index: number = 0; index < 205; index++) await admin.add(`cn=limited${index},${unit}`, {objectClass: 'device', cn: `limited${index}`})
+            await admin.add(outer, {objectClass: 'device', cn: 'limited-outer'})
+            const seen: Record<string, unknown> = {}
+            const now: () => number = Date.now
+            const limitedContainer: Container = new Container()
+            try {
+                await limitedContainer.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                await limitedContainer.setNamed('ldap', LDAPServer, {
+                    port: false,
+                    schema: schema,
+                    backends: [{class: CountingBackend, suffix: BASE, database: 'database'}],
+                    access: {admins: [ADMIN]},
+                    interceptors: [{name: 'limited', operations: ['modify'], beforeCommit: async (_context: unknown, request: {dn?: {toString(): string}}): Promise<void> => {
+                        if (String(request.dn) !== outer) return
+                        const server: LDAPServer = await limitedContainer.get<LDAPServer>('ldap')
+                        //A time limit of a second, the clock moving on by five at each batch read
+                        let batches: number = 0
+                        let offset: number = 0
+                        Date.now = (): number => now() + offset
+                        readingEntries = (): void => {
+                            batches++
+                            offset += 5000
+                        }
+                        try {
+                            seen.time = await server.connect(ADMIN).search(unit, {scope: 'one', timeLimit: 1, paged: false}).then((result): number => result.entries.length, (error: unknown): number => (error as LDAPResultException).code)
+                        } finally {
+                            Date.now = now
+                            readingEntries = undefined
+                        }
+                        seen.timeBatches = batches
+                        //An internal search of an exact filter, one entry asked for
+                        batches = 0
+                        readingEntries = (): void => {
+                            batches++
+                        }
+                        try {
+                            const result = await server.engine.connect({internal: true}).search(unit, {scope: 'one', filter: '(objectClass=*)', sizeLimit: 1, paged: false})
+                            seen.size = [result.entries.length, result.truncated]
+                        } finally {
+                            readingEntries = undefined
+                        }
+                        seen.sizeBatches = batches
+                    }}]
+                })
+                await (await limitedContainer.get<LDAPServer>('ldap')).connect(ADMIN).modify(outer, {operation: 'add', attribute: 'description', values: 'limited'})
+                //timeLimitExceeded, the batch after the time limit not read
+                assert.deepEqual([seen.time, seen.timeBatches], [3, 1])
+                assert.deepEqual([seen.size, seen.sizeBatches], [[1, true], 1])
+            } finally {
+                Date.now = now
+                readingEntries = undefined
+                await limitedContainer.destroy()
+                await admin.delete(unit, {controls: [TreeDeleteControl.encode()]}).catch((): undefined => undefined)
+                await admin.delete(outer).catch((): undefined => undefined)
             }
         })
     })
