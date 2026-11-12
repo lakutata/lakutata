@@ -113,11 +113,26 @@ migrations are the application's, as for its other entities.
   bundled schema rfc2307bis, which `schema.bundled` names (it is not loaded by default).
 - The values of the attributes of `unique` are unique in the suffix; the time of the last bind is given as
   authTimestamp (a bind made while a write holds the entry, or on SQLite while any write runs, does not wait for it and
-  leaves its time out); the failed binds are kept in the database, so the instances of an application share them, as
-  they share the state of the password policy; `mailAlias` gives email as mail.
+  leaves its time out; on MySQL before 8.0 and MariaDB before 10.6, which cannot skip a row another write holds, the
+  bind waits); the failed binds are kept in the database, so the instances of an application share them, as they share
+  the state of the password policy (two instances failing a bind in the same millisecond, before either has written,
+  can give the failure the same time, which is kept once, so the two count as one); `mailAlias` gives email as mail.
 - Each write runs in a transaction, with the interceptors' `beforeCommit()`. The writes to one entry take turns, also
   when several instances share the database (on SQLite, every write to the file takes its turn), so two clients changing
   different values of an attribute at the same time both keep their changes.
+- The searches and writes that `beforeCommit()` makes through a server on the same Database component run in the
+  write's transaction: they see what it has written so far, and the writes are undone with it if it fails.
+- When the database ends a write to break a deadlock, cannot serialize it, or gives up waiting for a lock (a lock
+  timeout set on the database, or on SQLite a file another process holds past the busy timeout), the write is answered
+  busy (51) and leaves no changes; the client can send it again.
+- Configure a MariaDB server as `mariadb`: as `mysql`, the backend locks exclusively the rows it would otherwise share
+  (a parent, the entries that values name), so entries added under one parent, and values naming one entry, are written
+  one after another.
+- On SQLite, a write that `beforeCommit()` makes through another Database component on the same file is refused
+  (unwillingToPerform), because it would wait for the write it is made in. Make such writes through a server on the
+  same Database component.
+- A DN value written at the same time as the entry it names is pointed at that entry once both writes are committed.
+  An error in that step is an `error` event of the server, which the component logs; the write itself is already done.
 - The plugins of `@lakutata/ldap-engine` doing what the backend does itself (`MemberOfPlugin`,
   `ReferentialIntegrityPlugin`, `IdAllocationPlugin`, `LastBindPlugin`) leave its chain; the others (`UniquePlugin`,
   `AuditPlugin`, `ConstraintPlugin`…) run for it as for any backend.

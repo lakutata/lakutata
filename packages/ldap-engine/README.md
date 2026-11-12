@@ -126,8 +126,8 @@ await server.listen({path: '/run/directory/ldapi', mode: 0o666})
 - A backend may bring the schema files of the attributes it computes, interceptors of its own, a store shared by the
   instances for the bind throttle (its `update()` changes a state in one step, so that failed binds made at the same
   time each count), `transaction()`, in which the interceptors' `beforeCommit()` and the write run together, and `lock()`,
-  with which the engine reads the entry of a modify or a rename again once it is locked in that transaction, and makes
-  and checks the changes from it.
+  with which the engine reads the entry of a modify or a rename again once it is locked in that transaction, just
+  before the write, and makes and checks the changes from it, keeping what the interceptors did to them.
 
 ### Plugins
 

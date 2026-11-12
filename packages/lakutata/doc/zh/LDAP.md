@@ -254,7 +254,7 @@ const options = buildLDAPServerOptions({
 ```
 
 - 密码写成 `{PBKDF2-SHA512}`；绑定时也能校验 OpenLDAP 的其他格式，并重新哈希，所以从 OpenLDAP 导入的账号可以继续使用。
-- 使用目录后端时，失败的绑定和密码策略的状态都存在数据库里：应用的多个实例共享锁定和过期状态。
+- 使用目录后端时，失败的绑定和密码策略的状态都存在数据库里：应用的多个实例共享锁定和过期状态。两个实例在同一毫秒内、都还没写入时各有一次绑定失败，可能记下相同的时间；目录后端只保存一个，所以这两次算作一次。
 
 ## 7. 目录后端
 
@@ -266,8 +266,13 @@ const options = buildLDAPServerOptions({
 - DN 类型的值（member、manager、seeAlso……）指向它们的条目：条目改名时跟着变，条目删除时被删掉；必需的属性被删空时，保留一个占位值（默认为空 DN）。
 - `memberOf` 在读取时计算，用它过滤可以找到一个组的成员（`nestedGroups` 会展开嵌套的组）。schema 自己定义了 memberOf 时，使用 `memberOf: {name, oid}` 或 `memberOf: false`。
 - POSIX：新增时没有 uidNumber 和 gidNumber 的条目会被分配这两个值（uidNumber 唯一，posixGroup 的 gidNumber 在组之间唯一）；posixGroup 条目的 memberUid 会被计算出来。POSIX 的对象类来自 rfc2307bis，需要在 `schema.bundled` 里写上。
-- `unique` 让属性的值在后缀内唯一；`authTimestamp` 给出最后一次绑定的时间（条目正被别的写操作占用时，绑定不会等它，这次的时间不记录；SQLite 上只要有写操作在进行就是这样）；`mailAlias` 把 mail 的值作为 email 给出（Grafana 读取 email）。
+- `unique` 让属性的值在后缀内唯一；`authTimestamp` 给出最后一次绑定的时间（条目正被别的写操作占用时，绑定不会等它，这次的时间不记录；SQLite 上只要有写操作在进行就是这样；MySQL 8.0 之前和 MariaDB 10.6 之前的版本不能跳过被别的写操作占用的行，绑定会等它完成）；`mailAlias` 把 mail 的值作为 email 给出（Grafana 读取 email）。
 - 每次写入都在一个事务里执行，拦截器的 `beforeCommit()` 也在其中。对同一条目的写入依次执行，多个实例共用一个数据库时也是这样（SQLite 上，对同一个文件的所有写入都依次执行），所以两个客户端同时修改同一属性的不同值，双方的修改都会保留。
+- `beforeCommit()` 通过使用同一个 Database 组件的服务器做的搜索和写入，都在它所在的那次写入的事务里进行：能读到这个事务里已经写入的内容；那次写入失败时，这些写入也一起撤销。
+- 写操作因为死锁被数据库中止、因为无法串行化被拒绝，或者等锁超时（数据库设置了锁等待超时；SQLite 上是文件被另一个进程占用，超过了 busy timeout）时，回应是 busy（51），不会留下任何改动，客户端可以重新发送。
+- MariaDB 服务器请配置成 `mariadb` 类型：配置成 `mysql` 时，后端原本用共享锁的行（父条目、值所指的条目）会改用排他锁，这时在同一个父条目下添加条目、写入指向同一个条目的值，都要依次进行。
+- SQLite 上，`beforeCommit()` 通过另一个 Database 组件对同一个文件做的写入会被拒绝（unwillingToPerform），因为它要等的正是它所在的那次写入。这样的写入请通过使用同一个 Database 组件的服务器来做。
+- DN 值和它所指的条目同时写入时，要等两次写入都提交后才把这个值指向那个条目。这一步出错时，会作为服务器的 `error` 事件报告，组件会把它记进日志；写入本身已经完成。
 
 | 选项 | 默认值 | 说明 |
 |---|---|---|

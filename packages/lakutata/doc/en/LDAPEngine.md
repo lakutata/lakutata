@@ -484,8 +484,11 @@ await server.listen({port: 389})
   (`inHistory`); their length (`minLength`, `maxLength`) and the `quality` check are applied when `checkQuality` is 1
   (a password written hashed passes) or 2 (always), as pwdCheckQuality says.
 - The state is in operational attributes of the entries (pwdChangedTime, pwdAccountLockedTime, pwdFailureTime…), so
-  every backend keeps it. The clients that send the password policy control get the warnings and the reasons; a locked
-  account is answered as a wrong password, unless `revealLocked` is set.
+  every backend keeps it. Each failed bind counts, also when several are made at the same time. Two made in the same
+  millisecond on two instances sharing a backend, before either is written, can be given the same time; whether they
+  then count once or twice depends on what the backend does with a value it already has. The clients that send the
+  password policy control get the warnings and the reasons; a locked account is answered as a wrong password, unless
+  `revealLocked` is set.
 - The policy is a plugin, the `PasswordPolicyPlugin` the option adds after the others, and it loads the schema ppolicy
   itself.
 
@@ -593,11 +596,16 @@ await server.listen({port: 389})
 - A backend has `get()` (an entry by its DN), `search()` (the entries of a search, a superset being enough), and the
   writes it supports (`add()`, `modify()`, `delete()`, `modifyDN()`); the server answers the others with
   unwillingToPerform. `exists()` tells whether an entry exists without reading it, when that is cheaper.
-- A backend may check the binds itself (`bind()`), bring the schema files of the attributes it computes, interceptors
-  of its own, and `transaction()`, in which the interceptors' `beforeCommit()` and the write run together. With
-  `lock()` as well, the engine reads the entry of a modify or a rename again in that transaction once the backend has
-  locked it, and makes the changes and checks them from what it reads: a write made meanwhile is not undone,
-  increments are counted, and required attributes checked, on the entry as it is.
+- A backend may check the binds itself (`bind()`), bring the schema files of the attributes it computes, interceptors of
+  its own, and `transaction()`, in which the interceptors' `beforeCommit()` and the write run together. With `lock()` as
+  well, the engine reads the entry of a modify or a rename again in that transaction, after the interceptors'
+  `beforeCommit()` and just before the write, once the backend has locked it. It makes the changes and checks them from
+  what it reads: a write made meanwhile is not undone, increments are counted, and required attributes checked, on the
+  entry as it is.
+- With `lock()`, `beforeCommit()` sees the changes made from the entry as read before the transaction. Afterwards, the
+  changes no interceptor touched are made again from the request, and those edited in place are made again from their
+  edits; a change an interceptor removed stays removed, and one it added (or replaced with a new object) is written as
+  it is.
 - A backend that sorts, windows or pages itself declares it in its `capabilities`, and `sortSearchItems()` orders its
   own records as the server would. A backend doing the work of a plugin (`memberOf`, `referentialIntegrity`,
   `idAllocation`, `lastBind`) declares it there too, and the plugin leaves its chain.

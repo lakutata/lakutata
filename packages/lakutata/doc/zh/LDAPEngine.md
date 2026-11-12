@@ -377,7 +377,7 @@ await server.listen({port: 389})
 - 密码会过期（`maxAge`），过期前会提醒（`expireWarning`），过期后还允许绑定几次（`graceAuthNLimit`）。
 - 管理员设置密码后，用户必须先修改密码，才能做别的事（`mustChange`）。
 - 新密码的要求：修改时必须给出旧密码（`safeModify`），两次修改之间要隔一段时间（`minAge`），并且不能和以前用过的密码相同（`inHistory`）；长度（`minLength`、`maxLength`）和 `quality` 检查在 `checkQuality` 为 1（直接写入哈希值的密码可以通过）或 2（总是检查）时生效，和 pwdCheckQuality 的规定一致。
-- 策略的状态存在条目的操作属性里（pwdChangedTime、pwdAccountLockedTime、pwdFailureTime……），所以任何后端都能保存它。发送密码策略控制的客户端会在回应里收到提醒和原因；账号被锁定时，回应和密码错误一样，除非设置了 `revealLocked`。
+- 策略的状态存在条目的操作属性里（pwdChangedTime、pwdAccountLockedTime、pwdFailureTime……），所以任何后端都能保存它。每次绑定失败都会计数，同时发生的几次也一样。共用一个后端的两个实例在同一毫秒内、都还没写入时各有一次失败，可能拿到相同的时间；这时算一次还是两次，取决于后端怎样处理已有的值。发送密码策略控制的客户端会在回应里收到提醒和原因；账号被锁定时，回应和密码错误一样，除非设置了 `revealLocked`。
 - 密码策略是一个插件：这个选项会在其他插件之后加上一个 `PasswordPolicyPlugin`，它会自己加载 ppolicy schema。
 
 ## 13. 插件和拦截器
@@ -470,7 +470,8 @@ await server.listen({port: 389})
 ```
 
 - 后端有 `get()`（按 DN 取一个条目）、`search()`（搜索的条目，返回超集就够了），以及它支持的写操作（`add()`、`modify()`、`delete()`、`modifyDN()`）；后端不支持的写操作，服务器回 unwillingToPerform。如果不读取条目就能更快地判断它是否存在，可以实现 `exists()`。
-- 后端可以自己校验绑定（`bind()`），带上它计算出的属性所需的 schema 文件和它自己的拦截器，还可以提供 `transaction()`，让拦截器的 `beforeCommit()` 和写操作在同一个事务里运行。如果还提供了 `lock()`，引擎会在这个事务里、等后端锁住条目之后，重新读取修改或改名的条目，按读到的内容重新算出改动并重新检查：期间别人做的修改不会被覆盖，increment 按条目当前的值计算，必填属性也按当前的值检查。
+- 后端可以自己校验绑定（`bind()`），带上它计算出的属性所需的 schema 文件和它自己的拦截器，还可以提供 `transaction()`，让拦截器的 `beforeCommit()` 和写操作在同一个事务里运行。如果还提供了 `lock()`，引擎会在这个事务里，在拦截器的 `beforeCommit()` 之后、写入之前，等后端锁住条目，再重新读取修改或改名的条目，按读到的内容重新算出改动并重新检查：期间别人做的修改不会被覆盖，increment 按条目当前的值计算，必填属性也按当前的值检查。
+- 有 `lock()` 时，`beforeCommit()` 看到的是按事务开始前读到的条目算出的改动。之后，没有拦截器动过的改动按请求重新算出，被原地修改的改动按修改后的内容重新算出；拦截器删掉的改动不会恢复，它添加的改动（或换成新对象的改动）按原样写入。
 - 自己做排序、虚拟列表视图或分页的后端，要在 `capabilities` 里声明；`sortSearchItems()` 能按服务器的方式给它自己的记录排序。自己完成某个插件工作的后端（`memberOf`、`referentialIntegrity`、`idAllocation`、`lastBind`），也在这里声明，对应的插件就会退出它的链。
 
 ## 15. 协议
