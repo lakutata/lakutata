@@ -173,14 +173,20 @@ class FailingAfterCommitBackend extends DirectoryBackend {
 }
 
 /**
- * Told of each lock, modify and transaction a QueueingBackend has queued in the turn of its write, before they run
+ * Told of each read, lock and modify a QueueingBackend has queued in the turn of its write, before they run
  */
-let queueing: ((operation: 'lock' | 'modify' | 'transaction', dn: string) => void) | undefined
+let queueing: ((operation: 'get' | 'lock' | 'modify', dn: string) => void) | undefined
 
 /**
  * A directory backend telling the test of the operations it has queued in the turn of the write they are made in
  */
 class QueueingBackend extends DirectoryBackend {
+    public async get(context: Parameters<DirectoryBackend['get']>[0], dn: Parameters<DirectoryBackend['get']>[1]): Promise<Awaited<ReturnType<DirectoryBackend['get']>>> {
+        const reading: ReturnType<DirectoryBackend['get']> = super.get(context, dn)
+        queueing?.('get', dn.toString())
+        return reading
+    }
+
     public async lock(context: WriteContext, dn: Parameters<DirectoryBackend['lock']>[1]): Promise<Awaited<ReturnType<DirectoryBackend['lock']>>> {
         const locking: ReturnType<DirectoryBackend['lock']> = super.lock(context, dn)
         queueing?.('lock', dn.toString())
@@ -191,12 +197,6 @@ class QueueingBackend extends DirectoryBackend {
         const writing: Promise<void> = super.modify(context, dn, changes)
         queueing?.('modify', dn.toString())
         await writing
-    }
-
-    public async transaction(context: WriteContext, run: () => Promise<void>): Promise<void> {
-        const running: Promise<void> = super.transaction(context, run)
-        queueing?.('transaction', '')
-        await running
     }
 }
 
@@ -1183,7 +1183,7 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             }
         })
 
-        it('runs nothing more of a write a deadlock ended: its statements queued behind a write made in it, the writes made in it queued behind its statements', {timeout: 60000, skip: label === 'SQLite' ? 'SQLite takes one write at a time' : false}, async () => {
+        it('runs nothing more of a write a deadlock ended: its statements queued behind a write made in it, the reads of a write made in it queued behind its statements', {timeout: 60000, skip: label === 'SQLite' ? 'SQLite takes one write at a time' : false}, async () => {
             const names: string[] = ['queued-p', 'queued-q', 'queued-x', 'queued-y', 'queued-z', 'queued-r']
             const [p, q, x, y, z, r] = names.map((name: string): string => `cn=${name},${BASE}`)
             const [addedA, addedB] = [`cn=queued-a,${BASE}`, `cn=queued-b,${BASE}`]
@@ -1214,7 +1214,8 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                 return refused[0]
             }
             let holds = {a: latch(), b: latch()}
-            const rQueued = latch(300)
+            const rQueued = latch()
+            let rQueuedSeen: boolean = false
             const nested: Promise<unknown>[] = []
             const queuedContainer: Container = new Container()
             try {
@@ -1249,12 +1250,15 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                             await queued.wait()
                         } else if (target === x) {
                             //Holds y; once its lock of x (which the other holds) is queued, writes r without waiting for it:
-                            //r is queued behind the lock
+                            //the read of r the engine makes first is queued behind the lock
                             await modify(y, 'a')
                             holds.a.open()
                             await holds.b.wait()
                             once.set(`lock ${x}`, (): void => {
-                                once.set('transaction ', rQueued.open)
+                                once.set(`get ${r}`, (): void => {
+                                    rQueuedSeen = true
+                                    rQueued.open()
+                                })
                                 start(r, 'a')
                             })
                         } else if (target === z) {
@@ -1277,11 +1281,13 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                 assert.deepEqual([await present(addedA), await present(addedB)], [lost !== 0, lost !== 1])
                 const kept: string = lost === 0 ? 'b' : 'a'
                 assert.deepEqual([await description(p), await description(q)], [[kept], [kept]])
-                //A write made in it queued behind its lock, which the deadlock ends: nothing of it is left
+                //The read of a write made in it queued behind its lock, which the deadlock ends: nothing of that write
+                //is left
                 holds = {a: latch(), b: latch()}
                 nested.length = 0
                 const modifies: PromiseSettledResult<unknown>[] = await Promise.allSettled([x, z].map((dn: string): Promise<unknown> => server.connect(ADMIN).modify(dn, {operation: 'add', attribute: 'description', values: 'outer'})))
                 const ended: number = busy(modifies)
+                assert.ok(rQueuedSeen, 'the read of r was not queued before the deadlock')
                 await Promise.allSettled(nested)
                 if (ended === 0) {
                     assert.deepEqual([await description(x), await description(y), await description(r)], [['b'], ['b'], []])
