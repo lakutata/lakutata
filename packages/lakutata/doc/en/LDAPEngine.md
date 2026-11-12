@@ -613,9 +613,7 @@ await server.listen({port: 389})
   schemes, which the root DSE and the subschema publish. Two plugins claiming one OID stop the server at its start. The
   root DSE and the subschema go through no backend's chain, so a plugin's control reaches them only when the plugin
   applies it in `aroundRequest`. Such a plugin marks the control `serverEntries: true`; without the mark, a search of
-  those entries carrying the control as critical is refused. An extended operation is registered as its handler, or as
-  `{handler, controls}` when the handler itself applies controls of a backend: an extended operation reaches no backend,
-  so a critical backend control it does not list is refused.
+  those entries carrying the control as critical is refused.
 - Every plugin takes `name` and `suffixes` among its options: to have it twice, or for some backends only. The plugins
   keep the relations within one backend, as the overlays of OpenLDAP keep them within one database.
 - `interceptors` (an option of the server) takes interceptors alone, for what needs nothing else.
@@ -668,8 +666,8 @@ await server.listen({port: 389})
   doing the work of a plugin (`memberOf`, `referentialIntegrity`, `idAllocation`, `lastBind`) declares it there too, and
   the plugin leaves its chain. The controls a backend handles go in `capabilities.controls`: a request with one of them
   critical is refused when it reaches a different backend or none at all: an anonymous or unauthenticated bind, a SASL
-  bind that verifies no password, or an extended operation that does not list it. Password Modify is checked against the
-  backend of the entry it changes.
+  bind that verifies no password, or an extended operation. Password Modify is checked against the backend of the entry
+  it changes.
 
 ## 15. The protocol
 

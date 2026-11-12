@@ -1023,14 +1023,9 @@ describe('the server engine', () => {
         await assert.rejects(mixed.connect().bind('uid=u,dc=a,dc=example,dc=com', 'secret-u', {controls: critical}), code(12))
         await assert.rejects(owner.passwordModify({userIdentity: 'uid=u,dc=a,dc=example,dc=com', newPassword: 'changed-u', controls: critical}), code(12))
         await assert.rejects(owner.whoAmI({controls: critical}), code(12))
-        //An extended operation of one's own naming the control its handler applies: taken there only
-        const declared: LDAPServerEngine = createLDAPServer({backends: [new Listing('dc=b,dc=example,dc=com')], access: {admins: [ADMIN]}, extendedOperations: {
-            '1.3.6.1.4.1.99999.21': {controls: [OID], handler: () => ({resultCode: 0})},
-            '1.3.6.1.4.1.99999.22': () => ({resultCode: 0})
-        }})
-        const declaring: LDAPInProcessConnection = declared.connect({as: ADMIN})
-        await declaring.extended('1.3.6.1.4.1.99999.21', undefined, {controls: critical})
-        await assert.rejects(declaring.extended('1.3.6.1.4.1.99999.22', undefined, {controls: critical}), code(12))
+        //An extended operation of one's own reaches no backend either
+        const extending: LDAPServerEngine = createLDAPServer({backends: [new Listing('dc=b,dc=example,dc=com')], access: {admins: [ADMIN]}, extendedOperations: {'1.3.6.1.4.1.99999.22': () => ({resultCode: 0})}})
+        await assert.rejects(extending.connect({as: ADMIN}).extended('1.3.6.1.4.1.99999.22', undefined, {controls: critical}), code(12))
         //A SASL PLAIN bind checks the backend of the DN it verifies the password of
         const plain = (dn: string, password: string): Buffer => Buffer.from(`\0dn:${dn}\0${password}`)
         await mixed.connect().saslBind('PLAIN', plain('uid=u,dc=b,dc=example,dc=com', 'changed-u'), {controls: critical})

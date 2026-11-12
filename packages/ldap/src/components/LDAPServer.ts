@@ -11,7 +11,6 @@ import {
     type DirectoryProfile,
     type DN,
     type ExtendedHandler,
-    type ExtendedOperationDefinition,
     type InterceptorPlacement,
     type LDAPBackend,
     type LDAPInProcessConnection,
@@ -176,9 +175,9 @@ export interface LDAPServerOptions extends InterfaceListeningOptions {
      */
     sasl?: SASLMechanism[]
     /**
-     * Extended operations of one's own, by OID: their handlers, or their handlers with the controls they apply
+     * Extended operations of one's own, by OID
      */
-    extendedOperations?: Record<string, ExtendedHandler | ExtendedOperationDefinition>
+    extendedOperations?: Record<string, ExtendedHandler>
     /**
      * The vendorName of the root DSE (`lakutata` by default)
      */
@@ -417,7 +416,7 @@ export class LDAPServer extends Component {
      * The extended operations of one's own
      */
     @Configurable(DTO.Object().unknown(true).optional())
-    protected readonly extendedOperations?: Record<string, ExtendedHandler | ExtendedOperationDefinition>
+    protected readonly extendedOperations?: Record<string, ExtendedHandler>
 
 
     /**
