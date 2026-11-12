@@ -89,12 +89,6 @@ interface RunningWrite {
     turns?: object
 }
 
-/**
- * How a step of a read runs (a batch of the entries of a search, read once the search is answered): through the entity
- * manager it is given
- */
-type ReadStep = <R>(next: (manager: EntityManager) => Promise<R>) => Promise<R>
-
 //The write running in an asynchronous context: a write it makes on its database runs in a savepoint of its transaction
 const WRITING: AsyncLocalStorage<RunningWrite> = new AsyncLocalStorage()
 //The write whose turn an asynchronous context holds: what it runs there takes no other turn of that write
@@ -498,22 +492,16 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     /**
      * Run a read. Made while a write of this database runs in its asynchronous context (the write of the operation, or
      * the write an interceptor made it in): in the transaction of that write and in its turn, after the writes made in it
-     * before and not alongside their statements, so that it reads what they wrote; each later step of the read (a batch
-     * of the entries of a search) takes the turn again, and reads through the database once the write is done.
-     * Otherwise through the entity manager of the operation.
+     * before and not alongside their statements, so that it reads what they wrote. Otherwise through the entity manager
+     * of the operation.
      * @param context The context.
-     * @param read The read, given the entity manager and how its later steps run.
+     * @param read The read, given the entity manager and whether it runs in the turn of a write.
      */
-    #reading<T>(context: OperationContext | undefined, read: (manager: EntityManager, step: ReadStep) => Promise<T>): Promise<T> {
+    #reading<T>(context: OperationContext | undefined, read: (manager: EntityManager, inWrite: boolean) => Promise<T>): Promise<T> {
         const given: EntityManager | undefined = (context as {transaction?: unknown} | undefined)?.transaction as EntityManager | undefined
         const current: RunningWrite | undefined = WRITING.getStore()
-        if (current?.active && current.database === this.db) {
-            const manager: EntityManager = given ?? current.manager
-            const step: ReadStep = <R>(next: (manager: EntityManager) => Promise<R>): Promise<R> => current.active ? this.#inTurn(current, (): Promise<R> => next(manager)) : next(this.db.manager)
-            return step((reader: EntityManager): Promise<T> => read(reader, step))
-        }
-        const manager: EntityManager = this.manager(context)
-        return read(manager, <R>(next: (manager: EntityManager) => Promise<R>): Promise<R> => next(manager))
+        if (current?.active && current.database === this.db) return this.#inTurn(current, (): Promise<T> => read(given ?? current.manager, true))
+        return read(this.manager(context), false)
     }
 
     /**
@@ -1188,16 +1176,28 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      * @param context The search.
      */
     public async search(context: SearchContext): Promise<BackendSearchResult> {
-        return this.#reading(context, (manager: EntityManager, step: ReadStep): Promise<BackendSearchResult> => this.#searching(context, manager, step))
+        return this.#reading(context, async (manager: EntityManager, inWrite: boolean): Promise<BackendSearchResult> => {
+            const result: BackendSearchResult = await this.#searching(context, manager)
+            if (!inWrite) return result
+            //In the turn of a write: read whole before the turn is given back, nothing of it read afterwards (once the write
+            //is done, or while a write made in it holds the connection). An internal search whose filter is exact (the
+            //engine drops none of its entries) stops one past its size limit, which is all the engine reads of it.
+            const limit: number = result.exact && context.internal && context.sizeLimit ? context.sizeLimit + 1 : 0
+            const entries: DirectoryEntry[] = []
+            for await (const entry of result.entries) {
+                entries.push(entry)
+                if (limit && entries.length >= limit) break
+            }
+            return {...result, entries: fromArray(entries)}
+        })
     }
 
     /**
      * The entries of a search, read through an entity manager
      * @param context The search.
      * @param manager The entity manager.
-     * @param step How the batches of the entries read once the search is answered run.
      */
-    async #searching(context: SearchContext, manager: EntityManager, step: ReadStep): Promise<BackendSearchResult> {
+    async #searching(context: SearchContext, manager: EntityManager): Promise<BackendSearchResult> {
         const schema: Schema = this.use(context)
         const base: LDAPEntryRecord | null = (context.state.get(FOUND_ROWS) as Map<string, LDAPEntryRecord> | undefined)?.get(sha256(context.base.key(schema))) ?? await this.row(manager, context.base, schema)
         if (!base) return {entries: [], exact: true}
@@ -1211,7 +1211,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         const wants = (name: string): boolean => context.attributes.allOperational || context.attributes.names.has(name) || JSON.stringify(context.filter).toLowerCase().includes(`"${name}"`)
         const virtualWanted = {memberOf: this.memberOfName !== undefined && wants(this.memberOfName), memberUid: this.memberUid && (context.attributes.allUser || wants('memberuid')), email: this.mailAlias && (context.attributes.allUser || wants('email'))}
         //The entries in scope the filter (translated) matches
-        const candidates = (reader: EntityManager = manager): SelectQueryBuilder<ObjectLiteral> => reader.createQueryBuilder()
+        const candidates = (): SelectQueryBuilder<ObjectLiteral> => manager.createQueryBuilder()
             .from('ldap_entry', 'e')
             .where('e.suffix = :suffix', {suffix: this.suffixKey})
             .andWhere(scope.sql, scope.parameters)
@@ -1225,15 +1225,15 @@ export class DirectoryBackend extends Component implements LDAPBackend {
             let last: string = ''
             for (;;) {
                 if (signal.aborted) return
-                const rows: {id: string, dn: string, path: string}[] = await step((reader: EntityManager): Promise<{id: string, dn: string, path: string}[]> => candidates(reader)
+                const rows: {id: string, dn: string, path: string}[] = await candidates()
                     .select(['e.id AS id', 'e.dn AS dn', 'e.path AS path'])
                     .andWhere('e.path > :last', {last: last})
                     .orderBy('e.path', 'ASC')
                     .limit(ID_BATCH)
-                    .getRawMany())
+                    .getRawMany()
                 for (let start: number = 0; start < rows.length; start += BATCH) {
                     if (signal.aborted) return
-                    yield* await step((reader: EntityManager): Promise<DirectoryEntry[]> => self.entries(reader, rows.slice(start, start + BATCH), schema, virtualWanted))
+                    yield* await self.entries(manager, rows.slice(start, start + BATCH), schema, virtualWanted)
                 }
                 if (rows.length < ID_BATCH) return
                 last = rows[rows.length - 1].path
@@ -1506,8 +1506,9 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      * @param run The interceptors and the write.
      */
     public async transaction(context: WriteContext, run: () => Promise<void>): Promise<void> {
-        //A write made by another (an interceptor writing through the server) joins its transaction: one of its own would
-        //wait for the rows the other locked
+        //A write made by another (an interceptor writing through the server) joins its transaction: it is undone with it,
+        //the reads made there see it, and the write takes one connection; on SQLite a transaction of its own would wait
+        //for the turn of the file the other holds
         await this.write(undefined, async (manager: EntityManager): Promise<void> => {
             context.transaction = manager
             try {

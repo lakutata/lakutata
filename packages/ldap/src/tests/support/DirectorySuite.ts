@@ -10,6 +10,7 @@ import {
     DirectoryBackend,
     type DirectoryEntry,
     directoryEntities,
+    type Entry,
     findControl,
     LDAPAttributeOrValueExistsException,
     LDAPBindStateRecord,
@@ -1559,6 +1560,85 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                 await readingContainer.destroy()
                 await admin.delete(unit, {controls: [TreeDeleteControl.encode()]}).catch((): undefined => undefined)
                 await admin.delete(target).catch((): undefined => undefined)
+            }
+        })
+
+        it('reads a search made in a write whole: its pages read after the write, by a write made two levels down, or after the write it was made in', {timeout: 120000}, async () => {
+            const unit: string = `ou=paging,${BASE}`
+            const [outer, middle, inner] = ['paging-outer', 'paging-middle', 'paging-inner'].map((name: string): string => `cn=${name},${BASE}`)
+            //More entries than a batch of the backend (200): the later pages need the entries read after the first
+            const names: string[] = Array.from({length: 205}, (_value: unknown, index: number): string => `entry${String(index).padStart(3, '0')}`)
+            await admin.add(unit, {objectClass: 'organizationalUnit', ou: 'paging'})
+            for (const name of names) await admin.add(`cn=${name},${unit}`, {objectClass: 'device', cn: name})
+            for (const dn of [outer, middle, inner]) await admin.add(dn, {objectClass: 'device', cn: DN.parse(dn).rdn()!.attributes[0].value})
+            //A paged search started in a beforeCommit(), its first page read; the rest read later, by whoever has it
+            let kept: {iterator: AsyncIterableIterator<Entry>, first: string} | undefined
+            const rest = async (): Promise<string[]> => {
+                const read: string[] = [kept!.first]
+                for await (const entry of kept!.iterator) read.push(entry.first('cn')!)
+                return read
+            }
+            const seen: Record<string, unknown> = {}
+            const pagingContainer: Container = new Container()
+            try {
+                await pagingContainer.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                await pagingContainer.setNamed('ldap', LDAPServer, {
+                    port: false,
+                    schema: schema,
+                    backends: [{class: DirectoryBackend, suffix: BASE, database: 'database'}],
+                    access: {admins: [ADMIN]},
+                    interceptors: [{name: 'continuing', operations: ['modify'], beforeCommit: async (_context: unknown, request: {dn?: {toString(): string}, changes?: {attribute: {values: unknown[]}}[]}): Promise<void> => {
+                        const connection: LDAPInProcessConnection = (await pagingContainer.get<LDAPServer>('ldap')).connect(ADMIN)
+                        const value: string = String(request.changes?.[0]?.attribute.values[0])
+                        const dn: string = String(request.dn)
+                        const start = async (sorted: boolean): Promise<void> => {
+                            const iterator: AsyncIterableIterator<Entry> = connection.searchIterator(unit, {scope: 'one', attributes: ['cn'], paged: {pageSize: 50}, ...sorted ? {sort: [{attribute: 'cn'}]} : {}})
+                            kept = {iterator: iterator, first: (await iterator.next()).value.first('cn')}
+                        }
+                        const modify = (target: string): Promise<unknown> => connection.modify(target, {operation: 'add', attribute: 'description', values: value})
+                        if (dn === outer && value.startsWith('after')) await start(value === 'after sorted')
+                        if (dn === outer && value.startsWith('deep')) {
+                            await start(value === 'deep sorted')
+                            await modify(middle)
+                        }
+                        //Two levels down: the write made in the one made in the outer write reads the rest
+                        if (dn === middle && value.startsWith('deep')) await modify(inner)
+                        if (dn === inner && value.startsWith('deep')) {
+                            seen[value] = await Promise.race([rest(), new Promise<string>((resolve: (value: string) => void): void => {
+                                setTimeout((): void => resolve('waited for itself'), 10000)
+                            })])
+                        }
+                        //Started in the write made in the outer write, read by the outer write once that one is done: the
+                        //entry added before in the transaction among them
+                        if (dn === outer && value === 'nested') {
+                            await connection.add(`cn=zz-added,${unit}`, {objectClass: 'device', cn: 'zz-added'})
+                            await modify(middle)
+                            seen.nested = await rest()
+                        }
+                        if (dn === middle && value === 'nested') await start(true)
+                    }}]
+                })
+                const server: LDAPServer = await pagingContainer.get<LDAPServer>('ldap')
+                const write = (value: string): Promise<unknown> => server.connect(ADMIN).modify(outer, {operation: 'add', attribute: 'description', values: value})
+                //Read once the write is done
+                for (const sorted of [true, false]) {
+                    await write(sorted ? 'after sorted' : 'after')
+                    const read: string[] = await rest()
+                    assert.equal(read.length, names.length)
+                    if (sorted) assert.deepEqual(read, names)
+                }
+                //Read two levels down, without waiting for itself
+                for (const value of ['deep sorted', 'deep']) {
+                    await write(value)
+                    assert.ok(Array.isArray(seen[value]), String(seen[value]))
+                    assert.equal((seen[value] as string[]).length, names.length)
+                }
+                await write('nested')
+                assert.deepEqual(seen.nested, [...names, 'zz-added'])
+            } finally {
+                await pagingContainer.destroy()
+                await admin.delete(unit, {controls: [TreeDeleteControl.encode()]}).catch((): undefined => undefined)
+                for (const dn of [outer, middle, inner]) await admin.delete(dn).catch((): undefined => undefined)
             }
         })
     })
