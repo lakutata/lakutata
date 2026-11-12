@@ -82,7 +82,7 @@ Application.run(() => ({
 - 值里写的 DN（member、manager、seeAlso 等）指向对应的条目：条目改名时跟着改，条目删除时被移除（必需属性因此变空时，留下一个占位值，默认是空 DN）。
 - memberOf 在读取时计算，用它做过滤器可以找到一个组的成员；`nestedGroups` 可以展开嵌套组。posixGroup 条目会算出 memberUid，供 RFC 2307 的客户端使用。
 - 新增的 posixAccount 和 posixGroup 条目没有 uidNumber、gidNumber 时自动分配（从 10000 开始）；uidNumber 唯一，posixGroup 的 gidNumber 在各个组之间也唯一。POSIX 的对象类来自自带的 rfc2307bis，它默认不加载，要在 `schema.bundled` 里写上。
-- `unique` 里的属性，其值在整个后缀内唯一；最近一次成功的简单绑定的时间作为 authTimestamp 返回（条目正被别的写操作占用时，绑定不会等它，这次的时间不记录；SQLite 上只要有写操作在进行就是这样；MySQL 8.0 之前和 MariaDB 10.6 之前的版本不能跳过被别的写操作占用的行，绑定会等它完成）；绑定失败的记录存在数据库里，应用的多个实例共用，密码策略的状态也是这样（两个实例在同一毫秒内、都还没写入时各有一次绑定失败，可能记下相同的时间，只保存一个，所以算作一次）；`mailAlias` 让 email 等于 mail。
+- `unique` 里的属性，其值在整个后缀内唯一；最近一次成功的带密码的绑定的时间作为 authTimestamp 返回，简单绑定和 SASL PLAIN 都算（条目正被别的写操作占用时，绑定不会等它，这次的时间不记录；SQLite 上只要有写操作在进行就是这样；MySQL 8.0 之前和 MariaDB 10.6 之前的版本不能跳过被别的写操作占用的行，绑定会等它完成）；绑定失败的记录存在数据库里，应用的多个实例共用，密码策略的状态也是这样（两个实例在同一毫秒内、都还没写入时各有一次绑定失败，可能记下相同的时间，只保存一个，所以算作一次）；`mailAlias` 让 email 等于 mail。
 - 每个写操作在一个事务里执行，拦截器的 `beforeCommit()` 也在其中。对同一条目的写操作依次执行，多个实例共用一个数据库时也是这样（SQLite 上，对同一个文件的所有写操作都依次执行），所以两个客户端同时修改同一属性的不同值，双方的修改都会保留。
 - `beforeCommit()` 通过使用同一个 Database 组件的服务器做的搜索和写操作，都在它所在的那个写操作的事务里进行：能读到这个事务里已经写入的内容；那个写操作失败时，这些写操作也一起撤销。这样的搜索会把结果全部读完再返回。读取期间，那个写操作的其他操作要等它读完，它持有的锁也不会释放。结果很多时会占用大量内存；条数限制只限制返回多少条，不限制读取多少条。超过时间限制后，搜索停止读取，回应 timeLimitExceeded，不返回条目。PostgreSQL 上，这类读取如果被数据库拒绝（例如语句超时），即使拦截器捕获了错误，那个写操作也会失败。
 - 写操作因为死锁被数据库中止、因为无法串行化被拒绝，或者等锁超时（数据库设置了锁等待超时；SQLite 上是文件被另一个进程占用，超过了 busy timeout）时，回应是 busy（51），不会留下任何改动，客户端可以重新发送。
@@ -166,7 +166,7 @@ Application.run(() => ({
 | `memberUid` | `true` | 为 posixGroup 条目算出 memberUid |
 | `unique` | | 值在整个后缀内唯一的属性 |
 | `idAllocation` | 从 10000 开始 | 自动分配的第一个 uidNumber 和 gidNumber，或者 `false` |
-| `lastBind` | `true` | 提供 authTimestamp，即最近一次成功的简单绑定的时间 |
+| `lastBind` | `true` | 提供 authTimestamp，即最近一次成功的带密码的绑定的时间 |
 | `mailAlias` | `false` | 提供 email，值和 mail 相同 |
 | `referencePlaceholder` | 空 DN | 必需的 DN 属性的最后一个值指向的条目被删除时，留下的占位值 |
 | `sharedThrottle` | `true` | 把绑定失败的记录存在数据库里 |

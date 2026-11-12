@@ -98,7 +98,7 @@ const server = createLDAPServer({
 | `UniquePlugin` | 拒绝和别的条目重复的值 | unique |
 | `PasswordPolicyPlugin` | 密码策略，`passwordPolicy` 选项给出的也是它 | ppolicy |
 | `IdAllocationPlugin` | 给新增时没有 uidNumber、gidNumber 的 POSIX 条目分配编号 | 389 Directory Server 的 DNA |
-| `LastBindPlugin` | 把最后一次简单绑定的时间记在 authTimestamp 里 | lastbind |
+| `LastBindPlugin` | 把最后一次带密码的绑定的时间记在 authTimestamp 里 | lastbind |
 | `SambaPasswordPlugin` | 把新密码的 NT 哈希写进 sambaNTPassword（需要加载 Samba 的 schema） | smbk5pwd |
 | `AuditPlugin` | 把每个请求及其结果的记录交给自己写的函数 | accesslog、auditlog |
 | `ConstraintPlugin` | 拒绝违反规则的值：格式、大小、个数，或者自己写的检查 | constraint |

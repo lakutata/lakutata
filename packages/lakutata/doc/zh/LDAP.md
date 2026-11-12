@@ -266,7 +266,7 @@ const options = buildLDAPServerOptions({
 - DN 类型的值（member、manager、seeAlso……）指向它们的条目：条目改名时跟着变，条目删除时被删掉；必需的属性被删空时，保留一个占位值（默认为空 DN）。
 - `memberOf` 在读取时计算，用它过滤可以找到一个组的成员（`nestedGroups` 会展开嵌套的组）。schema 自己定义了 memberOf 时，使用 `memberOf: {name, oid}` 或 `memberOf: false`。
 - POSIX：新增时没有 uidNumber 和 gidNumber 的条目会被分配这两个值（uidNumber 唯一，posixGroup 的 gidNumber 在组之间唯一）；posixGroup 条目的 memberUid 会被计算出来。POSIX 的对象类来自 rfc2307bis，需要在 `schema.bundled` 里写上。
-- `unique` 让属性的值在后缀内唯一；`authTimestamp` 给出最后一次简单绑定的时间（条目正被别的写操作占用时，绑定不会等它，这次的时间不记录；SQLite 上只要有写操作在进行就是这样；MySQL 8.0 之前和 MariaDB 10.6 之前的版本不能跳过被别的写操作占用的行，绑定会等它完成）；`mailAlias` 把 mail 的值作为 email 给出（Grafana 读取 email）。
+- `unique` 让属性的值在后缀内唯一；`authTimestamp` 给出最后一次带密码的绑定的时间，简单绑定和 SASL PLAIN 都算（条目正被别的写操作占用时，绑定不会等它，这次的时间不记录；SQLite 上只要有写操作在进行就是这样；MySQL 8.0 之前和 MariaDB 10.6 之前的版本不能跳过被别的写操作占用的行，绑定会等它完成）；`mailAlias` 把 mail 的值作为 email 给出（Grafana 读取 email）。
 - 每次写入都在一个事务里执行，拦截器的 `beforeCommit()` 也在其中。对同一条目的写入依次执行，多个实例共用一个数据库时也是这样（SQLite 上，对同一个文件的所有写入都依次执行），所以两个客户端同时修改同一属性的不同值，双方的修改都会保留。
 - `beforeCommit()` 通过使用同一个 Database 组件的服务器做的搜索和写入，都在它所在的那次写入的事务里进行：能读到这个事务里已经写入的内容；那次写入失败时，这些写入也一起撤销。这样的搜索会把结果全部读完再返回。读取期间，那次写入的其他操作要等它读完，它持有的锁也不会释放。结果很多时会占用大量内存；条数限制只限制返回多少条，不限制读取多少条。超过时间限制后，搜索停止读取，回应 timeLimitExceeded，不返回条目。PostgreSQL 上，这类读取如果被数据库拒绝（例如语句超时），即使拦截器捕获了错误，那次写入也会失败。
 - 写操作因为死锁被数据库中止、因为无法串行化被拒绝，或者等锁超时（数据库设置了锁等待超时；SQLite 上是文件被另一个进程占用，超过了 busy timeout）时，回应是 busy（51），不会留下任何改动，客户端可以重新发送。

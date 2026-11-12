@@ -400,7 +400,7 @@ await server.listen({port: 389})
 | `UniquePlugin` | 拒绝其他条目已经用过的值 | unique |
 | `PasswordPolicyPlugin` | 第 12 节的密码策略 | ppolicy |
 | `IdAllocationPlugin` | 给新增时没有 uidNumber 和 gidNumber 的 POSIX 条目分配这两个值 | （389 Directory Server 的 DNA） |
-| `LastBindPlugin` | 在 authTimestamp 里记录最后一次简单绑定的时间 | lastbind |
+| `LastBindPlugin` | 在 authTimestamp 里记录最后一次带密码的绑定的时间 | lastbind |
 | `SambaPasswordPlugin` | 把新密码的 NT 哈希写进 sambaNTPassword（需要加载 Samba 的 schema） | smbk5pwd |
 | `AuditPlugin` | 把每个请求和它的结果交给你自己的函数记录 | accesslog、auditlog |
 | `ConstraintPlugin` | 拒绝违反规则的值：模式、大小、个数，或者你自己的检查 | constraint |

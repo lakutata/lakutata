@@ -114,12 +114,13 @@ migrations are the application's, as for its other entities.
 - uidNumber and gidNumber are allocated to the posixAccount and posixGroup entries added without them (from 10000);
   a uidNumber is unique, and so is the gidNumber of a posixGroup among the groups. The POSIX classes come with the
   bundled schema rfc2307bis, which `schema.bundled` names (it is not loaded by default).
-- The values of the attributes of `unique` are unique in the suffix; the time of the last simple bind is given as
-  authTimestamp (a bind made while a write holds the entry, or on SQLite while any write runs, does not wait for it and
-  leaves its time out; on MySQL before 8.0 and MariaDB before 10.6, which cannot skip a row another write holds, the
-  bind waits); the failed binds are kept in the database, so the instances of an application share them, as they share
-  the state of the password policy (two instances failing a bind in the same millisecond, before either has written,
-  can give the failure the same time, which is kept once, so the two count as one); `mailAlias` gives email as mail.
+- The values of the attributes of `unique` are unique in the suffix; the time of the last bind with a password, simple
+  or SASL PLAIN, is given as authTimestamp (a bind made while a write holds the entry, or on SQLite while any write
+  runs, does not wait for it and leaves its time out; on MySQL before 8.0 and MariaDB before 10.6, which cannot skip a
+  row another write holds, the bind waits); the failed binds are kept in the database, so the instances of an
+  application share them, as they share the state of the password policy (two instances failing a bind in the same
+  millisecond, before either has written, can give the failure the same time, which is kept once, so the two count as
+  one); `mailAlias` gives email as mail.
 - Each write runs in a transaction, with the interceptors' `beforeCommit()`. The writes to one entry take turns, also
   when several instances share the database (on SQLite, every write to the file takes its turn), so two clients changing
   different values of an attribute at the same time both keep their changes.
@@ -225,7 +226,7 @@ local `ldapi` socket, unless it is given `requireTLS: false`.
 | `memberUid` | `true` | Give memberUid to the posixGroup entries |
 | `unique` | | The attributes whose values are unique in the suffix |
 | `idAllocation` | from 10000 | The first uidNumber and gidNumber allocated, or `false` |
-| `lastBind` | `true` | Give authTimestamp, the time of the last successful simple bind |
+| `lastBind` | `true` | Give authTimestamp, the time of the last successful bind with a password |
 | `mailAlias` | `false` | Give email, the values of mail |
 | `referencePlaceholder` | the empty DN | The value left in a required DN attribute whose last value named a deleted entry |
 | `sharedThrottle` | `true` | Keep the failed binds in the database |

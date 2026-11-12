@@ -156,7 +156,7 @@ const server = createLDAPServer({
 | `UniquePlugin` | Refuses a value another entry has | unique |
 | `PasswordPolicyPlugin` | The password policy, which the `passwordPolicy` option gives too | ppolicy |
 | `IdAllocationPlugin` | Gives uidNumber and gidNumber to the POSIX entries added without them | DNA of 389 Directory Server |
-| `LastBindPlugin` | Keeps the time of the last simple bind in authTimestamp | lastbind |
+| `LastBindPlugin` | Keeps the time of the last bind with a password in authTimestamp | lastbind |
 | `SambaPasswordPlugin` | Writes the NT hash of a new password in sambaNTPassword (the schema of Samba loaded) | smbk5pwd |
 | `AuditPlugin` | Gives a record of each request and its outcome to a function of one's own | accesslog, auditlog |
 | `ConstraintPlugin` | Refuses values breaking rules: a pattern, a size, a count, a check of one's own | constraint |
