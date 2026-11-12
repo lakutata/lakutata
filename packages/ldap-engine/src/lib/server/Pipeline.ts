@@ -655,6 +655,8 @@ export class Pipeline {
             if (!await this.verifyPassword(session, context, dn, password)) fail(ResultCode.invalidCredentials, 'Invalid credentials')
         }
         const mount: Mount | undefined = this.route(dn)
+        //An administrator whose password the options give is not under the plugins of an entry (a password policy)
+        if (this.access.adminPassword(dn)) return verify()
         const hooks: LDAPPlugin[] = this.options.plugins.filter((plugin: LDAPPlugin): boolean => plugin.authenticate !== undefined && this.runsFor(plugin, mount))
         if (!hooks.length) return verify()
         //The plugins' hooks around the check, the first outermost, given the entry as it is
@@ -1307,7 +1309,8 @@ export class Pipeline {
         }
         this.passwordsTaken(session)
         const bindRequest: ServerBindRequest = {type: 'bind', name: request.name, dn: dn, authentication: {type: 'simple', password: password}}
-        const mount: Mount | undefined = this.route(dn)
+        //An administrator whose password the options give binds by them, through no backend's chain (it may have no entry)
+        const mount: Mount | undefined = this.access.adminPassword(dn) ? undefined : this.route(dn)
         this.checkMountControls(mount, context.controls)
         const verify = async (): Promise<ServerOutcome> => {
             await this.authenticate(session, context, dn, password)
@@ -1342,6 +1345,13 @@ export class Pipeline {
             return false
         }
         if (throttle.locked) return failed()
+        //An administrator whose password the options give: that password only, whatever an entry at its DN holds
+        const configured: Buffer | undefined = this.access.adminPassword(dn)
+        if (configured) {
+            if (!await this.options.passwords.verify(configured, password)) return failed()
+            await this.options.throttle.success(keys[0])
+            return true
+        }
         const mount: Mount | undefined = this.route(dn)
         if (!mount) return failed()
         if (mount.backend.bind) {
@@ -1394,7 +1404,8 @@ export class Pipeline {
             verifyPassword: async (dn: DN, password: Buffer): Promise<boolean> => {
                 //A password in clear where plaintextBind refuses it (for a mechanism not saying it takes one)
                 this.passwordsTaken(session)
-                const mount: Mount | undefined = this.route(dn)
+                //An administrator whose password the options give: through no backend's chain, as a simple bind
+                const mount: Mount | undefined = this.access.adminPassword(dn) ? undefined : this.route(dn)
                 this.checkMountControls(mount, context.controls)
                 SASL_MOUNTS.set(state, mount)
                 verified = true

@@ -15,12 +15,14 @@ import {
     type LDAPClientConnection,
     LDAPConnectionException,
     type LDAPInterceptor,
+    LDAPInvalidCredentialsException,
     type LDAPPlugin,
     LDAPServer,
     MemberOfPlugin,
     MemoryBackend,
     type OperationContext,
     parseSchemaFile,
+    PasswordSchemes,
     type ServerOutcome,
     type ServerRequest
 } from '../exports/LDAP.js'
@@ -165,6 +167,36 @@ describe('the LDAPServer component', () => {
             assert.equal((await secure.search('', {scope: 'base', attributes: ['vendorName', 'namingContexts']})).entries[0].first('vendorName'), 'lakutata')
             await secure.close()
             assert.equal(await ldap.connect(ADMIN).whoAmI(), `dn:${ADMIN}`)
+        } finally {
+            await container.destroy()
+        }
+    })
+
+    it('binds an administrator by the password of its options, from a client of the network, with no entry', async () => {
+        const container: Container = new Container()
+        try {
+            await container.setNamed('ldap', LDAPServer, {
+                host: '127.0.0.1',
+                port: 0,
+                tls: {cert: Buffer.from(CERTIFICATE), key: Buffer.from(KEY)},
+                backends: [new MemoryBackend(BASE)],
+                access: {admins: [ADMIN], adminPasswords: {[ADMIN]: 'configured-secret'}},
+                //Schemes of the application's own given as they are (a native bcrypt would be registered so)
+                passwords: new PasswordSchemes({iterations: 1000}).register({name: 'OWN', verify: async (value: string, password: Buffer): Promise<boolean> => value === `own-${password.toString()}`})
+            })
+            const ldap: LDAPServer = await container.get<LDAPServer>('ldap')
+            const client: LDAPClientConnection = await connectLDAP({url: `ldap://127.0.0.1:${ldap.ports.ldap}`, tls: TLS, startTLS: true})
+            await client.bind(ADMIN, 'configured-secret')
+            await client.add(BASE, {objectClass: ['dcObject', 'organization'], dc: 'example', o: 'Example'})
+            await client.saslBind('PLAIN', Buffer.from(`\0dn:${ADMIN}\0configured-secret`))
+            assert.equal(await client.whoAmI(), `dn:${ADMIN}`)
+            await assert.rejects(client.bind(ADMIN, 'wrong'), LDAPInvalidCredentialsException)
+            //An administrator imports a value of the application's scheme: checked by it
+            await client.bind(ADMIN, 'configured-secret')
+            await client.add(`uid=imported,${BASE}`, {objectClass: 'account', uid: 'imported'})
+            await client.modify(`uid=imported,${BASE}`, [{operation: 'add', attribute: 'objectClass', values: 'simpleSecurityObject'}, {operation: 'add', attribute: 'userPassword', values: '{OWN}own-their-secret'}])
+            await client.bind(`uid=imported,${BASE}`, 'their-secret')
+            await client.close()
         } finally {
             await container.destroy()
         }

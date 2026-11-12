@@ -30,6 +30,7 @@ import {
     MemoryBackend,
     ManageDsaITControl,
     PagedResultsControl,
+    PasswordSchemes,
     readSchema,
     type Schema,
     SortRequestControl,
@@ -1188,6 +1189,56 @@ describe('the server engine', () => {
         //Its answer whole on PLAIN too: its message with invalidCredentials
         const {server: holding} = await directory({interceptors: [{name: 'holding', operations: ['bind'], around: async () => ({resultCode: 49, diagnosticMessage: 'Held back for review'})} as never]})
         await assert.rejects(holding.connect().saslBind('PLAIN', Buffer.from(`\0dn:uid=user6,ou=people,${BASE}\0password6`)), (error: unknown) => error instanceof LDAPResultException && error.code === 49 && error.diagnosticMessage === 'Held back for review')
+    })
+
+    it('binds an administrator by the password its options give, with no entry, whatever an entry at its DN holds', async () => {
+        const ROOT: string = 'cn=root,o=configuration'
+        const BOSS: string = `cn=boss,${BASE}`
+        const POLICY: string = `cn=default,ou=policies,${BASE}`
+        const errors: unknown[] = []
+        const hashed: string = await new PasswordSchemes({iterations: 1000}).hash('boss-secret')
+        const {server: rooted, admin: owner} = await directory({
+            schema: [...DEFAULTS, PPOLICY],
+            access: {admins: [ADMIN, ROOT, BOSS], adminPasswords: {[ROOT]: 'root-secret', [BOSS.toUpperCase()]: hashed}},
+            passwordPolicy: {default: POLICY},
+            plugins: [new LastBindPlugin()],
+            bindThrottle: {maxFailures: 3, ipMaxFailures: 0, delay: 0}
+        })
+        rooted.events.on('error', (error: unknown) => errors.push(error))
+        //A DN in no backend: bound, an administrator
+        const root: LDAPInProcessConnection = rooted.connect()
+        await root.bind(ROOT, 'root-secret')
+        assert.equal(await root.whoAmI(), `dn:${ROOT}`)
+        await root.add(`cn=by-root,${BASE}`, {objectClass: 'device', cn: 'by-root'})
+        await rooted.connect().saslBind('PLAIN', Buffer.from(`\0dn:${ROOT}\0root-secret`))
+        await assert.rejects(rooted.connect().bind(ROOT, 'wrong'), code(49))
+        //An entry at the DN, locked under a policy that wants its password changed, with a password of its own: only the
+        //password of the options opens it, the policy left out
+        await owner.add(`ou=policies,${BASE}`, {objectClass: 'organizationalUnit', ou: 'policies'})
+        await owner.add(POLICY, {objectClass: ['organizationalRole', 'pwdPolicy'], cn: 'default', pwdAttribute: 'userPassword', pwdMustChange: 'TRUE', pwdLockout: 'TRUE'})
+        await owner.add(BOSS, {objectClass: ['organizationalRole', 'simpleSecurityObject'], cn: 'boss', userPassword: 'entry-password'})
+        //(set by the administrator's add under pwdMustChange: pwdReset)
+        await owner.modify(BOSS, {operation: 'add', attribute: 'pwdAccountLockedTime', values: '000001010000Z'})
+        //(the lock refuses an account the options give no password: its right password too)
+        await owner.add(`cn=locked,${BASE}`, {objectClass: ['organizationalRole', 'simpleSecurityObject'], cn: 'locked', userPassword: 'locked-password'})
+        await owner.modify(`cn=locked,${BASE}`, {operation: 'add', attribute: 'pwdAccountLockedTime', values: '000001010000Z'})
+        await assert.rejects(rooted.connect().bind(`cn=locked,${BASE}`, 'locked-password'), code(49))
+        const boss: LDAPInProcessConnection = rooted.connect()
+        await boss.bind(BOSS, 'boss-secret')
+        await boss.modify(`cn=by-root,${BASE}`, {operation: 'replace', attribute: 'description', values: 'not held back'})
+        await assert.rejects(rooted.connect().bind(BOSS, 'entry-password'), code(49))
+        //A Password Modify changes the entry's userPassword, not the password of the options
+        await boss.passwordModify({newPassword: 'new-entry-password'})
+        await rooted.connect().bind(BOSS, 'boss-secret')
+        await assert.rejects(rooted.connect().bind(BOSS, 'new-entry-password'), code(49))
+        await assert.rejects(root.passwordModify({newPassword: 'no-entry-to-hold-it'}), code(32))
+        //The throttle still counts: locked after its failures, the right password too
+        for (let index: number = 0; index < 3; index++) await assert.rejects(rooted.connect().bind(ROOT, `wrong-${index}`), code(49))
+        await assert.rejects(rooted.connect().bind(ROOT, 'root-secret'), code(49))
+        assert.deepEqual(errors, [])
+        //A DN not among the administrators, or an empty password: refused at the start
+        assert.throws(() => createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ADMIN], adminPasswords: {[ROOT]: 'x'}}}), LDAPUsageException)
+        assert.throws(() => createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ROOT], adminPasswords: {[ROOT]: ''}}}), LDAPUsageException)
     })
 
     it('refuses a critical control it does not know', async () => {

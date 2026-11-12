@@ -1,3 +1,4 @@
+import {LDAPUsageException} from '../../exceptions/LDAPUsageException.js'
 import {DN} from '../dn/DN.js'
 import type {Schema} from '../schema/Schema.js'
 import type {DirectoryEntry, OperationType, ServerSession} from './Types.js'
@@ -52,6 +53,14 @@ export interface AccessOptions {
      */
     admins?: string[]
     /**
+     * The passwords of administrators, by their DNs (each among `admins`), in clear or hashed (`{SCHEME}`), like the
+     * rootdn and rootpw of OpenLDAP but stricter: such an administrator binds only with this password, whether or not
+     * an entry has its DN (OpenLDAP's back-mdb also takes the entry's userPassword when the rootpw does not match,
+     * ITS#4962); the entry's userPassword and password policy are ignored, the bind throttle still applies, and a
+     * Password Modify changes the entry's userPassword, not this password
+     */
+    adminPasswords?: Record<string, string>
+    /**
      * The DNs of the identities that change the passwords of others (the service accounts of Keycloak, Nextcloud…)
      */
     passwordAdmins?: string[]
@@ -84,9 +93,29 @@ export class AccessPolicy {
      */
     protected readonly passwordAdmins: Set<string>
 
+    /**
+     * The passwords of the administrators given in the options, by the keys of their DNs
+     */
+    protected readonly adminPasswords: Map<string, Buffer>
+
     constructor(protected readonly options: AccessOptions, protected readonly schema: Schema) {
         this.admins = new Set((options.admins ?? []).map((dn: string): string => DN.parse(dn).key(schema)))
         this.passwordAdmins = new Set((options.passwordAdmins ?? []).map((dn: string): string => DN.parse(dn).key(schema)))
+        this.adminPasswords = new Map()
+        for (const [dn, password] of Object.entries(options.adminPasswords ?? {})) {
+            const key: string = DN.parse(dn).key(schema)
+            if (!this.admins.has(key)) throw new LDAPUsageException(`The password of ${dn} in access.adminPasswords is for a DN that is not among access.admins`)
+            if (typeof password !== 'string' || !password) throw new LDAPUsageException(`The password of ${dn} in access.adminPasswords is empty`)
+            this.adminPasswords.set(key, Buffer.from(password, 'utf8'))
+        }
+    }
+
+    /**
+     * The password an administrator binds with by the options, undefined for one whose entry holds its password
+     * @param dn The DN.
+     */
+    public adminPassword(dn: DN): Buffer | undefined {
+        return this.adminPasswords.get(dn.key(this.schema))
     }
 
     /**
