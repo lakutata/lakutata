@@ -203,11 +203,10 @@ describe('the server engine against OpenLDAP', {skip: !URL}, () => {
         await alike(UNIT, {filter: PEOPLE_FILTER, controls: [sort('uidNumber'), view({beforeCount: 0, afterCount: 1, offset: {offset: 1, contentCount: 0}}), PagedResultsControl.encode({size: 2, cookie: Buffer.alloc(0)})]})
     })
 
-    it('takes an offset equal to the count of the client as the last entry, 1 of 1 too', async (t) => {
-        //The draft (§5): Ci = Cc is the last entry, Ci = 1 the first only when Cc is not 1
-        const {ours: mine, theirs: other} = await both(UNIT, {filter: PEOPLE_FILTER, controls: [sort('uidNumber'), view({beforeCount: 0, afterCount: 0, offset: {offset: 1, contentCount: 1}})]})
+    it('takes an offset equal to the count of the client as the last entry, 1 of 1 too', async () => {
+        //The draft (§5): Ci = Cc is the last entry, Ci = 1 the first only when Cc is not 1; OpenLDAP answers alike
+        const mine: Answer = await alike(UNIT, {filter: PEOPLE_FILTER, controls: [sort('uidNumber'), view({beforeCount: 0, afterCount: 0, offset: {offset: 1, contentCount: 1}})]})
         assert.deepEqual(mine.controls.vlv, {targetPosition: PEOPLE.length, contentCount: PEOPLE.length, result: 0})
-        t.diagnostic(`OpenLDAP for 1 of 1: ${JSON.stringify(other.controls.vlv)}`)
     })
 
     it('refuses a view as the draft says', async () => {
