@@ -89,6 +89,12 @@ interface RunningWrite {
     turns?: object
 }
 
+/**
+ * How a step of a read runs (a batch of the entries of a search, read once the search is answered): through the entity
+ * manager it is given
+ */
+type ReadStep = <R>(next: (manager: EntityManager) => Promise<R>) => Promise<R>
+
 //The write running in an asynchronous context: a write it makes on its database runs in a savepoint of its transaction
 const WRITING: AsyncLocalStorage<RunningWrite> = new AsyncLocalStorage()
 //The write whose turn an asynchronous context holds: what it runs there takes no other turn of that write
@@ -490,16 +496,24 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     }
 
     /**
-     * Run a read through the entity manager of an operation: in the transaction of a write given in its context, in the
-     * turn of that write (after the writes made in it before, not alongside their statements)
+     * Run a read. Made while a write of this database runs in its asynchronous context (the write of the operation, or
+     * the write an interceptor made it in): in the transaction of that write and in its turn, after the writes made in it
+     * before and not alongside their statements, so that it reads what they wrote; each later step of the read (a batch
+     * of the entries of a search) takes the turn again, and reads through the database once the write is done.
+     * Otherwise through the entity manager of the operation.
      * @param context The context.
-     * @param read The read.
+     * @param read The read, given the entity manager and how its later steps run.
      */
-    #reading<T>(context: OperationContext | undefined, read: (manager: EntityManager) => Promise<T>): Promise<T> {
+    #reading<T>(context: OperationContext | undefined, read: (manager: EntityManager, step: ReadStep) => Promise<T>): Promise<T> {
         const given: EntityManager | undefined = (context as {transaction?: unknown} | undefined)?.transaction as EntityManager | undefined
         const current: RunningWrite | undefined = WRITING.getStore()
-        if (given && current?.active && current.database === this.db) return this.#inTurn(current, (): Promise<T> => read(given))
-        return read(this.manager(context))
+        if (current?.active && current.database === this.db) {
+            const manager: EntityManager = given ?? current.manager
+            const step: ReadStep = <R>(next: (manager: EntityManager) => Promise<R>): Promise<R> => current.active ? this.#inTurn(current, (): Promise<R> => next(manager)) : next(this.db.manager)
+            return step((reader: EntityManager): Promise<T> => read(reader, step))
+        }
+        const manager: EntityManager = this.manager(context)
+        return read(manager, <R>(next: (manager: EntityManager) => Promise<R>): Promise<R> => next(manager))
     }
 
     /**
@@ -1174,15 +1188,16 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      * @param context The search.
      */
     public async search(context: SearchContext): Promise<BackendSearchResult> {
-        return this.#reading(context, (manager: EntityManager): Promise<BackendSearchResult> => this.#searching(context, manager))
+        return this.#reading(context, (manager: EntityManager, step: ReadStep): Promise<BackendSearchResult> => this.#searching(context, manager, step))
     }
 
     /**
      * The entries of a search, read through an entity manager
      * @param context The search.
      * @param manager The entity manager.
+     * @param step How the batches of the entries read once the search is answered run.
      */
-    async #searching(context: SearchContext, manager: EntityManager): Promise<BackendSearchResult> {
+    async #searching(context: SearchContext, manager: EntityManager, step: ReadStep): Promise<BackendSearchResult> {
         const schema: Schema = this.use(context)
         const base: LDAPEntryRecord | null = (context.state.get(FOUND_ROWS) as Map<string, LDAPEntryRecord> | undefined)?.get(sha256(context.base.key(schema))) ?? await this.row(manager, context.base, schema)
         if (!base) return {entries: [], exact: true}
@@ -1196,7 +1211,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         const wants = (name: string): boolean => context.attributes.allOperational || context.attributes.names.has(name) || JSON.stringify(context.filter).toLowerCase().includes(`"${name}"`)
         const virtualWanted = {memberOf: this.memberOfName !== undefined && wants(this.memberOfName), memberUid: this.memberUid && (context.attributes.allUser || wants('memberuid')), email: this.mailAlias && (context.attributes.allUser || wants('email'))}
         //The entries in scope the filter (translated) matches
-        const candidates = (): SelectQueryBuilder<ObjectLiteral> => manager.createQueryBuilder()
+        const candidates = (reader: EntityManager = manager): SelectQueryBuilder<ObjectLiteral> => reader.createQueryBuilder()
             .from('ldap_entry', 'e')
             .where('e.suffix = :suffix', {suffix: this.suffixKey})
             .andWhere(scope.sql, scope.parameters)
@@ -1210,15 +1225,15 @@ export class DirectoryBackend extends Component implements LDAPBackend {
             let last: string = ''
             for (;;) {
                 if (signal.aborted) return
-                const rows: {id: string, dn: string, path: string}[] = await candidates()
+                const rows: {id: string, dn: string, path: string}[] = await step((reader: EntityManager): Promise<{id: string, dn: string, path: string}[]> => candidates(reader)
                     .select(['e.id AS id', 'e.dn AS dn', 'e.path AS path'])
                     .andWhere('e.path > :last', {last: last})
                     .orderBy('e.path', 'ASC')
                     .limit(ID_BATCH)
-                    .getRawMany()
+                    .getRawMany())
                 for (let start: number = 0; start < rows.length; start += BATCH) {
                     if (signal.aborted) return
-                    yield* await self.entries(manager, rows.slice(start, start + BATCH), schema, virtualWanted)
+                    yield* await step((reader: EntityManager): Promise<DirectoryEntry[]> => self.entries(reader, rows.slice(start, start + BATCH), schema, virtualWanted))
                 }
                 if (rows.length < ID_BATCH) return
                 last = rows[rows.length - 1].path
@@ -1938,20 +1953,21 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     }
 
     /**
-     * The next number of uidNumber or gidNumber: one more than the greatest in the suffix, not below the first configured
+     * The next number of uidNumber or gidNumber: one more than the greatest in the suffix, not below the first configured;
+     * for an entry added in the transaction of another write, the numbers its writes took before counted
      * @param type The attribute.
      * @param schema The schema.
      */
     protected async nextNumber(type: string, schema: Schema): Promise<number> {
         const start: number = (this.idAllocation as {uidNumber?: number, gidNumber?: number})[type as 'uidNumber' | 'gidNumber'] ?? 10000
-        const row: {max: string | null} | undefined = await this.db.manager.createQueryBuilder()
+        const row: {max: string | null} | undefined = await this.#reading(undefined, (manager: EntityManager): Promise<{max: string | null} | undefined> => manager.createQueryBuilder()
             .select('MAX(v.sort_key)', 'max')
             .from('ldap_value', 'v')
             .innerJoin('ldap_entry', 'e', 'e.id = v.entry_id')
             .where('v.attribute_type = :type', {type: schema.primaryName(type).toLowerCase()})
             .andWhere('e.suffix = :suffix', {suffix: this.suffixKey})
             .andWhere('v.sort_key LIKE :positive', {positive: 'p%'})
-            .getRawOne()
+            .getRawOne())
         const greatest: number = row?.max ? Number(BigInt(row.max.slice(1))) : start - 1
         return Math.max(greatest + 1, start)
     }

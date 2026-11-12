@@ -1511,5 +1511,55 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                 await admin.delete(third)
             }
         })
+
+        it('reads in a write made in the transaction of another what the writes made before it there wrote', {timeout: 60000}, async () => {
+            const target: string = `cn=reading-outer,${BASE}`
+            const unit: string = `ou=reading-unit,${BASE}`
+            const child: string = `cn=reading-child,${unit}`
+            const users: string[] = [1, 2].map((index: number): string => `uid=reading-user${index},${unit}`)
+            await admin.add(target, {objectClass: 'device', cn: 'reading-outer'})
+            const seen: Record<string, unknown> = {}
+            const readingContainer: Container = new Container()
+            try {
+                await readingContainer.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                await readingContainer.setNamed('ldap', LDAPServer, {
+                    port: false,
+                    schema: schema,
+                    backends: [{class: DirectoryBackend, suffix: BASE, database: 'database'}],
+                    access: {admins: [ADMIN]},
+                    interceptors: [{name: 'reading', operations: ['modify'], beforeCommit: async (_context: unknown, request: {dn?: {toString(): string}}): Promise<void> => {
+                        const connection: LDAPInProcessConnection = (await readingContainer.get<LDAPServer>('ldap')).connect(ADMIN)
+                        if (request.dn?.toString() === child) {
+                            //Made by a write made in the transaction: it reads and writes there too
+                            seen.parent = (await connection.search(unit, {scope: 'base'})).entries.length
+                            await connection.modify(unit, {operation: 'add', attribute: 'description', values: 'by the child'})
+                            return
+                        }
+                        if (request.dn?.toString() !== target) return
+                        await connection.add(unit, {objectClass: 'organizationalUnit', ou: 'reading-unit'})
+                        //Below the entry added before, which the engine checks is there; then modified, which it checks too
+                        await connection.add(child, {objectClass: 'device', cn: 'reading-child'})
+                        await connection.modify(child, {operation: 'add', attribute: 'description', values: 'nested'})
+                        seen.child = (await connection.search(unit, {scope: 'one', filter: '(cn=reading-child)'})).entries.length
+                        //Their numbers allocated from those of the entries added before
+                        for (const [index, dn] of users.entries()) await connection.add(dn, {objectClass: ['inetOrgPerson', 'posixAccount'], uid: `reading-user${index + 1}`, cn: `Reading ${index + 1}`, sn: 'Reading', homeDirectory: `/home/reading-user${index + 1}`})
+                        //Not a leaf: the entries added below it are seen
+                        seen.leaf = await connection.delete(unit).then((): string => 'deleted', (error: unknown): unknown => error)
+                    }}]
+                })
+                await (await readingContainer.get<LDAPServer>('ldap')).connect(ADMIN).modify(target, {operation: 'add', attribute: 'description', values: 'outer'})
+                assert.deepEqual([seen.parent, seen.child], [1, 1])
+                assert.ok(seen.leaf instanceof LDAPNotAllowedOnNonLeafException, String(seen.leaf))
+                assert.deepEqual((await admin.search(unit, {scope: 'base'})).entries[0].get('description'), ['by the child'])
+                assert.deepEqual((await admin.search(child, {scope: 'base'})).entries[0].get('description'), ['nested'])
+                const numbers: string[] = (await admin.search(unit, {scope: 'one', filter: '(objectClass=posixAccount)'})).entries.map((entry) => entry.first('uidNumber')!)
+                assert.equal(new Set(numbers).size, 2, JSON.stringify(numbers))
+                assert.deepEqual((await admin.search(target, {scope: 'base'})).entries[0].get('description'), ['outer'])
+            } finally {
+                await readingContainer.destroy()
+                await admin.delete(unit, {controls: [TreeDeleteControl.encode()]}).catch((): undefined => undefined)
+                await admin.delete(target).catch((): undefined => undefined)
+            }
+        })
     })
 }
