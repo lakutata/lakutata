@@ -215,6 +215,36 @@ describe('the server engine', () => {
         await assert.rejects(anonymous.bind(`uid=user7,ou=people,${BASE}`, '', {allowUnauthenticated: true}), LDAPUnwillingToPerformException)
     })
 
+    it('asks the access check about where a rename takes the entry, so that a rename does not escape it', async () => {
+        //The helpdesk of the guide: it writes the entries of the people, and nothing else
+        const WRITES: string[] = ['add', 'modify', 'delete', 'modifyDN']
+        const HELPDESK: string = `cn=helpdesk,${BASE}`
+        const {server: guarded, admin: owner} = await directory({access: {
+            admins: [ADMIN],
+            check: (request: {operation: string, identity?: {equals(dn: string): boolean}, dn: {isDescendantOf(dn: string): boolean}}): boolean | undefined => request.identity?.equals(HELPDESK) && WRITES.includes(request.operation) ? request.dn.isDescendantOf(`ou=people,${BASE}`) : undefined
+        }})
+        await owner.add(HELPDESK, {objectClass: ['organizationalRole', 'simpleSecurityObject'], cn: 'helpdesk', userPassword: 'helpdesk-password'})
+        const helpdesk: LDAPInProcessConnection = guarded.connect()
+        await helpdesk.bind(HELPDESK, 'helpdesk-password')
+        //Within the people: allowed
+        await helpdesk.modify(`uid=user5,ou=people,${BASE}`, {operation: 'replace', attribute: 'userPassword', values: 'chosen-by-helpdesk'})
+        await helpdesk.modifyDN(`uid=user6,ou=people,${BASE}`, 'uid=user6b', {deleteOldRDN: false})
+        //Out of the people, to the DN of the administrator (which has no entry): refused, and no bind as the administrator
+        await assert.rejects(helpdesk.modifyDN(`uid=user5,ou=people,${BASE}`, 'cn=admin', {deleteOldRDN: false, newSuperior: BASE}), code(50))
+        await assert.rejects(helpdesk.modifyDN(`uid=user5,ou=people,${BASE}`, 'uid=user5', {newSuperior: `ou=groups,${BASE}`}), code(50))
+        await assert.rejects(guarded.connect().bind(ADMIN, 'chosen-by-helpdesk'), LDAPInvalidCredentialsException)
+        assert.equal((await owner.search(`uid=user5,ou=people,${BASE}`, {scope: 'base'})).entries.length, 1)
+        //A check knowing the entry a rename comes from
+        const seen: string[] = []
+        const {server: watched, admin: watcher} = await directory({access: {admins: [ADMIN], check: (request: {operation: string, dn: {toString(): string}, from?: {toString(): string}}): boolean | undefined => {
+            if (request.operation === 'modifyDN') seen.push(`${request.dn.toString()} from ${String(request.from)}`)
+            return undefined
+        }}})
+        void watched
+        await watcher.modifyDN(`uid=user7,ou=people,${BASE}`, 'uid=user7b')
+        assert.deepEqual(seen, [`uid=user7,ou=people,${BASE} from undefined`, `uid=user7b,ou=people,${BASE} from uid=user7,ou=people,${BASE}`])
+    })
+
     it('changes passwords: one\'s own, another\'s by an administrator, one generated', async () => {
         const user: LDAPInProcessConnection = server.connect()
         await user.bind(`uid=user9,ou=people,${BASE}`, 'password9')

@@ -8,7 +8,8 @@ import type {DirectoryEntry, OperationType, ServerSession} from './Types.js'
 export interface AccessRequest {
     /**
      * The operation; `read` for an entry a search returns or a compare reads, `passwordModify` for the Password Modify
-     * operation
+     * operation. A `modifyDN` is asked about the entry, then about the DN it gets (with `from`): a check refusing the
+     * writes outside a subtree refuses a move out of it too.
      */
     operation: OperationType | 'read' | 'passwordModify'
     /**
@@ -31,6 +32,10 @@ export interface AccessRequest {
      * The attributes a write changes, as primary names
      */
     attributes?: string[]
+    /**
+     * For a `modifyDN` asked about the DN the entry gets: the DN it has
+     */
+    from?: DN
 }
 
 /**

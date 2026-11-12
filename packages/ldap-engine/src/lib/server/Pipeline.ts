@@ -1236,9 +1236,17 @@ export class Pipeline {
                         if (!await access.allows({operation: 'modify', session: session, identity: identity, dn: request.dn, attributes: request.changes.map((change: {attribute: PartialAttribute}): string => schema.primaryName(attributeTypeOf(change.attribute.type)))})) fail(ResultCode.insufficientAccessRights, 'Insufficient access to modify the entry')
                         return
                     case 'delete':
-                    case 'modifyDN':
-                        if (!await access.allows({operation: request.type, session: session, identity: identity, dn: request.dn})) fail(ResultCode.insufficientAccessRights, `Insufficient access to ${request.type === 'delete' ? 'delete' : 'rename'} the entry`)
+                        if (!await access.allows({operation: 'delete', session: session, identity: identity, dn: request.dn})) fail(ResultCode.insufficientAccessRights, 'Insufficient access to delete the entry')
                         return
+                    case 'modifyDN': {
+                        if (!await access.allows({operation: 'modifyDN', session: session, identity: identity, dn: request.dn})) fail(ResultCode.insufficientAccessRights, 'Insufficient access to rename the entry')
+                        //Asked again about the DN the entry gets: a check that knows nothing of moves refuses one out of
+                        //where it allows writes
+                        const parent: DN | undefined = request.newSuperior ?? request.dn.parent()
+                        const destination: DN = parent ? parent.child(request.newRDN) : DN.parse(request.newRDN.toString())
+                        if (!destination.equals(request.dn, schema) && !await access.allows({operation: 'modifyDN', session: session, identity: identity, dn: destination, from: request.dn})) fail(ResultCode.insufficientAccessRights, 'Insufficient access to give the entry that DN')
+                        return
+                    }
                 }
             },
             ...hasCheck ? {
