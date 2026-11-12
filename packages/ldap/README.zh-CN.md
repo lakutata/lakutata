@@ -141,7 +141,7 @@ Application.run(() => ({
 | `plugins` | | 插件：对象，或带选项的 lakutata 类（还可以给 `name`、`suffixes`） |
 | `interceptors` | | 单独给出的拦截器：对象、带位置的拦截器，或带选项的 lakutata 类 |
 | `schema` | core、cosine、inetorgperson | `bundled`（按名字选自带的 schema；`rfc2307bis`、`openssh-lpk`、`ppolicy` 写上名字才加载，`[]` 表示只留系统 schema）、`directory`（schema 文件所在的目录，按文件名顺序加载）和 `files`（自己的 schema：路径、文本，或 `readSchemaFile()`、`parseSchemaFile()` 得到的文档） |
-| `access` | | `admins`、`passwordAdmins`、`anonymousRead`、`authenticatedRead`、`check` |
+| `access` | | `admins`、`adminPasswords`、`passwordAdmins`、`anonymousRead`、`authenticatedRead`、`check` |
 | `limits` | | 条数、时间、消息大小、请求数和连接数的上限 |
 | `bindThrottle` | 连续失败 5 次后锁定 | 绑定失败的限制 |
 | `plaintextBind` | `'all'` | 不用 TLS 时在哪里接受密码：`'all'`、`'loopback'`、`'none'`（Unix socket 上不受它限制） |

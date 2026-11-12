@@ -433,7 +433,7 @@ console.log(await directory.exportLDIF(people))
 |---|---|
 | An anonymous session | Read the root DSE and the subschema (`access.anonymousRead: true` lets it read the directory) |
 | A bound session | Read the directory except `userPassword`, which nobody reads; change its own password (`access.authenticatedRead: false` keeps the directory from it) |
-| An administrator (`access.admins`) | Write, and change any password |
+| An administrator (`access.admins`) | Write, and change any password. With a password in `access.adminPasswords`, it binds with that password, whether or not it has an entry |
 | A password administrator (`access.passwordAdmins`) | Change the passwords of the others: the service accounts of Keycloak or Nextcloud |
 
 ```typescript
@@ -456,6 +456,11 @@ const server = createLDAPServer({
 await server.listen({port: 389})
 ```
 
+- `access.adminPasswords` gives administrators their passwords by DN, in clear or hashed (`{SCHEME}`), like OpenLDAP's
+  rootdn and rootpw but stricter: such an administrator binds only with that password, whether or not an entry has its
+  DN (OpenLDAP's back-mdb also takes the entry's userPassword when the rootpw does not match). The entry's userPassword
+  and password policy are ignored, the bind throttle still applies, and a Password Modify changes the entry's
+  userPassword, not this password. The administrator's credentials then stay out of the data it governs.
 - `access.check` decides first: `true` allows, `false` refuses, `undefined` leaves it to the table. It is given the
   operation (`read` for what a search returns or a compare reads), the DN, the session's identity, and the entry or the
   attributes when they are known. For a rename it is asked three times: `modifyDN` about the entry; `modifyDN` about the
@@ -478,7 +483,7 @@ await server.listen({port: 389})
 - `plaintextBind` says where a password is taken without TLS (a simple bind or a SASL PLAIN bind, a write of
   `userPassword`, a Password Modify): everywhere (`'all'`, by default), from the loopback (`'loopback'`), or nowhere
   (`'none'`). The Unix socket takes passwords whatever it says. A SASL mechanism of one's own whose credentials carry a
-  password sets `takesPassword`, so that `plaintextBind` applies to it before it reads any name.
+  password sets `takesPassword`: where `plaintextBind` refuses passwords, it is not offered.
 - A bind with a name and an empty password is refused (`allowUnauthenticatedBind` takes it as anonymous). The failed
   binds of a DN or an address are answered later and later, then refused for a while (`bindThrottle`), all with
   invalidCredentials, which does not tell a locked account from a wrong password.
@@ -494,10 +499,13 @@ The server hashes every password it is given, as `{PBKDF2-SHA512}` (the format o
 `passwords: {iterations}` changes its cost). A bind also checks the other schemes of OpenLDAP (`{SSHA}`, the SHA-2
 schemes, `{CRYPT}` with MD5, SHA-256, SHA-512 and bcrypt, `{ARGON2}` where node:crypto runs argon2: Node.js 24.7 and
 later, but not Electron) and the passwords in clear of an older directory, then hashes the password again in the scheme
-of the server (`rehashOnBind`). An administrator may write a hashed value as it is, to import accounts; a value written
-by anyone else is treated as a password in clear, even if it looks hashed. When a modify deletes a password given in
-clear (the old password of a change), it is checked against the stored one only on the session's own entry; to change
-someone else's password, replace it.
+of the server (`rehashOnBind`). An administrator may write a hashed value as it is, to import accounts; with
+`rehashOnBind`, a value in another scheme than the server's is replaced at its first successful bind, the only time the
+password is known in clear. To keep it (a hash an application also checks), turn `rehashOnBind` off; an application may
+also register a scheme of its own with `PasswordSchemes.register()` (a native bcrypt, say) and give the server those
+schemes. a value written by anyone else is treated as a password in clear, even if it looks hashed. When a modify
+deletes a password given in clear (the old password of a change), it is checked against the stored one only on the
+session's own entry; to change someone else's password, replace it.
 
 `passwordPolicy` applies the password policy of draft-behera, with the attributes OpenLDAP's ppolicy uses:
 
@@ -600,7 +608,8 @@ await server.listen({port: 389})
   transaction of a write, on a backend that has transactions. Throwing an `LDAPResultException` answers with its code. A
   `bind` interceptor runs around the password check of a simple bind and of a SASL PLAIN bind;
   `request.authentication.type` tells which. If it returns a result other than success instead of throwing, the bind
-  fails with that result. Anonymous binds and SASL EXTERNAL check no password and do not go through it.
+  fails with that result. These binds do not go through it: anonymous and unauthenticated binds, a bind of a DN no
+  backend holds, an administrator bound by `access.adminPasswords`, and SASL EXTERNAL.
 - An interceptor is placed before or after one of the server's own steps (`access`, `password`, `schema`, `operational`,
   `paging`) by `{interceptor, before: 'schema'}`, and otherwise at the end of the chain, after them all: what it adds to
   a request there is not checked against the schema. Placed before `password`, it sees the passwords in clear. An

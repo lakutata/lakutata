@@ -54,8 +54,8 @@ export interface SASLMechanism {
      */
     readonly name: string
     /**
-     * Whether its credentials carry a password (PLAIN): plaintextBind then applies before it runs, as to a simple bind,
-     * whatever name it is given
+     * Whether its credentials carry a password (PLAIN): where plaintextBind refuses passwords, it is not offered (a bind
+     * with it answered authMethodNotSupported, whatever name it is given)
      */
     readonly takesPassword?: boolean
     /**

@@ -201,7 +201,7 @@ local `ldapi` socket, unless it is given `requireTLS: false`.
 | `plugins` | | The plugins: objects, or lakutata classes with their options (and `name`, `suffixes`) |
 | `interceptors` | | The interceptors alone: objects, placements, or lakutata classes with their options |
 | `schema` | core, cosine, inetorgperson | `bundled` (the bundled schemas by name; `rfc2307bis`, `openssh-lpk` and `ppolicy` are added by naming them, `[]` leaves the system schema alone), `directory` (a directory of schema files, loaded in the order of their names) and `files` (schemas of one's own: paths, texts, or documents of `readSchemaFile()`/`parseSchemaFile()`) |
-| `access` | | `admins`, `passwordAdmins`, `anonymousRead`, `authenticatedRead`, `check` |
+| `access` | | `admins`, `adminPasswords`, `passwordAdmins`, `anonymousRead`, `authenticatedRead`, `check` |
 | `limits` | | The size, time, message, request and connection limits |
 | `bindThrottle` | 5 failures lock the DN | The limits on failed binds |
 | `plaintextBind` | `'all'` | Where a password is accepted without TLS: `'all'`, `'loopback'`, `'none'` (the Unix socket takes it whatever this says) |
