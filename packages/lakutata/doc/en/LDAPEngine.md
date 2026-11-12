@@ -522,6 +522,8 @@ await server.listen({port: 389})
   start TLS first, so that the change goes over TLS; the restriction ends once the change has been written, and a new
   bind on the same connection is judged afresh.
 - An entry governed by a policy holds one password: a write that would leave it with two is refused.
+- The request control of the policy may come with any request (draft-behera §6.1), a search of the root DSE included;
+  its response control comes where the policy has something to say.
 - New passwords: with the old one (`safeModify`), not too soon again (`minAge`), and not one of the former ones
   (`inHistory`); their length (`minLength`, `maxLength`) and the `quality` check are applied when `checkQuality` is 1
   (a hash an administrator imports passes) or 2 (always), as pwdCheckQuality says.
@@ -665,9 +667,9 @@ await server.listen({port: 389})
   paging itself. The backend still sorts a sorted search, but the server also sorts for a virtual list view. A backend
   doing the work of a plugin (`memberOf`, `referentialIntegrity`, `idAllocation`, `lastBind`) declares it there too, and
   the plugin leaves its chain. The controls a backend handles go in `capabilities.controls`: a request with one of them
-  critical is refused when it reaches a different backend or none at all: an anonymous or unauthenticated bind, a SASL
-  bind that verifies no password, or an extended operation. Password Modify is checked against the backend of the entry
-  it changes.
+  critical is refused when it reaches a different backend or none at all: an anonymous or unauthenticated bind, a step
+  of a SASL exchange that has verified no password so far, or an extended operation. Password Modify is checked against
+  the backend of the entry it changes.
 
 ## 15. The protocol
 
