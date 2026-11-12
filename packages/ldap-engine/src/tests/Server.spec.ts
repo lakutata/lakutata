@@ -313,7 +313,8 @@ describe('the server engine', () => {
         const {server: limited, admin: owner} = await directory({limits: {sizeLimit: 10}})
         //The size limit of the search: within a page, at the end of one, the search ending with its entries
         assert.deepEqual(await pages(owner, 10, 15), {counts: [10, 5], exceeded: true})
-        assert.deepEqual(await pages(owner, 10, 20), {counts: [10, 10], exceeded: true})
+        //Reached at the end of a page: the next page tells there are more
+        assert.deepEqual(await pages(owner, 10, 20), {counts: [10, 10, 0], exceeded: true})
         assert.deepEqual(await pages(owner, 10, 30), {counts: [10, 10, 10], exceeded: false})
         //A page as large as the size limit: one page
         assert.deepEqual(await pages(owner, 10, 5), {counts: [5], exceeded: true})
@@ -335,6 +336,32 @@ describe('the server engine', () => {
         const seen: {counts: number[], exceeded: boolean} = await pages(reader, 4, 10)
         assert.equal(seen.counts.reduce((sum: number, count: number): number => sum + count, 0), 10)
         assert.equal(seen.exceeded, true)
+        //The limit reached with only entries the session does not see left: success
+        const {server: tail} = await directory({access: {admins: [ADMIN], check: (request: {operation: string, dn?: {toString(): string}}): boolean | undefined => request.operation === 'read' && /^uid=user(1[5-9]|2\d),/i.test(String(request.dn)) ? false : undefined}})
+        const tailReader: LDAPInProcessConnection = tail.connect()
+        await tailReader.bind(`uid=user1,ou=people,${BASE}`, 'password1')
+        const ended: {counts: number[], exceeded: boolean} = await pages(tailReader, 4, 15)
+        assert.equal(ended.counts.reduce((sum: number, count: number): number => sum + count, 0), 15)
+        assert.equal(ended.exceeded, false)
+        //A page as large as wished reads no more than what the size limit leaves, and one more
+        let read: number = 0
+        class CountingBackend extends MemoryBackend {
+            public async search(context: Parameters<MemoryBackend['search']>[0]): ReturnType<MemoryBackend['search']> {
+                const result = await super.search(context)
+                return {...result, entries: (async function* () {
+                    for await (const entry of result.entries) {
+                        read++
+                        yield entry
+                    }
+                })()}
+            }
+        }
+        const {server: counted} = await directory({backends: [new CountingBackend(BASE)], limits: {sizeLimit: 10}})
+        const counter: LDAPInProcessConnection = counted.connect()
+        await counter.bind(`uid=user1,ou=people,${BASE}`, 'password1')
+        read = 0
+        assert.deepEqual(await pages(counter, 100000), {counts: [10], exceeded: true})
+        assert.ok(read <= 12, String(read))
         //The client's own paging still tells it was cut
         const cut = await owner.search(`ou=people,${BASE}`, {scope: 'one', filter: '(uid=user*)', sizeLimit: 15, paged: {pageSize: 10}})
         assert.deepEqual([cut.entries.length, cut.truncated], [15, true])

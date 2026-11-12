@@ -29,6 +29,10 @@ export interface PagedState {
      */
     used: number
     /**
+     * The size limit of the search (undefined without a limit)
+     */
+    limit?: number
+    /**
      * The entries its pages may still give: its size limit less those sent (undefined without a limit)
      */
     remaining?: number
@@ -40,7 +44,7 @@ export interface PagedState {
  */
 export interface PageSending {
     /**
-     * The most entries the page gives (0 for no limit)
+     * The most entries the page gives (0: none, its size limit reached)
      */
     limit: number
     /**
@@ -368,7 +372,11 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
         if (state.ahead) entries.push(state.ahead)
         state.ahead = undefined
         let exhausted: boolean = false
-        while (entries.length <= size) {
+        //Within what the size limit leaves and one more (an entry past the limit seen in the page), whatever the page
+        //size: the memory of a page bounded by the limit; once the limit is reached, as many as the limit, to tell
+        //whether entries the session sees are left
+        const reading: number = state.remaining === undefined ? size : Math.min(size, state.remaining ? state.remaining + 1 : state.limit!)
+        while (entries.length <= reading) {
             const next: IteratorResult<DirectoryEntry> = await state.iterator.next()
             if (next.done) {
                 exhausted = true
@@ -392,19 +400,19 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
         const control: Control = PagedResultsControl.encode({size: 0, cookie: cookie})
         context.responseControls.push(control)
         //The size limit of the search counts the entries of all its pages, as they are sent (those the access control
-        //leaves out not counted): reached with entries left, the search ends there, its cookie no longer given
+        //leaves out not counted): an entry to send past it ends the search there (sizeLimitExceeded), its cookie no
+        //longer given. Reached at the end of a page, the next page tells whether entries the session sees are left.
         if (state.remaining !== undefined) {
             const sending: PageSending = {
                 limit: state.remaining,
                 sent: (count: number, exceeded: boolean): boolean => {
                     state.remaining! -= count
-                    const ended: boolean = exceeded || (!exhausted && state.remaining! <= 0)
-                    if (ended && !exhausted) {
+                    if (exceeded && !exhausted) {
                         states.delete(cookie.toString('hex'))
                         closePaged(state)
                         context.responseControls[context.responseControls.indexOf(control)] = PagedResultsControl.encode({size: 0, cookie: Buffer.alloc(0)})
                     }
-                    return ended
+                    return exceeded
                 }
             }
             context.state.set(PAGE_SENDING, sending)
@@ -491,7 +499,7 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
                 return outcome
             }
             const sizeLimit: number = (context as SearchContext).sizeLimit
-            return page(context, states, {key: key, iterator: iterator, used: Date.now(), ...sizeLimit ? {remaining: sizeLimit} : {}}, paged.size, outcome)
+            return page(context, states, {key: key, iterator: iterator, used: Date.now(), ...sizeLimit ? {limit: sizeLimit, remaining: sizeLimit} : {}}, paged.size, outcome)
         }
     }
 }

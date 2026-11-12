@@ -756,9 +756,9 @@ export class Pipeline {
     protected async output(context: SearchContext, outcome: ServerOutcome, selection: AttributeSelection, sizeLimit: number, deadline: number, responder: Responder): Promise<ServerOutcome> {
         if (!outcome.entries) return outcome
         const returned: (description: string) => boolean = returnedBy(selection, this.schema)
-        //A page of a paged search: within what the size limit of the search leaves
+        //A page of a paged search: within what the size limit of the search leaves (none once it is reached)
         const page: PageSending | undefined = context.state.get(PAGE_SENDING) as PageSending | undefined
-        const limit: number = page ? page.limit : sizeLimit
+        const full = (count: number): boolean => page ? count >= page.limit : sizeLimit > 0 && count >= sizeLimit
         let count: number = 0
         for await (const entry of outcome.entries) {
             if (context.signal.aborted) throw context.signal.reason
@@ -766,7 +766,7 @@ export class Pipeline {
                 outcome.resultCode = ResultCode.timeLimitExceeded
                 break
             }
-            if (limit && count >= limit) {
+            if (full(count)) {
                 outcome.resultCode = ResultCode.sizeLimitExceeded
                 break
             }
