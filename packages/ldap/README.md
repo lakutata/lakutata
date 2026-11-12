@@ -120,8 +120,11 @@ migrations are the application's, as for its other entities.
 - Each write runs in a transaction, with the interceptors' `beforeCommit()`. The writes to one entry take turns, also
   when several instances share the database (on SQLite, every write to the file takes its turn), so two clients changing
   different values of an attribute at the same time both keep their changes.
-- The searches and writes that `beforeCommit()` makes through a server on the same Database component run in the
-  write's transaction: they see what it has written so far, and the writes are undone with it if it fails.
+- The searches and writes that `beforeCommit()` makes through a server on the same Database component run in the write's
+  transaction: they see what it has written so far, and the writes are undone with it if it fails. A search made this
+  way reads all of its entries before it returns, so a large one holds them in memory. On PostgreSQL, if the database
+  rejects one of these reads (a statement timeout, for example), the write fails as well, even if the interceptor
+  catches the error.
 - When the database ends a write to break a deadlock, cannot serialize it, or gives up waiting for a lock (a lock
   timeout set on the database, or on SQLite a file another process holds past the busy timeout), the write is answered
   busy (51) and leaves no changes; the client can send it again.
