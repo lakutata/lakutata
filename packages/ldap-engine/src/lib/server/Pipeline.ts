@@ -571,9 +571,9 @@ export class Pipeline {
         const context: OperationContext = this.context(view, operation, controls, signal)
         let outcome: ServerOutcome
         let dn: string = ''
-        //StartTLS over a network connection, and whether the connection was asked to answer it
+        //StartTLS over a network connection, and whether the connection agreed to it
         const startTLS: boolean = request.type === 'extendedRequest' && request.name === ExtendedOperation.startTLS && responder.startTLS !== undefined
-        let connectionAnswered: boolean = false
+        let connectionAgreed: boolean = false
         const dispatch = async (): Promise<ServerOutcome> => {
             switch (request.type) {
                 case 'bindRequest':
@@ -587,8 +587,9 @@ export class Pipeline {
                     if (request.name !== ExtendedOperation.passwordModify) this.checkMountControls(undefined, context.controls)
                     //StartTLS over a network connection: answered by the connection, which then upgrades it
                     if (startTLS) {
-                        connectionAnswered = true
-                        return responder.startTLS!()
+                        const answer: ServerOutcome = responder.startTLS!()
+                        connectionAgreed = answer.resultCode === ResultCode.success
+                        return answer
                     }
                     return this.extended(context, request.name, request.value)
                 default:
@@ -597,8 +598,9 @@ export class Pipeline {
             }
         }
         //The plugins' hooks around every request, the first outermost. StartTLS answered success by a plugin, the
-        //connection not asked: no TLS is started, so the plugins around it, the event and the client see an error
-        const unstarted = (outcome: ServerOutcome): ServerOutcome => startTLS && !connectionAnswered && outcome.resultCode === ResultCode.success ? {resultCode: ResultCode.operationsError, diagnosticMessage: 'StartTLS was not agreed by the connection', responseName: ExtendedOperation.startTLS} : outcome
+        //connection not having agreed to it (not asked, or refusing it): no TLS is started, so the plugins around it,
+        //the event and the client see an error
+        const unstarted = (outcome: ServerOutcome): ServerOutcome => startTLS && !connectionAgreed && outcome.resultCode === ResultCode.success ? {resultCode: ResultCode.operationsError, diagnosticMessage: 'StartTLS was not agreed by the connection', responseName: ExtendedOperation.startTLS} : outcome
         let run: () => Promise<ServerOutcome> = dispatch
         for (const plugin of [...this.options.plugins].reverse()) {
             if (!plugin.aroundRequest) continue

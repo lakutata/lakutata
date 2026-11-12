@@ -219,6 +219,35 @@ describe('the server engine on the network', () => {
         assert.deepEqual([recorded, events[0]], [[1], 1])
     })
 
+    it('answers StartTLS the connection refused as refused, whatever a plugin around it makes of it', async () => {
+        const recorded: number[] = []
+        const events: number[] = []
+        //A server without TLS: the connection refuses StartTLS, the plugin around it says success
+        const {server: overriding, port: overridingPort} = await serve({tls: undefined, plugins: [
+            {name: 'recording', aroundRequest: async (_context, request, next) => {
+                const outcome = await next()
+                if (request.type === 'extendedRequest' && request.name === ExtendedOperation.startTLS) recorded.push(outcome.resultCode)
+                return outcome
+            }},
+            {name: 'overriding', aroundRequest: async (_context, request, next) => {
+                const outcome = await next()
+                return request.type === 'extendedRequest' && request.name === ExtendedOperation.startTLS ? {resultCode: 0} : outcome
+            }}
+        ]})
+        overriding.events.on('operation', (event: {operation: string, resultCode: number}) => {
+            if (event.operation === 'extended') events.push(event.resultCode)
+        })
+        const socket: Socket = createConnection({port: overridingPort, host: '127.0.0.1'})
+        await once(socket, 'connect')
+        socket.write(encodeMessage({messageId: 1, protocolOp: {type: 'extendedRequest', name: ExtendedOperation.startTLS}}))
+        setTimeout(() => socket.write(encodeMessage({messageId: 2, protocolOp: {type: 'extendedRequest', name: ExtendedOperation.whoAmI}})), 100)
+        const {messages} = await received(socket)
+        socket.destroy()
+        //The client, the plugin around it and the event: the same error
+        assert.deepEqual(messages.map((message) => [message.messageId, 'resultCode' in message.protocolOp ? message.protocolOp.resultCode : undefined]), [[1, 1], [2, 0]])
+        assert.deepEqual([recorded, events[0]], [[1], 1])
+    })
+
     it('refuses data sent after a StartTLS request before the handshake', async () => {
         const socket: Socket = createConnection({port: port, host: '127.0.0.1'})
         await once(socket, 'connect')
