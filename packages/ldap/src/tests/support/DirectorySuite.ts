@@ -1675,6 +1675,8 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             await admin.add(outer, {objectClass: 'device', cn: 'limited-outer'})
             const seen: Record<string, unknown> = {}
             const now: () => number = Date.now
+            //When asked, the access control hides the entries but the last
+            let hiding: boolean = false
             const limitedContainer: Container = new Container()
             try {
                 await limitedContainer.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
@@ -1682,7 +1684,7 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                     port: false,
                     schema: schema,
                     backends: [{class: CountingBackend, suffix: BASE, database: 'database'}],
-                    access: {admins: [ADMIN]},
+                    access: {admins: [ADMIN], check: (request: {operation: string, dn?: {toString(): string}}): boolean | undefined => hiding && request.operation === 'read' && /^cn=limited\d+,/.test(String(request.dn)) && !String(request.dn).startsWith('cn=limited204,') ? false : undefined},
                     interceptors: [{name: 'limited', operations: ['modify'], beforeCommit: async (_context: unknown, request: {dn?: {toString(): string}}): Promise<void> => {
                         if (String(request.dn) !== outer) return
                         const server: LDAPServer = await limitedContainer.get<LDAPServer>('ldap')
@@ -1701,6 +1703,21 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                             readingEntries = undefined
                         }
                         seen.timeBatches = batches
+                        //The entries read before the time limit all left out by the access control: timeLimitExceeded
+                        //all the same, not success without entries
+                        offset = 0
+                        hiding = true
+                        Date.now = (): number => now() + offset
+                        readingEntries = (): void => {
+                            offset += 5000
+                        }
+                        try {
+                            seen.hidden = await server.connect(ADMIN).search(unit, {scope: 'one', timeLimit: 1, paged: false}).then((result): number => result.entries.length, (error: unknown): number => (error as LDAPResultException).code)
+                        } finally {
+                            Date.now = now
+                            readingEntries = undefined
+                            hiding = false
+                        }
                         //An internal search of an exact filter, one entry asked for
                         batches = 0
                         readingEntries = (): void => {
@@ -1718,6 +1735,7 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                 await (await limitedContainer.get<LDAPServer>('ldap')).connect(ADMIN).modify(outer, {operation: 'add', attribute: 'description', values: 'limited'})
                 //timeLimitExceeded, the batch after the time limit not read
                 assert.deepEqual([seen.time, seen.timeBatches], [3, 1])
+                assert.equal(seen.hidden, 3)
                 assert.deepEqual([seen.size, seen.sizeBatches], [[1, true], 1])
             } finally {
                 Date.now = now

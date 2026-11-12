@@ -27,6 +27,7 @@ import {
     LDAPNoSuchObjectException,
     LDAPNotAllowedOnNonLeafException,
     type LDAPServerEngine,
+    LDAPTimeLimitExceededException,
     LDAPUnavailableException,
     LDAPUnwillingToPerformException,
     LDAPEntryAlreadyExistsException,
@@ -1182,15 +1183,23 @@ export class DirectoryBackend extends Component implements LDAPBackend {
             //In the turn of a write: read whole before the turn is given back, nothing of it read afterwards (once the write
             //is done, or while a write made in it holds the connection). An internal search whose filter is exact (the
             //engine drops none of its entries) stops one past its size limit, which is all the engine reads of it; a
-            //search past its time limit reads no more (the engine answers timeLimitExceeded).
+            //search past its time limit reads no more, and ends with timeLimitExceeded once the entries read are given
+            //(the engine may leave all of them out: its own check of an inexact filter, the access control).
             const limit: number = result.exact && context.internal && context.sizeLimit ? context.sizeLimit + 1 : 0
             const entries: DirectoryEntry[] = []
+            let late: boolean = false
             for await (const entry of result.entries) {
                 entries.push(entry)
                 if (limit && entries.length >= limit) break
-                if (context.deadline && Date.now() > context.deadline) break
+                if (context.deadline && Date.now() > context.deadline) {
+                    late = true
+                    break
+                }
             }
-            return {...result, entries: fromArray(entries)}
+            return {...result, entries: late ? (async function* (): AsyncGenerator<DirectoryEntry> {
+                yield* entries
+                throw new LDAPTimeLimitExceededException('The search took longer than its time limit')
+            })() : fromArray(entries)}
         })
     }
 
