@@ -362,6 +362,17 @@ describe('the server engine', () => {
         read = 0
         assert.deepEqual(await pages(counter, 100000), {counts: [10], exceeded: true})
         assert.ok(read <= 12, String(read))
+        //A page size grown on a later page: still within the limit
+        read = 0
+        const first = await counter.search(`ou=people,${BASE}`, {scope: 'one', filter: '(uid=user*)', paged: false, controls: [PagedResultsControl.encode({size: 4, cookie: Buffer.alloc(0)})]})
+        const cookie: Buffer = PagedResultsControl.decode(findControl(first.controls, PagedResultsControl)!).cookie
+        await assert.rejects(counter.search(`ou=people,${BASE}`, {scope: 'one', filter: '(uid=user*)', paged: false, controls: [PagedResultsControl.encode({size: 100000, cookie: cookie})]}), code(4))
+        assert.ok(read <= 17, String(read))
+        //Most entries hidden, a page as large as the limit: one answer, not a page for each few entries read
+        const {server: sparse} = await directory({access: {admins: [ADMIN], check: (request: {operation: string, dn?: {toString(): string}}): boolean | undefined => request.operation === 'read' && /^uid=user(\d|1\d|2[0-7]),/i.test(String(request.dn)) ? false : undefined}})
+        const sparseReader: LDAPInProcessConnection = sparse.connect()
+        await sparseReader.bind(`uid=user1,ou=people,${BASE}`, 'password1')
+        assert.deepEqual(await pages(sparseReader, 100, 2), {counts: [2], exceeded: false})
         //The client's own paging still tells it was cut
         const cut = await owner.search(`ou=people,${BASE}`, {scope: 'one', filter: '(uid=user*)', sizeLimit: 15, paged: {pageSize: 10}})
         assert.deepEqual([cut.entries.length, cut.truncated], [15, true])

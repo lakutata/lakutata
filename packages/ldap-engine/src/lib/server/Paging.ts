@@ -372,10 +372,9 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
         if (state.ahead) entries.push(state.ahead)
         state.ahead = undefined
         let exhausted: boolean = false
-        //Within what the size limit leaves and one more (an entry past the limit seen in the page), whatever the page
-        //size: the memory of a page bounded by the limit; once the limit is reached, as many as the limit, to tell
-        //whether entries the session sees are left
-        const reading: number = state.remaining === undefined ? size : Math.min(size, state.remaining ? state.remaining + 1 : state.limit!)
+        //Within the size limit of the search and one more (an entry past it seen in the page), whatever the page size:
+        //the memory of a page bounded by the limit
+        const reading: number = state.limit === undefined ? size : Math.min(size, state.limit + 1)
         while (entries.length <= reading) {
             const next: IteratorResult<DirectoryEntry> = await state.iterator.next()
             if (next.done) {
@@ -499,6 +498,12 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
                 return outcome
             }
             const sizeLimit: number = (context as SearchContext).sizeLimit
+            //A page size as large as the size limit: not paged (RFC 2696 §3), the entries sent as they come within the limit
+            if (sizeLimit && paged.size >= sizeLimit) {
+                context.responseControls.push(PagedResultsControl.encode({size: 0, cookie: Buffer.alloc(0)}))
+                outcome.entries = fromIterator(iterator)
+                return outcome
+            }
             return page(context, states, {key: key, iterator: iterator, used: Date.now(), ...sizeLimit ? {limit: sizeLimit, remaining: sizeLimit} : {}}, paged.size, outcome)
         }
     }
