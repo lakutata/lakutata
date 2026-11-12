@@ -32,7 +32,36 @@ export interface PagedState {
      * The entries its pages may still give: its size limit less those given (undefined without a limit)
      */
     remaining?: number
+    /**
+     * Where its entries come from, as long as it pages on
+     */
+    source?: SearchSource
 }
+
+/**
+ * Where the entries of a search come from, as long as it pages on: the deadline and the signal of the request reading
+ * them now (each page within its own), and the DNs of the entries the access check let through, when an interceptor
+ * may add entries after it
+ */
+export interface SearchSource {
+    /**
+     * When the request reading the entries must end, in milliseconds since the epoch (0 for never)
+     */
+    deadline: number
+    /**
+     * The signal of the request reading the entries
+     */
+    signal: AbortSignal
+    /**
+     * The keys of the DNs of the entries the access check let through and not yet sent, when kept
+     */
+    approved?: Set<string>
+}
+
+/**
+ * The key of the source of the entries of a search, in the state of its operation
+ */
+export const SEARCH_SOURCE: unique symbol = Symbol('the source of the entries of a search')
 
 /**
  * The paged searches of a session, by their cookies in hex
@@ -429,6 +458,12 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
                 const state: PagedState | undefined = states.get(cookie)
                 if (!state || state.key !== key) fail(ResultCode.unwillingToPerform, 'The cookie of the paged results is not valid for the search')
                 states.delete(cookie)
+                //The page read within this request's time limit and signal
+                if (state.source) {
+                    state.source.deadline = (context as SearchContext).deadline
+                    state.source.signal = context.signal
+                    context.state.set(SEARCH_SOURCE, state.source)
+                }
                 if (paged.size === 0) {
                     closePaged(state)
                     context.responseControls.push(PagedResultsControl.encode({size: 0, cookie: Buffer.alloc(0)}))
@@ -490,7 +525,8 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
                 outcome.entries = fromIterator(iterator)
                 return outcome
             }
-            return page(context, states, {key: key, iterator: iterator, used: Date.now(), ...sizeLimit ? {remaining: sizeLimit} : {}}, paged.size, outcome)
+            const source: SearchSource | undefined = context.state.get(SEARCH_SOURCE) as SearchSource | undefined
+            return page(context, states, {key: key, iterator: iterator, used: Date.now(), ...sizeLimit ? {remaining: sizeLimit} : {}, ...source ? {source: source} : {}}, paged.size, outcome)
         }
     }
 }

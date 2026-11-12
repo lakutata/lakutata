@@ -39,7 +39,7 @@ import {
     timeOrderedUUID,
     valuesOfType
 } from './EntryTools.js'
-import {closePaged, endPagedSearch, pagingInterceptor, type PagedStates} from './Paging.js'
+import {closePaged, endPagedSearch, pagingInterceptor, type PagedStates, SEARCH_SOURCE, type SearchSource} from './Paging.js'
 import type {PasswordSchemes} from './Passwords.js'
 import {rootDSEEntry, schemaConfigEntries, subschemaEntry} from './RootDSE.js'
 import type {SASLContext, SASLMechanism, SASLStep} from './SASL.js'
@@ -156,6 +156,9 @@ export interface PlacedInterceptor extends InterceptorPlacement {
 /**
  * The OIDs of the controls the engine handles itself
  */
+//The steps of the engine in the chain of a backend
+const ENGINE_STEPS: readonly string[] = ['access', 'password', 'schema', 'operational', 'paging']
+
 export const ENGINE_CONTROLS: readonly string[] = [PagedResultsControl.oid, SortRequestControl.oid, VLVRequestControl.oid, TreeDeleteControl.oid, ManageDsaITControl.oid]
 
 /**
@@ -262,6 +265,9 @@ interface Mount {
     //Whether its searches leave entries out one by one (access.check, an interceptor inside the paging that may drop or
     //replace entries): the backend then neither windows nor pages, as it would count what is left out
     hides?: boolean
+    //Whether, with access.check, an interceptor of its own may add or replace the entries of a search after the access
+    //check made at the source: those it adds are checked as they are sent
+    rechecks?: boolean
 }
 
 const RESPONSE_TYPES: Record<OperationType, LDAPResponse['type']> = {
@@ -429,7 +435,7 @@ export class Pipeline {
      */
     protected chainOf(mount: Mount): LDAPInterceptor[] {
         const chain: LDAPInterceptor[] = [
-            this.accessInterceptor(),
+            this.accessInterceptor(mount),
             this.passwordInterceptor(mount),
             this.schemaInterceptor(mount),
             this.operationalInterceptor(mount),
@@ -459,6 +465,7 @@ export class Pipeline {
         //inside the paging that transforms or replaces the entries of searches
         const paging: number = chain.findIndex((interceptor: LDAPInterceptor): boolean => interceptor.name === 'paging')
         mount.hides = this.options.access.check !== undefined || chain.slice(paging + 1).some((interceptor: LDAPInterceptor): boolean => interceptor.operations.includes('search') && (interceptor.transformEntry !== undefined || interceptor.around !== undefined))
+        mount.rechecks = this.options.access.check !== undefined && chain.some((interceptor: LDAPInterceptor): boolean => !ENGINE_STEPS.includes(interceptor.name) && interceptor.operations.includes('search') && (interceptor.transformEntry !== undefined || interceptor.around !== undefined))
         return chain
     }
 
@@ -899,9 +906,13 @@ export class Pipeline {
         const result: BackendSearchResult = await untilAborted(mount.backend.search(searched), context.signal)
         if (backendPages) context.responseControls.push(PagedResultsControl.encode({size: result.total ?? 0, cookie: result.cookie ?? Buffer.alloc(0)}))
         const schema: Schema = this.schema
-        const {base, scope, signal, deadline} = context
+        const {base, scope} = context
         const filter: Filter = request.filter
         const exact: boolean = result.exact
+        //The deadline and the signal of the request reading the entries now (a later page's its own), and the entries let
+        //through when an interceptor may add others after the check
+        const source: SearchSource = {deadline: context.deadline, signal: context.signal, ...checked && mount.rechecks ? {approved: new Set<string>()} : {}}
+        context.state.set(SEARCH_SOURCE, source)
         return {
             resultCode: ResultCode.success,
             entries: (async function* (): AsyncGenerator<DirectoryEntry> {
@@ -913,19 +924,20 @@ export class Pipeline {
                     //A backend that does not give its next entry is not waited for past the signal (the time limit)
                     let next: IteratorResult<DirectoryEntry>
                     try {
-                        next = await untilAborted(iterator.next(), signal)
+                        next = await untilAborted(iterator.next(), source.signal)
                     } catch (error) {
                         void iterator.return?.()?.catch((): undefined => undefined)
                         throw error
                     }
                     if (next.done) return
                     const entry: DirectoryEntry = next.value
-                    if (signal.aborted) throw signal.reason
+                    if (source.signal.aborted) throw source.signal.reason
                     //The time limit checked on every entry read, those left out too
-                    if (deadline && Date.now() > deadline) fail(ResultCode.timeLimitExceeded, 'The search took longer than its time limit')
+                    if (source.deadline && Date.now() > source.deadline) fail(ResultCode.timeLimitExceeded, 'The search took longer than its time limit')
                     if (!exact && (!inScope(entry.dn, base, scope, schema) || matchFilter(filter, {dn: entry.dn, attributes: entry.attributes}, schema) !== true)) continue
                     //Read as stored, as a compare reads it, before anything pages, sorts, windows or counts the entries
                     if (checked && !await access.allows({operation: 'read', session: context.session, identity: context.session.identity, dn: entry.dn, entry: entry})) continue
+                    source.approved?.add(entry.dn.key(schema))
                     yield entry
                 }
             })()
@@ -1336,7 +1348,7 @@ export class Pipeline {
     /**
      * The engine's interceptor of the access control
      */
-    protected accessInterceptor(): LDAPInterceptor {
+    protected accessInterceptor(mount: Mount): LDAPInterceptor {
         const access: AccessPolicy = this.access
         const schema: Schema = this.schema
         return {
@@ -1376,6 +1388,14 @@ export class Pipeline {
                         return
                     }
                 }
+            },
+            //The entries an interceptor added or swapped after the check made at the source: checked as they are sent
+            transformEntry: async (context: SearchContext, entry: DirectoryEntry): Promise<DirectoryEntry | undefined> => {
+                if (!mount.rechecks || context.internal) return entry
+                const source: SearchSource | undefined = context.state.get(SEARCH_SOURCE) as SearchSource | undefined
+                //Let through at the source: taken off as it is sent (the set holds only the entries on their way)
+                if (source?.approved?.delete(entry.dn.key(schema))) return entry
+                return await access.allows({operation: 'read', session: context.session, identity: context.session.identity, dn: entry.dn, entry: entry}) ? entry : undefined
             }
         }
     }

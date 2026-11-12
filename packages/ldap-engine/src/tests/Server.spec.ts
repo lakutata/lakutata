@@ -5,6 +5,7 @@ import {
     createHandlerBackend,
     createLDAPServer,
     type DirectoryEntry,
+    DN,
     Filter,
     findControl,
     GroupPresentationPlugin,
@@ -615,6 +616,39 @@ describe('the server engine', () => {
             advancing = false
         }
         assert.equal(cookie.length, 0)
+    })
+
+    it('checks the entries an interceptor adds to a search, and pages each page within its own time limit', async () => {
+        //An interceptor adding an entry to the people's searches: uid=user4, which the users may not read
+        const {server: merging, admin: owner} = await directory({
+            access: {admins: [ADMIN], check: (request: {operation: string, identity?: {toString(): string}, dn: {toString(): string}}): boolean | undefined => request.operation === 'read' && String(request.identity) !== ADMIN && String(request.dn).startsWith('uid=user4,') ? false : undefined},
+            interceptors: [{name: 'merging', operations: ['search'], around: async (_context: unknown, _request: unknown, next: () => Promise<{entries?: AsyncIterable<DirectoryEntry>}>): Promise<unknown> => {
+                const outcome = await next()
+                const entries: AsyncIterable<DirectoryEntry> | undefined = outcome.entries
+                const added: DirectoryEntry = {dn: DN.parse(`uid=user4,ou=people,${BASE}`), attributes: [{type: 'objectClass', values: [Buffer.from('inetOrgPerson')]}, {type: 'uid', values: [Buffer.from('user4')]}]}
+                return {...outcome, entries: entries && (async function* () {
+                    yield* entries
+                    yield added
+                })()}
+            }} as never]
+        })
+        const reader: LDAPInProcessConnection = merging.connect()
+        await reader.bind(`uid=user1,ou=people,${BASE}`, 'password1')
+        assert.deepEqual((await reader.search(`ou=people,${BASE}`, {scope: 'one', filter: '(uid=user1)'})).entries.map((entry) => entry.dn), [`uid=user1,ou=people,${BASE}`])
+        assert.equal((await owner.search(`ou=people,${BASE}`, {scope: 'one', filter: '(uid=user1)'})).entries.length, 2)
+        //Each page within the time limit of its own request, however long the client waits between them
+        const now: () => number = Date.now
+        let offset: number = 0
+        Date.now = (): number => now() + offset
+        try {
+            const first = await owner.search(`ou=people,${BASE}`, {scope: 'one', timeLimit: 1, paged: false, controls: [PagedResultsControl.encode({size: 2, cookie: Buffer.alloc(0)})]})
+            const cookie: Buffer = PagedResultsControl.decode(findControl(first.controls, PagedResultsControl)!).cookie
+            offset += 5000
+            const second = await owner.search(`ou=people,${BASE}`, {scope: 'one', timeLimit: 1, paged: false, controls: [PagedResultsControl.encode({size: 2, cookie: cookie})]})
+            assert.equal(second.entries.length, 2)
+        } finally {
+            Date.now = now
+        }
     })
 
     it('refuses a critical control it does not know', async () => {
