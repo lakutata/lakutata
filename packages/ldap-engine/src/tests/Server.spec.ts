@@ -966,6 +966,11 @@ describe('the server engine', () => {
         assert.equal((await owner.search('dc=b,dc=example,dc=com', {scope: 'base', paged: false, controls: critical})).entries.length, 1)
         await assert.rejects(owner.search('dc=a,dc=example,dc=com', {scope: 'base', paged: false, controls: critical}), code(12))
         await assert.rejects(owner.modify('dc=a,dc=example,dc=com', {operation: 'replace', attribute: 'description', values: 'x'}, {controls: critical}), code(12))
+        //Every write and the compare as well
+        await assert.rejects(owner.add('dc=c,dc=a,dc=example,dc=com', {objectClass: 'domain', dc: 'c'}, {controls: critical}), code(12))
+        await assert.rejects(owner.compare('dc=a,dc=example,dc=com', 'dc', 'a', {controls: critical}), code(12))
+        await assert.rejects(owner.modifyDN('dc=a,dc=example,dc=com', 'dc=a', {controls: critical}), code(12))
+        await assert.rejects(owner.delete('dc=a,dc=example,dc=com', {controls: critical}), code(12))
     })
 
     it('renames an entry within its backend only, the entry at its suffix keeping its DN', async () => {
