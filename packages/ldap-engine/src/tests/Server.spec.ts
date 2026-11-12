@@ -532,6 +532,51 @@ describe('the server engine', () => {
         assert.equal((await small.admin.search(`ou=people,${BASE}`, {scope: 'one', paged: false, controls: [SortRequestControl.encode([{attribute: 'jpegPhoto'}]), VLVRequestControl.encode({beforeCount: 0, afterCount: 4, offset: {offset: 1, contentCount: 0}})]})).entries.length, 30)
     })
 
+    it('ends a search at its time limit whatever it waits for, and ends its paging there', async () => {
+        //A backend whose search never gives anything
+        const stalled: LDAPServerEngine = createLDAPServer({backends: [createHandlerBackend({
+            suffix: BASE,
+            get: (_context, dn) => ({dn: dn, attributes: {objectClass: 'domain', dc: 'example'}}),
+            search: async function* () {
+                await new Promise<void>((): void => undefined)
+                yield* []
+            } as never
+        })], access: {admins: [ADMIN]}})
+        const started: number = Date.now()
+        const answer: string = await Promise.race([
+            stalled.connect({as: ADMIN}).search(BASE, {scope: 'one', timeLimit: 1, paged: false}).then((): string => 'answered', (error: unknown): string => String((error as LDAPResultException).code)),
+            new Promise<string>((resolve: (value: string) => void): void => {
+                setTimeout((): void => resolve('waited past it'), 4000)
+            })
+        ])
+        assert.equal(answer, '3')
+        assert.ok(Date.now() - started < 3000)
+        //A page cut at the time limit as it is sent: no cookie to go on with
+        let offset: number = 0
+        let advancing: boolean = false
+        const {server: timed} = await directory({interceptors: [{interceptor: {name: 'late', operations: ['search'], around: async (_context: unknown, _request: unknown, next: () => Promise<unknown>): Promise<unknown> => {
+            const outcome: unknown = await next()
+            if (advancing) offset += 5000
+            return outcome
+        }} as never, before: 'paging'}]})
+        const session: LDAPInProcessConnection = timed.connect({as: ADMIN})
+        const now: () => number = Date.now
+        Date.now = (): number => now() + offset
+        advancing = true
+        let cookie: Buffer = Buffer.alloc(0)
+        try {
+            await assert.rejects(session.search(`ou=people,${BASE}`, {scope: 'one', timeLimit: 1, paged: false, controls: [PagedResultsControl.encode({size: 2, cookie: Buffer.alloc(0)})]}), (error: unknown) => {
+                const control = findControl((error as LDAPResultException).controls, PagedResultsControl)
+                cookie = control ? PagedResultsControl.decode(control).cookie : Buffer.alloc(0)
+                return (error as LDAPResultException).code === 3
+            })
+        } finally {
+            Date.now = now
+            advancing = false
+        }
+        assert.equal(cookie.length, 0)
+    })
+
     it('refuses a critical control it does not know', async () => {
         await assert.rejects(admin.search(BASE, {controls: [{oid: '1.2.3.4.5', critical: true}]}), LDAPUnavailableCriticalExtensionException)
         assert.ok((await admin.search(BASE, {scope: 'base', controls: [{oid: '1.2.3.4.5', critical: false}]})).entries.length)

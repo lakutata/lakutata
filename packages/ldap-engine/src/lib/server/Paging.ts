@@ -48,6 +48,25 @@ export function closePaged(state: PagedState): void {
 }
 
 /**
+ * End the paged search whose page a search was to send, when the search ends before it is sent (its time limit, an
+ * error): its cookie no longer given, its state closed
+ * @param context The context of the search.
+ * @param states The paged searches of its session.
+ */
+export function endPagedSearch(context: OperationContext, states: PagedStates): void {
+    const index: number = context.responseControls.findIndex((control: Control): boolean => control.oid === PagedResultsControl.oid)
+    if (index < 0) return
+    const cookie: Buffer = PagedResultsControl.decode(context.responseControls[index]).cookie
+    if (!cookie.length) return
+    const state: PagedState | undefined = states.get(cookie.toString('hex'))
+    if (state) {
+        states.delete(cookie.toString('hex'))
+        closePaged(state)
+    }
+    context.responseControls[index] = PagedResultsControl.encode({size: 0, cookie: Buffer.alloc(0)})
+}
+
+/**
  * Entries as an async iterable
  * @param entries The entries.
  */

@@ -1,7 +1,7 @@
 import {randomBytes} from 'node:crypto'
 import type {EventEmitter} from 'node:events'
 import {LDAPException} from '../../exceptions/LDAPException.js'
-import {LDAPResultException} from '../../exceptions/LDAPResultException.js'
+import {LDAPResultException, LDAPTimeLimitExceededException} from '../../exceptions/LDAPResultException.js'
 import type {Control} from '../controls/Control.js'
 import {
     findControl,
@@ -39,7 +39,7 @@ import {
     timeOrderedUUID,
     valuesOfType
 } from './EntryTools.js'
-import {closePaged, pagingInterceptor, type PagedStates} from './Paging.js'
+import {closePaged, endPagedSearch, pagingInterceptor, type PagedStates} from './Paging.js'
 import type {PasswordSchemes} from './Passwords.js'
 import {rootDSEEntry, schemaConfigEntries, subschemaEntry} from './RootDSE.js'
 import type {SASLContext, SASLMechanism, SASLStep} from './SASL.js'
@@ -232,6 +232,29 @@ export interface Responder {
 /**
  * A backend mounted at its suffix, with its chain of interceptors
  */
+/**
+ * A promise, rejected with the reason of a signal once it is aborted
+ * @param promise The promise.
+ * @param signal The signal.
+ */
+function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+    if (signal.aborted) {
+        promise.catch((): undefined => undefined)
+        return Promise.reject(signal.reason)
+    }
+    return new Promise<T>((resolve: (value: T) => void, reject: (reason: unknown) => void): void => {
+        const abort = (): void => reject(signal.reason)
+        signal.addEventListener('abort', abort, {once: true})
+        promise.then((value: T): void => {
+            signal.removeEventListener('abort', abort)
+            resolve(value)
+        }, (error: unknown): void => {
+            signal.removeEventListener('abort', abort)
+            reject(error)
+        })
+    })
+}
+
 interface Mount {
     backend: LDAPBackend
     suffix: DN
@@ -726,6 +749,16 @@ export class Pipeline {
         const sizeLimit: number = Math.min(request.sizeLimit || Infinity, serverSize || Infinity)
         const timeLimit: number = Math.min(request.timeLimit || Infinity, (admin ? 0 : this.options.limits.timeLimit) || Infinity)
         const deadline: number = Number.isFinite(timeLimit) ? Date.now() + timeLimit * 1000 : 0
+        //A deadline the search ends at whatever it waits for (a backend reading, entries left out): its signal aborted then
+        const operationSignal: AbortSignal = context.signal
+        const timed: AbortController | undefined = deadline ? new AbortController() : undefined
+        const forward = (): void => timed?.abort(operationSignal.reason)
+        let timer: ReturnType<typeof setTimeout> | undefined
+        if (timed) {
+            if (operationSignal.aborted) forward()
+            else operationSignal.addEventListener('abort', forward, {once: true})
+            timer = setTimeout((): void => timed.abort(new LDAPTimeLimitExceededException('The search took longer than its time limit')), Math.max(deadline - Date.now(), 0))
+        }
         const selection: AttributeSelection = attributeSelection(request.attributes, this.schema)
         const searchContext: SearchContext = Object.assign(context, {
             base: base,
@@ -734,8 +767,36 @@ export class Pipeline {
             attributes: selection,
             typesOnly: request.typesOnly,
             sizeLimit: Number.isFinite(sizeLimit) ? sizeLimit : 0,
-            deadline: deadline
+            deadline: deadline,
+            signal: timed?.signal ?? operationSignal
         })
+        try {
+            const outcome: ServerOutcome = await this.searched(searchContext, request, search, base, selection, sizeLimit, deadline, responder)
+            //Ended at its time limit before its page was sent: no paging to go on with
+            if (outcome.resultCode === ResultCode.timeLimitExceeded) endPagedSearch(searchContext, (context.session as SessionState).paged)
+            return outcome
+        } catch (error) {
+            endPagedSearch(searchContext, (context.session as SessionState).paged)
+            throw error
+        } finally {
+            clearTimeout(timer)
+            operationSignal.removeEventListener('abort', forward)
+        }
+    }
+
+    /**
+     * A search once its context is made: the entries the engine serves itself or those of a backend, sent
+     * @param searchContext The context.
+     * @param request The request.
+     * @param search The search.
+     * @param base The base.
+     * @param selection The attributes asked for.
+     * @param sizeLimit The size limit.
+     * @param deadline The deadline.
+     * @param responder Where the entries go.
+     */
+    protected async searched(searchContext: SearchContext, request: LDAPRequest & {type: 'searchRequest'}, search: ServerSearchRequest, base: DN, selection: AttributeSelection, sizeLimit: number, deadline: number, responder: Responder): Promise<ServerOutcome> {
+        const context: SearchContext = searchContext
         let outcome: ServerOutcome
         const own: DirectoryEntry[] | undefined = this.ownEntries(context.session, base)
         if (own) {
@@ -815,7 +876,7 @@ export class Pipeline {
             Object.assign(searched, {page: {size: value.size, ...value.cookie.length ? {cookie: value.cookie} : {}}})
         }
         if (mount.backend.capabilities?.sort && sortControl && !kept.has(SortRequestControl.oid)) Object.assign(searched, {sort: SortRequestControl.decode(sortControl)})
-        const result: BackendSearchResult = await mount.backend.search(searched)
+        const result: BackendSearchResult = await untilAborted(mount.backend.search(searched), context.signal)
         if (backendPages) context.responseControls.push(PagedResultsControl.encode({size: result.total ?? 0, cookie: result.cookie ?? Buffer.alloc(0)}))
         const schema: Schema = this.schema
         const {base, scope, signal, deadline} = context
@@ -824,7 +885,21 @@ export class Pipeline {
         return {
             resultCode: ResultCode.success,
             entries: (async function* (): AsyncGenerator<DirectoryEntry> {
-                for await (const entry of result.entries) {
+                //The entries of the backend, an iterable or an async one
+                const iterator: AsyncIterator<DirectoryEntry> = (async function* (): AsyncGenerator<DirectoryEntry> {
+                    yield* result.entries
+                })()
+                for (;;) {
+                    //A backend that does not give its next entry is not waited for past the signal (the time limit)
+                    let next: IteratorResult<DirectoryEntry>
+                    try {
+                        next = await untilAborted(iterator.next(), signal)
+                    } catch (error) {
+                        void iterator.return?.()?.catch((): undefined => undefined)
+                        throw error
+                    }
+                    if (next.done) return
+                    const entry: DirectoryEntry = next.value
                     if (signal.aborted) throw signal.reason
                     //The time limit checked on every entry read, those left out too
                     if (deadline && Date.now() > deadline) fail(ResultCode.timeLimitExceeded, 'The search took longer than its time limit')
