@@ -534,7 +534,14 @@ export class Pipeline {
         const operation: OperationType | undefined = OPERATIONS[request.type]
         if (!operation) throw new LDAPException('E_LDAP_SERVER', `A ${request.type} has no response`)
         const started: number = Date.now()
-        const context: OperationContext = this.context(session, operation, controls, signal)
+        //An operation runs under the identity it started with: a bind on the session meanwhile (which abandons what is
+        //outstanding, RFC 4511 §4.2.1) does not change who the operations already started run as. A bind changes the
+        //session itself.
+        const view: SessionState = operation === 'bind' ? session : Object.create(session, {
+            identity: {value: session.identity, enumerable: true},
+            authenticationMethod: {value: session.authenticationMethod, enumerable: true}
+        }) as SessionState
+        const context: OperationContext = this.context(view, operation, controls, signal)
         let outcome: ServerOutcome
         let dn: string = ''
         const dispatch = async (): Promise<ServerOutcome> => {

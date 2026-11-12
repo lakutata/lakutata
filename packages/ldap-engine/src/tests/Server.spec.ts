@@ -301,6 +301,37 @@ describe('the server engine', () => {
         await managed.connect().bind(`uid=user6,ou=people,${BASE}`, 'new-password-6')
     })
 
+    it('runs an operation under the identity it started with, a bind on the session meanwhile', async () => {
+        //A modify held before its access check, a bind as a user made on the session meanwhile
+        let holding: boolean = false
+        let reached: () => void = (): void => undefined
+        const reachedPromise: Promise<void> = new Promise<void>((resolve: () => void): void => {
+            reached = resolve
+        })
+        let release: () => void = (): void => undefined
+        const released: Promise<void> = new Promise<void>((resolve: () => void): void => {
+            release = resolve
+        })
+        const {server: held, admin: owner} = await directory({interceptors: [{interceptor: {name: 'held', operations: ['modify'], before: async (): Promise<void> => {
+            if (!holding) return
+            holding = false
+            reached()
+            await released
+        }}, before: 'access'}]})
+        const session: LDAPInProcessConnection = held.connect({as: ADMIN})
+        holding = true
+        const writing: Promise<unknown> = session.modify(`uid=user3,ou=people,${BASE}`, {operation: 'replace', attribute: 'description', values: 'by the administrator'})
+        await reachedPromise
+        await session.bind(`uid=user1,ou=people,${BASE}`, 'password1')
+        release()
+        //Done as the administrator who sent it, not as the user bound since
+        await writing
+        const entry = (await owner.search(`uid=user3,ou=people,${BASE}`, {scope: 'base', attributes: ['description', 'modifiersName']})).entries[0]
+        assert.deepEqual([entry.first('description'), entry.first('modifiersName')?.toLowerCase()], ['by the administrator', ADMIN.toLowerCase()])
+        //The session is the user's now
+        assert.equal(await session.whoAmI(), `dn:uid=user1,ou=people,${BASE}`)
+    })
+
     it('changes passwords: one\'s own, another\'s by an administrator, one generated', async () => {
         const user: LDAPInProcessConnection = server.connect()
         await user.bind(`uid=user9,ou=people,${BASE}`, 'password9')
