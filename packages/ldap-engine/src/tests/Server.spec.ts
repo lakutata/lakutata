@@ -356,6 +356,40 @@ describe('the server engine', () => {
         assert.equal(await session.whoAmI(), `dn:uid=user1,ou=people,${BASE}`)
     })
 
+    it('keeps no paged search a bind ended, its page still being read when the bind came', async () => {
+        //The entries of a search held as its first page is read, a bind made on the session meanwhile
+        let holding: boolean = false
+        let reached: () => void = (): void => undefined
+        const reachedPromise: Promise<void> = new Promise<void>((resolve: () => void): void => {
+            reached = resolve
+        })
+        let release: () => void = (): void => undefined
+        const released: Promise<void> = new Promise<void>((resolve: () => void): void => {
+            release = resolve
+        })
+        const {server: held} = await directory({interceptors: [{name: 'held', operations: ['search'], around: async (_context: unknown, _request: unknown, next: () => Promise<{entries?: AsyncIterable<DirectoryEntry>}>): Promise<unknown> => {
+            const outcome = await next()
+            const entries: AsyncIterable<DirectoryEntry> | undefined = outcome.entries
+            if (!holding || !entries) return outcome
+            holding = false
+            return {...outcome, entries: (async function* () {
+                reached()
+                await released
+                yield* entries
+            })()}
+        }} as never]})
+        const session: LDAPInProcessConnection = held.connect()
+        await session.bind(`uid=user2,ou=people,${BASE}`, 'password2')
+        holding = true
+        const paging = session.search(`ou=people,${BASE}`, {scope: 'one', paged: false, controls: [PagedResultsControl.encode({size: 2, cookie: Buffer.alloc(0)})]})
+        await reachedPromise
+        await session.bind(`uid=user1,ou=people,${BASE}`, 'password1')
+        release()
+        //Its page sent, without a cookie: its entries were read for the identity before the bind
+        const page = await paging
+        assert.deepEqual([page.entries.length, PagedResultsControl.decode(findControl(page.controls, PagedResultsControl)!).cookie.length], [2, 0])
+    })
+
     it('changes passwords: one\'s own, another\'s by an administrator, one generated', async () => {
         const user: LDAPInProcessConnection = server.connect()
         await user.bind(`uid=user9,ou=people,${BASE}`, 'password9')

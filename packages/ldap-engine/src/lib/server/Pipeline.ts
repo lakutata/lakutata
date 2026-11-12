@@ -587,11 +587,9 @@ export class Pipeline {
             run = (): Promise<ServerOutcome> => plugin.aroundRequest!(context, request, inner)
         }
         //A bind ends the paged searches of the identity before it (their entries read for that identity), however it ends:
-        //also when it is refused before it is done (a control, a hook), which leaves the session anonymous
-        if (operation === 'bind') {
-            for (const state of session.paged.values()) closePaged(state)
-            session.paged.clear()
-        }
+        //also when it is refused before it is done (a control, a hook), which leaves the session anonymous. The session
+        //gets new ones, so that a page still being read keeps no search either
+        if (operation === 'bind') this.endPaged(session)
         try {
             this.checkControls(controls, operation)
             outcome = await run()
@@ -1743,8 +1741,18 @@ export class Pipeline {
      * @param session The session.
      */
     public closeSession(session: SessionState): void {
-        for (const state of session.paged.values()) closePaged(state)
-        session.paged.clear()
+        this.endPaged(session)
         session.sasl = undefined
+    }
+
+    /**
+     * End the paged searches of a session: closed, and the session given new ones (a page still being read finds its
+     * own no longer the session's, and keeps no search)
+     * @param session The session.
+     */
+    protected endPaged(session: SessionState): void {
+        const ended: PagedStates = session.paged
+        session.paged = new Map()
+        for (const state of ended.values()) closePaged(state)
     }
 }

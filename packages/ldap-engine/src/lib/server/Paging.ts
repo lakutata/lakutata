@@ -413,6 +413,9 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
         if (limited) {
             closePaged(state)
             outcome.resultCode = ResultCode.sizeLimitExceeded
+        } else if (!exhausted && options.pagedOf(context) !== states) {
+            //A bind ended the paged searches of the session while the page was read: none kept
+            closePaged(state)
         } else if (!exhausted) {
             cookie = randomBytes(16)
             state.used = Date.now()
