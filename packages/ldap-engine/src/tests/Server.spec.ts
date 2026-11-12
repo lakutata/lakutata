@@ -1078,6 +1078,8 @@ describe('the server engine', () => {
         assert.deepEqual(await asked(['*', 'member;range=0-1']).then((items) => items.filter((item) => item.startsWith('member'))), ['member:5'])
         //The same range asked twice, or by a supertype as well: once
         assert.deepEqual(await asked(['member;range=0-1', 'member;range=0-1']), ['member;range=0-1:2'])
+        //Two ranges of one attribute: the first asked for (the attribute once)
+        assert.deepEqual(await asked(['member;range=0-0', 'member;range=1-1']), ['member;range=0-0:1'])
         assert.deepEqual(await asked(['cn;range=0-*', 'name;range=0-*']), ['cn;range=0-*:1'])
         //Names only
         assert.deepEqual(await asked(['member;range=0-1'], true), ['member;range=0-1:0'])
