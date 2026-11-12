@@ -1058,8 +1058,11 @@ describe('the server engine', () => {
         assert.deepEqual(await asked(['member;range=0-1'], true), ['member;range=0-1:0'])
         //Not a range: an option the entry does not have
         assert.deepEqual(await asked(['member;range=x']), [])
-        //The client reads them to the end, under the attribute's own name
+        //An end before the start: not a range of any value
+        assert.deepEqual(await asked(['member;range=3-1']), [])
+        //The client reads them to the end, under the attribute's own name, once when the attribute is asked for too
         assert.equal((await owner.search(group, {scope: 'base', attributes: ['member;range=0-1']})).entries[0].get('member').length, 5)
+        for (const attributes of [['member', 'member;range=0-1'], ['*', 'member;range=0-1']]) assert.equal((await owner.search(group, {scope: 'base', attributes: attributes})).entries[0].get('member').length, 5, attributes.join(' '))
     })
 
     it('refuses a critical control it does not know', async () => {

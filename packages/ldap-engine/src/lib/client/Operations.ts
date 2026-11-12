@@ -248,8 +248,9 @@ export abstract class LDAPOperations implements LDAPConnection {
                 values.push(...found.values)
                 current = found.type
             }
+            //Asked for by its name too: the values it already has once
             const existing: PartialAttribute | undefined = result.find((item: PartialAttribute): boolean => item.type.toLowerCase() === base.toLowerCase())
-            if (existing) existing.values.push(...values)
+            if (existing) existing.values.push(...values.filter((value: Buffer): boolean => !existing.values.some((held: Buffer): boolean => held.equals(value))))
             else result.push({type: base, values: values})
         }
         return result

@@ -205,7 +205,8 @@ function hasOptions(description: string, asked: {type: string, options: string[]
 /**
  * The attributes of an entry a search asks for by ranges of their values (`member;range=0-*`): the values of each range,
  * under the description with the range given, its end `*` when its last value is the last of the attribute (the range
- * retrieval of Active Directory); nothing for a range starting past the last value; not userPassword
+ * retrieval of Active Directory); nothing for a range starting past the last value or ending before its start; not
+ * userPassword
  * @param entry The entry.
  * @param selection The attributes asked for.
  * @param schema The schema.
@@ -217,7 +218,7 @@ export function rangedAttributes(entry: DirectoryEntry, selection: AttributeSele
         for (const attribute of entry.attributes) {
             if (schema.primaryName(attributeTypeOf(attribute.type)).toLowerCase() === 'userpassword' || !hasOptions(attribute.type, asked, schema)) continue
             const count: number = attribute.values.length
-            if (asked.low >= count) continue
+            if (asked.low >= count || (asked.high !== undefined && asked.high < asked.low)) continue
             const last: number = Math.min(asked.high ?? count - 1, count - 1)
             ranged.push({type: `${attribute.type};range=${asked.low}-${last === count - 1 ? '*' : last}`, values: typesOnly ? [] : attribute.values.slice(asked.low, last + 1)})
         }
