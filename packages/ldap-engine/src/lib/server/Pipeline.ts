@@ -1355,7 +1355,7 @@ export class Pipeline {
                 if (request.type === 'modifyDN') {
                     const current: DirectoryEntry = await this.required(mount, context, request.dn)
                     //Made again from the entry as it is once the backend locked it, in the transaction of the write
-                    context.state.set(RESULT, this.renamed(current, request))
+                    context.state.set(RESULT, this.renamed(context, current, request))
                 }
             }
         }
@@ -1383,12 +1383,16 @@ export class Pipeline {
 
     /**
      * The entry a rename leaves, made from the entry before it and checked by the schema: its new DN, the values of the
-     * new RDN added, those of the old one removed when the request says so
+     * new RDN added, those of the old one removed when the request says so. The values the new RDN writes are checked as
+     * a write of the session (the attributes users cannot write refused); a password is never a value of an RDN.
+     * @param context The context of the write.
      * @param current The entry before the rename.
      * @param request The rename.
      */
-    protected renamed(current: DirectoryEntry, request: {dn: DN, newRDN: RDN, deleteOldRDN: boolean, newSuperior?: DN}): DirectoryEntry {
+    protected renamed(context: OperationContext, current: DirectoryEntry, request: {dn: DN, newRDN: RDN, deleteOldRDN: boolean, newSuperior?: DN}): DirectoryEntry {
         const schema: Schema = this.schema
+        //In clear in the DN, and not hashed nor checked as a password
+        if (request.newRDN.attributes.some((ava): boolean => schema.primaryName(ava.type).toLowerCase() === 'userpassword')) fail(ResultCode.namingViolation, 'A password cannot be a value of an RDN')
         const parent: DN | undefined = request.newSuperior ?? request.dn.parent()
         const dn: DN = parent ? parent.child(request.newRDN) : DN.parse(request.newRDN.toString())
         const entry: DirectoryEntry = cloneEntry({dn: dn, attributes: current.attributes})
@@ -1411,7 +1415,9 @@ export class Pipeline {
             if (existing) existing.values.push(avaBytes(ava))
             else entry.attributes.push({type: storedType(ava.type, schema), values: [avaBytes(ava)]})
         }
-        return checkEntry(entry, schema, {internal: true})
+        const written: Set<string> = new Set(request.newRDN.attributes.map((ava): string => schema.primaryName(ava.type).toLowerCase()))
+        const admin: boolean = !context.internal && this.access.isAdmin(context.session.identity)
+        return checkEntry(entry, schema, {internal: context.internal, changed: written, ...admin ? {importable: ADMIN_POLICY_STATE} : {}})
     }
 
     /**
@@ -1470,7 +1476,7 @@ export class Pipeline {
         const before: DirectoryEntry | undefined = context.state.get(RESULT) as DirectoryEntry | undefined
         const fresh: DirectoryEntry | undefined = await mount.backend.lock(context, request.dn)
         if (!fresh) fail(ResultCode.noSuchObject, `No entry ${request.dn.toString()}`)
-        const result: DirectoryEntry = this.renamed(fresh, request)
+        const result: DirectoryEntry = this.renamed(context, fresh, request)
         //The operational attributes the engine wrote on the entry before (the time and the author of the rename)
         for (const name of ['modifyTimestamp', 'modifiersName']) {
             const given: PartialAttribute | undefined = before ? findAttribute(before, name, this.schema) : undefined

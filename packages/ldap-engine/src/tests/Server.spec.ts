@@ -34,6 +34,7 @@ import {
 } from '../exports/LDAPEngine.js'
 import {
     DEFAULTS,
+    PPOLICY,
     RFC2307BIS
 } from '../exports/Schemas.js'
 
@@ -243,6 +244,22 @@ describe('the server engine', () => {
         void watched
         await watcher.modifyDN(`uid=user7,ou=people,${BASE}`, 'uid=user7b')
         assert.deepEqual(seen, [`uid=user7,ou=people,${BASE} from undefined`, `uid=user7b,ou=people,${BASE} from uid=user7,ou=people,${BASE}`])
+    })
+
+    it('checks the values a rename writes as a write of the session: no attribute users cannot write, no password', async () => {
+        //Anyone may rename entries here
+        const {server: renaming, admin: owner} = await directory({schema: [...DEFAULTS, PPOLICY], access: {admins: [ADMIN], check: (request: {operation: string}): boolean | undefined => request.operation === 'modifyDN' ? true : undefined}})
+        const user: LDAPInProcessConnection = renaming.connect()
+        await user.bind(`uid=user1,ou=people,${BASE}`, 'password1')
+        //An attribute users cannot write (no policy to apply to the user then), given by the new RDN
+        await assert.rejects(user.modifyDN(`uid=user1,ou=people,${BASE}`, 'uid=user1+pwdPolicySubentry=cn\\=none\\,dc\\=example\\,dc\\=com', {deleteOldRDN: false}), code(19))
+        await assert.rejects(user.modifyDN(`uid=user1,ou=people,${BASE}`, 'uid=user1+entryUUID=00000000-0000-7000-8000-000000000000', {deleteOldRDN: false}), code(19))
+        //A password in an RDN: in clear in the DN, not hashed
+        await assert.rejects(user.modifyDN(`uid=user1,ou=people,${BASE}`, 'uid=user1+userPassword=clear-text', {deleteOldRDN: false}), code(64))
+        await assert.rejects(owner.modifyDN(`uid=user2,ou=people,${BASE}`, 'uid=user2+userPassword=clear-text', {deleteOldRDN: false}), code(64))
+        //The entry left as it was; a rename of user attributes still allowed
+        assert.equal((await owner.search(`uid=user1,ou=people,${BASE}`, {scope: 'base', attributes: ['pwdPolicySubentry']})).entries[0].has('pwdPolicySubentry'), false)
+        await user.modifyDN(`uid=user1,ou=people,${BASE}`, 'uid=user1+cn=User 01', {deleteOldRDN: false})
     })
 
     it('changes passwords: one\'s own, another\'s by an administrator, one generated', async () => {
