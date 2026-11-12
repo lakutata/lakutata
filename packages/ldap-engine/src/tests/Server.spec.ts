@@ -247,11 +247,24 @@ describe('the server engine', () => {
         void watched
         await watcher.modifyDN(`uid=user7,ou=people,${BASE}`, 'uid=user7b')
         assert.deepEqual(seen, [`uid=user7,ou=people,${BASE} from undefined`, `uid=user7b,ou=people,${BASE} from uid=user7,ou=people,${BASE}`])
+        //The attributes a rename writes, asked as a modify: a user renaming its entry, writing its description only
+        const USER8: string = `uid=user8,ou=people,${BASE}`
+        const {server: selfRenaming} = await directory({access: {admins: [ADMIN], check: (request: {operation: string, identity?: {equals(dn: string): boolean}, attributes?: string[]}): boolean | undefined => {
+            if (!request.identity?.equals(USER8)) return undefined
+            if (request.operation === 'modifyDN') return true
+            return request.operation === 'modify' ? (request.attributes ?? []).every((attribute: string): boolean => attribute === 'description') : undefined
+        }}})
+        const renamer: LDAPInProcessConnection = selfRenaming.connect()
+        await renamer.bind(USER8, 'password8')
+        await assert.rejects(renamer.modifyDN(USER8, 'uid=user8+employeeType=admin', {deleteOldRDN: false}), code(50))
+        await assert.rejects(renamer.modifyDN(USER8, 'uid=user8b'), code(50))
+        //A move keeping its RDN writes no attribute
+        await renamer.modifyDN(USER8, 'uid=user8', {newSuperior: `ou=groups,${BASE}`})
     })
 
     it('checks the values a rename writes as a write of the session: no attribute users cannot write, no password', async () => {
-        //Anyone may rename entries here
-        const {server: renaming, admin: owner} = await directory({schema: [...DEFAULTS, PPOLICY], access: {admins: [ADMIN], check: (request: {operation: string}): boolean | undefined => request.operation === 'modifyDN' ? true : undefined}})
+        //Anyone may rename entries here, and write the attributes of their RDNs
+        const {server: renaming, admin: owner} = await directory({schema: [...DEFAULTS, PPOLICY], access: {admins: [ADMIN], check: (request: {operation: string}): boolean | undefined => request.operation === 'modifyDN' || request.operation === 'modify' ? true : undefined}})
         const user: LDAPInProcessConnection = renaming.connect()
         await user.bind(`uid=user1,ou=people,${BASE}`, 'password1')
         //An attribute users cannot write (no policy to apply to the user then), given by the new RDN

@@ -12,7 +12,7 @@ import {
     TreeDeleteControl,
     VLVRequestControl
 } from '../controls/Controls.js'
-import {DN, RDN} from '../dn/DN.js'
+import {type AttributeTypeAndValue, DN, RDN} from '../dn/DN.js'
 import {ExtendedOperation, PasswordModifyRequest, type PasswordModifyRequestValue, PasswordModifyResponse, WhoAmIResponse} from '../extended/Extended.js'
 import type {Filter} from '../filter/Filter.js'
 import {matchFilter} from '../filter/Evaluate.js'
@@ -1385,6 +1385,15 @@ export class Pipeline {
                         const parent: DN | undefined = request.newSuperior ?? request.dn.parent()
                         const destination: DN = parent ? parent.child(request.newRDN) : DN.parse(request.newRDN.toString())
                         if (!destination.equals(request.dn, schema) && !await access.allows({operation: 'modifyDN', session: session, identity: identity, dn: destination, from: request.dn})) fail(ResultCode.insufficientAccessRights, 'Insufficient access to give the entry that DN')
+                        //The values the new RDN writes and those the old one removes: a write of those attributes, asked
+                        //as a modify (OpenLDAP asks write access to them)
+                        const keyOf = (ava: AttributeTypeAndValue): string => `${schema.primaryName(ava.type).toLowerCase()}=${equalityKey(ava.type, avaBytes(ava), schema)}`
+                        const oldRDN: readonly AttributeTypeAndValue[] = request.dn.rdn()?.attributes ?? []
+                        const oldKeys: Set<string> = new Set(oldRDN.map(keyOf))
+                        const newKeys: Set<string> = new Set(request.newRDN.attributes.map(keyOf))
+                        const changed: AttributeTypeAndValue[] = [...request.newRDN.attributes.filter((ava: AttributeTypeAndValue): boolean => !oldKeys.has(keyOf(ava))), ...request.deleteOldRDN ? oldRDN.filter((ava: AttributeTypeAndValue): boolean => !newKeys.has(keyOf(ava))) : []]
+                        const attributes: string[] = [...new Set(changed.map((ava: AttributeTypeAndValue): string => schema.primaryName(ava.type)))]
+                        if (attributes.length && !await access.allows({operation: 'modify', session: session, identity: identity, dn: request.dn, attributes: attributes})) fail(ResultCode.insufficientAccessRights, 'Insufficient access to write the attributes of the new RDN')
                         return
                     }
                 }
