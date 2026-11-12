@@ -458,6 +458,17 @@ describe('the limits and the end of the server', () => {
         await secure.bind(`uid=user1,ou=people,${BASE}`, 'password1')
     })
 
+    it('refuses a password in clear by SASL PLAIN too when asked to, alike for a name that exists and one that does not', async () => {
+        //PLAIN offered without TLS, plaintextBind none
+        const {url: clearURL} = await serve({plaintextBind: 'none', sasl: [{...plainMechanism(), requiresTLS: false}]})
+        const connection: LDAPClientConnection = await client({url: clearURL})
+        const answer = (name: string): Promise<number> => connection.saslBind('PLAIN', Buffer.from(`\0dn:${name}\0password1`)).then((): number => 0, (error: unknown): number => (error as LDAPResultException).code)
+        assert.deepEqual([await answer(`uid=user1,ou=people,${BASE}`), await answer(`uid=nobody,ou=people,${BASE}`)], [13, 13])
+        //Over TLS: taken
+        const secure: LDAPClientConnection = await client({url: clearURL, tls: TLS, startTLS: true})
+        await secure.saslBind('PLAIN', Buffer.from(`\0dn:uid=user1,ou=people,${BASE}\0password1`))
+    })
+
     it('refuses a password in clear in a write and a Password Modify too when asked to, and takes it over StartTLS', async () => {
         //Anyone may sign up below the people, and change the entries there
         const {url} = await serve({plaintextBind: 'none', access: {admins: [ADMIN], anonymousRead: true, check: (request: {operation: string, dn: {isDescendantOf(dn: string): boolean}}): boolean | undefined => ['add', 'modify'].includes(request.operation) && request.dn.isDescendantOf(`ou=people,${BASE}`) ? true : undefined}})

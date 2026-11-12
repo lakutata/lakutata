@@ -51,6 +51,11 @@ export interface SASLMechanism {
      */
     readonly name: string
     /**
+     * Whether its credentials carry a password (PLAIN): plaintextBind then applies before it runs, as to a simple bind,
+     * whatever name it is given
+     */
+    readonly takesPassword?: boolean
+    /**
      * Whether it is offered only over a connection nobody else reads: TLS, or a Unix socket of this machine (true by
      * default)
      */
@@ -97,6 +102,7 @@ export function dnOfName(name: string): DN | undefined {
 export function plainMechanism(identityOf: (name: string, session: ServerSession) => DN | undefined | Promise<DN | undefined> = dnOfName): SASLMechanism {
     return {
         name: 'PLAIN',
+        takesPassword: true,
         start: async (context: SASLContext, credentials?: Buffer): Promise<SASLStep> => {
             if (!credentials) return {done: false, serverCredentials: Buffer.alloc(0)}
             return verifyPlain(context, credentials, identityOf)

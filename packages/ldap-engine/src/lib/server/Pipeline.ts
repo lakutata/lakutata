@@ -1386,6 +1386,8 @@ export class Pipeline {
             session: session,
             state: state,
             verifyPassword: async (dn: DN, password: Buffer): Promise<boolean> => {
+                //A password in clear where plaintextBind refuses it (for a mechanism not saying it takes one)
+                this.passwordsTaken(session)
                 const mount: Mount | undefined = this.route(dn)
                 this.checkMountControls(mount, context.controls)
                 SASL_MOUNTS.set(state, mount)
@@ -1409,6 +1411,8 @@ export class Pipeline {
         }
         let step: SASLStep
         try {
+            //Its credentials a password: refused in clear before the mechanism reads any name (RFC 4513 §6.3.1)
+            if (mechanism.takesPassword) this.passwordsTaken(session)
             step = continuing && mechanism.step ? await mechanism.step(saslContext, credentials) : await mechanism.start(saslContext, credentials)
             //Refused for its controls, the exchange ends as on any failure
             if (!verified) this.checkMountControls(SASL_MOUNTS.get(state), context.controls)
