@@ -862,6 +862,14 @@ export class Pipeline {
         let outcome: ServerOutcome
         const own: DirectoryEntry[] | undefined = this.ownEntries(context.session, base)
         if (own) {
+            //The root DSE is not part of a search below the root (RFC 4512 §5.1), where no entry is
+            if (base.isRoot() && request.scope !== 'base') fail(ResultCode.noSuchObject, 'No entry below the root DSE')
+            //These entries go through neither the sort nor the view: a critical control is refused (RFC 4511 §4.1.11); the
+            //paged results are one page
+            for (const control of context.controls) {
+                if (control.critical && control.oid !== PagedResultsControl.oid && control.oid !== ManageDsaITControl.oid) fail(ResultCode.unavailableCriticalExtension, `The critical control ${control.oid} does not apply to ${base.isRoot() ? 'the root DSE' : base.toString()}`)
+            }
+            if (findControl(context.controls, PagedResultsControl)) context.responseControls.push(PagedResultsControl.encode({size: 0, cookie: Buffer.alloc(0)}))
             const matching: DirectoryEntry[] = own.filter((entry: DirectoryEntry): boolean => inScope(entry.dn, base, request.scope, this.schema) && matchFilter(request.filter, {dn: entry.dn, attributes: entry.attributes}, this.schema) === true)
             if (!own.some((entry: DirectoryEntry): boolean => entry.dn.equals(base, this.schema))) fail(ResultCode.noSuchObject, `No entry ${base.toString()}`)
             //The root DSE and the subschema are read by everyone; the configuration by those reading the directory

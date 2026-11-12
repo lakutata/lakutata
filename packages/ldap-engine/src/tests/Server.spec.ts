@@ -913,6 +913,18 @@ describe('the server engine', () => {
         assert.deepEqual(await asked('description;binary'), ['description;lang-de=deutsch', 'description;lang-en=english', 'description=plain'])
     })
 
+    it('serves its own entries as OpenLDAP does: not the root DSE below the root, no critical control left unapplied', async () => {
+        //The root DSE is not in a search below the root (RFC 4512 §5.1)
+        await assert.rejects(admin.search('', {scope: 'sub', paged: false}), code(32))
+        await assert.rejects(admin.search('', {scope: 'one', paged: false}), code(32))
+        //A critical sort or view, which these entries do not go through: refused; paged: in one page
+        await assert.rejects(admin.search('', {scope: 'base', paged: false, controls: [SortRequestControl.encode([{attribute: 'cn'}], true)]}), code(12))
+        await assert.rejects(admin.search('cn=Subschema', {scope: 'base', paged: false, controls: [SortRequestControl.encode([{attribute: 'cn'}]), VLVRequestControl.encode({beforeCount: 0, afterCount: 1, offset: {offset: 1, contentCount: 0}}, true)]}), code(12))
+        assert.equal((await admin.search('', {scope: 'base', paged: false, controls: [SortRequestControl.encode([{attribute: 'cn'}])]})).entries.length, 1)
+        const paged = await admin.search('', {scope: 'base', paged: false, controls: [PagedResultsControl.encode({size: 5, cookie: Buffer.alloc(0)}, true)]})
+        assert.deepEqual([paged.entries.length, PagedResultsControl.decode(findControl(paged.controls, PagedResultsControl)!).cookie.length], [1, 0])
+    })
+
     it('refuses a critical control it does not know', async () => {
         await assert.rejects(admin.search(BASE, {controls: [{oid: '1.2.3.4.5', critical: true}]}), LDAPUnavailableCriticalExtensionException)
         assert.ok((await admin.search(BASE, {scope: 'base', controls: [{oid: '1.2.3.4.5', critical: false}]})).entries.length)
