@@ -311,6 +311,9 @@ describe('the server engine', () => {
         stored.load([{dn: carried.dn, attributes: carried.attributes.map((attribute) => attribute.type === 'userPassword' ? {type: attribute.type, values: [Buffer.from('carried-in-clear')]} : attribute)}])
         const guessClear = (value: string): Promise<unknown> => manager.modify(`uid=user7,ou=people,${BASE}`, [{operation: 'delete', attribute: 'userPassword', values: value}, {operation: 'add', attribute: 'userPassword', values: 'by-manager'}]).then((): string => 'success', (error: unknown): string => `${(error as LDAPResultException).code} ${(error as LDAPResultException).diagnosticMessage}`)
         assert.equal(await guessClear('carried-in-clear'), await guessClear('wrong-guess'))
+        //Nor told by where it fails: a change before it failing on its own fails alike
+        const guessOrdered = (value: string): Promise<unknown> => manager.modify(`uid=user7,ou=people,${BASE}`, [{operation: 'add', attribute: 'mail', values: 'user7@example.com'}, {operation: 'delete', attribute: 'userPassword', values: value}]).then((): string => 'success', (error: unknown): string => `${(error as LDAPResultException).code} ${(error as LDAPResultException).diagnosticMessage}`)
+        assert.equal(await guessOrdered('carried-in-clear'), await guessOrdered('wrong-guess'))
         await managed.connect().bind(`uid=user7,ou=people,${BASE}`, 'carried-in-clear')
         //Replacing it is what a writer of passwords does
         await manager.modify(`uid=user5,ou=people,${BASE}`, {operation: 'replace', attribute: 'userPassword', values: 'set-by-manager'})
