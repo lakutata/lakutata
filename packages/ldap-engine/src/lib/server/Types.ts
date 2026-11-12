@@ -98,7 +98,8 @@ export interface OperationContext {
      */
     readonly operation: OperationType
     /**
-     * The session
+     * The session: for a bind, the session itself; for any other operation, a view of it whose identity stays the one
+     * the operation started with, whatever bind comes meanwhile (keep data of a session in `state`, or key it by `id`)
      */
     readonly session: ServerSession
     /**

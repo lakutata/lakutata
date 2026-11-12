@@ -318,8 +318,9 @@ one row per value.
 - A sorted search is sorted by the backend, which reads only the entries of the window (`window`): a window by an offset
   is ordered, counted and cut by the database on a sort key kept with each value; otherwise the backend reads the values
   of the sort keys and orders the entries by them as the server would. After the schema changes the ordering rule of an
-  attribute, its values written before keep their old sort keys until they are written again. With `access.check`, or an
-  interceptor that removes entries from searches, the server sorts and windows a virtual list view itself, within
+  attribute, its values written before keep their old sort keys until they are written again. An entry without a value of
+  a sort key comes after the others, and before them in reverse (RFC 2891). With `access.check`, or an interceptor that
+  removes entries from searches, the server sorts and windows a virtual list view itself, within
   `limits.sortCandidates`, so that its counts leave out what the session may not read.
 - The entries of a search come in a set order: an entry before the entries below it, siblings in the order they were
   added (entryUUID is a UUID of version 7; an entry imported with its own entryUUID takes its place by that value).
@@ -331,7 +332,7 @@ one row per value.
 - POSIX: uidNumber and gidNumber are allocated to the entries added without them (a uidNumber is unique, and so is the
   gidNumber of a posixGroup among the groups); memberUid is computed for the posixGroup entries. The POSIX classes
   come with rfc2307bis, which `schema.bundled` names.
-- `unique` keeps the values of attributes unique in the suffix; `authTimestamp` gives the time of the last bind (a
+- `unique` keeps the values of attributes unique in the suffix; `authTimestamp` gives the time of the last simple bind (a
   bind made while a write holds the entry, or on SQLite while any write runs, does not wait for it and leaves its time
   out; on MySQL before 8.0 and MariaDB before 10.6, which cannot skip a row another write holds, the bind waits);
   `mailAlias` gives email as mail (Grafana reads email).

@@ -68,7 +68,7 @@ await connection.close()
 - `sizeLimit` 限制搜索保留的条目数：超出的条目都会被丢掉，不管服务器是在这里停下还是继续发送，这时 `truncated` 为 true。如果搜索没有设 `sizeLimit`，而服务器有自己的条数限制，搜索会抛出 `LDAPSizeLimitExceededException`，已经收到的条目放在它的 `partial` 里。
 - 分页没有进展时（一页没有任何条目，返回的 cookie 却和上一页相同；或者连续一百页都没有条目），搜索会抛出 `LDAPProtocolErrorException`，而不是一直分页下去。
 - `searchIterator()` 一页一页地读取，逐个给出条目；提前退出循环时，会通知服务器结束分页。
-- `sort` 和 `window` 读取排序后条目中的一段（虚拟列表视图）：`{sort: [{attribute: 'cn'}], window: {offset: 1, limit: 20}}`，`total` 是整个列表的条目数。这两个控制都作为关键（critical）控制发送，不支持排序的服务器会让搜索失败，而不是返回没有排序的全部条目。
+- `sort` 和 `window` 读取排序后条目中的一段（虚拟列表视图）：`{sort: [{attribute: 'cn'}], window: {offset: 1, limit: 20}}`，`total` 是整个列表的条目数。这两个控制都作为关键（critical）控制发送，不支持排序的服务器会让搜索失败，而不是返回没有排序的全部条目。窗口超出最后一个条目时，不返回条目，但仍然给出 `total`。
 - 结果里的 `references` 是服务器返回的引用，客户端不会跟着去访问。
 
 `Entry` 把值作为文本或字节给出，二者不会混用：
@@ -288,6 +288,10 @@ process.on('SIGTERM', () => void server.close())
 - Unix 套接字供本机的客户端使用（SSSD 2.9 及以上、nslcd、OpenLDAP 的命令行工具）：它的连接不会离开本机，所以服务器像对待 TLS 一样在上面接受密码，并在上面提供 SASL PLAIN。`mode` 决定谁可以连接（`0o666`：本机的所有用户；默认按通常的 umask，只有运行服务器进程的用户）。已停止的服务器留下的套接字会被替换。在 Windows 上，服务器不监听 Unix 套接字。
 - schema：总是先加载系统 schema，然后按顺序加载 `schema` 选项列出的 schema，默认是 `DEFAULTS`。自己的 schema 可以是文档（`readSchemaFile()`；或者用 `readSchemaDirectory()` 按文件名顺序读取一个目录里的文件），也可以直接给文件的文本。名字或 OID 重复定义时，服务器在启动时就会报错。
 - `MemoryBackend` 把条目放在内存里，适合测试和小型服务器。自己的后端见第 14 节；`@lakutata/ldap` 的 `DirectoryBackend` 把条目存进应用的数据库。
+- 排序遵循 RFC 2891：某个排序键没有值的条目排在其他条目之后，逆序时排在它们之前；有多个值时取最小的值（逆序时取最大的值）。排序键的属性不在 schema 里时，排序响应给出 noSuchAttribute；排序的分页搜索每一页都带排序响应。
+- 虚拟列表视图遵循 draft-ietf-ldapext-ldapv3-vlv-09：偏移量按服务器的条目数折算；偏移量小于 1 或超出最后一个条目时，搜索以 virtualListViewError 失败，视图的结果为 offsetRangeError；服务器不发 context ID，所以收到的 context ID 一律拒绝。
+- 请求带选项的属性（`description;lang-en`）时，返回带有这些选项的属性；`binary` 是传输选项，不参与比较。从空 DN 开始的单层或子树搜索按 noSuchObject 回答；根 DSE 用 scope 为 base 的搜索读取。
+- 服务器不解引用别名：它读取 `derefAliases`，别名条目按原样返回。服务器接受 ManageDsaIT：内置的后端不保存引用（referral）条目，所以它对它们不改变任何行为；自己写的后端如果给出引用，可以在 `context.controls` 里看到这个控制。
 - `events`：`connection`、`disconnect`、`bind`、`bindFailure`、`operation`（操作、它的 DN、结果码和耗时的毫秒数）、`startTLS`、`connectionError`，以及后端或拦截器出现不属于结果码的错误时的 `error`。
 - `close()` 停止监听，用 Notice of Disconnection 结束各个会话，并停止插件。
 
@@ -347,8 +351,10 @@ const server = createLDAPServer({
 await server.listen({port: 389})
 ```
 
-- `access.check` 最先判断：返回 `true` 表示允许，`false` 表示拒绝，`undefined` 表示交给上表的规则。它收到的信息有：操作（搜索返回的内容和比较读取的条目为 `read`）、DN、会话的身份，以及已知时的条目或属性。改名时它会被问两次：先问原来的条目，再问条目的新 DN（`from` 给出原来的 DN），所以只允许在某个条目下面写入的检查，也会拒绝把条目移出去。对会话不能读的条目做比较时，按条目不存在回答。
-- 设置了 `access.check` 时，搜索会按后端存储的内容对每个条目询问 `read`，这时服务器还没有加上它计算出来的操作属性，插件也还没有改动条目。会话不能读的条目在分页、开窗和计数之前就被去掉，所以每一页和虚拟列表视图里只有会话能读的条目，总数也只算这些条目。这时虚拟列表视图由服务器自己排序，受 `limits.sortCandidates` 限制。搜索基准是会话不能读的条目时，按基准不存在回答；绑定会结束这个连接上的分页搜索。
+- `access.check` 最先判断：返回 `true` 表示允许，`false` 表示拒绝，`undefined` 表示交给上表的规则。它收到的信息有：操作（搜索返回的内容和比较读取的条目为 `read`）、DN、会话的身份，以及已知时的条目或属性。改名时它会被问三次：先以 `modifyDN` 问原来的条目；再以 `modifyDN` 问条目的新 DN（`from` 给出原来的 DN），所以只允许在某个条目下面写入的检查，也会拒绝把条目移出去；最后以 `modify` 问新 RDN 写入值的属性，以及设置了 deleteOldRDN 时旧 RDN 去掉值的属性，就像 OpenLDAP 要求对前者有添加权限、对后者有删除权限一样。RDN 不变的移动不写任何属性，不会被问第三次。对会话不能读的条目做比较时，按条目不存在回答。
+- 设置了 `access.check` 时，搜索会按后端存储的内容对每个条目询问 `read`，这时服务器还没有加上它计算出来的操作属性，插件也还没有改动条目。会话不能读的条目在分页、开窗和计数之前就被去掉，所以每一页和虚拟列表视图里只有会话能读的条目，总数也只算这些条目。这时虚拟列表视图由服务器自己排序，受 `limits.sortCandidates` 限制。自己写的拦截器往搜索结果里加入的条目，或者以新对象返回的条目，在发出之前会按拦截器给出的样子再检查一次。
+- 只搜索基准本身（scope 为 `base`）而会话不能读它时，按基准不存在回答；matched DN 也只给出会话能读的条目。搜索基准下面的条目时，仍然返回会话能读的那些，所以回答会显示基准是存在的。要隐藏一个条目是否存在，就拒绝对它的 DN 做 `search`：这样的搜索不论条目是否存在，都以 insufficientAccessRights 拒绝。
+- 绑定会结束这个连接上的分页搜索，被拒绝的绑定也是这样。
 - `plaintextBind` 规定在哪里可以不经过 TLS 接受密码（绑定、写入 `userPassword`、Password Modify）：任何地方（`'all'`，默认）、只限本机回环地址（`'loopback'`），或者任何地方都不行（`'none'`）。Unix 套接字不受这个选项限制，总是接受密码。
 - 带名字、密码为空的绑定会被拒绝（`allowUnauthenticatedBind` 会把它当作匿名绑定接受）。同一个 DN 或地址的失败绑定，回应会越来越慢，之后在一段时间内直接拒绝（`bindThrottle`）；这些情况都回 invalidCredentials，从回应上分不出账号被锁定还是密码错误。
 - `limits`：对不是管理员的会话，每次搜索最多 500 个条目、3600 秒，并限制过滤器的深度和大小；对所有会话，限制消息的大小、未完成的请求数、连接数和空闲时间。分页搜索的条数限制按所有页的总数计算：达到限制后，如果会话还有能读到的条目，搜索以 sizeLimitExceeded 结束。对不是管理员的会话，可以用 `pagedSizeLimit` 给分页搜索单独设一个限制（不设时等于 `sizeLimit`，0 表示不限）。
@@ -393,7 +399,7 @@ await server.listen({port: 389})
 | `UniquePlugin` | 拒绝其他条目已经用过的值 | unique |
 | `PasswordPolicyPlugin` | 第 12 节的密码策略 | ppolicy |
 | `IdAllocationPlugin` | 给新增时没有 uidNumber 和 gidNumber 的 POSIX 条目分配这两个值 | （389 Directory Server 的 DNA） |
-| `LastBindPlugin` | 在 authTimestamp 里记录最后一次绑定的时间 | lastbind |
+| `LastBindPlugin` | 在 authTimestamp 里记录最后一次简单绑定的时间 | lastbind |
 | `SambaPasswordPlugin` | 把新密码的 NT 哈希写进 sambaNTPassword（需要加载 Samba 的 schema） | smbk5pwd |
 | `AuditPlugin` | 把每个请求和它的结果交给你自己的函数记录 | accesslog、auditlog |
 | `ConstraintPlugin` | 拒绝违反规则的值：模式、大小、个数，或者你自己的检查 | constraint |
@@ -439,8 +445,9 @@ await server.listen({port: 389})
 ```
 
 - 拦截器只在它列出的 `operations` 上运行：`before()` 检查或修改请求，`around()` 包住链上后面的部分运行，`transformEntry()` 修改搜索返回的条目，`beforeCommit()` 在写操作的事务里运行（后端支持事务时）。抛出 `LDAPResultException` 时，以它的结果码回应。
-- 拦截器可以放在服务器内置步骤（`access`、`password`、`schema`、`operational`、`paging`）的前面或后面，写法是 `{interceptor, before: 'schema'}`；不指定时放在链的末尾，也就是所有内置步骤之后，这时它往请求里加的内容不会经过 schema 检查。放在 `password` 之前的拦截器能看到明文密码。会把条目从搜索结果里去掉的拦截器（`transformEntry()` 返回 undefined，或者用 `around()` 替换条目），必须放在 `paging` 之后，链的末尾就在它之后。放在它之前时，分页和虚拟列表视图仍然会把被去掉的条目算进去。
-- 插件还可以在每个请求前后运行（`aroundRequest`，能看到绑定和服务器自己回答的扩展操作）、在校验密码前后运行（`authenticate`），以及在密码修改时、密码还是明文的时候运行（`passwordChange`，其中的 `importing` 表示看起来像哈希的值是不是管理员导入的哈希）。插件可以带上 schema 文件、控制、扩展操作、SASL 机制和密码格式，根 DSE 和子模式条目会公布它们。两个插件声明同一个 OID 时，服务器在启动时就会报错。
+- 拦截器可以放在服务器内置步骤（`access`、`password`、`schema`、`operational`、`paging`）的前面或后面，写法是 `{interceptor, before: 'schema'}`；不指定时放在链的末尾，也就是所有内置步骤之后，这时它往请求里加的内容不会经过 schema 检查。放在 `password` 之前的拦截器能看到明文密码。会把条目从搜索结果里去掉的拦截器（`transformEntry()` 返回 undefined，或者用 `around()` 替换条目），必须放在 `paging` 之后，链的末尾就在它之后。放在它之前时，分页和虚拟列表视图仍然会把被去掉的条目算进去。只修改条目的拦截器最好放在 `paging` 之前（`GroupPresentationPlugin` 就是这样放的），这样后端仍然可以自己排序、开窗和分页；这时排序和虚拟列表视图用的是存储的条目，不包括它做的修改。
+- 在拦截器和插件里，绑定时的 `context.session` 就是会话本身；其他操作拿到的是会话的一个视图，其中的身份始终是操作开始时的身份，不论这期间是否有新的绑定：会话的数据请放在 `session.state` 里，或者以 `session.id` 为键，不要以会话对象为键。
+- 插件还可以在每个请求前后运行（`aroundRequest`，能看到绑定、StartTLS 和服务器自己回答的扩展操作）、在校验密码前后运行（`authenticate`），以及在密码修改时、密码还是明文的时候运行（`passwordChange`，其中的 `importing` 表示看起来像哈希的值是不是管理员导入的哈希）。插件可以带上 schema 文件、控制、扩展操作、SASL 机制和密码格式，根 DSE 和子模式条目会公布它们。两个插件声明同一个 OID 时，服务器在启动时就会报错。
 - 每个插件的选项里都有 `name` 和 `suffixes`：用来同时使用两个同类插件，或者只作用于部分后端。插件维护的关系只在一个后端之内，就像 OpenLDAP 的 overlay 只在一个数据库之内维护关系一样。
 - 服务器的 `interceptors` 选项只接受拦截器，用于不需要插件其他部分的场合。
 

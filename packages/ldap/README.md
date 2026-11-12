@@ -100,7 +100,8 @@ migrations are the application's, as for its other entities.
   each value; otherwise the backend reads the values of the sort keys and orders the entries by them as the server
   would. A sort key follows the ordering rule of its attribute when the value is written: after the schema changes that
   rule, the values written before keep their old keys until they are written again (OpenLDAP likewise rebuilds its
-  indexes with slapindex). With `access.check`, or an interceptor that removes entries from searches, the server sorts
+  indexes with slapindex). An entry without a value of a sort key comes after the others, and before them in reverse
+  (RFC 2891). With `access.check`, or an interceptor that removes entries from searches, the server sorts
   and windows a virtual list view itself, within `limits.sortCandidates`, so that its counts leave out what the session
   may not read.
 - The entries of a search come in a set order: an entry before the entries below it, siblings in the order they were
@@ -113,7 +114,7 @@ migrations are the application's, as for its other entities.
 - uidNumber and gidNumber are allocated to the posixAccount and posixGroup entries added without them (from 10000);
   a uidNumber is unique, and so is the gidNumber of a posixGroup among the groups. The POSIX classes come with the
   bundled schema rfc2307bis, which `schema.bundled` names (it is not loaded by default).
-- The values of the attributes of `unique` are unique in the suffix; the time of the last bind is given as
+- The values of the attributes of `unique` are unique in the suffix; the time of the last simple bind is given as
   authTimestamp (a bind made while a write holds the entry, or on SQLite while any write runs, does not wait for it and
   leaves its time out; on MySQL before 8.0 and MariaDB before 10.6, which cannot skip a row another write holds, the
   bind waits); the failed binds are kept in the database, so the instances of an application share them, as they share
@@ -224,7 +225,7 @@ local `ldapi` socket, unless it is given `requireTLS: false`.
 | `memberUid` | `true` | Give memberUid to the posixGroup entries |
 | `unique` | | The attributes whose values are unique in the suffix |
 | `idAllocation` | from 10000 | The first uidNumber and gidNumber allocated, or `false` |
-| `lastBind` | `true` | Give authTimestamp, the time of the last successful bind |
+| `lastBind` | `true` | Give authTimestamp, the time of the last successful simple bind |
 | `mailAlias` | `false` | Give email, the values of mail |
 | `referencePlaceholder` | the empty DN | The value left in a required DN attribute whose last value named a deleted entry |
 | `sharedThrottle` | `true` | Keep the failed binds in the database |

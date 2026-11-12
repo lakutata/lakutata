@@ -94,7 +94,8 @@ await connection.close()
   server.
 - `sort` and `window` read a window of the sorted entries (the virtual list view): `{sort: [{attribute: 'cn'}],
   window: {offset: 1, limit: 20}}`, with `total` the number of entries in the whole list. Both controls are sent as
-  critical, so a server that cannot sort fails the search rather than giving every entry unsorted.
+  critical, so a server that cannot sort fails the search rather than giving every entry unsorted. A window past the
+  last entry returns no entries and still gives `total`.
 - The `references` of the result are those the server gives; they are not followed.
 
 An `Entry` gives its values as text or as bytes, never one for the other:
@@ -370,6 +371,18 @@ process.on('SIGTERM', () => void server.close())
   their names) or the text of a file. A name or an OID defined twice stops the server at its start.
 - `MemoryBackend` keeps its entries in memory, for tests and small servers. A backend of one's own is in section 14;
   the `DirectoryBackend` of `@lakutata/ldap` keeps the entries in the database of an application.
+- Sorting follows RFC 2891: an entry without a value of a key comes after the others, and before them in reverse; of
+  several values, the least counts (the greatest in reverse). A key whose attribute the schema does not know gives
+  noSuchAttribute in the sort response, and a sorted paged search carries the sort response on every page.
+- The virtual list view follows draft-ietf-ldapext-ldapv3-vlv-09: the offset is scaled to the server's count; an offset
+  below 1 or past the last entry fails the search with virtualListViewError, offsetRangeError being the result of the
+  view; and a context ID is refused, since the server gives none.
+- An attribute asked for with options (`description;lang-en`) returns the attributes that have those options; `binary`
+  is a transfer option and plays no part in the match. A one-level or subtree search from the empty DN is answered
+  noSuchObject; the root DSE is read with a base-scope search.
+- The server does not dereference aliases: it reads `derefAliases` and returns alias entries as they are. It accepts
+  ManageDsaIT: the built-in backends keep no referral entries, so it changes nothing for them, and a backend of one's
+  own that gives referrals finds it in `context.controls`.
 - `events`: `connection`, `disconnect`, `bind`, `bindFailure`, `operation` (the operation, its DN, its result code and
   its milliseconds), `startTLS`, `connectionError`, and `error` for an error of a backend or an interceptor that is
   not a result.
@@ -441,15 +454,23 @@ await server.listen({port: 389})
 
 - `access.check` decides first: `true` allows, `false` refuses, `undefined` leaves it to the table. It is given the
   operation (`read` for what a search returns or a compare reads), the DN, the session's identity, and the entry or the
-  attributes when they are known. For a rename it is asked twice: about the entry, then about the DN the entry would get
-  (`from` holds its current DN), so a check that allows writes only below one entry also refuses a move out of that
-  subtree. A compare on an entry the session may not read is answered as if the entry did not exist.
+  attributes when they are known. For a rename it is asked three times: `modifyDN` about the entry; `modifyDN` about the
+  DN the entry would get (`from` holds its current DN), so a check that allows writes only below one entry also refuses
+  a move out of that subtree; and `modify` about the attributes whose values the new RDN writes and, with deleteOldRDN,
+  those whose values the old RDN removes, as OpenLDAP requires the right to add the first and to delete the second. A
+  move that keeps its RDN writes no attribute and is not asked the third time. A compare on an entry the session may not
+  read is answered as if the entry did not exist.
 - With `access.check`, a search asks `read` for each entry as the backend stores it, before the server adds the
   operational attributes it computes and before any plugin changes the entry. Entries the session may not read are left
   out before the search is paged, windowed or counted, so pages and the virtual list view contain and count only what
-  the session may read. The server then sorts a virtual list view itself, within `limits.sortCandidates`. A search whose
-  base the session may not read is answered as if the base did not exist, and a bind ends the paged searches on its
-  connection.
+  the session may read. The server then sorts a virtual list view itself, within `limits.sortCandidates`. An entry an
+  interceptor of one's own adds to a search, or returns as a new object, is checked again before it is sent, as the
+  interceptor gives it.
+- A search of the base alone (scope `base`) that the session may not read is answered as if the base did not exist,
+  and a matched DN names only entries the session may read. A search below that base still returns the entries the
+  session may read, so its answer shows that the base exists. To hide that an entry exists, refuse `search` on its DN:
+  such a search is refused with insufficientAccessRights whether the entry exists or not.
+- A bind ends the paged searches on its connection, including a bind that is refused.
 - `plaintextBind` says where a password is taken without TLS (a bind, a write of `userPassword`, a Password Modify):
   everywhere (`'all'`, by default), from the loopback (`'loopback'`), or nowhere (`'none'`). The Unix socket takes
   passwords whatever it says.
@@ -520,7 +541,7 @@ controls and extended operations that code needs.
 | `UniquePlugin` | Refuses a value another entry has | unique |
 | `PasswordPolicyPlugin` | The password policy of section 12 | ppolicy |
 | `IdAllocationPlugin` | Gives uidNumber and gidNumber to the POSIX entries added without them | (DNA of 389 Directory Server) |
-| `LastBindPlugin` | Keeps the time of the last bind in authTimestamp | lastbind |
+| `LastBindPlugin` | Keeps the time of the last simple bind in authTimestamp | lastbind |
 | `SambaPasswordPlugin` | Writes the NT hash of a new password in sambaNTPassword (the schema of Samba loaded) | smbk5pwd |
 | `AuditPlugin` | Gives a record of each request and its outcome to a function of one's own | accesslog, auditlog |
 | `ConstraintPlugin` | Refuses values breaking rules: a pattern, a size, a count, a check of one's own | constraint |
@@ -574,11 +595,16 @@ await server.listen({port: 389})
   a request there is not checked against the schema. Placed before `password`, it sees the passwords in clear. An
   interceptor that removes entries from searches (a `transformEntry()` returning undefined, or an `around()` that
   replaces the entries) must be placed after `paging`; the end of the chain is. Placed earlier, the pages and the
-  virtual list view still count the entries it removes.
-- A plugin may also run around every request (`aroundRequest`, which sees the binds and the extended operations the
-  server answers itself), around the check of a password (`authenticate`), and on the password changes while they are
-  in clear (`passwordChange`, whose `importing` says whether the values that look hashed are hashes an administrator
-  imports). It may bring schema files, controls, extended operations, SASL mechanisms and password
+  virtual list view still count the entries it removes. An interceptor that only changes the entries is best placed
+  before `paging`, as `GroupPresentationPlugin` is: the backend can then still sort, window and page by itself. The
+  sort and the virtual list view then use the entries as stored, without its changes.
+- In the interceptors and the plugins, `context.session` is the session for a bind. For any other operation it is a
+  view of the session whose identity stays the one the operation started with, whatever bind comes meanwhile: keep
+  data of a session in `session.state`, or key it by `session.id`, not by the session object.
+- A plugin may also run around every request (`aroundRequest`, which sees the binds, StartTLS and the extended
+  operations the server answers itself), around the check of a password (`authenticate`), and on the password changes
+  while they are in clear (`passwordChange`, whose `importing` says whether the values that look hashed are hashes an
+  administrator imports). It may bring schema files, controls, extended operations, SASL mechanisms and password
   schemes, which the root DSE and the subschema publish. Two plugins claiming one OID stop the server at its start.
 - Every plugin takes `name` and `suffixes` among its options: to have it twice, or for some backends only. The plugins
   keep the relations within one backend, as the overlays of OpenLDAP keep them within one database.

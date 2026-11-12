@@ -26,7 +26,8 @@ export interface AccessRequest {
     dn: DN
     /**
      * The entry, when it is read or changed; for a search or a compare, as the backend stores it (without the
-     * operational attributes the server computes, before any plugin changes it)
+     * operational attributes the server computes, before any plugin changes it). An entry an interceptor of one's own
+     * adds to a search, or returns as a new object, is checked again as the interceptor gives it.
      */
     entry?: DirectoryEntry
     /**
