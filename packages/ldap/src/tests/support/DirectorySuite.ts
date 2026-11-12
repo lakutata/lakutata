@@ -29,6 +29,7 @@ import {
     LDAPUnavailableException,
     LDAPUnwillingToPerformException,
     LDAPValueRecord,
+    PagedResultsControl,
     SortRequestControl,
     SortResponseControl,
     TreeDeleteControl,
@@ -1703,8 +1704,9 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                             readingEntries = undefined
                         }
                         seen.timeBatches = batches
-                        //The entries read before the time limit all left out by the access control: timeLimitExceeded
-                        //all the same, not success without entries
+                        //The entries read before the time limit all left out by the access control (the first read is
+                        //cn=limited0, the siblings read in the order they were added): timeLimitExceeded all the same,
+                        //not success without entries
                         offset = 0
                         hiding = true
                         Date.now = (): number => now() + offset
@@ -1717,6 +1719,23 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                             Date.now = now
                             readingEntries = undefined
                             hiding = false
+                        }
+                        //Paged, cut once more entries were read than its first page gives (the clock past the time limit
+                        //at the second batch): timeLimitExceeded, no cookie to page on with
+                        offset = 0
+                        let read: number = 0
+                        Date.now = (): number => now() + offset
+                        readingEntries = (): void => {
+                            if (++read >= 2) offset += 5000
+                        }
+                        try {
+                            seen.paged = await server.connect(ADMIN).search(unit, {scope: 'one', timeLimit: 1, paged: false, controls: [PagedResultsControl.encode({size: 50, cookie: Buffer.alloc(0)})]}).then((): string => 'answered', (error: unknown): [number, number] => {
+                                const control = findControl((error as LDAPResultException).controls, PagedResultsControl)
+                                return [(error as LDAPResultException).code, control ? PagedResultsControl.decode(control).cookie.length : 0]
+                            })
+                        } finally {
+                            Date.now = now
+                            readingEntries = undefined
                         }
                         //An internal search of an exact filter, one entry asked for
                         batches = 0
@@ -1736,6 +1755,7 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                 //timeLimitExceeded, the batch after the time limit not read
                 assert.deepEqual([seen.time, seen.timeBatches], [3, 1])
                 assert.equal(seen.hidden, 3)
+                assert.deepEqual(seen.paged, [3, 0])
                 assert.deepEqual([seen.size, seen.sizeBatches], [[1, true], 1])
             } finally {
                 Date.now = now
