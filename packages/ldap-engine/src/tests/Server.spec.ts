@@ -804,6 +804,11 @@ describe('the server engine', () => {
             //A value for a control that has none
             await assert.rejects(admin.search(people, {scope: 'one', paged: false, controls: [raw(ManageDsaITControl.oid, [0x01], critical)]}), code(2))
         }
+        //On an operation it does not apply to, not critical: ignored (RFC 4511 §4.1.11), whatever its value
+        await admin.modify(`uid=user8,ou=people,${BASE}`, {operation: 'replace', attribute: 'description', values: 'controls ignored'}, {controls: [raw(SortRequestControl.oid, [0x30, 0x03, 0x04], false), raw(PagedResultsControl.oid, [0x02, 0x01], false)]})
+        assert.equal((await admin.search(people, {scope: 'one', filter: '(uid=user8)', paged: false, controls: [raw(TreeDeleteControl.oid, [0x01], false)]})).entries.length, 1)
+        //Critical there: refused as not applying
+        await assert.rejects(admin.modify(`uid=user8,ou=people,${BASE}`, {operation: 'replace', attribute: 'description', values: 'x'}, {controls: [raw(SortRequestControl.oid, [0x30, 0x03, 0x04], true)]}), code(12))
     })
 
     it('pages none of the entries for a first page of size 0, with a cookie while entries are left', async () => {

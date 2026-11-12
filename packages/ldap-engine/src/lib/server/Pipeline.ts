@@ -598,7 +598,7 @@ export class Pipeline {
         if (operation === 'bind') this.endPaged(session)
         try {
             this.checkControls(controls, operation)
-            this.readControls(controls)
+            this.readControls(controls, operation)
             outcome = await run()
         } catch (error) {
             outcome = this.outcomeOf(error, signal)
@@ -728,11 +728,15 @@ export class Pipeline {
     /**
      * Refuse a control of the engine whose value cannot be read, critical or not, with protocolError (as OpenLDAP
      * answers it): a value that is not the BER its control defines, a page size or a count of a view below zero (their
-     * INTEGER is 0..maxInt), a value given to a control that has none
+     * INTEGER is 0..maxInt), a value given to a control that has none. A control on an operation it does not apply to is
+     * not read: ignored when it is not critical (RFC 4511 §4.1.11), refused by checkControls when it is.
      * @param controls The controls.
+     * @param operation The operation.
      */
-    protected readControls(controls: Control[]): void {
+    protected readControls(controls: Control[], operation: OperationType): void {
         for (const control of controls) {
+            if ([PagedResultsControl.oid, SortRequestControl.oid, VLVRequestControl.oid].includes(control.oid) && operation !== 'search') continue
+            if (control.oid === TreeDeleteControl.oid && operation !== 'delete') continue
             try {
                 if (control.oid === PagedResultsControl.oid) {
                     if (PagedResultsControl.decode(control).size < 0) fail(ResultCode.protocolError, 'The page size of the paged results control is below zero')
