@@ -709,6 +709,19 @@ export class Pipeline {
     }
 
     /**
+     * Refuse a critical control only backends handle when the backend a request reaches does not list it: another
+     * backend listing it does not apply it there (RFC 4511 §4.1.11)
+     * @param mount The backend the request reaches.
+     * @param controls The controls.
+     */
+    protected checkMountControls(mount: Mount, controls: readonly Control[]): void {
+        for (const control of controls) {
+            if (!control.critical || ENGINE_CONTROLS.includes(control.oid) || this.options.controls.has(control.oid)) continue
+            if (!mount.backend.capabilities?.controls?.includes(control.oid)) fail(ResultCode.unavailableCriticalExtension, `The critical control ${control.oid} is not supported by the backend of ${mount.suffix.toString()}`)
+        }
+    }
+
+    /**
      * Refuse a control of the engine whose value cannot be read, critical or not, with protocolError (as OpenLDAP
      * answers it): a value that is not the BER its control defines, a page size or a count of a view below zero (their
      * INTEGER is 0..maxInt), a value given to a control that has none
@@ -880,6 +893,7 @@ export class Pipeline {
         } else {
             const mount: Mount | undefined = this.route(base)
             if (!mount) fail(ResultCode.noSuchObject, `No entry ${base.toString()}`)
+            this.checkMountControls(mount, context.controls)
             outcome = this.rechecked(mount, searchContext, await this.run(mount, searchContext, search, () => this.backendSearch(mount, searchContext, search)))
         }
         return this.output(searchContext, outcome, selection, Number.isFinite(sizeLimit) ? sizeLimit : 0, deadline, responder)
@@ -1111,6 +1125,7 @@ export class Pipeline {
         const dn: DN = request.type === 'add' ? request.entry.dn : (request as {dn: DN}).dn
         const mount: Mount | undefined = this.route(dn)
         if (!mount) fail(ResultCode.noSuchObject, `No backend holds ${dn.toString()}`)
+        if (!context.internal) this.checkMountControls(mount, context.controls)
         const write: WriteContext = context
         return this.run(mount, write, request, async (): Promise<ServerOutcome> => {
             switch (request.type) {

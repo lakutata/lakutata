@@ -925,6 +925,21 @@ describe('the server engine', () => {
         assert.deepEqual([paged.entries.length, PagedResultsControl.decode(findControl(paged.controls, PagedResultsControl)!).cookie.length], [1, 0])
     })
 
+    it('refuses a critical control of a backend on another backend', async () => {
+        const OID: string = '1.3.6.1.4.1.99999.5'
+        const mixed: LDAPServerEngine = createLDAPServer({backends: [new MemoryBackend('dc=a,dc=example,dc=com'), createHandlerBackend({
+            suffix: 'dc=b,dc=example,dc=com',
+            capabilities: {controls: [OID]},
+            search: () => [{dn: 'dc=b,dc=example,dc=com', attributes: {objectClass: 'domain', dc: 'b'}}]
+        })], access: {admins: [ADMIN]}})
+        const owner: LDAPInProcessConnection = mixed.connect({as: ADMIN})
+        await owner.add('dc=a,dc=example,dc=com', {objectClass: 'domain', dc: 'a'})
+        const critical = [{oid: OID, critical: true}]
+        assert.equal((await owner.search('dc=b,dc=example,dc=com', {scope: 'base', paged: false, controls: critical})).entries.length, 1)
+        await assert.rejects(owner.search('dc=a,dc=example,dc=com', {scope: 'base', paged: false, controls: critical}), code(12))
+        await assert.rejects(owner.modify('dc=a,dc=example,dc=com', {operation: 'replace', attribute: 'description', values: 'x'}, {controls: critical}), code(12))
+    })
+
     it('refuses a critical control it does not know', async () => {
         await assert.rejects(admin.search(BASE, {controls: [{oid: '1.2.3.4.5', critical: true}]}), LDAPUnavailableCriticalExtensionException)
         assert.ok((await admin.search(BASE, {scope: 'base', controls: [{oid: '1.2.3.4.5', critical: false}]})).entries.length)
