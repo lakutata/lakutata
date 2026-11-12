@@ -598,6 +598,9 @@ export class Pipeline {
         const context: OperationContext = this.context(view, operation, controls, signal)
         let outcome: ServerOutcome
         let dn: string = ''
+        //StartTLS over a network connection, and whether the connection was asked to answer it
+        const startTLS: boolean = request.type === 'extendedRequest' && request.name === ExtendedOperation.startTLS && responder.startTLS !== undefined
+        let connectionAnswered: boolean = false
         const dispatch = async (): Promise<ServerOutcome> => {
             switch (request.type) {
                 case 'bindRequest':
@@ -611,19 +614,24 @@ export class Pipeline {
                     //controls an extension's handler applies
                     if (request.name !== ExtendedOperation.passwordModify) this.checkMountControls(undefined, context.controls, this.options.extendedOperations.get(request.name)?.controls)
                     //StartTLS over a network connection: answered by the connection, which then upgrades it
-                    if (request.name === ExtendedOperation.startTLS && responder.startTLS) return responder.startTLS()
+                    if (startTLS) {
+                        connectionAnswered = true
+                        return responder.startTLS!()
+                    }
                     return this.extended(context, request.name, request.value)
                 default:
                     dn = 'entry' in request ? request.entry : 'object' in request ? request.object : ''
                     return this.write(context, request)
             }
         }
-        //The plugins' hooks around every request, the first outermost
+        //The plugins' hooks around every request, the first outermost. StartTLS answered success by a plugin, the
+        //connection not asked: no TLS is started, so the plugins around it, the event and the client see an error
+        const unstarted = (outcome: ServerOutcome): ServerOutcome => startTLS && !connectionAnswered && outcome.resultCode === ResultCode.success ? {resultCode: ResultCode.operationsError, diagnosticMessage: 'StartTLS was not agreed by the connection', responseName: ExtendedOperation.startTLS} : outcome
         let run: () => Promise<ServerOutcome> = dispatch
         for (const plugin of [...this.options.plugins].reverse()) {
             if (!plugin.aroundRequest) continue
             const inner: () => Promise<ServerOutcome> = run
-            run = (): Promise<ServerOutcome> => plugin.aroundRequest!(context, request, inner)
+            run = async (): Promise<ServerOutcome> => unstarted(await plugin.aroundRequest!(context, request, inner))
         }
         //A bind ends the paged searches of the identity before it (their entries read for that identity), however it ends:
         //also when it is refused before it is done (a control, a hook), which leaves the session anonymous. The session

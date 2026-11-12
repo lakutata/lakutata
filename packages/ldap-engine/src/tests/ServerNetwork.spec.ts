@@ -194,8 +194,20 @@ describe('the server engine on the network', () => {
     })
 
     it('answers StartTLS a plugin says is done, without the connection agreeing, with an error, and goes on in clear', async () => {
-        const {url: faking, port: fakingPort} = await serve({plugins: [{name: 'faking', aroundRequest: async (_context, request, next) => request.type === 'extendedRequest' && request.name === ExtendedOperation.startTLS ? {resultCode: 0} : next()}]})
-        void faking
+        //An audit plugin around the one answering, which records what the client gets; the operation events too
+        const recorded: number[] = []
+        const events: number[] = []
+        const {server: fakingServer, port: fakingPort} = await serve({plugins: [
+            {name: 'recording', aroundRequest: async (_context, request, next) => {
+                const outcome = await next()
+                if (request.type === 'extendedRequest' && request.name === ExtendedOperation.startTLS) recorded.push(outcome.resultCode)
+                return outcome
+            }},
+            {name: 'faking', aroundRequest: async (_context, request, next) => request.type === 'extendedRequest' && request.name === ExtendedOperation.startTLS ? {resultCode: 0} : next()}
+        ]})
+        fakingServer.events.on('operation', (event: {operation: string, resultCode: number}) => {
+            if (event.operation === 'extended') events.push(event.resultCode)
+        })
         const socket: Socket = createConnection({port: fakingPort, host: '127.0.0.1'})
         await once(socket, 'connect')
         socket.write(encodeMessage({messageId: 1, protocolOp: {type: 'extendedRequest', name: ExtendedOperation.startTLS}}))
@@ -203,8 +215,8 @@ describe('the server engine on the network', () => {
         const {messages} = await received(socket)
         socket.destroy()
         const codes = messages.map((message) => [message.messageId, 'resultCode' in message.protocolOp ? message.protocolOp.resultCode : undefined])
-        assert.notDeepEqual(codes[0], [1, 0])
-        assert.deepEqual(codes[1], [2, 0])
+        assert.deepEqual(codes, [[1, 1], [2, 0]])
+        assert.deepEqual([recorded, events[0]], [[1], 1])
     })
 
     it('refuses data sent after a StartTLS request before the handshake', async () => {
