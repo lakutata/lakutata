@@ -938,15 +938,19 @@ describe('the server engine', () => {
         assert.equal((await admin.search('', {scope: 'base', paged: false, controls: [SortRequestControl.encode([{attribute: 'cn'}])]})).entries.length, 1)
         const paged = await admin.search('', {scope: 'base', paged: false, controls: [PagedResultsControl.encode({size: 5, cookie: Buffer.alloc(0)}, true)]})
         assert.deepEqual([paged.entries.length, PagedResultsControl.decode(findControl(paged.controls, PagedResultsControl)!).cookie.length], [1, 0])
-        //A critical control of a plugin applying it around the request: taken there too
+        //A critical control of a plugin saying it applies it to these entries (around the request): taken there too; one
+        //of a plugin applying it in the chain of the backends only: refused
         const OID: string = '1.3.6.1.4.1.99999.11'
+        const CHAINED: string = '1.3.6.1.4.1.99999.12'
         const applied: string[] = []
-        const {admin: owner} = await directory({plugins: [{name: 'marker', controls: [{oid: OID, operations: ['search']}], aroundRequest: async (context, _request, next) => {
+        const {admin: owner} = await directory({plugins: [{name: 'marker', controls: [{oid: OID, operations: ['search'], serverEntries: true}, {oid: CHAINED, operations: ['search']}], aroundRequest: async (context, _request, next) => {
             if (findControl(context.controls, OID)) applied.push(context.operation)
             return next()
         }}]})
         assert.equal((await owner.search('', {scope: 'base', paged: false, controls: [{oid: OID, critical: true}]})).entries.length, 1)
         assert.deepEqual(applied, ['search'])
+        await assert.rejects(owner.search('', {scope: 'base', paged: false, controls: [{oid: CHAINED, critical: true}]}), code(12))
+        assert.equal((await owner.search(`ou=people,${BASE}`, {scope: 'base', paged: false, controls: [{oid: CHAINED, critical: true}]})).entries.length, 1)
     })
 
     it('refuses a critical control of a backend on another backend', async () => {

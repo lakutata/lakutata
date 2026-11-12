@@ -784,6 +784,12 @@ export interface PluginControl {
      * The operations it comes with
      */
     operations?: OperationType[]
+    /**
+     * Whether the plugin applies it to the entries the server serves itself (the root DSE, the subschema, the
+     * configuration view), as a plugin applying it in `aroundRequest` does; a search of those entries with the control
+     * critical is refused otherwise (false by default: the entries go through no backend's chain)
+     */
+    serverEntries?: boolean
 }
 
 /**

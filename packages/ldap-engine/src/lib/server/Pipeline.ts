@@ -221,6 +221,8 @@ export interface PipelineOptions {
      * The controls of the plugins, with the operations they come with
      */
     controls: Map<string, OperationType[] | undefined>
+    //The controls of plugins applied to the entries the server serves itself
+    serverEntryControls: Set<string>
     vendorName?: string
     vendorVersion?: string
     defaultNamingContext?: string
@@ -927,12 +929,12 @@ export class Pipeline {
             //The root DSE is not part of a search below the root (RFC 4512 §5.1), where no entry is
             if (base.isRoot() && request.scope !== 'base') fail(ResultCode.noSuchObject, 'No entry below the root DSE')
             //These entries go through neither the sort nor the view, nor a backend: a critical control is refused (RFC 4511
-            //§4.1.11) but the paged results (one page), ManageDsaIT and the controls of the plugins for searches, which
-            //apply them around the request
+            //§4.1.11) but the paged results (one page), ManageDsaIT and the controls of plugins for searches a plugin
+            //applies to them (serverEntries)
             for (const control of context.controls) {
                 if (!control.critical || control.oid === PagedResultsControl.oid || control.oid === ManageDsaITControl.oid) continue
                 const operations: OperationType[] | undefined = this.options.controls.get(control.oid)
-                if (this.options.controls.has(control.oid) && (!operations || operations.includes('search'))) continue
+                if (this.options.serverEntryControls.has(control.oid) && (!operations || operations.includes('search'))) continue
                 fail(ResultCode.unavailableCriticalExtension, `The critical control ${control.oid} does not apply to ${base.isRoot() ? 'the root DSE' : base.toString()}`)
             }
             if (findControl(context.controls, PagedResultsControl)) context.responseControls.push(PagedResultsControl.encode({size: 0, cookie: Buffer.alloc(0)}))

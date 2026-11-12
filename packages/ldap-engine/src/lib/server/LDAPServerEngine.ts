@@ -247,6 +247,7 @@ function schemaOf(option: Schema | readonly SchemaSource[] | undefined, backends
 function contributionsOf(options: LDAPServerEngineOptions, passwords: PasswordSchemes): {
     interceptors: PlacedInterceptor[]
     controls: Map<string, OperationType[] | undefined>
+    serverEntryControls: Set<string>
     extendedOperations: Map<string, ExtendedOperationDefinition>
     sasl: SASLMechanism[]
     rootDSEAttributes: PartialAttribute[]
@@ -275,12 +276,14 @@ function contributionsOf(options: LDAPServerEngineOptions, passwords: PasswordSc
     const owners: Map<string, string> = new Map([...ENGINE_CONTROLS.map((oid: string): [string, string] => [oid, 'the engine'])])
     for (const backend of options.backends) for (const oid of backend.capabilities?.controls ?? []) owners.set(oid, `the backend of ${backend.suffix}`)
     const controls: Map<string, OperationType[] | undefined> = new Map()
+    const serverEntryControls: Set<string> = new Set()
     for (const plugin of plugins) {
         for (const control of plugin.controls ?? []) {
             const owner: string | undefined = owners.get(control.oid)
             if (owner) conflict(`The control ${control.oid} of the plugin ${plugin.name} is handled by ${owner}`)
             owners.set(control.oid, `the plugin ${plugin.name}`)
             controls.set(control.oid, control.operations?.length ? [...control.operations] : undefined)
+            if (control.serverEntries === true) serverEntryControls.add(control.oid)
         }
     }
     //The extended operations: those of the options, then those of the plugins
@@ -307,7 +310,7 @@ function contributionsOf(options: LDAPServerEngineOptions, passwords: PasswordSc
         }
     }
     const rootDSEAttributes: PartialAttribute[] = [...options.rootDSEAttributes ?? [], ...plugins.flatMap((plugin: LDAPPlugin): readonly PartialAttribute[] => plugin.rootDSEAttributes ?? [])]
-    return {interceptors: interceptors, controls: controls, extendedOperations: extendedOperations, sasl: sasl, rootDSEAttributes: rootDSEAttributes}
+    return {interceptors: interceptors, controls: controls, serverEntryControls: serverEntryControls, extendedOperations: extendedOperations, sasl: sasl, rootDSEAttributes: rootDSEAttributes}
 }
 
 /**
@@ -462,6 +465,7 @@ export class LDAPServerEngine implements LDAPPluginHost {
             sasl: contributions.sasl,
             extendedOperations: contributions.extendedOperations,
             controls: contributions.controls,
+            serverEntryControls: contributions.serverEntryControls,
             vendorName: options.vendorName,
             vendorVersion: options.vendorVersion,
             defaultNamingContext: options.defaultNamingContext,
