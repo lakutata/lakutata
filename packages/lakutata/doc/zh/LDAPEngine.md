@@ -347,14 +347,14 @@ const server = createLDAPServer({
 await server.listen({port: 389})
 ```
 
-- `access.check` 最先判断：返回 `true` 表示允许，`false` 表示拒绝，`undefined` 表示交给上表的规则。它收到的信息有：操作（搜索返回的内容为 `read`）、DN、会话的身份，以及已知时的条目或属性。
-- `plaintextBind` 规定在哪里可以不经过 TLS 接受密码：任何地方（`'all'`，默认）、只限本机回环地址（`'loopback'`），或者任何地方都不行（`'none'`）。Unix 套接字不受这个选项限制，总是接受密码。
+- `access.check` 最先判断：返回 `true` 表示允许，`false` 表示拒绝，`undefined` 表示交给上表的规则。它收到的信息有：操作（搜索返回的内容和比较读取的条目为 `read`）、DN、会话的身份，以及已知时的条目或属性。改名时它会被问两次：先问原来的条目，再问条目的新 DN（`from` 给出原来的 DN），所以只允许在某个条目下面写入的检查，也会拒绝把条目移出去。对会话不能读的条目做比较时，按条目不存在回答。
+- `plaintextBind` 规定在哪里可以不经过 TLS 接受密码（绑定、写入 `userPassword`、Password Modify）：任何地方（`'all'`，默认）、只限本机回环地址（`'loopback'`），或者任何地方都不行（`'none'`）。Unix 套接字不受这个选项限制，总是接受密码。
 - 带名字、密码为空的绑定会被拒绝（`allowUnauthenticatedBind` 会把它当作匿名绑定接受）。同一个 DN 或地址的失败绑定，回应会越来越慢，之后在一段时间内直接拒绝（`bindThrottle`）；这些情况都回 invalidCredentials，从回应上分不出账号被锁定还是密码错误。
 - `limits`：对不是管理员的会话，每次搜索最多 500 个条目、3600 秒，并限制过滤器的深度和大小；对所有会话，限制消息的大小、未完成的请求数、连接数和空闲时间。分页搜索的条数限制按所有页的总数计算。达到限制后，如果会话还有能读到的条目，搜索以 sizeLimitExceeded 结束；限制正好在一页末尾用完时，这个回应要到后面的页才给出，通常是下一页。对不是管理员的会话，可以用 `pagedSizeLimit` 给分页搜索单独设一个限制（不设时等于 `sizeLimit`，0 表示不限）。
 
 ## 12. 密码和密码策略
 
-服务器收到的每个密码都会被哈希成 `{PBKDF2-SHA512}`（OpenLDAP 的 pw-pbkdf2 模块使用的格式；`passwords: {iterations}` 调整迭代次数）。绑定时也能校验 OpenLDAP 的其他格式（`{SSHA}`、SHA-2 系列、使用 MD5、SHA-256、SHA-512 和 bcrypt 的 `{CRYPT}`，以及 node:crypto 支持 argon2 时的 `{ARGON2}`：Node.js 24.7 及以上，Electron 不支持），还能校验旧目录里的明文密码，校验通过后再用服务器的格式重新哈希（`rehashOnBind`）。管理员可以直接写入已经哈希过的值，用于导入账号。
+服务器收到的每个密码都会被哈希成 `{PBKDF2-SHA512}`（OpenLDAP 的 pw-pbkdf2 模块使用的格式；`passwords: {iterations}` 调整迭代次数）。绑定时也能校验 OpenLDAP 的其他格式（`{SSHA}`、SHA-2 系列、使用 MD5、SHA-256、SHA-512 和 bcrypt 的 `{CRYPT}`，以及 node:crypto 支持 argon2 时的 `{ARGON2}`：Node.js 24.7 及以上，Electron 不支持），还能校验旧目录里的明文密码，校验通过后再用服务器的格式重新哈希（`rehashOnBind`）。管理员可以直接写入已经哈希过的值，用于导入账号；其他用户写入的值，即使看起来像哈希，也按明文密码处理。修改操作删除以明文给出的密码时（修改密码时给出的旧密码），只在修改自己的条目时才和存储的密码比对；要改别人的密码，请用 replace。
 
 `passwordPolicy` 实现 draft-behera 的密码策略，使用的属性和 OpenLDAP 的 ppolicy 一样：
 
@@ -375,8 +375,9 @@ await server.listen({port: 389})
 
 - 失败次数过多时锁定账号，锁定一段时间，或者直到管理员设置新密码为止；太久没有使用的账号也会被锁定（`maxIdle`）。
 - 密码会过期（`maxAge`），过期前会提醒（`expireWarning`），过期后还允许绑定几次（`graceAuthNLimit`）。
-- 管理员设置密码后，用户必须先修改密码，才能做别的事（`mustChange`）。
-- 新密码的要求：修改时必须给出旧密码（`safeModify`），两次修改之间要隔一段时间（`minAge`），并且不能和以前用过的密码相同（`inHistory`）；长度（`minLength`、`maxLength`）和 `quality` 检查在 `checkQuality` 为 1（直接写入哈希值的密码可以通过）或 2（总是检查）时生效，和 pwdCheckQuality 的规定一致。
+- 管理员设置密码后，用户必须先修改密码，才能做别的事（`mustChange`）；修改写入之后，这个限制才解除；在同一个连接上重新绑定时，会重新判断。
+- 受策略约束的条目只能有一个密码：写入后会留下两个密码的操作会被拒绝。
+- 新密码的要求：修改时必须给出旧密码（`safeModify`），两次修改之间要隔一段时间（`minAge`），并且不能和以前用过的密码相同（`inHistory`）；长度（`minLength`、`maxLength`）和 `quality` 检查在 `checkQuality` 为 1（管理员导入的哈希值可以通过）或 2（总是检查）时生效，和 pwdCheckQuality 的规定一致。
 - 策略的状态存在条目的操作属性里（pwdChangedTime、pwdAccountLockedTime、pwdFailureTime……），所以任何后端都能保存它。每次绑定失败都会计数，同时发生的几次也一样。共用一个后端的两个实例在同一毫秒内、都还没写入时各有一次失败，可能拿到相同的时间；这时算一次还是两次，取决于后端怎样处理已有的值。发送密码策略控制的客户端会在回应里收到提醒和原因；账号被锁定时，回应和密码错误一样，除非设置了 `revealLocked`。
 - 密码策略是一个插件：这个选项会在其他插件之后加上一个 `PasswordPolicyPlugin`，它会自己加载 ppolicy schema。
 
@@ -438,7 +439,7 @@ await server.listen({port: 389})
 
 - 拦截器只在它列出的 `operations` 上运行：`before()` 检查或修改请求，`around()` 包住链上后面的部分运行，`transformEntry()` 修改搜索返回的条目，`beforeCommit()` 在写操作的事务里运行（后端支持事务时）。抛出 `LDAPResultException` 时，以它的结果码回应。
 - 拦截器可以放在服务器内置步骤（`access`、`password`、`schema`、`operational`、`paging`）的前面或后面，写法是 `{interceptor, before: 'schema'}`；不指定时放在链的末尾，也就是所有内置步骤之后，这时它往请求里加的内容不会经过 schema 检查。放在 `password` 之前的拦截器能看到明文密码。
-- 插件还可以在每个请求前后运行（`aroundRequest`，能看到绑定和服务器自己回答的扩展操作）、在校验密码前后运行（`authenticate`），以及在密码修改时、密码还是明文的时候运行（`passwordChange`）。插件可以带上 schema 文件、控制、扩展操作、SASL 机制和密码格式，根 DSE 和子模式条目会公布它们。两个插件声明同一个 OID 时，服务器在启动时就会报错。
+- 插件还可以在每个请求前后运行（`aroundRequest`，能看到绑定和服务器自己回答的扩展操作）、在校验密码前后运行（`authenticate`），以及在密码修改时、密码还是明文的时候运行（`passwordChange`，其中的 `importing` 表示看起来像哈希的值是不是管理员导入的哈希）。插件可以带上 schema 文件、控制、扩展操作、SASL 机制和密码格式，根 DSE 和子模式条目会公布它们。两个插件声明同一个 OID 时，服务器在启动时就会报错。
 - 每个插件的选项里都有 `name` 和 `suffixes`：用来同时使用两个同类插件，或者只作用于部分后端。插件维护的关系只在一个后端之内，就像 OpenLDAP 的 overlay 只在一个数据库之内维护关系一样。
 - 服务器的 `interceptors` 选项只接受拦截器，用于不需要插件其他部分的场合。
 

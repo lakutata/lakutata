@@ -440,10 +440,13 @@ await server.listen({port: 389})
 ```
 
 - `access.check` decides first: `true` allows, `false` refuses, `undefined` leaves it to the table. It is given the
-  operation (`read` for what a search returns), the DN, the session's identity, and the entry or the attributes when
-  they are known.
-- `plaintextBind` says where a password is taken without TLS: everywhere (`'all'`, by default), from the loopback
-  (`'loopback'`), or nowhere (`'none'`). The Unix socket takes passwords whatever it says.
+  operation (`read` for what a search returns or a compare reads), the DN, the session's identity, and the entry or the
+  attributes when they are known. For a rename it is asked twice: about the entry, then about the DN the entry would get
+  (`from` holds its current DN), so a check that allows writes only below one entry also refuses a move out of that
+  subtree. A compare on an entry the session may not read is answered as if the entry did not exist.
+- `plaintextBind` says where a password is taken without TLS (a bind, a write of `userPassword`, a Password Modify):
+  everywhere (`'all'`, by default), from the loopback (`'loopback'`), or nowhere (`'none'`). The Unix socket takes
+  passwords whatever it says.
 - A bind with a name and an empty password is refused (`allowUnauthenticatedBind` takes it as anonymous). The failed
   binds of a DN or an address are answered later and later, then refused for a while (`bindThrottle`), all with
   invalidCredentials, which does not tell a locked account from a wrong password.
@@ -459,8 +462,11 @@ await server.listen({port: 389})
 The server hashes every password it is given, as `{PBKDF2-SHA512}` (the format of OpenLDAP's pw-pbkdf2 module;
 `passwords: {iterations}` changes its cost). A bind also checks the other schemes of OpenLDAP (`{SSHA}`, the SHA-2
 schemes, `{CRYPT}` with MD5, SHA-256, SHA-512 and bcrypt, `{ARGON2}` where node:crypto runs argon2: Node.js 24.7 and
-later, but not Electron) and the passwords in clear of an older directory, then hashes the password again in the
-scheme of the server (`rehashOnBind`). An administrator may write a hashed value as it is, to import accounts.
+later, but not Electron) and the passwords in clear of an older directory, then hashes the password again in the scheme
+of the server (`rehashOnBind`). An administrator may write a hashed value as it is, to import accounts; a value written
+by anyone else is treated as a password in clear, even if it looks hashed. When a modify deletes a password given in
+clear (the old password of a change), it is checked against the stored one only on the session's own entry; to change
+someone else's password, replace it.
 
 `passwordPolicy` applies the password policy of draft-behera, with the attributes OpenLDAP's ppolicy uses:
 
@@ -482,10 +488,12 @@ await server.listen({port: 389})
 - Accounts are locked after too many failures, for a while or until an administrator sets a new password; the accounts
   unused for too long are locked too (`maxIdle`).
 - A password expires (`maxAge`), with warnings before (`expireWarning`) and binds allowed after (`graceAuthNLimit`).
-- After an administrator sets a password, the user changes it before doing anything else (`mustChange`).
+- After an administrator sets a password, the user changes it before doing anything else (`mustChange`); the
+  restriction ends once the change has been written, and a new bind on the same connection is judged afresh.
+- An entry governed by a policy holds one password: a write that would leave it with two is refused.
 - New passwords: with the old one (`safeModify`), not too soon again (`minAge`), and not one of the former ones
   (`inHistory`); their length (`minLength`, `maxLength`) and the `quality` check are applied when `checkQuality` is 1
-  (a password written hashed passes) or 2 (always), as pwdCheckQuality says.
+  (a hash an administrator imports passes) or 2 (always), as pwdCheckQuality says.
 - The state is in operational attributes of the entries (pwdChangedTime, pwdAccountLockedTime, pwdFailureTime…), so
   every backend keeps it. Each failed bind counts, also when several are made at the same time. Two made in the same
   millisecond on two instances sharing a backend, before either is written, can be given the same time; whether they
@@ -562,7 +570,8 @@ await server.listen({port: 389})
   passwords in clear.
 - A plugin may also run around every request (`aroundRequest`, which sees the binds and the extended operations the
   server answers itself), around the check of a password (`authenticate`), and on the password changes while they are
-  in clear (`passwordChange`). It may bring schema files, controls, extended operations, SASL mechanisms and password
+  in clear (`passwordChange`, whose `importing` says whether the values that look hashed are hashes an administrator
+  imports). It may bring schema files, controls, extended operations, SASL mechanisms and password
   schemes, which the root DSE and the subschema publish. Two plugins claiming one OID stop the server at its start.
 - Every plugin takes `name` and `suffixes` among its options: to have it twice, or for some backends only. The plugins
   keep the relations within one backend, as the overlays of OpenLDAP keep them within one database.
