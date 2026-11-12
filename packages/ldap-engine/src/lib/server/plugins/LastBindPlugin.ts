@@ -1,5 +1,6 @@
 import {LDAPUsageException} from '../../../exceptions/LDAPUsageException.js'
 import {formatGeneralizedTime, parseGeneralizedTime} from '../../schema/MatchingRules.js'
+import {ResultCode} from '../../protocol/ResultCode.js'
 import type {LDAPInProcessConnection} from '../InProcessConnection.js'
 import type {LDAPInterceptor, OperationContext, PluginCapability, ServerOutcome, ServerRequest} from '../Types.js'
 import {BaseLDAPPlugin, type BasePluginOptions} from './BaseLDAPPlugin.js'
@@ -73,7 +74,8 @@ export class LastBindPlugin extends BaseLDAPPlugin {
      */
     protected async around(context: OperationContext, request: ServerRequest, next: () => Promise<ServerOutcome>): Promise<ServerOutcome> {
         const outcome: ServerOutcome = await next()
-        if (request.type !== 'bind' || !request.dn) return outcome
+        //A bind an interceptor inside answered otherwise than success: no password was checked, no time kept
+        if (request.type !== 'bind' || !request.dn || outcome.resultCode !== ResultCode.success) return outcome
         const dn = request.dn
         const now: Date = new Date()
         await this.afterwards(context, (): Promise<void> => this.internally(context, async (connection: LDAPInProcessConnection): Promise<void> => {

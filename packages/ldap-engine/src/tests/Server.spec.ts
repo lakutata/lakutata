@@ -1151,6 +1151,11 @@ describe('the server engine', () => {
         //A wrong password: invalidCredentials, no time kept
         await assert.rejects(kept.connect().saslBind('PLAIN', Buffer.from(`\0dn:uid=user4,ou=people,${BASE}\0wrong`)), code(49))
         assert.equal((await owner.search(`uid=user4,ou=people,${BASE}`, {scope: 'base', attributes: ['authTimestamp']})).entries[0].first('authTimestamp'), undefined)
+        //A bind an interceptor answers without checking the password: no time kept either, simple or PLAIN
+        const {server: refusing, admin: refuser} = await directory({plugins: [new LastBindPlugin()], interceptors: [{name: 'refusing', operations: ['bind'], around: async () => ({resultCode: 53, diagnosticMessage: 'Not now'})} as never]})
+        await assert.rejects(refusing.connect().bind(`uid=user5,ou=people,${BASE}`, 'anything'), code(53))
+        await assert.rejects(refusing.connect().saslBind('PLAIN', Buffer.from(`\0dn:uid=user5,ou=people,${BASE}\0anything`)), code(53))
+        assert.equal((await refuser.search(`uid=user5,ou=people,${BASE}`, {scope: 'base', attributes: ['authTimestamp']})).entries[0].first('authTimestamp'), undefined)
         //An extended operation that is not a function: refused at the start
         assert.throws(() => createLDAPServer({backends: [new MemoryBackend(BASE)], extendedOperations: {'1.3.6.1.4.1.99999.23': {handler: () => ({})} as never}}), LDAPUsageException)
     })

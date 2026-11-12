@@ -496,6 +496,17 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             assert.equal((await admin.search(people, {filter: '(email=user10@example.com)'})).entries.length, 1)
             await ldap.connect().bind(`uid=user1,${people}`, 'password1')
             assert.match((await admin.search(`uid=user1,${people}`, {scope: 'base', attributes: ['authTimestamp']})).entries[0].first('authTimestamp')!, /^\d{14}Z$/)
+            //A bind an interceptor answers without the password checked: no time kept
+            const refusing: Container = new Container()
+            try {
+                await refusing.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                await refusing.setNamed('ldap', LDAPServer, {port: false, schema: schema, backends: [{class: DirectoryBackend, suffix: BASE, database: 'database'}], access: {admins: [ADMIN]}, interceptors: [{interceptor: {name: 'refusing', operations: ['bind'], around: async () => ({resultCode: 53})}}]})
+                const server: LDAPServer = await refusing.get<LDAPServer>('ldap')
+                await assert.rejects(server.connect().bind(`uid=user3,${people}`, 'anything'), (error: unknown) => error instanceof LDAPResultException && error.code === 53)
+                assert.equal((await admin.search(`uid=user3,${people}`, {scope: 'base', attributes: ['authTimestamp']})).entries[0].first('authTimestamp'), undefined)
+            } finally {
+                await refusing.destroy()
+            }
             //A SASL PLAIN bind too
             await admin.passwordModify({userIdentity: `uid=user2,${people}`, newPassword: 'password2'})
             await ldap.connect().saslBind('PLAIN', Buffer.from(`\0dn:uid=user2,${people}\0password2`))

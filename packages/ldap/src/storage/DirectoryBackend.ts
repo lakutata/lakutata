@@ -974,7 +974,8 @@ export class DirectoryBackend extends Component implements LDAPBackend {
                     operations: ['bind'],
                     around: async (context: OperationContext, request: ServerRequest, next: () => Promise<ServerOutcome>): Promise<ServerOutcome> => {
                         const outcome: ServerOutcome = await next()
-                        if (request.type === 'bind' && request.dn) await this.writeOperational(context, request.dn, 'authTimestamp', formatGeneralizedTime(new Date()).replace(/\.\d+Z$/, 'Z'), true).catch((): undefined => undefined)
+                        //Only a bind that succeeded: an interceptor inside may answer one without the password checked
+                        if (request.type === 'bind' && request.dn && outcome.resultCode === ResultCode.success) await this.writeOperational(context, request.dn, 'authTimestamp', formatGeneralizedTime(new Date()).replace(/\.\d+Z$/, 'Z'), true).catch((): undefined => undefined)
                         return outcome
                     }
                 }
