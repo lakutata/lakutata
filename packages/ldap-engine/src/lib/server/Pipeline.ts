@@ -263,6 +263,11 @@ function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
 }
 
 /**
+ * The backend a SASL exchange reached (the one of the DN whose password a step verified), by the state of the exchange
+ */
+const SASL_MOUNTS: WeakMap<Map<string, unknown>, Mount | undefined> = new WeakMap()
+
+/**
  * A backend mounted at its suffix, with its chain of interceptors
  */
 interface Mount {
@@ -1372,15 +1377,17 @@ export class Pipeline {
             fail(ResultCode.authMethodNotSupported, `The SASL mechanism ${mechanismName} is not offered`)
         }
         const state: Map<string, unknown> = continuing ? session.sasl!.state : new Map()
-        //A mechanism checking a password (PLAIN) reaches the backend of its DN, whose controls it is checked against;
-        //one that checks none reaches no backend
-        let reached: boolean = false
+        //Each step checked: one verifying a password (PLAIN) against the backend of its DN, kept for the exchange; one
+        //verifying none against the backend an earlier step reached, or none
+        let verified: boolean = false
         const saslContext: SASLContext = {
             session: session,
             state: state,
             verifyPassword: async (dn: DN, password: Buffer): Promise<boolean> => {
-                this.checkMountControls(this.route(dn), context.controls)
-                reached = true
+                const mount: Mount | undefined = this.route(dn)
+                this.checkMountControls(mount, context.controls)
+                SASL_MOUNTS.set(state, mount)
+                verified = true
                 try {
                     await this.authenticate(session, context, dn, password)
                     return true
@@ -1397,12 +1404,12 @@ export class Pipeline {
             session.sasl = undefined
             throw error
         }
+        if (!verified) this.checkMountControls(SASL_MOUNTS.get(state), context.controls)
         if (!step.done) {
             session.sasl = {mechanism: mechanism, state: state}
             return {resultCode: ResultCode.saslBindInProgress, serverSaslCredentials: step.serverCredentials ?? Buffer.alloc(0)}
         }
         session.sasl = undefined
-        if (!reached) this.checkMountControls(undefined, context.controls)
         session.identity = step.identity
         session.authenticationMethod = mechanism.name
         void name

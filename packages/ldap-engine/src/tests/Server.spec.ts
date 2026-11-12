@@ -1032,6 +1032,31 @@ describe('the server engine', () => {
         await assert.rejects(mixed.connect().saslBind('PLAIN', plain('uid=u,dc=a,dc=example,dc=com', 'secret-u'), {controls: critical}), code(12))
         //An anonymous bind reaches no backend
         await assert.rejects(mixed.connect().bind('', '', {controls: critical}), code(12))
+        //A SASL exchange of several steps: each step checked, against the backend reached in the exchange so far
+        const twoSteps = (name: string, verifyFirst: boolean) => ({
+            name: name,
+            requiresTLS: false,
+            start: async (context: {state: Map<string, unknown>, verifyPassword: (dn: DN, password: Buffer) => Promise<boolean>}, credentials?: Buffer) => {
+                const [dn, password] = String(credentials).split('\0')
+                context.state.set('dn', dn)
+                context.state.set('password', password)
+                if (verifyFirst && !await context.verifyPassword(DN.parse(dn), Buffer.from(password))) throw new LDAPResultException(49, 'Invalid credentials')
+                return {done: false, serverCredentials: Buffer.from('next')}
+            },
+            step: async (context: {state: Map<string, unknown>, verifyPassword: (dn: DN, password: Buffer) => Promise<boolean>}) => {
+                const dn: string = String(context.state.get('dn'))
+                if (!verifyFirst && !await context.verifyPassword(DN.parse(dn), Buffer.from(String(context.state.get('password'))))) throw new LDAPResultException(49, 'Invalid credentials')
+                return {done: true, identity: DN.parse(dn)}
+            }
+        })
+        const stepping: LDAPServerEngine = createLDAPServer({backends: [new Listing('dc=b,dc=example,dc=com')], access: {admins: [ADMIN]}, passwords: {iterations: 1000}, sasl: [twoSteps('VERIFY-FIRST', true), twoSteps('VERIFY-LAST', false)]})
+        await stepping.connect({as: ADMIN}).add('dc=b,dc=example,dc=com', {objectClass: 'domain', dc: 'b'})
+        await stepping.connect({as: ADMIN}).add('uid=u,dc=b,dc=example,dc=com', {objectClass: ['account', 'simpleSecurityObject'], uid: 'u', userPassword: 'secret-u'})
+        const credentials: Buffer = Buffer.from('uid=u,dc=b,dc=example,dc=com\0secret-u')
+        //The password verified on the first step: the last step, which verifies none, is checked against that backend
+        await stepping.connect().saslBind('VERIFY-FIRST', credentials, {controls: critical, step: () => Buffer.from('more')})
+        //A first step reaching no backend yet: refused there
+        await assert.rejects(stepping.connect().saslBind('VERIFY-LAST', credentials, {controls: critical, step: () => Buffer.from('more')}), code(12))
         //A Password Modify refuses the control before it checks the old password
         await assert.rejects(owner.passwordModify({userIdentity: 'uid=u,dc=a,dc=example,dc=com', oldPassword: 'wrong-old', newPassword: 'changed-u', controls: critical}), code(12))
     })
