@@ -940,6 +940,19 @@ describe('the server engine', () => {
         await assert.rejects(owner.modify('dc=a,dc=example,dc=com', {operation: 'replace', attribute: 'description', values: 'x'}, {controls: critical}), code(12))
     })
 
+    it('renames an entry within its backend only, the entry at its suffix keeping its DN', async () => {
+        const {server: nested, admin: owner} = await directory({backends: [new MemoryBackend(BASE), new MemoryBackend(`ou=inner,${BASE}`)]})
+        await owner.add(`ou=inner,${BASE}`, {objectClass: 'organizationalUnit', ou: 'inner'})
+        //The entry at the suffix: out of every backend once renamed
+        await assert.rejects(owner.modifyDN(BASE, 'dc=other'), code(71))
+        await assert.rejects(owner.modifyDN(`ou=inner,${BASE}`, 'ou=renamed'), code(71))
+        //At or below the suffix of another backend
+        await assert.rejects(owner.modifyDN(`ou=groups,${BASE}`, 'ou=inner'), code(71))
+        await assert.rejects(owner.modifyDN(`uid=user9,ou=people,${BASE}`, 'uid=user9', {newSuperior: `ou=inner,${BASE}`}), code(71))
+        assert.equal((await nested.connect({as: ADMIN}).search(BASE, {scope: 'base'})).entries.length, 1)
+        assert.equal((await owner.search(`uid=user9,ou=people,${BASE}`, {scope: 'base'})).entries.length, 1)
+    })
+
     it('refuses a critical control it does not know', async () => {
         await assert.rejects(admin.search(BASE, {controls: [{oid: '1.2.3.4.5', critical: true}]}), LDAPUnavailableCriticalExtensionException)
         assert.ok((await admin.search(BASE, {scope: 'base', controls: [{oid: '1.2.3.4.5', critical: false}]})).entries.length)

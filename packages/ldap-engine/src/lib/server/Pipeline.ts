@@ -1160,6 +1160,9 @@ export class Pipeline {
                         if (this.route(request.newSuperior) !== mount) fail(ResultCode.affectsMultipleDSAs, 'The new parent is in another backend')
                         await this.required(mount, write, request.newSuperior)
                     }
+                    //The DN the entry gets in the same backend (as OpenLDAP refuses a rename between databases): the entry
+                    //at the suffix of a backend keeps its DN, a DN below another backend's suffix is not this one's
+                    if (this.route(entry.dn) !== mount) fail(ResultCode.affectsMultipleDSAs, `The DN ${entry.dn.toString()} is not in the backend of ${mount.suffix.toString()}`)
                     if (!entry.dn.equals(request.dn, this.schema) && await this.exists(mount, write, entry.dn)) fail(ResultCode.entryAlreadyExists, `The entry ${entry.dn.toString()} exists`)
                     if (!mount.backend.modifyDN) fail(ResultCode.unwillingToPerform, 'The backend does not rename entries')
                     //The entry as made again once the backend locked it
