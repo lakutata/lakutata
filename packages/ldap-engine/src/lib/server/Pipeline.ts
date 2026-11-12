@@ -811,7 +811,9 @@ export class Pipeline {
         const deadline: number = Number.isFinite(timeLimit) ? Date.now() + timeLimit * 1000 : 0
         //A deadline the search ends at whatever it waits for (a backend reading, entries left out): its signal aborted then
         const operationSignal: AbortSignal = context.signal
-        const timed: AbortController | undefined = deadline ? new AbortController() : undefined
+        //A timer counts up to 2^31 - 1 milliseconds (it fires at once past them): a later deadline is checked as the
+        //entries are read
+        const timed: AbortController | undefined = deadline && deadline - Date.now() <= 2147483647 ? new AbortController() : undefined
         const forward = (): void => timed?.abort(operationSignal.reason)
         let timer: ReturnType<typeof setTimeout> | undefined
         if (timed) {

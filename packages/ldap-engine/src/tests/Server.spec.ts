@@ -387,9 +387,12 @@ describe('the server engine', () => {
         await reachedPromise
         await session.bind(`uid=user1,ou=people,${BASE}`, 'password1')
         release()
-        //Its page sent, without a cookie: its entries were read for the identity before the bind
+        //Its page sent (read under the identity it started with), with a cookie the server no longer takes: not an empty
+        //one, which would say the search is done
         const page = await paging
-        assert.deepEqual([page.entries.length, PagedResultsControl.decode(findControl(page.controls, PagedResultsControl)!).cookie.length], [2, 0])
+        const cookie: Buffer = PagedResultsControl.decode(findControl(page.controls, PagedResultsControl)!).cookie
+        assert.deepEqual([page.entries.length, cookie.length > 0], [2, true])
+        await assert.rejects(session.search(`ou=people,${BASE}`, {scope: 'one', paged: false, controls: [PagedResultsControl.encode({size: 2, cookie: cookie})]}), code(53))
     })
 
     it('changes passwords: one\'s own, another\'s by an administrator, one generated', async () => {
@@ -838,6 +841,19 @@ describe('the server engine', () => {
             cookie = PagedResultsControl.decode(findControl(page.controls, PagedResultsControl)!).cookie
         } while (cookie.length)
         assert.deepEqual(results, [0, 0, 0])
+    })
+
+    it('takes a time limit longer than a timer of Node.js counts', async () => {
+        //2147483647 seconds, as ldapsearch -l max sends it: past the 2^31 - 1 milliseconds of a timer, which fires at once;
+        //a backend taking 30 milliseconds to answer
+        const slow: LDAPServerEngine = createLDAPServer({backends: [createHandlerBackend({
+            suffix: 'ou=devices,dc=example,dc=com',
+            search: async () => {
+                await new Promise<void>((resolve: () => void): void => void setTimeout(resolve, 30))
+                return [{dn: 'ou=devices,dc=example,dc=com', attributes: {objectClass: 'organizationalUnit', ou: 'devices'}}]
+            }
+        })], access: {anonymousRead: true}, limits: {timeLimit: 0}})
+        for (const timeLimit of [2147483647, 2147484]) assert.equal((await slow.connect().search('ou=devices,dc=example,dc=com', {scope: 'base', timeLimit: timeLimit, paged: false})).entries.length, 1)
     })
 
     it('refuses a critical control it does not know', async () => {
