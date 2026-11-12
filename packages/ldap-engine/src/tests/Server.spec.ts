@@ -5,6 +5,7 @@ import {
     createHandlerBackend,
     createLDAPServer,
     type DirectoryEntry,
+    type SearchContext,
     DN,
     Filter,
     findControl,
@@ -649,6 +650,24 @@ describe('the server engine', () => {
         } finally {
             Date.now = now
         }
+    })
+
+    it('leaves the window of a virtual list view to a backend doing it, with an interceptor changing the entries only', async () => {
+        const seen: string[][] = []
+        const windowing: LDAPServerEngine = createLDAPServer({
+            backends: [createHandlerBackend({
+                suffix: 'ou=devices,dc=example,dc=com',
+                capabilities: {controls: [SortRequestControl.oid, VLVRequestControl.oid]},
+                search: (context: SearchContext) => {
+                    seen.push(context.controls.map((control) => control.oid))
+                    return [{dn: 'ou=devices,dc=example,dc=com', attributes: {objectClass: 'organizationalUnit', ou: 'devices'}}]
+                }
+            })],
+            access: {admins: [ADMIN]},
+            plugins: [new GroupPresentationPlugin()]
+        })
+        await windowing.connect({as: ADMIN}).search('ou=devices,dc=example,dc=com', {scope: 'one', paged: false, controls: [SortRequestControl.encode([{attribute: 'cn'}]), VLVRequestControl.encode({beforeCount: 0, afterCount: 4, offset: {offset: 1, contentCount: 0}})]})
+        assert.ok(seen.at(-1)?.includes(VLVRequestControl.oid))
     })
 
     it('refuses a critical control it does not know', async () => {

@@ -1,7 +1,7 @@
 import {type Filter} from '../../filter/Filter.js'
 import type {PartialAttribute} from '../../protocol/Messages.js'
 import {attributeTypeOf, type Schema} from '../../schema/Schema.js'
-import type {DirectoryEntry, LDAPInterceptor, OperationContext, SearchContext, ServerRequest} from '../Types.js'
+import type {DirectoryEntry, InterceptorPlacement, LDAPInterceptor, OperationContext, SearchContext, ServerRequest} from '../Types.js'
 import {BaseLDAPPlugin, type BasePluginOptions} from './BaseLDAPPlugin.js'
 
 /**
@@ -55,10 +55,11 @@ export class GroupPresentationPlugin extends BaseLDAPPlugin {
     }
 
     /**
-     * Its interceptor, at the end of the chain
+     * Its interceptor, before the paging: it changes the entries sent and leaves none out, so the paging, the sort
+     * and the window of the backend stay with it
      */
-    public get interceptors(): LDAPInterceptor[] {
-        return [presentation(this.name, this.first, this.second)]
+    public get interceptors(): InterceptorPlacement[] {
+        return [{interceptor: presentation(this.name, this.first, this.second), before: 'paging'}]
     }
 }
 
