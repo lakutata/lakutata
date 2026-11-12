@@ -938,7 +938,19 @@ export class Pipeline {
             Object.assign(searched, {page: {size: value.size, ...value.cookie.length ? {cookie: value.cookie} : {}}})
         }
         if (mount.backend.capabilities?.sort && sortControl && !kept.has(SortRequestControl.oid)) Object.assign(searched, {sort: SortRequestControl.decode(sortControl)})
-        const result: BackendSearchResult = await untilAborted(mount.backend.search(searched), context.signal)
+        const searching: Promise<BackendSearchResult> = mount.backend.search(searched)
+        let result: BackendSearchResult
+        try {
+            result = await untilAborted(searching, context.signal)
+        } catch (error) {
+            //A result coming once the search ended (its time limit, abandoned): its entries closed
+            void searching.then((late: BackendSearchResult): void => {
+                const entries = late.entries as Partial<AsyncIterable<DirectoryEntry>>
+                const iterate: (() => AsyncIterator<DirectoryEntry>) | undefined = entries[Symbol.asyncIterator]
+                if (typeof iterate === 'function') void iterate.call(entries).return?.()?.catch((): undefined => undefined)
+            }, (): undefined => undefined)
+            throw error
+        }
         if (backendPages) context.responseControls.push(PagedResultsControl.encode({size: result.total ?? 0, cookie: result.cookie ?? Buffer.alloc(0)}))
         const schema: Schema = this.schema
         const {base, scope} = context

@@ -663,6 +663,26 @@ describe('the server engine', () => {
         ])
         assert.equal(answer, '3')
         assert.ok(Date.now() - started < 3000)
+        //A backend answering once the search ended: the cursor it gives closed
+        let closed: boolean = false
+        const cursor = {[Symbol.asyncIterator]: () => ({
+            next: async (): Promise<IteratorResult<DirectoryEntry>> => ({done: true, value: undefined}),
+            return: async (): Promise<IteratorResult<DirectoryEntry>> => {
+                closed = true
+                return {done: true, value: undefined}
+            }
+        })}
+        const late: LDAPServerEngine = createLDAPServer({backends: [{
+            suffix: BASE,
+            get: async (_context: unknown, dn: DN): Promise<DirectoryEntry> => ({dn: dn, attributes: [{type: 'objectClass', values: [Buffer.from('domain')]}, {type: 'dc', values: [Buffer.from('example')]}]}),
+            search: async (): Promise<unknown> => {
+                await new Promise<void>((resolve: () => void): void => void setTimeout(resolve, 1300))
+                return {entries: cursor, exact: false}
+            }
+        } as never], access: {admins: [ADMIN]}})
+        await assert.rejects(late.connect({as: ADMIN}).search(BASE, {scope: 'one', timeLimit: 1, paged: false}), code(3))
+        await new Promise<void>((resolve: () => void): void => void setTimeout(resolve, 600))
+        assert.equal(closed, true)
         //A page cut at the time limit as it is sent: no cookie to go on with
         let offset: number = 0
         let advancing: boolean = false
