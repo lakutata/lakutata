@@ -172,6 +172,34 @@ class FailingAfterCommitBackend extends DirectoryBackend {
 }
 
 /**
+ * Told of each lock, modify and transaction a QueueingBackend has queued in the turn of its write, before they run
+ */
+let queueing: ((operation: 'lock' | 'modify' | 'transaction', dn: string) => void) | undefined
+
+/**
+ * A directory backend telling the test of the operations it has queued in the turn of the write they are made in
+ */
+class QueueingBackend extends DirectoryBackend {
+    public async lock(context: WriteContext, dn: Parameters<DirectoryBackend['lock']>[1]): Promise<Awaited<ReturnType<DirectoryBackend['lock']>>> {
+        const locking: ReturnType<DirectoryBackend['lock']> = super.lock(context, dn)
+        queueing?.('lock', dn.toString())
+        return locking
+    }
+
+    public async modify(context: WriteContext, dn: Parameters<DirectoryBackend['modify']>[1], changes: Parameters<DirectoryBackend['modify']>[2]): Promise<void> {
+        const writing: Promise<void> = super.modify(context, dn, changes)
+        queueing?.('modify', dn.toString())
+        await writing
+    }
+
+    public async transaction(context: WriteContext, run: () => Promise<void>): Promise<void> {
+        const running: Promise<void> = super.transaction(context, run)
+        queueing?.('transaction', '')
+        await running
+    }
+}
+
+/**
  * Register the tests of the directory backend on a database
  * @param label The name of the database.
  * @param options The options of the database (its type and where it is), or what makes them; undefined skips the tests.
@@ -1089,64 +1117,180 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             }
         })
 
-        it('fails the whole write whose transaction a deadlock of a write made in it ended, as busy', {timeout: 60000, skip: label === 'SQLite' ? 'SQLite takes one write at a time' : false}, async () => {
-            const names: string[] = ['deadlock-x', 'deadlock-y', 'deadlock-p', 'deadlock-q']
-            const [x, y, p, q] = names.map((name: string): string => `cn=${name},${BASE}`)
-            for (const [index, dn] of [x, y, p, q].entries()) await admin.add(dn, {objectClass: 'device', cn: names[index]})
-            //Two writes each making two writes in its transaction, in the opposite orders: the database ends one of them
-            const latch = (): {open: () => void, wait: () => Promise<void>} => {
+        it('fails the whole write whose transaction a deadlock of a write made in it ended, as busy, whether it caught the error or not', {timeout: 60000, skip: label === 'SQLite' ? 'SQLite takes one write at a time' : false}, async () => {
+            for (const catching of [true, false]) {
+                const names: string[] = ['deadlock-x', 'deadlock-y', 'deadlock-p', 'deadlock-q']
+                const [x, y, p, q] = names.map((name: string): string => `cn=${name},${BASE}`)
+                for (const [index, dn] of [x, y, p, q].entries()) await admin.add(dn, {objectClass: 'device', cn: names[index]})
+                //Two writes each making two writes in its transaction, in the opposite orders: the database ends one of them
+                const latch = (): {open: () => void, wait: () => Promise<void>} => {
+                    let open: () => void = (): void => undefined
+                    const opened: Promise<void> = new Promise<void>((resolve: () => void): void => {
+                        open = resolve
+                    })
+                    return {open: (): void => open(), wait: (): Promise<void> => Promise.race([opened, new Promise<void>((resolve: () => void): void => {
+                        setTimeout(resolve, 5000)
+                    })])}
+                }
+                const xHasP = latch()
+                const yHasQ = latch()
+                const caught: Record<string, unknown> = {}
+                const deadlocking: Container = new Container()
+                try {
+                    await deadlocking.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                    await deadlocking.setNamed('ldap', LDAPServer, {
+                        port: false,
+                        schema: schema,
+                        backends: [{class: DirectoryBackend, suffix: BASE, database: 'database'}],
+                        access: {admins: [ADMIN]},
+                        interceptors: [{name: 'deadlocking', operations: ['modify'], beforeCommit: async (_context: unknown, request: {dn?: {toString(): string}}): Promise<void> => {
+                            const server: LDAPServer = await deadlocking.get<LDAPServer>('ldap')
+                            const own: string | undefined = request.dn?.toString() === x ? 'x' : request.dn?.toString() === y ? 'y' : undefined
+                            if (!own) return
+                            const [first, second, mine, theirs] = own === 'x' ? [p, q, xHasP, yHasQ] : [q, p, yHasQ, xHasP]
+                            await server.connect(ADMIN).modify(first, {operation: 'add', attribute: 'description', values: own})
+                            mine.open()
+                            await theirs.wait()
+                            //The error of the write ended by the deadlock caught, or not: the write it is made in fails all the same
+                            const writing: Promise<unknown> = server.connect(ADMIN).modify(second, {operation: 'add', attribute: 'description', values: own})
+                            if (!catching) await writing
+                            await writing.catch((error: unknown): void => {
+                                caught[own] = error
+                            })
+                        }}]
+                    })
+                    const server: LDAPServer = await deadlocking.get<LDAPServer>('ldap')
+                    const results: PromiseSettledResult<unknown>[] = await Promise.allSettled([
+                        server.connect(ADMIN).modify(x, {operation: 'add', attribute: 'description', values: 'outer'}),
+                        server.connect(ADMIN).modify(y, {operation: 'add', attribute: 'description', values: 'outer'})
+                    ])
+                    const refused: PromiseRejectedResult[] = results.filter((result: PromiseSettledResult<unknown>): result is PromiseRejectedResult => result.status === 'rejected')
+                    assert.equal(refused.length, 1, JSON.stringify(results.map((result: PromiseSettledResult<unknown>): string => result.status)))
+                    assert.ok(refused[0].reason instanceof LDAPUnavailableException && refused[0].reason.code === 51, String(refused[0].reason))
+                    //Nothing of the write ended: neither its value nor the values of the writes made in it; all of the other
+                    const lost: string = results[0].status === 'rejected' ? 'x' : 'y'
+                    const kept: string = lost === 'x' ? 'y' : 'x'
+                    const description = async (dn: string): Promise<string[]> => (await admin.search(dn, {scope: 'base'})).entries[0].get('description').sort()
+                    assert.deepEqual(await description(lost === 'x' ? x : y), [])
+                    assert.deepEqual(await description(kept === 'x' ? x : y), ['outer'])
+                    assert.deepEqual(await description(p), [kept])
+                    assert.deepEqual(await description(q), [kept])
+                } finally {
+                    await deadlocking.destroy()
+                    for (const dn of [x, y, p, q]) await admin.delete(dn).catch((): undefined => undefined)
+                }
+            }
+        })
+
+        it('runs nothing more of a write a deadlock ended: its statements queued behind a write made in it, the writes made in it queued behind its statements', {timeout: 60000, skip: label === 'SQLite' ? 'SQLite takes one write at a time' : false}, async () => {
+            const names: string[] = ['queued-p', 'queued-q', 'queued-x', 'queued-y', 'queued-z', 'queued-r']
+            const [p, q, x, y, z, r] = names.map((name: string): string => `cn=${name},${BASE}`)
+            const [addedA, addedB] = [`cn=queued-a,${BASE}`, `cn=queued-b,${BASE}`]
+            for (const [index, dn] of [p, q, x, y, z, r].entries()) await admin.add(dn, {objectClass: 'device', cn: names[index]})
+            const latch = (timeout: number = 5000): {open: () => void, wait: () => Promise<void>} => {
                 let open: () => void = (): void => undefined
                 const opened: Promise<void> = new Promise<void>((resolve: () => void): void => {
                     open = resolve
                 })
                 return {open: (): void => open(), wait: (): Promise<void> => Promise.race([opened, new Promise<void>((resolve: () => void): void => {
-                    setTimeout(resolve, 5000)
+                    setTimeout(resolve, timeout)
                 })])}
             }
-            const xHasP = latch()
-            const yHasQ = latch()
-            const caught: Record<string, unknown> = {}
-            const deadlocking: Container = new Container()
+            //What the test does once the backend has queued an operation, by the operation and its DN
+            const once: Map<string, () => void> = new Map()
+            queueing = (operation: string, dn: string): void => {
+                const action: (() => void) | undefined = once.get(`${operation} ${dn}`)
+                once.delete(`${operation} ${dn}`)
+                action?.()
+            }
+            const description = async (dn: string): Promise<string[]> => (await admin.search(dn, {scope: 'base'})).entries[0].get('description').sort()
+            const present = (dn: string): Promise<boolean> => admin.search(dn, {scope: 'base'}).then((): boolean => true, (): boolean => false)
+            const busy = (results: PromiseSettledResult<unknown>[]): number => {
+                const refused: number[] = results.flatMap((result: PromiseSettledResult<unknown>, index: number): number[] => result.status === 'rejected' ? [index] : [])
+                assert.equal(refused.length, 1, JSON.stringify(results.map((result: PromiseSettledResult<unknown>): string => result.status === 'rejected' ? String(result.reason) : result.status)))
+                const reason: unknown = (results[refused[0]] as PromiseRejectedResult).reason
+                assert.ok(reason instanceof LDAPUnavailableException && reason.code === 51, String(reason))
+                return refused[0]
+            }
+            let holds = {a: latch(), b: latch()}
+            const rQueued = latch(300)
+            const nested: Promise<unknown>[] = []
+            const queuedContainer: Container = new Container()
             try {
-                await deadlocking.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
-                await deadlocking.setNamed('ldap', LDAPServer, {
+                await queuedContainer.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                await queuedContainer.setNamed('ldap', LDAPServer, {
                     port: false,
                     schema: schema,
-                    backends: [{class: DirectoryBackend, suffix: BASE, database: 'database'}],
+                    backends: [{class: QueueingBackend, suffix: BASE, database: 'database'}],
                     access: {admins: [ADMIN]},
-                    interceptors: [{name: 'deadlocking', operations: ['modify'], beforeCommit: async (_context: unknown, request: {dn?: {toString(): string}}): Promise<void> => {
-                        const server: LDAPServer = await deadlocking.get<LDAPServer>('ldap')
-                        const own: string | undefined = request.dn?.toString() === x ? 'x' : request.dn?.toString() === y ? 'y' : undefined
-                        if (!own) return
-                        const [first, second, mine, theirs] = own === 'x' ? [p, q, xHasP, yHasQ] : [q, p, yHasQ, xHasP]
-                        await server.connect(ADMIN).modify(first, {operation: 'add', attribute: 'description', values: own})
-                        mine.open()
-                        await theirs.wait()
-                        //The error of the write ended by the deadlock caught: the write it is made in must fail all the same
-                        await server.connect(ADMIN).modify(second, {operation: 'add', attribute: 'description', values: own}).catch((error: unknown): void => {
-                            caught[own] = error
-                        })
+                    interceptors: [{name: 'queueing', operations: ['add', 'modify'], beforeCommit: async (_context: unknown, request: {type: string, dn?: {toString(): string}, entry?: {dn: {toString(): string}}, changes?: {attribute: {values: unknown[]}}[]}): Promise<void> => {
+                        //The writes of the test, not those made in them
+                        if (request.type === 'modify' && String(request.changes?.[0]?.attribute.values[0]) !== 'outer') return
+                        const server: LDAPServer = await queuedContainer.get<LDAPServer>('ldap')
+                        const modify = (dn: string, ...values: string[]): Promise<unknown> => server.connect(ADMIN).modify(dn, {operation: 'add', attribute: 'description', values: values})
+                        //A write made in the transaction, not waited for
+                        const start = (dn: string, value: string): void => {
+                            const writing: Promise<unknown> = modify(dn, value)
+                            writing.catch((): undefined => undefined)
+                            nested.push(writing)
+                        }
+                        const target: string = String(request.type === 'add' ? request.entry?.dn : request.dn)
+                        if (target === addedA || target === addedB) {
+                            //Each holds one entry, then writes the other's without waiting for it, and goes on once that write
+                            //has queued its lock: its add is queued behind it
+                            const [first, second, mine, theirs, value] = target === addedA ? [p, q, holds.a, holds.b, 'a'] : [q, p, holds.b, holds.a, 'b']
+                            await modify(first, value)
+                            mine.open()
+                            await theirs.wait()
+                            const queued = latch()
+                            once.set(`lock ${second}`, queued.open)
+                            start(second, value)
+                            await queued.wait()
+                        } else if (target === x) {
+                            //Holds y; once its lock of x (which the other holds) is queued, writes r without waiting for it:
+                            //r is queued behind the lock
+                            await modify(y, 'a')
+                            holds.a.open()
+                            await holds.b.wait()
+                            once.set(`lock ${x}`, (): void => {
+                                once.set('transaction ', rQueued.open)
+                                start(r, 'a')
+                            })
+                        } else if (target === z) {
+                            //Holds x, and writes more rows (the database ends the lighter transaction: the other), then
+                            //writes y once r is queued
+                            await modify(x, 'b')
+                            await modify(z, ...Array.from({length: 20}, (_value: unknown, index: number): string => `b${index}`))
+                            holds.b.open()
+                            await holds.a.wait()
+                            await rQueued.wait()
+                            await modify(y, 'b')
+                        }
                     }}]
                 })
-                const server: LDAPServer = await deadlocking.get<LDAPServer>('ldap')
-                const results: PromiseSettledResult<unknown>[] = await Promise.allSettled([
-                    server.connect(ADMIN).modify(x, {operation: 'add', attribute: 'description', values: 'outer'}),
-                    server.connect(ADMIN).modify(y, {operation: 'add', attribute: 'description', values: 'outer'})
-                ])
-                const refused: PromiseRejectedResult[] = results.filter((result: PromiseSettledResult<unknown>): result is PromiseRejectedResult => result.status === 'rejected')
-                assert.equal(refused.length, 1, JSON.stringify(results.map((result: PromiseSettledResult<unknown>): string => result.status)))
-                assert.ok(refused[0].reason instanceof LDAPUnavailableException && refused[0].reason.code === 51, String(refused[0].reason))
-                //Nothing of the write ended: neither its value nor the values of the writes made in it; all of the other
-                const lost: string = results[0].status === 'rejected' ? 'x' : 'y'
-                const kept: string = lost === 'x' ? 'y' : 'x'
-                const description = async (dn: string): Promise<string[]> => (await admin.search(dn, {scope: 'base'})).entries[0].get('description').sort()
-                assert.deepEqual(await description(lost === 'x' ? x : y), [])
-                assert.deepEqual(await description(kept === 'x' ? x : y), ['outer'])
-                assert.deepEqual(await description(p), [kept])
-                assert.deepEqual(await description(q), [kept])
+                const server: LDAPServer = await queuedContainer.get<LDAPServer>('ldap')
+                //Its add queued behind a write made in it which the deadlock ends: nothing of it is left
+                const adds: PromiseSettledResult<unknown>[] = await Promise.allSettled([addedA, addedB].map((dn: string): Promise<unknown> => server.connect(ADMIN).add(dn, {objectClass: 'device', cn: DN.parse(dn).rdn()!.attributes[0].value})))
+                const lost: number = busy(adds)
+                await Promise.allSettled(nested)
+                assert.deepEqual([await present(addedA), await present(addedB)], [lost !== 0, lost !== 1])
+                const kept: string = lost === 0 ? 'b' : 'a'
+                assert.deepEqual([await description(p), await description(q)], [[kept], [kept]])
+                //A write made in it queued behind its lock, which the deadlock ends: nothing of it is left
+                holds = {a: latch(), b: latch()}
+                nested.length = 0
+                const modifies: PromiseSettledResult<unknown>[] = await Promise.allSettled([x, z].map((dn: string): Promise<unknown> => server.connect(ADMIN).modify(dn, {operation: 'add', attribute: 'description', values: 'outer'})))
+                const ended: number = busy(modifies)
+                await Promise.allSettled(nested)
+                if (ended === 0) {
+                    assert.deepEqual([await description(x), await description(y), await description(r)], [['b'], ['b'], []])
+                } else {
+                    assert.deepEqual([await description(x), await description(y), await description(r)], [['outer'], ['a'], ['a']])
+                }
             } finally {
-                await deadlocking.destroy()
-                for (const dn of [x, y, p, q]) await admin.delete(dn).catch((): undefined => undefined)
+                queueing = undefined
+                await queuedContainer.destroy()
+                for (const dn of [p, q, x, y, z, r, addedA, addedB]) await admin.delete(dn).catch((): undefined => undefined)
             }
         })
 

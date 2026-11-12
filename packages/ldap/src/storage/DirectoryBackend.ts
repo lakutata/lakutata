@@ -76,8 +76,11 @@ interface RunningWrite {
     //The last of the operations on its transaction (its own and the writes made in it), one after another: one
     //connection, one statement and one savepoint at a time
     turn: Promise<unknown>
-    //The error of the database which ended its transaction in a write made in it (a deadlock): it fails with it
+    //Why the operations queued in its turn and not started yet are refused: the write failed
     ended?: unknown
+    //The contention which ended the transaction (a deadlock), on the write of the transaction of its own: nothing more
+    //runs on it (on MySQL its statements would each be committed alone), and the write fails with it
+    contention?: unknown
     //The write whose transaction this one is part of (itself for a transaction of its own)
     root?: RunningWrite
     //What runs once the transaction is committed, by key (the references written meanwhile by others resolved)
@@ -463,8 +466,6 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     protected async write<T>(context: OperationContext | undefined, run: (manager: EntityManager) => Promise<T>): Promise<T> {
         const given: EntityManager | undefined = (context as {transaction?: unknown} | undefined)?.transaction as EntityManager | undefined
         const current: RunningWrite | undefined = WRITING.getStore()
-        //A transaction a deadlock ended runs nothing more (on MySQL its statements would each be committed alone)
-        if (current?.active && current.ended !== undefined && current.database === this.db) throw current.ended
         //The operation's own transaction: in the turn of its write, after the writes made in it before
         if (given) return current?.active && current.database === this.db ? this.#inTurn(current, (): Promise<T> => run(given)) : run(given)
         if (current?.active && current.database === this.db) {
@@ -472,15 +473,8 @@ export class DirectoryBackend extends Component implements LDAPBackend {
             //nothing of it, and the other goes on when it catches the error; one it does not wait for runs before its
             //next statements and before its commit
             return this.#inTurn(current, (): Promise<T> => {
-                //Not started before the write failed: refused with its error
-                if (current.ended !== undefined) throw current.ended
                 if (!current.active) return this.#transaction(run)
                 return current.manager.transaction((manager: EntityManager): Promise<T> => this.#running(manager, run, current))
-            }).catch((error: unknown): never => {
-                //A contention ends the write it is made in too, caught or not: MySQL ended its transaction, and on
-                //PostgreSQL the write is answered busy as a whole
-                if (current.active && isContention(error)) current.ended ??= error
-                throw error
             })
         }
         return this.#transaction(run)
@@ -523,13 +517,29 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     /**
      * Run an operation on the transaction of a write in its turn: after the operations queued before (its own, the
      * writes made in it); at once in a context holding that turn already (an operation making another, as a delete
-     * writing the entries naming the deleted one)
+     * writing the entries naming the deleted one). Once the write failed, the operations not started are refused with
+     * its error; once a contention ended the transaction, nothing more runs on it.
      * @param store The write.
      * @param operation The operation.
      */
     #inTurn<T>(store: RunningWrite, operation: () => Promise<T>): Promise<T> {
-        if (HOLDING.getStore() === store) return operation()
-        const result: Promise<T> = store.turn.then((): Promise<T> => HOLDING.run(store, operation))
+        const root: RunningWrite = store.root ?? store
+        const guarded = async (): Promise<T> => {
+            if (root.contention !== undefined) throw root.contention
+            try {
+                return await operation()
+            } catch (error) {
+                //A contention ends the whole transaction, caught or not: MySQL ended it, and on PostgreSQL the write is
+                //answered busy as a whole
+                if (isContention(error)) root.contention ??= error
+                throw error
+            }
+        }
+        if (HOLDING.getStore() === store) return guarded()
+        const result: Promise<T> = store.turn.then((): Promise<T> => {
+            if (store.ended !== undefined) throw store.ended
+            return HOLDING.run(store, guarded)
+        })
         store.turn = result.catch((): undefined => undefined)
         return result
     }
@@ -609,6 +619,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
             holder.store = store
             store.turns = (holder as {turns?: object}).turns
         }
+        const root: RunningWrite = store.root ?? store
         try {
             let result: T
             try {
@@ -618,12 +629,13 @@ export class DirectoryBackend extends Component implements LDAPBackend {
                 //its transaction is undone (its statements not sent after the end of the transaction)
                 store.ended ??= new LDAPUnwillingToPerformException(`The write this one was made in failed: ${(error as Error)?.message ?? String(error)}`)
                 await this.#drained(store)
-                throw error
+                //A contention which ended the transaction fails it as such, whatever error reached this write
+                throw root.contention ?? error
             }
             //The writes made in it it did not wait for, done before it ends
             await this.#drained(store)
-            //A write made in it ended its transaction: it fails, whether it caught the error or not
-            if (store.ended !== undefined) throw store.ended
+            //A contention ended its transaction: it fails, whether the write it reached caught the error or not
+            if (root.contention !== undefined) throw root.contention
             return result
         } finally {
             //What the write left running (an event listener) makes writes of its own
