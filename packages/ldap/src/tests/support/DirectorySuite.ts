@@ -496,6 +496,10 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             assert.equal((await admin.search(people, {filter: '(email=user10@example.com)'})).entries.length, 1)
             await ldap.connect().bind(`uid=user1,${people}`, 'password1')
             assert.match((await admin.search(`uid=user1,${people}`, {scope: 'base', attributes: ['authTimestamp']})).entries[0].first('authTimestamp')!, /^\d{14}Z$/)
+            //A SASL PLAIN bind too
+            await admin.passwordModify({userIdentity: `uid=user2,${people}`, newPassword: 'password2'})
+            await ldap.connect().saslBind('PLAIN', Buffer.from(`\0dn:uid=user2,${people}\0password2`))
+            assert.match((await admin.search(`uid=user2,${people}`, {scope: 'base', attributes: ['authTimestamp']})).entries[0].first('authTimestamp') ?? '', /^\d{14}Z$/)
             const connection: LDAPClientConnection = await connectLDAP(url)
             for (let index: number = 0; index < 3; index++) await assert.rejects(connection.bind(`uid=user1,${people}`, 'wrong'), LDAPInvalidCredentialsException)
             await assert.rejects(connection.bind(`uid=user1,${people}`, 'password1'), LDAPInvalidCredentialsException)

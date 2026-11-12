@@ -1391,8 +1391,14 @@ export class Pipeline {
                 this.checkMountControls(mount, context.controls)
                 SASL_MOUNTS.set(state, mount)
                 verified = true
-                try {
+                //Through the chain of the backend, as a simple bind (the time of the bind kept, the backend's controls)
+                const verify = async (): Promise<ServerOutcome> => {
                     await this.authenticate(session, context, dn, password)
+                    return {resultCode: ResultCode.success}
+                }
+                const bindRequest: ServerBindRequest = {type: 'bind', name: name, dn: dn, authentication: {type: 'sasl', mechanism: mechanism.name, ...credentials ? {credentials: credentials} : {}}}
+                try {
+                    await (mount ? this.run(mount, context, bindRequest, verify) : verify())
                     return true
                 } catch (error) {
                     if (error instanceof LDAPResultException && error.code === ResultCode.invalidCredentials) return false
@@ -1416,7 +1422,6 @@ export class Pipeline {
         session.sasl = undefined
         session.identity = step.identity
         session.authenticationMethod = mechanism.name
-        void name
         this.options.events.emit('bind', {session: session.id, dn: step.identity?.toString() ?? '', method: mechanism.name})
         return {resultCode: ResultCode.success, ...step.serverCredentials ? {serverSaslCredentials: step.serverCredentials} : {}}
     }

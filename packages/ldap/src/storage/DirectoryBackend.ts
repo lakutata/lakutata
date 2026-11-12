@@ -194,7 +194,8 @@ export interface DirectoryBackendOptions {
      */
     idAllocation?: false | {uidNumber?: number, gidNumber?: number}
     /**
-     * Keep the time of the last successful simple bind of an entry, given as authTimestamp (true by default)
+     * Keep the time of the last successful bind with a password of an entry (a simple bind, or SASL PLAIN), given as
+     * authTimestamp (true by default)
      */
     lastBind?: boolean
     /**

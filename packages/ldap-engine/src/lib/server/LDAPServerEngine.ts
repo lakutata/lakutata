@@ -292,6 +292,7 @@ function contributionsOf(options: LDAPServerEngineOptions, passwords: PasswordSc
     const addExtension = (oid: string, handler: ExtendedHandler, owner: string): void => {
         const existing: string | undefined = extensionOwners.get(oid)
         if (existing) conflict(`The extended operation ${oid} of ${owner} is handled by ${existing}`)
+        if (typeof handler !== 'function') conflict(`The extended operation ${oid} of ${owner} is not a function`)
         extensionOwners.set(oid, owner)
         extendedOperations.set(oid, handler)
     }

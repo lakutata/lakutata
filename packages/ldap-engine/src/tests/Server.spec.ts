@@ -21,6 +21,7 @@ import {
     LDAPNoSuchObjectException,
     LDAPNotAllowedOnNonLeafException,
     LDAPObjectClassViolationException,
+    LastBindPlugin,
     LDAPResultException,
     LDAPUsageException,
     type LDAPServerEngine,
@@ -1140,6 +1141,15 @@ describe('the server engine', () => {
         for (const attributes of [['member', 'member;range=0-1'], ['*', 'member;range=0-1']]) assert.equal((await owner.search(group, {scope: 'base', attributes: attributes})).entries[0].get('member').length, 5, attributes.join(' '))
         //Types only: the attribute without its values, no range read after
         assert.deepEqual((await owner.search(group, {scope: 'base', attributes: ['member;range=0-1'], typesOnly: true})).entries[0].attributes.map((item) => [item.type, item.values.length]), [['member', 0]])
+    })
+
+    it('runs the chain of the backend for a SASL bind verifying a password, as for a simple bind, and checks the extended operations given', async () => {
+        //The time of the bind kept for PLAIN too
+        const {server: kept, admin: owner} = await directory({plugins: [new LastBindPlugin()]})
+        await kept.connect().saslBind('PLAIN', Buffer.from(`\0dn:uid=user3,ou=people,${BASE}\0password3`))
+        assert.ok((await owner.search(`uid=user3,ou=people,${BASE}`, {scope: 'base', attributes: ['authTimestamp']})).entries[0].first('authTimestamp'))
+        //An extended operation that is not a function: refused at the start
+        assert.throws(() => createLDAPServer({backends: [new MemoryBackend(BASE)], extendedOperations: {'1.3.6.1.4.1.99999.23': {handler: () => ({})} as never}}), LDAPUsageException)
     })
 
     it('refuses a critical control it does not know', async () => {
