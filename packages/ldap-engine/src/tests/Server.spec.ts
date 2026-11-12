@@ -262,6 +262,23 @@ describe('the server engine', () => {
         await user.modifyDN(`uid=user1,ou=people,${BASE}`, 'uid=user1+cn=User 01', {deleteOldRDN: false})
     })
 
+    it('compares only in the entries a search would show the session, a hidden one answered as one not there', async () => {
+        //uid=user3 hidden from the users
+        const {server: hiding, admin: owner} = await directory({access: {admins: [ADMIN], check: (request: {operation: string, identity?: {toString(): string}, dn: {toString(): string}}): boolean | undefined => request.operation === 'read' && String(request.identity) !== ADMIN && String(request.dn).startsWith('uid=user3,') ? false : undefined}})
+        const user: LDAPInProcessConnection = hiding.connect()
+        await user.bind(`uid=user1,ou=people,${BASE}`, 'password1')
+        assert.equal((await user.search(`ou=people,${BASE}`, {scope: 'one', filter: '(uid=user3)'})).entries.length, 0)
+        //As an entry that is not there: noSuchObject, the same matched DN, whatever the value
+        const answer = (dn: string, value: string): Promise<unknown> => user.compare(dn, 'mail', value).then((result: boolean): string => String(result), (error: unknown): string => `${(error as LDAPResultException).code} ${(error as LDAPResultException).matchedDN}`)
+        const missing: unknown = await answer(`uid=nobody,ou=people,${BASE}`, 'x@example.com')
+        assert.equal(missing, `32 ou=people,${BASE}`)
+        assert.equal(await answer(`uid=user3,ou=people,${BASE}`, 'user3@example.com'), missing)
+        assert.equal(await answer(`uid=user3,ou=people,${BASE}`, 'other@example.com'), missing)
+        //The entries it sees, and an administrator
+        assert.equal(await user.compare(`uid=user4,ou=people,${BASE}`, 'mail', 'user4@example.com'), true)
+        assert.equal(await owner.compare(`uid=user3,ou=people,${BASE}`, 'mail', 'user3@example.com'), true)
+    })
+
     it('changes passwords: one\'s own, another\'s by an administrator, one generated', async () => {
         const user: LDAPInProcessConnection = server.connect()
         await user.bind(`uid=user9,ou=people,${BASE}`, 'password9')

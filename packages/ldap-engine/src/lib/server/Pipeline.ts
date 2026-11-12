@@ -1005,6 +1005,9 @@ export class Pipeline {
         const type: string = attributeTypeOf(attribute)
         if (!this.schema.attributeType(type)) fail(ResultCode.undefinedAttributeType, `${attribute}: the attribute type is not defined`)
         const entry: DirectoryEntry = await this.required(mount, context, dn)
+        //Read as a search reads it: an entry the session does not see is not there for it (its values and its existence
+        //not told by the answer)
+        if (!context.internal && !await this.access.allows({operation: 'read', session: context.session, identity: context.session.identity, dn: entry.dn, entry: entry})) fail(ResultCode.noSuchObject, `No entry ${dn.toString()}`, await matchedDNOf(dn, (parent: DN): Promise<boolean> => this.exists(mount, context, parent), mount.suffix))
         if (!this.schema.equality(type)) fail(ResultCode.inappropriateMatching, `${attribute} has no equality matching rule`)
         const key: string | undefined = equalityKey(type, value, this.schema)
         let present: boolean = false
