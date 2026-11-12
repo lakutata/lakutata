@@ -152,6 +152,32 @@ describe('the server engine on the network', () => {
         assert.equal(await connection.whoAmI(), `dn:uid=user3,ou=people,${BASE}`)
     })
 
+    it('runs StartTLS through the pipeline: its controls checked, the plugins around it, its operation event', async () => {
+        const seen: string[] = []
+        const events: number[] = []
+        const {server: watched, url: watchedURL, port: watchedPort} = await serve({plugins: [{name: 'seen', aroundRequest: async (context, request, next) => {
+            if (request.type === 'extendedRequest') seen.push(`${context.operation} ${request.name}`)
+            return next()
+        }}]})
+        watched.events.on('operation', (event: {operation: string, resultCode: number}) => {
+            if (event.operation === 'extended') events.push(event.resultCode)
+        })
+        //A critical control the server does not know: refused, the connection going on in clear
+        const socket: Socket = createConnection({port: watchedPort, host: '127.0.0.1'})
+        await once(socket, 'connect')
+        socket.write(encodeMessage({messageId: 1, protocolOp: {type: 'extendedRequest', name: ExtendedOperation.startTLS}, controls: [{oid: '1.3.6.1.4.1.99999.9', critical: true}]}))
+        setTimeout(() => socket.write(encodeMessage({messageId: 2, protocolOp: {type: 'extendedRequest', name: ExtendedOperation.whoAmI}})), 100)
+        const {messages} = await received(socket)
+        socket.destroy()
+        assert.deepEqual(messages.map((message) => [message.messageId, 'resultCode' in message.protocolOp ? message.protocolOp.resultCode : undefined]), [[1, 12], [2, 0]])
+        //Agreed: through the plugin (a request refused for its controls goes through none, as any request)
+        const secure: LDAPClientConnection = await client({url: watchedURL, tls: TLS, startTLS: true})
+        assert.equal(secure.secure, true)
+        assert.deepEqual(seen.filter((item: string) => item.endsWith(ExtendedOperation.startTLS)), [`extended ${ExtendedOperation.startTLS}`])
+        assert.deepEqual(events.slice(0, 1), [12])
+        assert.ok(events.includes(0))
+    })
+
     it('refuses data sent after a StartTLS request before the handshake', async () => {
         const socket: Socket = createConnection({port: port, host: '127.0.0.1'})
         await once(socket, 'connect')

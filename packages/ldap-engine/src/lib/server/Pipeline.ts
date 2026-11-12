@@ -232,11 +232,10 @@ export interface SessionState extends ServerSession {
 export interface Responder {
     entry(entry: SearchResultEntry, controls?: Control[]): Promise<void> | void
     reference?(uris: string[]): Promise<void> | void
+    //The answer of a network connection to StartTLS, once the request went through the plugins and the controls
+    startTLS?(): ServerOutcome
 }
 
-/**
- * A backend mounted at its suffix, with its chain of interceptors
- */
 /**
  * A promise, rejected with the reason of a signal once it is aborted
  * @param promise The promise.
@@ -260,6 +259,9 @@ function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
     })
 }
 
+/**
+ * A backend mounted at its suffix, with its chain of interceptors
+ */
 interface Mount {
     backend: LDAPBackend
     suffix: DN
@@ -575,6 +577,8 @@ export class Pipeline {
                     dn = request.baseObject
                     return this.search(context, request, responder)
                 case 'extendedRequest':
+                    //StartTLS over a network connection: answered by the connection, which then upgrades it
+                    if (request.name === ExtendedOperation.startTLS && responder.startTLS) return responder.startTLS()
                     return this.extended(context, request.name, request.value)
                 default:
                     dn = 'entry' in request ? request.entry : 'object' in request ? request.object : ''

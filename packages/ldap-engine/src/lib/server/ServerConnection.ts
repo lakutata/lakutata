@@ -11,6 +11,7 @@ import type {X509Certificate} from 'node:crypto'
 import {clientCertificateTrusted} from './ClientCertificate.js'
 import {sessionId} from './InProcessConnection.js'
 import type {EngineLimits, Pipeline, SessionState} from './Pipeline.js'
+import type {ServerOutcome} from './Types.js'
 
 /**
  * What a connection needs of its server
@@ -156,8 +157,9 @@ export class ServerConnection {
                     this.disconnect(ResultCode.protocolError, 'Data after the StartTLS request')
                     return
                 }
-                if (this.startTLS(message.messageId)) return
-                continue
+                //Nothing more is read until StartTLS is answered (and the handshake made when it is agreed)
+                void this.startTLS(message)
+                return
             }
             this.dispatch(message)
         }
@@ -262,30 +264,43 @@ export class ServerConnection {
     }
 
     /**
-     * Run StartTLS: refused without TLS, over TLS already, with requests outstanding or a SASL bind in progress;
-     * otherwise agreed, the reading stopped at once and the socket wrapped
-     * @param messageId The message ID of the request.
+     * Run StartTLS through the pipeline, nothing read meanwhile: refused without TLS, over TLS already, with requests
+     * outstanding or a SASL bind in progress (or by a control, a plugin); otherwise agreed and the socket wrapped
+     * @param message The request.
      * @returns Whether the connection is being upgraded.
      */
-    protected startTLS(messageId: number): boolean {
-        const answer = (resultCode: number, diagnosticMessage: string): void => {
-            this.send({messageId: messageId, protocolOp: {type: 'extendedResponse', resultCode: resultCode, matchedDN: '', diagnosticMessage: diagnosticMessage, name: ExtendedOperation.startTLS}})
-        }
-        if (!this.host.secureContext) {
-            answer(ResultCode.protocolError, 'TLS is not configured')
-            return false
-        }
-        if (this.session.secure) {
-            answer(ResultCode.operationsError, 'TLS is already established')
-            return false
-        }
-        if (this.running.size || this.gate || this.session.sasl) {
-            answer(ResultCode.operationsError, 'Requests are outstanding')
-            return false
-        }
-        answer(ResultCode.success, '')
+    protected async startTLS(message: LDAPMessage): Promise<boolean> {
         const plain: Socket = this.socket
+        //Nothing read meanwhile: the bytes after the request are those of the handshake
         plain.removeListener('data', this.onData)
+        plain.pause()
+        const refused = (resultCode: number, diagnosticMessage: string): ServerOutcome => ({resultCode: resultCode, diagnosticMessage: diagnosticMessage, responseName: ExtendedOperation.startTLS})
+        let agreed: boolean = false
+        let result: {response: LDAPResponse, controls: Control[]}
+        try {
+            //Through the pipeline as every request (its controls checked, the plugins' aroundRequest, the operation event)
+            result = await this.host.pipeline.handle(this.session, message.protocolOp as LDAPRequest, message.controls ?? [], {
+                entry: (): void => undefined,
+                startTLS: (): ServerOutcome => {
+                    if (!this.host.secureContext) return refused(ResultCode.protocolError, 'TLS is not configured')
+                    if (this.session.secure) return refused(ResultCode.operationsError, 'TLS is already established')
+                    if (this.running.size || this.gate || this.session.sasl) return refused(ResultCode.operationsError, 'Requests are outstanding')
+                    agreed = true
+                    return {resultCode: ResultCode.success, responseName: ExtendedOperation.startTLS}
+                }
+            }, this.closing.signal)
+        } catch (error) {
+            this.host.emit('error', error)
+            result = {response: {type: 'extendedResponse', resultCode: ResultCode.other, matchedDN: '', diagnosticMessage: 'An internal error of the server', name: ExtendedOperation.startTLS}, controls: []}
+        }
+        if (this.isClosed) return false
+        this.send({messageId: message.messageId, protocolOp: result.response, ...result.controls.length ? {controls: result.controls} : {}})
+        //Refused (by the connection, a control, a plugin): the reading goes on in clear
+        if (!agreed || !('resultCode' in result.response) || result.response.resultCode !== ResultCode.success) {
+            plain.on('data', this.onData)
+            plain.resume()
+            return false
+        }
         plain.setTimeout(0)
         const secure: tls.TLSSocket = new tls.TLSSocket(plain, {isServer: true, secureContext: this.host.secureContext, requestCert: this.host.requestCert, rejectUnauthorized: false})
         this.socket = secure
