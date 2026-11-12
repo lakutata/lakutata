@@ -120,7 +120,7 @@ export class PasswordPolicyPlugin extends BaseLDAPPlugin {
      * @param change The change.
      */
     public async passwordChange(context: OperationContext, change: PasswordChange): Promise<DirectoryChange[] | void> {
-        return this.policyOf(context).check(context, change.dn, change.entry, change.passwords, {self: change.self, oldGiven: change.oldGiven, importing: change.importing, ...change.attributes ? {entryAttributes: change.attributes} : {}})
+        return this.policyOf(context).check(context, change.dn, change.entry, change.passwords, {self: change.self, oldGiven: change.oldGiven, importing: change.importing, ...change.attributes ? {entryAttributes: change.attributes} : {}, ...change.changes ? {changes: change.changes} : {}})
     }
 
     /**

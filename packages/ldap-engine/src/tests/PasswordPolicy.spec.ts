@@ -270,6 +270,23 @@ describe('the password policy', () => {
         await admin.modify(BOB, {operation: 'replace', attribute: 'userPassword', values: '{SSHA}0H+zTv8o4MR4H43n03eCsvw1luG8LdB7'})
     })
 
+    it('keeps one password for an entry under a policy, as the policy assumes', async () => {
+        const {server, admin} = await serve({pwdInHistory: '3'})
+        const session: LDAPInProcessConnection = server.connect()
+        await session.bind(ALICE, 'alice-password-1')
+        //A second password added: refused (the first would stay valid, the second out of the history)
+        await assert.rejects(session.modify(ALICE, {operation: 'add', attribute: 'userPassword', values: 'another-password'}), (error: unknown) => error instanceof LDAPResultException && error.code === 19)
+        await assert.rejects(admin.add(`uid=carol,ou=people,${BASE}`, {objectClass: 'inetOrgPerson', uid: 'carol', cn: 'carol', sn: 'carol', userPassword: ['first-password', 'second-password']}), (error: unknown) => error instanceof LDAPResultException && error.code === 19)
+        assert.equal((await admin.search(ALICE, {scope: 'base', attributes: ['userPassword']})).entries.length, 1)
+        await server.connect().bind(ALICE, 'alice-password-1')
+        //A change: the old one deleted and the new one added, or replaced
+        await session.modify(ALICE, [{operation: 'delete', attribute: 'userPassword', values: 'alice-password-1'}, {operation: 'add', attribute: 'userPassword', values: 'alice-password-2'}])
+        await session.modify(ALICE, {operation: 'replace', attribute: 'userPassword', values: 'alice-password-3'})
+        //Without a policy, several passwords as the schema allows
+        const {admin: free} = await serve({}, {default: undefined})
+        await free.add(`uid=dave,ou=people,${BASE}`, {objectClass: 'inetOrgPerson', uid: 'dave', cn: 'dave', sn: 'dave', userPassword: ['first-password', 'second-password']})
+    })
+
     it('refuses the passwords of the history, and the current one', async () => {
         const {server, admin} = await serve({pwdInHistory: '2'})
         const session: LDAPInProcessConnection = server.connect()

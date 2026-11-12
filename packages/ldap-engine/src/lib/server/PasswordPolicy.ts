@@ -4,7 +4,7 @@ import {DN} from '../dn/DN.js'
 import type {PartialAttribute} from '../protocol/Messages.js'
 import {ResultCode} from '../protocol/ResultCode.js'
 import {formatGeneralizedTime, parseGeneralizedTime} from '../schema/MatchingRules.js'
-import type {Schema} from '../schema/Schema.js'
+import {attributeTypeOf, type Schema} from '../schema/Schema.js'
 import {valuesOfType} from './EntryTools.js'
 import type {PasswordSchemes} from './Passwords.js'
 import type {DirectoryChange, DirectoryEntry, OperationContext} from './Types.js'
@@ -426,16 +426,27 @@ export class PasswordPolicy {
      * @param dn The DN of the entry.
      * @param entry The entry, undefined for an entry being added.
      * @param passwords The new passwords as they were written (in clear, or hashed by an administrator importing them).
-     * @param change Whether the user changes their own password, whether they gave the old one, and whether the values
-     * looking hashed are hashes an administrator imports.
+     * @param change Whether the user changes their own password, whether they gave the old one, whether the values
+     * looking hashed are hashes an administrator imports, and the changes of a modify.
      * @returns The state changes, undefined when no policy governs the entry.
      */
-    public async check(context: OperationContext, dn: DN, entry: DirectoryEntry | undefined, passwords: Buffer[], change: {self: boolean, oldGiven: boolean, importing?: boolean, entryAttributes?: PartialAttribute[]}): Promise<DirectoryChange[] | undefined> {
+    public async check(context: OperationContext, dn: DN, entry: DirectoryEntry | undefined, passwords: Buffer[], change: {self: boolean, oldGiven: boolean, importing?: boolean, entryAttributes?: PartialAttribute[], changes?: {operation: string, attribute: PartialAttribute}[]}): Promise<DirectoryChange[] | undefined> {
         const rules: PasswordPolicyRules | undefined = await this.rulesFor(context, entry ?? (change.entryAttributes ? {dn: dn, attributes: change.entryAttributes} : undefined))
         if (!rules) return undefined
         const now: number = Date.now()
         const mustChange: boolean = context.session.state.get(MUST_CHANGE) === true && change.self
         const current: Buffer[] = entry ? valuesOfType(entry, 'userPassword', this.schema) : []
+        //One password under a policy, as the policy assumes (draft-behera): a second one would stay valid out of the
+        //history and the checks, the first one still valid
+        const isPassword = (item: {attribute: PartialAttribute}): boolean => this.schema.primaryName(attributeTypeOf(item.attribute.type)).toLowerCase() === 'userpassword'
+        const left: number = change.changes
+            ? change.changes.filter(isPassword).reduce((count: number, item: {operation: string, attribute: PartialAttribute}): number => {
+                if (item.operation === 'add') return count + item.attribute.values.length
+                if (item.operation === 'replace') return item.attribute.values.length
+                return item.attribute.values.length ? Math.max(count - item.attribute.values.length, 0) : 0
+            }, current.length)
+            : passwords.length
+        if (left > 1) refuse(context, ResultCode.constraintViolation, 'An entry under a password policy has one password')
         if (change.self && rules.allowUserChange === false) refuse(context, ResultCode.insufficientAccessRights, 'Users do not change their passwords', 'passwordModNotAllowed')
         if (change.self && rules.safeModify && current.length && !change.oldGiven) refuse(context, ResultCode.insufficientAccessRights, 'The old password must be given', 'mustSupplyOldPassword')
         if (change.self && !mustChange && rules.minAge && entry) {
