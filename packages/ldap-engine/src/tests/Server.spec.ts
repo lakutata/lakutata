@@ -279,6 +279,27 @@ describe('the server engine', () => {
         assert.equal(await owner.compare(`uid=user3,ou=people,${BASE}`, 'mail', 'user3@example.com'), true)
     })
 
+    it('checks a password given to delete only on one\'s own entry, so that a writer of others\' passwords does not learn them', async () => {
+        //A manager writing the passwords of the people
+        const MANAGER: string = `cn=manager,${BASE}`
+        const {server: managed, admin: owner} = await directory({access: {admins: [ADMIN], check: (request: {operation: string, identity?: {toString(): string}, dn: {isDescendantOf(dn: string): boolean}}): boolean | undefined => String(request.identity) === MANAGER && request.operation === 'modify' ? request.dn.isDescendantOf(`ou=people,${BASE}`) : undefined}})
+        await owner.add(MANAGER, {objectClass: ['organizationalRole', 'simpleSecurityObject'], cn: 'manager', userPassword: 'manager-password'})
+        const manager: LDAPInProcessConnection = managed.connect()
+        await manager.bind(MANAGER, 'manager-password')
+        const guess = (value: string): Promise<unknown> => manager.modify(`uid=user5,ou=people,${BASE}`, [{operation: 'delete', attribute: 'userPassword', values: value}, {operation: 'add', attribute: 'userPassword', values: value}]).then((): string => 'success', (error: unknown): number => (error as LDAPResultException).code)
+        //The right password and a wrong one answered alike, the password left as it was
+        assert.deepEqual([await guess('password5'), await guess('wrong-guess')], [16, 16])
+        await managed.connect().bind(`uid=user5,ou=people,${BASE}`, 'password5')
+        //Replacing it is what a writer of passwords does
+        await manager.modify(`uid=user5,ou=people,${BASE}`, {operation: 'replace', attribute: 'userPassword', values: 'set-by-manager'})
+        await managed.connect().bind(`uid=user5,ou=people,${BASE}`, 'set-by-manager')
+        //One's own: the old password given to delete, the new one added
+        const self: LDAPInProcessConnection = managed.connect()
+        await self.bind(`uid=user6,ou=people,${BASE}`, 'password6')
+        await self.modify(`uid=user6,ou=people,${BASE}`, [{operation: 'delete', attribute: 'userPassword', values: 'password6'}, {operation: 'add', attribute: 'userPassword', values: 'new-password-6'}])
+        await managed.connect().bind(`uid=user6,ou=people,${BASE}`, 'new-password-6')
+    })
+
     it('changes passwords: one\'s own, another\'s by an administrator, one generated', async () => {
         const user: LDAPInProcessConnection = server.connect()
         await user.bind(`uid=user9,ou=people,${BASE}`, 'password9')

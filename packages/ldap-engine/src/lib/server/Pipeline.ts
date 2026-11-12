@@ -1298,9 +1298,14 @@ export class Pipeline {
                         context.state.set(CURRENT, current)
                         const stored: Buffer[] = valuesOfType(current, 'userPassword', schema)
                         const values: Buffer[] = []
+                        //A password in clear checked against those stored on one's own entry only (the old password of a
+                        //change); on another's, the stored value is given (or the password replaced): a writer of
+                        //others' passwords does not learn whether a guess is right
+                        const identity: DN | undefined = context.session.identity
+                        const own: boolean = !context.internal && identity !== undefined && identity.equals(request.dn, schema)
                         for (const value of change.attribute.values) {
                             let match: Buffer | undefined = stored.find((item: Buffer): boolean => item.equals(value))
-                            for (const item of stored) {
+                            for (const item of own ? stored : []) {
                                 if (match) break
                                 if (await passwords.verify(item, value)) match = item
                             }
