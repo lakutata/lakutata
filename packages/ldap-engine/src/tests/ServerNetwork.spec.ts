@@ -26,6 +26,7 @@ import {
     LDAPUsageException,
     MemoryBackend,
     MessageReader,
+    PagedResultsControl,
     type SearchContext
 } from '../exports/LDAPEngine.js'
 import {X509Certificate} from 'node:crypto'
@@ -257,6 +258,64 @@ describe('the server engine on the network', () => {
         assert.equal(messages[0].protocolOp.type, 'extendedResponse')
         assert.ok(messages.some((message) => message.messageId === 0 && 'resultCode' in message.protocolOp && message.protocolOp.resultCode === 2))
         socket.destroy()
+    })
+
+    it('takes a bind it cannot decode for a failed bind: the session anonymous, its paged searches, SASL exchange and requests ended', async () => {
+        //A search held until released, a two-step mechanism counting its starts
+        let release: () => void = (): void => undefined
+        const released: Promise<void> = new Promise<void>((resolve: () => void): void => {
+            release = resolve
+        })
+        let starts: number = 0
+        const {port: failingPort} = await serve({
+            sasl: [plainMechanism(), {name: 'COUNTED', requiresTLS: false, start: async () => {
+                starts++
+                return {done: false, serverCredentials: Buffer.from('next')}
+            }, step: async () => ({done: true, identity: DN.parse(`uid=user1,ou=people,${BASE}`)})}],
+            interceptors: [{name: 'held', operations: ['search'], before: async (_context, request) => {
+                if (request.type === 'search' && request.filter.type === 'equality' && request.filter.attribute === 'description') await released
+            }}]
+        })
+        const socket: Socket = createConnection({port: failingPort, host: '127.0.0.1'})
+        await once(socket, 'connect')
+        const reader: MessageReader = new MessageReader()
+        const messages: ReturnType<typeof decodeMessage>[] = []
+        socket.on('data', (chunk: Buffer) => {
+            for (const item of reader.push(chunk)) if (item.message) messages.push(item.message)
+        })
+        const settle = (): Promise<void> => new Promise<void>((resolve: () => void): void => void setTimeout(resolve, 150))
+        //The last message of a request: its result
+        const answer = (id: number) => [...messages].reverse().find((message) => message.messageId === id)
+        //Bound as a user, a paged search begun, a search held
+        socket.write(encodeMessage({messageId: 1, protocolOp: {type: 'bindRequest', version: 3, name: `uid=user1,ou=people,${BASE}`, authentication: {type: 'simple', password: Buffer.from('password1')}}}))
+        await settle()
+        socket.write(encodeMessage({messageId: 2, protocolOp: {type: 'searchRequest', baseObject: `ou=people,${BASE}`, scope: 'one', derefAliases: 'never', sizeLimit: 0, timeLimit: 0, typesOnly: false, filter: Filter.parse('(objectClass=*)'), attributes: ['1.1']}, controls: [PagedResultsControl.encode({size: 2, cookie: Buffer.alloc(0)})]}))
+        await settle()
+        const cookie: Buffer = PagedResultsControl.decode(answer(2)!.controls!.find((control) => control.oid === PagedResultsControl.oid)!).cookie
+        assert.ok(cookie.length)
+        socket.write(encodeMessage({messageId: 3, protocolOp: {type: 'searchRequest', baseObject: `ou=people,${BASE}`, scope: 'one', derefAliases: 'never', sizeLimit: 0, timeLimit: 0, typesOnly: false, filter: Filter.parse('(description=held)'), attributes: ['1.1']}}))
+        await settle()
+        //A bind whose name is not UTF-8: answered protocolError
+        socket.write(Buffer.from([0x30, 0x0e, 0x02, 0x01, 0x04, 0x60, 0x09, 0x02, 0x01, 0x03, 0x04, 0x02, 0xff, 0xfe, 0x80, 0x00]))
+        await settle()
+        release()
+        assert.equal((answer(4)!.protocolOp as {resultCode: number}).resultCode, 2)
+        //The held search abandoned (no answer), the session anonymous, its paged search ended
+        socket.write(encodeMessage({messageId: 5, protocolOp: {type: 'extendedRequest', name: ExtendedOperation.whoAmI}}))
+        socket.write(encodeMessage({messageId: 6, protocolOp: {type: 'searchRequest', baseObject: `ou=people,${BASE}`, scope: 'one', derefAliases: 'never', sizeLimit: 0, timeLimit: 0, typesOnly: false, filter: Filter.parse('(objectClass=*)'), attributes: ['1.1']}, controls: [PagedResultsControl.encode({size: 2, cookie: cookie})]}))
+        await settle()
+        assert.equal(answer(3), undefined)
+        assert.equal(String((answer(5)!.protocolOp as {value?: Buffer}).value ?? ''), '')
+        assert.notEqual((answer(6)!.protocolOp as {resultCode: number}).resultCode, 0)
+        //A SASL exchange begun, then a bind that cannot be decoded: the exchange starts again
+        socket.write(encodeMessage({messageId: 7, protocolOp: {type: 'bindRequest', version: 3, name: '', authentication: {type: 'sasl', mechanism: 'COUNTED', credentials: Buffer.from('first')}}}))
+        await settle()
+        socket.write(Buffer.from([0x30, 0x0e, 0x02, 0x01, 0x08, 0x60, 0x09, 0x02, 0x01, 0x03, 0x04, 0x02, 0xff, 0xfe, 0x80, 0x00]))
+        await settle()
+        socket.write(encodeMessage({messageId: 9, protocolOp: {type: 'bindRequest', version: 3, name: '', authentication: {type: 'sasl', mechanism: 'COUNTED', credentials: Buffer.from('first')}}}))
+        await settle()
+        socket.destroy()
+        assert.deepEqual([(answer(7)!.protocolOp as {resultCode: number}).resultCode, (answer(9)!.protocolOp as {resultCode: number}).resultCode, starts], [14, 14, 2])
     })
 
     it('answers a bind of another version than 3 with protocolError, and closes on a message it cannot frame', async () => {

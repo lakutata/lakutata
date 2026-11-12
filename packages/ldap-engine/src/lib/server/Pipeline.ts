@@ -624,10 +624,7 @@ export class Pipeline {
             outcome = this.outcomeOf(error, signal)
         }
         //A bind a hook refused after it was checked leaves the session anonymous (RFC 4511 §4.2.1)
-        if (operation === 'bind' && outcome.resultCode !== ResultCode.success && outcome.resultCode !== ResultCode.saslBindInProgress) {
-            session.identity = undefined
-            session.authenticationMethod = undefined
-        }
+        if (operation === 'bind' && outcome.resultCode !== ResultCode.success && outcome.resultCode !== ResultCode.saslBindInProgress) this.failedBind(session)
         //Any answer to a bind but saslBindInProgress ends a SASL exchange (RFC 4513 §5.2.1.2), refused before its
         //mechanism ran too (a control, a plugin)
         if (operation === 'bind' && outcome.resultCode !== ResultCode.saslBindInProgress) session.sasl = undefined
@@ -1894,6 +1891,18 @@ export class Pipeline {
      */
     public closeSession(session: SessionState): void {
         this.endPaged(session)
+        session.sasl = undefined
+    }
+
+    /**
+     * Leave a session as a failed bind leaves it (RFC 4511 §4.2.1, RFC 4513 §5.2.1.2): anonymous, its paged searches and
+     * its SASL exchange ended; for a bind that cannot be decoded too
+     * @param session The session.
+     */
+    public failedBind(session: SessionState): void {
+        this.endPaged(session)
+        session.identity = undefined
+        session.authenticationMethod = undefined
         session.sasl = undefined
     }
 

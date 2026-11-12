@@ -177,7 +177,45 @@ export class ServerConnection {
         }
         const type: LDAPResponse['type'] | undefined = RESPONSE_OF[error.operation]
         if (!type) return
-        this.send({messageId: error.messageId, protocolOp: {type: type, resultCode: ResultCode.protocolError, matchedDN: '', diagnosticMessage: error.message} as LDAPResponse})
+        const messageId: number = error.messageId
+        const answer = (): void => {
+            this.send({messageId: messageId, protocolOp: {type: type, resultCode: ResultCode.protocolError, matchedDN: '', diagnosticMessage: error.message} as LDAPResponse})
+        }
+        if (error.operation !== 'bindRequest') {
+            answer()
+            return
+        }
+        //A bind that cannot be decoded is a failed bind: it ends what is outstanding, waits for the bind in flight, and
+        //leaves the session anonymous, its SASL exchange and paged searches ended
+        this.abandonForBind()
+        this.queueBind(async (): Promise<void> => {
+            this.host.pipeline.failedBind(this.session)
+            answer()
+        })
+    }
+
+    /**
+     * End the requests outstanding for a bind (RFC 4511 §4.2.1)
+     */
+    protected abandonForBind(): void {
+        for (const running of this.running.values()) {
+            if (running.type === 'bindRequest') continue
+            running.abandoned = true
+            running.controller.abort(new Error('Abandoned by a bind'))
+        }
+    }
+
+    /**
+     * Run a bind after the bind in flight (clients must not send one, RFC 4511 §4.2.1); the other requests wait for it
+     * @param run The bind.
+     */
+    protected queueBind(run: () => Promise<void>): void {
+        const previous: Promise<void> | undefined = this.gate
+        const gate: Promise<void> = (previous ? previous.then(run) : run()).finally((): void => {
+            this.reader.maxMessageSize = this.session.identity ? this.host.limits.messageSize : this.host.limits.anonymousMessageSize
+            if (this.gate === gate) this.gate = undefined
+        })
+        this.gate = gate
     }
 
     /**
@@ -203,21 +241,9 @@ export class ServerConnection {
                 return
             }
             case 'bindRequest':
-                //A bind ends what is outstanding (RFC 4511 §4.2.1)
-                for (const running of this.running.values()) {
-                    if (running.type === 'bindRequest') continue
-                    running.abandoned = true
-                    running.controller.abort(new Error('Abandoned by a bind'))
-                }
-                {
-                    //A bind waits for the bind in flight (clients must not send one, RFC 4511 §4.2.1)
-                    const previous: Promise<void> | undefined = this.gate
-                    const gate: Promise<void> = (previous ? previous.then((): Promise<void> => this.process(message)) : this.process(message)).finally((): void => {
-                        this.reader.maxMessageSize = this.session.identity ? this.host.limits.messageSize : this.host.limits.anonymousMessageSize
-                        if (this.gate === gate) this.gate = undefined
-                    })
-                    this.gate = gate
-                }
+                //A bind ends what is outstanding and waits for the bind in flight
+                this.abandonForBind()
+                this.queueBind((): Promise<void> => this.process(message))
                 return
             default: {
                 const limit: number = this.session.identity ? this.host.limits.outstanding : this.host.limits.anonymousOutstanding
