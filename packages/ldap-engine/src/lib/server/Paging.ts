@@ -29,37 +29,10 @@ export interface PagedState {
      */
     used: number
     /**
-     * The size limit of the search (undefined without a limit)
-     */
-    limit?: number
-    /**
-     * The entries its pages may still give: its size limit less those sent (undefined without a limit)
+     * The entries its pages may still give: its size limit less those given (undefined without a limit)
      */
     remaining?: number
 }
-
-/**
- * A page of a paged search as the engine sends it: the most entries it gives (0 once the size limit of the search is
- * reached), and the count of those sent, which tells whether the size limit ends the search there
- */
-export interface PageSending {
-    /**
-     * The most entries the page gives (0: none, its size limit reached)
-     */
-    limit: number
-    /**
-     * Count the entries sent
-     * @param count The entries sent.
-     * @param exceeded Whether more were left in the page than its limit.
-     * @returns Whether the search ends there, its size limit reached (sizeLimitExceeded).
-     */
-    sent(count: number, exceeded: boolean): boolean
-}
-
-/**
- * The key of the page a search sends, in the state of its operation
- */
-export const PAGE_SENDING: unique symbol = Symbol('the page a paged search sends')
 
 /**
  * The paged searches of a session, by their cookies in hex
@@ -362,7 +335,7 @@ export function sortSearchItems<T>(items: T[], valuesOf: SortValues<T>, context:
  * between their pages (at most `pagedResults` per session)
  * @param options The schema, the limits, the capabilities of the backend, the paged searches of a session.
  */
-export function pagingInterceptor(options: {schema: Schema, sortCandidates: number, pagedResults: number, capabilities?: BackendCapabilities, pagedOf: (context: OperationContext) => PagedStates}): LDAPInterceptor {
+export function pagingInterceptor(options: {schema: Schema, sortCandidates: number, pagedResults: number, capabilities?: BackendCapabilities, hides?: () => boolean, pagedOf: (context: OperationContext) => PagedStates}): LDAPInterceptor {
     const {schema} = options
     /**
      * A page of a paged search, the search kept when entries remain
@@ -372,10 +345,10 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
         if (state.ahead) entries.push(state.ahead)
         state.ahead = undefined
         let exhausted: boolean = false
-        //Within the size limit of the search and one more (an entry past it seen in the page), whatever the page size:
-        //the memory of a page bounded by the limit
-        const reading: number = state.limit === undefined ? size : Math.min(size, state.limit + 1)
-        while (entries.length <= reading) {
+        //Within what the size limit of the search leaves, whatever the page size (the memory of a page bounded by it),
+        //one more read to know whether entries are left; the entries are those the session reads (left out before)
+        const taking: number = state.remaining === undefined ? size : Math.min(size, state.remaining)
+        while (entries.length <= taking) {
             const next: IteratorResult<DirectoryEntry> = await state.iterator.next()
             if (next.done) {
                 exhausted = true
@@ -384,8 +357,14 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
             entries.push(next.value)
         }
         if (!exhausted) state.ahead = entries.pop()
+        if (state.remaining !== undefined) state.remaining -= entries.length
+        //The size limit reached with entries left: the search ends there
+        const limited: boolean = !exhausted && state.remaining === 0
         let cookie: Buffer = Buffer.alloc(0)
-        if (!exhausted) {
+        if (limited) {
+            closePaged(state)
+            outcome.resultCode = ResultCode.sizeLimitExceeded
+        } else if (!exhausted) {
             cookie = randomBytes(16)
             state.used = Date.now()
             //At most so many paged searches per session: the oldest goes
@@ -396,26 +375,7 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
             }
             states.set(cookie.toString('hex'), state)
         }
-        const control: Control = PagedResultsControl.encode({size: 0, cookie: cookie})
-        context.responseControls.push(control)
-        //The size limit of the search counts the entries of all its pages, as they are sent (those the access control
-        //leaves out not counted): an entry to send past it ends the search there (sizeLimitExceeded), its cookie no
-        //longer given. Reached at the end of a page, the next page tells whether entries the session sees are left.
-        if (state.remaining !== undefined) {
-            const sending: PageSending = {
-                limit: state.remaining,
-                sent: (count: number, exceeded: boolean): boolean => {
-                    state.remaining! -= count
-                    if (exceeded && !exhausted) {
-                        states.delete(cookie.toString('hex'))
-                        closePaged(state)
-                        context.responseControls[context.responseControls.indexOf(control)] = PagedResultsControl.encode({size: 0, cookie: Buffer.alloc(0)})
-                    }
-                    return exceeded
-                }
-            }
-            context.state.set(PAGE_SENDING, sending)
-        }
+        context.responseControls.push(PagedResultsControl.encode({size: 0, cookie: cookie}))
         outcome.entries = fromArray(entries)
         return outcome
     }
@@ -438,8 +398,13 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
                 closePaged(state)
             }
             const paged: PagedResultsValue | undefined = pagedControl ? PagedResultsControl.decode(pagedControl) : undefined
+            //The engine pages, sorts and windows what the backend does not, and, where entries are left out one by one,
+            //pages and windows the virtual list view itself (the backend would count the entries left out)
+            const hides: boolean = options.hides?.() === true
+            const enginePages: boolean = !options.capabilities?.paging || hides
+            const engineSorts: boolean = !options.capabilities?.sort || (hides && vlvControl !== undefined)
             const key: string = requestKey(search, context.controls, schema)
-            if (paged && paged.cookie.length && !options.capabilities?.paging) {
+            if (paged && paged.cookie.length && enginePages) {
                 const cookie: string = paged.cookie.toString('hex')
                 const state: PagedState | undefined = states.get(cookie)
                 if (!state || state.key !== key) fail(ResultCode.unwillingToPerform, 'The cookie of the paged results is not valid for the search')
@@ -451,14 +416,14 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
                 }
                 return page(context, states, state, paged.size, {resultCode: ResultCode.success})
             }
-            if (paged && paged.size === 0 && !options.capabilities?.paging) {
+            if (paged && paged.size === 0 && enginePages) {
                 context.responseControls.push(PagedResultsControl.encode({size: 0, cookie: Buffer.alloc(0)}))
                 return {resultCode: ResultCode.success, entries: fromArray([])}
             }
             const outcome: ServerOutcome = await next()
             if (!outcome.entries) return outcome
             let iterator: AsyncIterator<DirectoryEntry> = outcome.entries[Symbol.asyncIterator]()
-            if (sortControl && !options.capabilities?.sort) {
+            if (sortControl && engineSorts) {
                 const {ordered, unordered} = orderedKeys(SortRequestControl.decode(sortControl), schema)
                 let problem: {result: number, attribute: string} | undefined = unordered === undefined ? undefined : {result: ResultCode.inappropriateMatching, attribute: unordered}
                 const collected: DirectoryEntry[] = []
@@ -493,7 +458,7 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
                     iterator = fromArray(sorted)[Symbol.asyncIterator]()
                 }
             }
-            if (!paged || options.capabilities?.paging) {
+            if (!paged || !enginePages) {
                 outcome.entries = fromIterator(iterator)
                 return outcome
             }
@@ -504,7 +469,7 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
                 outcome.entries = fromIterator(iterator)
                 return outcome
             }
-            return page(context, states, {key: key, iterator: iterator, used: Date.now(), ...sizeLimit ? {limit: sizeLimit, remaining: sizeLimit} : {}}, paged.size, outcome)
+            return page(context, states, {key: key, iterator: iterator, used: Date.now(), ...sizeLimit ? {remaining: sizeLimit} : {}}, paged.size, outcome)
         }
     }
 }

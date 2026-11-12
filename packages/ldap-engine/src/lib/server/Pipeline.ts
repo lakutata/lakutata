@@ -39,7 +39,7 @@ import {
     timeOrderedUUID,
     valuesOfType
 } from './EntryTools.js'
-import {closePaged, PAGE_SENDING, type PageSending, pagingInterceptor, type PagedStates} from './Paging.js'
+import {closePaged, pagingInterceptor, type PagedStates} from './Paging.js'
 import type {PasswordSchemes} from './Passwords.js'
 import {rootDSEEntry, schemaConfigEntries, subschemaEntry} from './RootDSE.js'
 import type {SASLContext, SASLMechanism, SASLStep} from './SASL.js'
@@ -236,6 +236,9 @@ interface Mount {
     backend: LDAPBackend
     suffix: DN
     chain: LDAPInterceptor[]
+    //Whether its searches leave entries out one by one (access.check, an interceptor inside the paging that may drop or
+    //replace entries): the backend then neither windows nor pages, as it would count what is left out
+    hides?: boolean
 }
 
 const RESPONSE_TYPES: Record<OperationType, LDAPResponse['type']> = {
@@ -412,6 +415,7 @@ export class Pipeline {
                 sortCandidates: this.options.limits.sortCandidates,
                 pagedResults: this.options.limits.pagedResults,
                 capabilities: mount.backend.capabilities,
+                hides: (): boolean => mount.hides === true,
                 pagedOf: (context: OperationContext): PagedStates => (context.session as SessionState).paged
             })
         ]
@@ -428,6 +432,10 @@ export class Pipeline {
             if (index < 0) chain.push(placement.interceptor)
             else chain.splice(placement.before !== undefined ? index : index + 1, 0, placement.interceptor)
         }
+        //The entries left out one by one: by the access check (at the source, before the paging), or by an interceptor
+        //inside the paging that transforms or replaces the entries of searches
+        const paging: number = chain.findIndex((interceptor: LDAPInterceptor): boolean => interceptor.name === 'paging')
+        mount.hides = this.options.access.check !== undefined || chain.slice(paging + 1).some((interceptor: LDAPInterceptor): boolean => interceptor.operations.includes('search') && (interceptor.transformEntry !== undefined || interceptor.around !== undefined))
         return chain
     }
 
@@ -758,9 +766,6 @@ export class Pipeline {
     protected async output(context: SearchContext, outcome: ServerOutcome, selection: AttributeSelection, sizeLimit: number, deadline: number, responder: Responder): Promise<ServerOutcome> {
         if (!outcome.entries) return outcome
         const returned: (description: string) => boolean = returnedBy(selection, this.schema)
-        //A page of a paged search: within what the size limit of the search leaves (none once it is reached)
-        const page: PageSending | undefined = context.state.get(PAGE_SENDING) as PageSending | undefined
-        const full = (count: number): boolean => page ? count >= page.limit : sizeLimit > 0 && count >= sizeLimit
         let count: number = 0
         for await (const entry of outcome.entries) {
             if (context.signal.aborted) throw context.signal.reason
@@ -768,14 +773,13 @@ export class Pipeline {
                 outcome.resultCode = ResultCode.timeLimitExceeded
                 break
             }
-            if (full(count)) {
+            if (sizeLimit && count >= sizeLimit) {
                 outcome.resultCode = ResultCode.sizeLimitExceeded
                 break
             }
             await responder.entry({type: 'searchResultEntry', objectName: entry.dn.toString(), attributes: selectAttributes(entry, returned, context.typesOnly)})
             count++
         }
-        if (page?.sent(count, outcome.resultCode === ResultCode.sizeLimitExceeded)) outcome.resultCode = ResultCode.sizeLimitExceeded
         outcome.entries = undefined
         return outcome
     }
@@ -788,17 +792,33 @@ export class Pipeline {
      */
     protected async backendSearch(mount: Mount, context: SearchContext, request: ServerSearchRequest): Promise<ServerOutcome> {
         await this.existing(mount, context, context.base)
+        const access: AccessPolicy = this.access
+        const checked: boolean = this.options.access.check !== undefined && !context.internal
+        //A base the session may not read: as one that is not there
+        if (checked) {
+            const base: DirectoryEntry | undefined = await mount.backend.get(context, context.base)
+            if (base && !await access.allows({operation: 'read', session: context.session, identity: context.session.identity, dn: base.dn, entry: base})) fail(ResultCode.noSuchObject, `No entry ${context.base.toString()}`, await matchedDNOf(context.base, (parent: DN): Promise<boolean> => this.exists(mount, context, parent), mount.suffix))
+        }
         const pagedControl: Control | undefined = findControl(context.controls, PagedResultsControl)
         const sortControl: Control | undefined = findControl(context.controls, SortRequestControl)
-        if (mount.backend.capabilities?.paging && pagedControl) {
-            const value = PagedResultsControl.decode(pagedControl)
-            Object.assign(context, {page: {size: value.size, ...value.cookie.length ? {cookie: value.cookie} : {}}})
+        const vlvControl: Control | undefined = findControl(context.controls, VLVRequestControl)
+        //Where entries are left out one by one, the backend neither windows (the virtual list view, which it would count
+        //and cut with the entries left out) nor pages: the engine does, after them. A sort alone stays the backend's: the
+        //order of what is left is kept.
+        const hides: boolean = mount.hides === true
+        const kept: Set<string> = new Set([...hides && vlvControl ? [VLVRequestControl.oid, SortRequestControl.oid] : [], ...hides && pagedControl ? [PagedResultsControl.oid] : []])
+        const controls: readonly Control[] = kept.size ? context.controls.filter((control: Control): boolean => !kept.has(control.oid)) : context.controls
+        const backendPages: boolean = mount.backend.capabilities?.paging === true && pagedControl !== undefined && !kept.has(PagedResultsControl.oid)
+        const searched: SearchContext = {...context, controls: controls, filter: request.filter}
+        if (backendPages) {
+            const value = PagedResultsControl.decode(pagedControl!)
+            Object.assign(searched, {page: {size: value.size, ...value.cookie.length ? {cookie: value.cookie} : {}}})
         }
-        if (mount.backend.capabilities?.sort && sortControl) Object.assign(context, {sort: SortRequestControl.decode(sortControl)})
-        const result: BackendSearchResult = await mount.backend.search({...context, filter: request.filter})
-        if (mount.backend.capabilities?.paging && pagedControl) context.responseControls.push(PagedResultsControl.encode({size: result.total ?? 0, cookie: result.cookie ?? Buffer.alloc(0)}))
+        if (mount.backend.capabilities?.sort && sortControl && !kept.has(SortRequestControl.oid)) Object.assign(searched, {sort: SortRequestControl.decode(sortControl)})
+        const result: BackendSearchResult = await mount.backend.search(searched)
+        if (backendPages) context.responseControls.push(PagedResultsControl.encode({size: result.total ?? 0, cookie: result.cookie ?? Buffer.alloc(0)}))
         const schema: Schema = this.schema
-        const {base, scope, signal} = context
+        const {base, scope, signal, deadline} = context
         const filter: Filter = request.filter
         const exact: boolean = result.exact
         return {
@@ -806,7 +826,11 @@ export class Pipeline {
             entries: (async function* (): AsyncGenerator<DirectoryEntry> {
                 for await (const entry of result.entries) {
                     if (signal.aborted) throw signal.reason
+                    //The time limit checked on every entry read, those left out too
+                    if (deadline && Date.now() > deadline) fail(ResultCode.timeLimitExceeded, 'The search took longer than its time limit')
                     if (!exact && (!inScope(entry.dn, base, scope, schema) || matchFilter(filter, {dn: entry.dn, attributes: entry.attributes}, schema) !== true)) continue
+                    //Read as stored, as a compare reads it, before anything pages, sorts, windows or counts the entries
+                    if (checked && !await access.allows({operation: 'read', session: context.session, identity: context.session.identity, dn: entry.dn, entry: entry})) continue
                     yield entry
                 }
             })()
@@ -1030,9 +1054,12 @@ export class Pipeline {
      * @param request The request.
      */
     protected async bind(session: SessionState, context: OperationContext, request: LDAPRequest & {type: 'bindRequest'}): Promise<ServerOutcome> {
-        //A bind starts anonymous, and a failed one leaves the session so (RFC 4511 §4.2.1)
+        //A bind starts anonymous, and a failed one leaves the session so (RFC 4511 §4.2.1); the paged searches of the
+        //identity before it end (their entries read for that identity)
         session.identity = undefined
         session.authenticationMethod = undefined
+        for (const state of session.paged.values()) closePaged(state)
+        session.paged.clear()
         if (request.version !== 3) fail(ResultCode.protocolError, 'Only LDAPv3 is supported')
         const authentication = request.authentication
         if (authentication.type === 'sasl') return this.saslBind(session, context, request.name, authentication.mechanism, authentication.credentials)
@@ -1217,7 +1244,6 @@ export class Pipeline {
     protected accessInterceptor(): LDAPInterceptor {
         const access: AccessPolicy = this.access
         const schema: Schema = this.schema
-        const hasCheck: boolean = this.options.access.check !== undefined
         return {
             name: 'access',
             operations: ['search', 'compare', 'add', 'modify', 'delete', 'modifyDN'],
@@ -1255,10 +1281,7 @@ export class Pipeline {
                         return
                     }
                 }
-            },
-            ...hasCheck ? {
-                transformEntry: async (context: SearchContext, entry: DirectoryEntry): Promise<DirectoryEntry | undefined> => context.internal || await access.allows({operation: 'read', session: context.session, identity: context.session.identity, dn: entry.dn, entry: entry}) ? entry : undefined
-            } : {}
+            }
         }
     }
 

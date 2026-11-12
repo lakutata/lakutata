@@ -400,8 +400,8 @@ describe('the server engine', () => {
         const {server: limited, admin: owner} = await directory({limits: {sizeLimit: 10}})
         //The size limit of the search: within a page, at the end of one, the search ending with its entries
         assert.deepEqual(await pages(owner, 10, 15), {counts: [10, 5], exceeded: true})
-        //Reached at the end of a page: the next page tells there are more
-        assert.deepEqual(await pages(owner, 10, 20), {counts: [10, 10, 0], exceeded: true})
+        //Reached at the end of a page with entries left: sizeLimitExceeded there
+        assert.deepEqual(await pages(owner, 10, 20), {counts: [10, 10], exceeded: true})
         assert.deepEqual(await pages(owner, 10, 30), {counts: [10, 10, 10], exceeded: false})
         //A page as large as the size limit: one page
         assert.deepEqual(await pages(owner, 10, 5), {counts: [5], exceeded: true})
@@ -463,10 +463,50 @@ describe('the server engine', () => {
         //A page reads within the limit of the search, not what is left of it: a run of hidden entries after the first
         //page is passed in pages as large as the limit
         const {admin: gapped} = await directory({access: {admins: [ADMIN], check: (request: {operation: string, dn?: {toString(): string}}): boolean | undefined => request.operation === 'read' && /^uid=user([89]|1\d|2[0-7]),/i.test(String(request.dn)) ? false : undefined}})
-        assert.deepEqual(await pages(gapped, [8, 100], 10), {counts: [8, 0, 2], exceeded: false})
+        assert.deepEqual(await pages(gapped, [8, 100], 10), {counts: [8, 2], exceeded: false})
         //The client's own paging still tells it was cut
         const cut = await owner.search(`ou=people,${BASE}`, {scope: 'one', filter: '(uid=user*)', sizeLimit: 15, paged: {pageSize: 10}})
         assert.deepEqual([cut.entries.length, cut.truncated], [15, true])
+    })
+
+    it('leaves out the entries a session may not read before it pages, sorts, windows and counts', async () => {
+        //The users of an even number hidden from all but user2
+        const READER: string = `uid=user1,ou=people,${BASE}`
+        let offset: number = 0
+        let ticking: boolean = false
+        const {server: hiding} = await directory({access: {admins: [ADMIN], check: (request: {operation: string, identity?: {toString(): string}, dn: {toString(): string}}): boolean | undefined => {
+            if (request.operation !== 'read') return undefined
+            if (ticking) offset += 600
+            return String(request.identity) !== `uid=user2,ou=people,${BASE}` && /^uid=user\d*[02468],/i.test(String(request.dn)) ? false : undefined
+        }}})
+        const reader: LDAPInProcessConnection = hiding.connect()
+        await reader.bind(READER, 'password1')
+        //The virtual list view counts and windows what the session reads
+        const window = await reader.search(`ou=people,${BASE}`, {scope: 'one', filter: '(uid=user*)', sort: [{attribute: 'cn'}], window: {offset: 1, limit: 5}})
+        assert.deepEqual([window.total, window.entries.length], [15, 5])
+        assert.ok(window.entries.every((entry) => /[13579]$/.test(entry.first('uid')!)), JSON.stringify(window.entries.map((entry) => entry.dn)))
+        //A base it may not read: as one that is not there
+        const answer = (dn: string): Promise<string> => reader.search(dn, {scope: 'base'}).then((result): string => `found ${result.entries.length}`, (error: unknown): string => `${(error as LDAPResultException).code} ${(error as LDAPResultException).matchedDN}`)
+        assert.equal(await answer(`uid=user4,ou=people,${BASE}`), await answer(`uid=nobody,ou=people,${BASE}`))
+        //A paged search does not go on after a bind on the session
+        const session: LDAPInProcessConnection = hiding.connect()
+        await session.bind(`uid=user2,ou=people,${BASE}`, 'password2')
+        const first = await session.search(`ou=people,${BASE}`, {scope: 'one', filter: '(uid=user*)', paged: false, controls: [PagedResultsControl.encode({size: 4, cookie: Buffer.alloc(0)})]})
+        const cookie: Buffer = PagedResultsControl.decode(findControl(first.controls, PagedResultsControl)!).cookie
+        assert.ok(cookie.length)
+        await session.bind(READER, 'password1')
+        await assert.rejects(session.search(`ou=people,${BASE}`, {scope: 'one', filter: '(uid=user*)', paged: false, controls: [PagedResultsControl.encode({size: 4, cookie: cookie})]}), code(53))
+        //Hidden entries read past the time limit: timeLimitExceeded, not success without entries
+        const now: () => number = Date.now
+        Date.now = (): number => now() + offset
+        ticking = true
+        try {
+            const late: string = await reader.search(`ou=people,${BASE}`, {scope: 'one', filter: '(uid=user*0)', timeLimit: 1, paged: false}).then((result): string => `found ${result.entries.length}`, (error: unknown): string => String((error as LDAPResultException).code))
+            assert.equal(late, '3')
+        } finally {
+            Date.now = now
+            ticking = false
+        }
     })
 
     it('sorts strings by their code points, a character above U+FFFF after U+FA0E', async () => {

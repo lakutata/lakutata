@@ -208,11 +208,12 @@ class QueueingBackend extends DirectoryBackend {
 let readingEntries: (() => void) | undefined
 
 /**
- * A directory backend telling the test of the batches of entries it reads
+ * A directory backend telling the test of the batches of entries it reads (not the reads of one entry, as the base of a
+ * search the engine checks)
  */
 class CountingBackend extends DirectoryBackend {
     protected async entries(...parameters: Parameters<DirectoryBackend['entries']>): Promise<DirectoryEntry[]> {
-        readingEntries?.()
+        if (parameters[1].length > 1) readingEntries?.()
         return super.entries(...parameters)
     }
 }
@@ -350,6 +351,35 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                 assert.deepEqual(byEmail.entries.map((entry) => entry.first('uid')), ['user0', 'user10', 'user11'])
             } finally {
                 await second.destroy()
+            }
+        })
+
+        it('counts and windows what a session may read, the entries the access check hides left out first', async () => {
+            //The users of an even number hidden from the users
+            const hidingContainer: Container = new Container()
+            try {
+                await hidingContainer.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                await hidingContainer.setNamed('ldap', LDAPServer, {port: false, schema: schema, backends: [{class: DirectoryBackend, suffix: BASE, database: 'database'}], access: {admins: [ADMIN], check: (request: {operation: string, identity?: {toString(): string}, dn: {toString(): string}}): boolean | undefined => request.operation === 'read' && String(request.identity) !== ADMIN && /^uid=user\d*[02468],/i.test(String(request.dn)) ? false : undefined}})
+                const reader: LDAPInProcessConnection = (await hidingContainer.get<LDAPServer>('ldap')).connect()
+                await reader.bind(`uid=user1,${people}`, 'password1')
+                //The virtual list view: counted and windowed on the entries it reads
+                const window = await reader.search(people, {scope: 'one', filter: '(uid=user*)', sort: [{attribute: 'cn'}], window: {offset: 1, limit: 5}})
+                assert.deepEqual([window.total, window.entries.length], [15, 5])
+                assert.deepEqual(window.entries.map((entry) => entry.first('cn')), ['User 01', 'User 03', 'User 05', 'User 07', 'User 09'])
+                //Sorted and paged: full pages, in order
+                const counts: number[] = []
+                let cookie: Buffer = Buffer.alloc(0)
+                const names: string[] = []
+                do {
+                    const page = await reader.search(people, {scope: 'one', filter: '(uid=user*)', paged: false, controls: [SortRequestControl.encode([{attribute: 'cn'}]), PagedResultsControl.encode({size: 4, cookie: cookie})]})
+                    counts.push(page.entries.length)
+                    names.push(...page.entries.map((entry) => entry.first('cn')!))
+                    cookie = PagedResultsControl.decode(findControl(page.controls, PagedResultsControl)!).cookie
+                } while (cookie.length)
+                assert.deepEqual(counts, [4, 4, 4, 3])
+                assert.deepEqual(names, [...names].sort())
+            } finally {
+                await hidingContainer.destroy()
             }
         })
 
