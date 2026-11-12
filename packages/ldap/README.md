@@ -122,9 +122,11 @@ migrations are the application's, as for its other entities.
   different values of an attribute at the same time both keep their changes.
 - The searches and writes that `beforeCommit()` makes through a server on the same Database component run in the write's
   transaction: they see what it has written so far, and the writes are undone with it if it fails. A search made this
-  way reads all of its entries before it returns, so a large one holds them in memory. On PostgreSQL, if the database
-  rejects one of these reads (a statement timeout, for example), the write fails as well, even if the interceptor
-  catches the error.
+  way reads all of its entries before it returns. While it reads, the write's other operations wait and its locks stay
+  held. A large search keeps every entry in memory, and its size limit bounds what it returns, not how much it reads.
+  Once its time limit passes, it stops reading and is answered timeLimitExceeded with no entries. On PostgreSQL, if the
+  database rejects one of these reads (a statement timeout, for example), the write fails as well, even if the
+  interceptor catches the error.
 - When the database ends a write to break a deadlock, cannot serialize it, or gives up waiting for a lock (a lock
   timeout set on the database, or on SQLite a file another process holds past the busy timeout), the write is answered
   busy (51) and leaves no changes; the client can send it again.

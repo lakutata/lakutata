@@ -447,9 +447,11 @@ await server.listen({port: 389})
 - A bind with a name and an empty password is refused (`allowUnauthenticatedBind` takes it as anonymous). The failed
   binds of a DN or an address are answered later and later, then refused for a while (`bindThrottle`), all with
   invalidCredentials, which does not tell a locked account from a wrong password.
-- The `limits`: for the sessions that are not administrators, 500 entries and 3600 seconds a search, the depth and
-  size of its filter; for every session, the size of the messages, the requests outstanding, the connections and the
-  idle time.
+- The `limits`: for the sessions that are not administrators, 500 entries and 3600 seconds a search, the depth and size
+  of its filter; for every session, the size of the messages, the requests outstanding, the connections and the idle
+  time. The size limit of a paged search covers all of its pages together: if entries remain once the limit is reached,
+  the search ends there with sizeLimitExceeded. For sessions that are not administrators, `pagedSizeLimit` sets a
+  separate limit for paged searches (the same as `sizeLimit` when unset, 0 for none).
 
 ## 12. Passwords and the password policy
 
