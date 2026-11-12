@@ -91,7 +91,8 @@ export class PasswordPolicyPlugin extends BaseLDAPPlugin {
 
     /**
      * Refuse the requests of a session that must change its password first: all but binds, its own password change,
-     * Who Am I and the Password Modify. The session goes on once its password change is done; a bind starts it afresh
+     * Who Am I, the Password Modify and StartTLS (so that the change goes over TLS). The session goes on once its
+     * password change is done; a bind starts it afresh
      * (the identity before it no longer counts, RFC 4511 §4.2.1).
      * @param context The context.
      * @param request The request.
