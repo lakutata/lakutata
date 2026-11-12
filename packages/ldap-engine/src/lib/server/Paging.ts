@@ -464,6 +464,10 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
                     state.source.signal = context.signal
                     context.state.set(SEARCH_SOURCE, state.source)
                 }
+                //A size limit this request asks for, smaller than what is left: the rest of the search within it (the page
+                //counted against it, not cut once sent)
+                const ownLimit: number = (context as SearchContext).sizeLimit
+                if (ownLimit && (state.remaining === undefined || ownLimit < state.remaining)) state.remaining = ownLimit
                 if (paged.size === 0) {
                     closePaged(state)
                     context.responseControls.push(PagedResultsControl.encode({size: 0, cookie: Buffer.alloc(0)}))

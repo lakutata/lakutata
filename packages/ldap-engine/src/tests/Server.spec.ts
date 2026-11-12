@@ -698,6 +698,14 @@ describe('the server engine', () => {
         assert.ok(seen.at(-1)?.includes(VLVRequestControl.oid))
     })
 
+    it('ends a paged search at the size limit a later page asks for, without skipping entries', async () => {
+        const first = await admin.search(`ou=people,${BASE}`, {scope: 'one', paged: false, controls: [PagedResultsControl.encode({size: 4, cookie: Buffer.alloc(0)})]})
+        const cookie: Buffer = PagedResultsControl.decode(findControl(first.controls, PagedResultsControl)!).cookie
+        //Its own size limit asked for: one entry, sizeLimitExceeded, and no cookie going on past the entries it left out
+        const second = await admin.search(`ou=people,${BASE}`, {scope: 'one', sizeLimit: 1, paged: false, controls: [PagedResultsControl.encode({size: 4, cookie: cookie})]})
+        assert.deepEqual([second.entries.length, second.truncated, PagedResultsControl.decode(findControl(second.controls, PagedResultsControl)!).cookie.length], [1, true, 0])
+    })
+
     it('refuses a critical control it does not know', async () => {
         await assert.rejects(admin.search(BASE, {controls: [{oid: '1.2.3.4.5', critical: true}]}), LDAPUnavailableCriticalExtensionException)
         assert.ok((await admin.search(BASE, {scope: 'base', controls: [{oid: '1.2.3.4.5', critical: false}]})).entries.length)
