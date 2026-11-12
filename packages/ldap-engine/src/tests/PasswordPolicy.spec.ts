@@ -10,6 +10,7 @@ import {
     LDAPInsufficientAccessException,
     LDAPInvalidCredentialsException,
     LDAPResultException,
+    LDAPUnwillingToPerformException,
     type LDAPServerEngine,
     MemoryBackend,
     type OperationContext,
@@ -245,6 +246,47 @@ describe('the password policy', () => {
         await assert.rejects(session.search(BASE, {controls: ASK}), refused(50, 'changeAfterReset'))
         await session.passwordModify({oldPassword: 'set-by-admin', newPassword: 'chosen-by-alice'})
         assert.ok((await session.search(BASE, {filter: '(uid=bob)'})).entries.length)
+    })
+
+    it('lets a session go on once its own change of password is done, not when another request ends meanwhile', async () => {
+        //A change of Alice's password checked by the policy, then held, then refused
+        let holding: boolean = false
+        let reached: () => void = (): void => undefined
+        const reachedPromise: Promise<void> = new Promise<void>((resolve: () => void): void => {
+            reached = resolve
+        })
+        let release: () => void = (): void => undefined
+        const released: Promise<void> = new Promise<void>((resolve: () => void): void => {
+            release = resolve
+        })
+        const server: LDAPServerEngine = createLDAPServer({
+            backends: [new MemoryBackend(BASE)],
+            access: {admins: [ADMIN]},
+            passwords: {iterations: 1000},
+            bindThrottle: {maxFailures: 0, ipMaxFailures: 0, delay: 0},
+            passwordPolicy: {default: {mustChange: true}},
+            interceptors: [{name: 'holding', operations: ['modify'], before: async (_context: unknown, request: unknown): Promise<void> => {
+                if (!holding || String((request as {dn?: unknown}).dn) !== ALICE) return
+                holding = false
+                reached()
+                await released
+                throw new LDAPUnwillingToPerformException('Refused once checked')
+            }}]
+        })
+        const admin: LDAPInProcessConnection = server.connect({as: ADMIN})
+        await admin.add(BASE, {objectClass: ['dcObject', 'organization'], dc: 'example', o: 'Example'})
+        await admin.add(`ou=people,${BASE}`, {objectClass: 'organizationalUnit', ou: 'people'})
+        await admin.add(ALICE, {objectClass: 'inetOrgPerson', uid: 'alice', cn: 'alice', sn: 'alice', userPassword: 'set-by-admin'})
+        const session: LDAPInProcessConnection = server.connect()
+        await session.bind(ALICE, 'set-by-admin')
+        holding = true
+        const changing: Promise<unknown> = session.modify(ALICE, {operation: 'replace', attribute: 'userPassword', values: 'chosen-by-alice'})
+        await reachedPromise
+        //Another request of the session, done while the change is held
+        assert.equal(await session.whoAmI(), `dn:${ALICE}`)
+        release()
+        await assert.rejects(changing, (error: unknown) => error instanceof LDAPResultException && error.code === 53)
+        await assert.rejects(session.search(BASE, {controls: ASK}), refused(50, 'changeAfterReset'))
     })
 
     it('checks the length and the quality of the new passwords', async () => {

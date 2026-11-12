@@ -1,3 +1,4 @@
+import {AsyncLocalStorage} from 'node:async_hooks'
 import type {Entry} from '../../client/Entry.js'
 import {LDAPUsageException} from '../../../exceptions/LDAPUsageException.js'
 import {PasswordPolicyRequestControl} from '../../controls/Controls.js'
@@ -7,11 +8,17 @@ import type {LDAPRequest} from '../../protocol/Messages.js'
 import {attributeTypeOf, type Schema} from '../../schema/Schema.js'
 import type {SchemaSource} from '../../schema/SchemaDocument.js'
 import {PPOLICY} from '../../schema/bundled/Bundled.js'
-import {CHANGING, MUST_CHANGE, PasswordPolicy, type PasswordPolicyOptions} from '../PasswordPolicy.js'
+import {MUST_CHANGE, PasswordPolicy, type PasswordPolicyOptions} from '../PasswordPolicy.js'
 import type {DirectoryChange, DirectoryEntry, LDAPPluginHost, OperationContext, PasswordChange, PluginControl, ServerOutcome} from '../Types.js'
 import {BaseLDAPPlugin, type BasePluginOptions} from './BaseLDAPPlugin.js'
 import {readEntry} from './PluginTools.js'
 import {ResultCode} from '../../protocol/ResultCode.js'
+
+/**
+ * The request in progress in an asynchronous context, told whether it changes the password of its session's own entry
+ * (a Password Modify does it through a write of its own, in the same context)
+ */
+const REQUEST: AsyncLocalStorage<{changing: boolean}> = new AsyncLocalStorage()
 
 /**
  * The options of a {@link PasswordPolicyPlugin}: the policy, its name and its suffixes
@@ -94,13 +101,11 @@ export class PasswordPolicyPlugin extends BaseLDAPPlugin {
         const state: Map<string | symbol, unknown> = context.session.state
         if (request.type === 'bindRequest') state.delete(MUST_CHANGE)
         if (state.get(MUST_CHANGE)) this.policyOf(context).guard(context, this.allowedBeforeChange(context, request))
-        try {
-            const outcome: ServerOutcome = await next()
-            if (state.get(CHANGING) && outcome.resultCode === ResultCode.success) state.delete(MUST_CHANGE)
-            return outcome
-        } finally {
-            state.delete(CHANGING)
-        }
+        //This request's own: another request of the session ending meanwhile does not let it go
+        const own: {changing: boolean} = {changing: false}
+        const outcome: ServerOutcome = await REQUEST.run(own, next)
+        if (own.changing && outcome.resultCode === ResultCode.success) state.delete(MUST_CHANGE)
+        return outcome
     }
 
     /**
@@ -120,7 +125,11 @@ export class PasswordPolicyPlugin extends BaseLDAPPlugin {
      * @param change The change.
      */
     public async passwordChange(context: OperationContext, change: PasswordChange): Promise<DirectoryChange[] | void> {
-        return this.policyOf(context).check(context, change.dn, change.entry, change.passwords, {self: change.self, oldGiven: change.oldGiven, importing: change.importing, ...change.attributes ? {entryAttributes: change.attributes} : {}, ...change.changes ? {changes: change.changes} : {}})
+        const changes: DirectoryChange[] | undefined = await this.policyOf(context).check(context, change.dn, change.entry, change.passwords, {self: change.self, oldGiven: change.oldGiven, importing: change.importing, ...change.attributes ? {entryAttributes: change.attributes} : {}, ...change.changes ? {changes: change.changes} : {}})
+        //The session's own password changed under the policy: the request lets the session go on once it is done
+        const own: {changing: boolean} | undefined = REQUEST.getStore()
+        if (change.self && changes && own) own.changing = true
+        return changes
     }
 
     /**
