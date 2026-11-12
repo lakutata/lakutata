@@ -193,6 +193,20 @@ describe('the server engine on the network', () => {
         await connection.passwordModify({oldPassword: 'reset-by-admin', newPassword: 'chosen-over-tls'})
     })
 
+    it('answers StartTLS a plugin says is done, without the connection agreeing, with an error, and goes on in clear', async () => {
+        const {url: faking, port: fakingPort} = await serve({plugins: [{name: 'faking', aroundRequest: async (_context, request, next) => request.type === 'extendedRequest' && request.name === ExtendedOperation.startTLS ? {resultCode: 0} : next()}]})
+        void faking
+        const socket: Socket = createConnection({port: fakingPort, host: '127.0.0.1'})
+        await once(socket, 'connect')
+        socket.write(encodeMessage({messageId: 1, protocolOp: {type: 'extendedRequest', name: ExtendedOperation.startTLS}}))
+        setTimeout(() => socket.write(encodeMessage({messageId: 2, protocolOp: {type: 'extendedRequest', name: ExtendedOperation.whoAmI}})), 100)
+        const {messages} = await received(socket)
+        socket.destroy()
+        const codes = messages.map((message) => [message.messageId, 'resultCode' in message.protocolOp ? message.protocolOp.resultCode : undefined])
+        assert.notDeepEqual(codes[0], [1, 0])
+        assert.deepEqual(codes[1], [2, 0])
+    })
+
     it('refuses data sent after a StartTLS request before the handshake', async () => {
         const socket: Socket = createConnection({port: port, host: '127.0.0.1'})
         await once(socket, 'connect')

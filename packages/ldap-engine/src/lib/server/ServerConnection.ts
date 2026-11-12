@@ -294,6 +294,11 @@ export class ServerConnection {
             result = {response: {type: 'extendedResponse', resultCode: ResultCode.other, matchedDN: '', diagnosticMessage: 'An internal error of the server', name: ExtendedOperation.startTLS}, controls: []}
         }
         if (this.isClosed) return false
+        //Success the connection did not agree to (a plugin answering without going on): TLS is not started, so success
+        //is not sent
+        if (!agreed && 'resultCode' in result.response && result.response.resultCode === ResultCode.success) {
+            result = {response: {type: 'extendedResponse', resultCode: ResultCode.operationsError, matchedDN: '', diagnosticMessage: 'StartTLS was not agreed by the connection', name: ExtendedOperation.startTLS}, controls: []}
+        }
         this.send({messageId: message.messageId, protocolOp: result.response, ...result.controls.length ? {controls: result.controls} : {}})
         //Refused (by the connection, a control, a plugin): the reading goes on in clear
         if (!agreed || !('resultCode' in result.response) || result.response.resultCode !== ResultCode.success) {
