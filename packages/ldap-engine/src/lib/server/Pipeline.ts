@@ -1264,22 +1264,23 @@ export class Pipeline {
         session.authenticationMethod = undefined
         if (request.version !== 3) fail(ResultCode.protocolError, 'Only LDAPv3 is supported')
         const authentication = request.authentication
-        //A SASL bind reaches no backend's chain
-        if (authentication.type === 'sasl') {
-            this.checkMountControls(undefined, context.controls)
-            return this.saslBind(session, context, request.name, authentication.mechanism, authentication.credentials)
-        }
+        if (authentication.type === 'sasl') return this.saslBind(session, context, request.name, authentication.mechanism, authentication.credentials)
         session.sasl = undefined
         if (authentication.type !== 'simple') fail(ResultCode.authMethodNotSupported, 'An authentication method that is not supported')
         const password: Buffer = authentication.password
         if (!request.name) {
             if (password.length) fail(ResultCode.unwillingToPerform, 'A password without a name')
+            //An anonymous bind reaches no backend
+            this.checkMountControls(undefined, context.controls)
             return {resultCode: ResultCode.success}
         }
         const dn: DN = this.parseDN(request.name)
         if (!password.length) {
-            //An unauthenticated bind (RFC 4513 §5.1.2)
-            if (this.options.allowUnauthenticatedBind) return {resultCode: ResultCode.success}
+            //An unauthenticated bind (RFC 4513 §5.1.2), which reaches no backend either
+            if (this.options.allowUnauthenticatedBind) {
+                this.checkMountControls(undefined, context.controls)
+                return {resultCode: ResultCode.success}
+            }
             fail(ResultCode.unwillingToPerform, 'Unauthenticated binds are not allowed')
         }
         this.passwordsTaken(session)
@@ -1359,10 +1360,15 @@ export class Pipeline {
             fail(ResultCode.authMethodNotSupported, `The SASL mechanism ${mechanismName} is not offered`)
         }
         const state: Map<string, unknown> = continuing ? session.sasl!.state : new Map()
+        //A mechanism checking a password (PLAIN) reaches the backend of its DN, whose controls it is checked against;
+        //one that checks none reaches no backend
+        let reached: boolean = false
         const saslContext: SASLContext = {
             session: session,
             state: state,
             verifyPassword: async (dn: DN, password: Buffer): Promise<boolean> => {
+                this.checkMountControls(this.route(dn), context.controls)
+                reached = true
                 try {
                     await this.authenticate(session, context, dn, password)
                     return true
@@ -1384,6 +1390,7 @@ export class Pipeline {
             return {resultCode: ResultCode.saslBindInProgress, serverSaslCredentials: step.serverCredentials ?? Buffer.alloc(0)}
         }
         session.sasl = undefined
+        if (!reached) this.checkMountControls(undefined, context.controls)
         session.identity = step.identity
         session.authenticationMethod = mechanism.name
         void name
@@ -1428,13 +1435,14 @@ export class Pipeline {
         const identity: DN | undefined = context.session.identity
         const target: DN | undefined = request.userIdentity !== undefined ? this.parseDN(request.userIdentity.replace(/^dn:/, '')) : identity
         if (!target) fail(ResultCode.unwillingToPerform, 'An anonymous session has no password to change')
+        //The controls of backends checked against the backend of the entry before anything is done with it
+        this.checkMountControls(this.route(target), context.controls)
         if (!await this.access.allows({operation: 'passwordModify', session: context.session, identity: identity, dn: target})) fail(ResultCode.insufficientAccessRights, 'Insufficient access to change the password')
         if (request.oldPassword !== undefined && !await this.verifyPassword(context.session, context, target, request.oldPassword)) fail(ResultCode.invalidCredentials, 'The old password is not right')
         const generated: string | undefined = request.newPassword === undefined ? generatePassword() : undefined
         const password: Buffer = request.newPassword ?? Buffer.from(generated!, 'utf8')
         //The modify keeps the password policy request control and the controls of the backend it reaches, and tells the
         //policy who changes the password
-        this.checkMountControls(this.route(target), context.controls)
         const modify: OperationContext = this.context(context.session, 'modify', context.controls.filter((control: Control): boolean => control.oid === PasswordPolicyRequestControl.oid || this.backendControl(control.oid)), context.signal, true)
         modify.state.set(PASSWORD_CHANGE, {self: identity !== undefined && identity.equals(target, this.schema), oldGiven: request.oldPassword !== undefined})
         let outcome: ServerOutcome

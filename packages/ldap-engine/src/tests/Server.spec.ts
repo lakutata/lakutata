@@ -1014,6 +1014,14 @@ describe('the server engine', () => {
         await assert.rejects(mixed.connect().bind('uid=u,dc=a,dc=example,dc=com', 'secret-u', {controls: critical}), code(12))
         await assert.rejects(owner.passwordModify({userIdentity: 'uid=u,dc=a,dc=example,dc=com', newPassword: 'changed-u', controls: critical}), code(12))
         await assert.rejects(owner.whoAmI({controls: critical}), code(12))
+        //A SASL PLAIN bind checks the backend of the DN it verifies the password of
+        const plain = (dn: string, password: string): Buffer => Buffer.from(`\0dn:${dn}\0${password}`)
+        await mixed.connect().saslBind('PLAIN', plain('uid=u,dc=b,dc=example,dc=com', 'changed-u'), {controls: critical})
+        await assert.rejects(mixed.connect().saslBind('PLAIN', plain('uid=u,dc=a,dc=example,dc=com', 'secret-u'), {controls: critical}), code(12))
+        //An anonymous bind reaches no backend
+        await assert.rejects(mixed.connect().bind('', '', {controls: critical}), code(12))
+        //A Password Modify refuses the control before it checks the old password
+        await assert.rejects(owner.passwordModify({userIdentity: 'uid=u,dc=a,dc=example,dc=com', oldPassword: 'wrong-old', newPassword: 'changed-u', controls: critical}), code(12))
     })
 
     it('closes the entries of an interceptor whose iterator does not return a promise when it closes', async () => {
