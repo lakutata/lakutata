@@ -290,7 +290,7 @@ process.on('SIGTERM', () => void server.close())
 - `MemoryBackend` 把条目放在内存里，适合测试和小型服务器。自己的后端见第 14 节；`@lakutata/ldap` 的 `DirectoryBackend` 把条目存进应用的数据库。
 - 排序遵循 RFC 2891：某个排序键没有值的条目排在其他条目之后，逆序时排在它们之前；有多个值时取最小的值（逆序时取最大的值）。排序键的属性不在 schema 里时，排序响应给出 noSuchAttribute；排序的分页搜索每一页都带排序响应。
 - 虚拟列表视图遵循 draft-ietf-ldapext-ldapv3-vlv-09：偏移量按服务器的条目数折算；偏移量小于 1 或超出最后一个条目时，搜索以 virtualListViewError 失败，视图的结果为 offsetRangeError；服务器不发 context ID，所以收到的 context ID 一律拒绝。
-- 请求带选项的属性（`description;lang-en`）时，返回带有这些选项的属性；`binary` 是传输选项，不参与比较。从空 DN 开始的单层或子树搜索按 noSuchObject 回答；根 DSE 用 scope 为 base 的搜索读取。
+- 请求带选项的属性（`description;lang-en`）时，返回带有这些选项的属性；`binary` 是传输选项，不参与比较。按值的范围请求属性时（`member;range=0-1`，从 0 起算，与 Active Directory 的分段读取相同），返回这一段的值，属性描述带上这个范围；范围包括最后一个值时，结尾写作 `*`；起点超出最后一个值时，不返回这个属性。从空 DN 开始的单层或子树搜索按 noSuchObject 回答；根 DSE 用 scope 为 base 的搜索读取。
 - 服务器不解引用别名：它读取 `derefAliases`，别名条目按原样返回。服务器接受 ManageDsaIT：内置的后端不保存引用（referral）条目，所以它对它们不改变任何行为；自己写的后端如果给出引用，可以在 `context.controls` 里看到这个控制。
 - `events`：`connection`、`disconnect`、`bind`、`bindFailure`、`operation`（操作、它的 DN、结果码和耗时的毫秒数）、`startTLS`、`connectionError`，以及后端或拦截器出现不属于结果码的错误时的 `error`。
 - `close()` 停止监听，用 Notice of Disconnection 结束各个会话，并停止插件。
@@ -352,7 +352,7 @@ await server.listen({port: 389})
 ```
 
 - `access.check` 最先判断：返回 `true` 表示允许，`false` 表示拒绝，`undefined` 表示交给上表的规则。它收到的信息有：操作（搜索返回的内容和比较读取的条目为 `read`）、DN、会话的身份，以及已知时的条目或属性。改名时它会被问三次：先以 `modifyDN` 问原来的条目；再以 `modifyDN` 问条目的新 DN（`from` 给出原来的 DN），所以只允许在某个条目下面写入的检查，也会拒绝把条目移出去；最后以 `modify` 问新 RDN 写入值的属性，以及设置了 deleteOldRDN 时旧 RDN 去掉值的属性，就像 OpenLDAP 要求对前者有添加权限、对后者有删除权限一样。RDN 不变的移动不写任何属性，不会被问第三次。对会话不能读的条目做比较时，按条目不存在回答。
-- 设置了 `access.check` 时，搜索会按后端存储的内容对每个条目询问 `read`，这时服务器还没有加上它计算出来的操作属性，插件也还没有改动条目。会话不能读的条目在分页、开窗和计数之前就被去掉，所以每一页和虚拟列表视图里只有会话能读的条目，总数也只算这些条目。这时虚拟列表视图由服务器自己排序，受 `limits.sortCandidates` 限制。自己写的拦截器往搜索结果里加入的条目，或者以新对象返回的条目，在发出之前会按拦截器给出的样子再检查一次。
+- 设置了 `access.check` 时，搜索会按后端存储的内容对每个条目询问 `read`，这时服务器还没有加上它计算出来的操作属性，插件也还没有改动条目。会话不能读的条目在分页、开窗和计数之前就被去掉，所以每一页和虚拟列表视图里只有会话能读的条目，总数也只算这些条目。这时虚拟列表视图由服务器自己排序，受 `limits.sortCandidates` 限制。自己写的拦截器往搜索结果里加入的条目，或者以新对象返回的条目，会在整条链运行完之后再检查一次，这时条目已带上后面的步骤加上的内容。
 - 只搜索基准本身（scope 为 `base`）而会话不能读它时，按基准不存在回答；matched DN 也只给出会话能读的条目。搜索基准下面的条目时，仍然返回会话能读的那些，所以回答会显示基准是存在的。要隐藏一个条目是否存在，就拒绝对它的 DN 做 `search`：这样的搜索不论条目是否存在，都以 insufficientAccessRights 拒绝。
 - 绑定会结束这个连接上的分页搜索，被拒绝的绑定也是这样。
 - `plaintextBind` 规定在哪里可以不经过 TLS 接受密码（绑定、写入 `userPassword`、Password Modify）：任何地方（`'all'`，默认）、只限本机回环地址（`'loopback'`），或者任何地方都不行（`'none'`）。Unix 套接字不受这个选项限制，总是接受密码。
@@ -382,7 +382,7 @@ await server.listen({port: 389})
 
 - 失败次数过多时锁定账号，锁定一段时间，或者直到管理员设置新密码为止；太久没有使用的账号也会被锁定（`maxIdle`）。
 - 密码会过期（`maxAge`），过期前会提醒（`expireWarning`），过期后还允许绑定几次（`graceAuthNLimit`）。
-- 管理员设置密码后，用户必须先修改密码，才能做别的事（`mustChange`）；修改写入之后，这个限制才解除；在同一个连接上重新绑定时，会重新判断。
+- 管理员设置密码后，用户必须先修改密码，才能做别的事（`mustChange`），但可以先做 StartTLS，以便通过 TLS 修改；修改写入之后，这个限制才解除；在同一个连接上重新绑定时，会重新判断。
 - 受策略约束的条目只能有一个密码：写入后会留下两个密码的操作会被拒绝。
 - 新密码的要求：修改时必须给出旧密码（`safeModify`），两次修改之间要隔一段时间（`minAge`），并且不能和以前用过的密码相同（`inHistory`）；长度（`minLength`、`maxLength`）和 `quality` 检查在 `checkQuality` 为 1（管理员导入的哈希值可以通过）或 2（总是检查）时生效，和 pwdCheckQuality 的规定一致。
 - 策略的状态存在条目的操作属性里（pwdChangedTime、pwdAccountLockedTime、pwdFailureTime……），所以任何后端都能保存它。每次绑定失败都会计数，同时发生的几次也一样。共用一个后端的两个实例在同一毫秒内、都还没写入时各有一次失败，可能拿到相同的时间；这时算一次还是两次，取决于后端怎样处理已有的值。发送密码策略控制的客户端会在回应里收到提醒和原因；账号被锁定时，回应和密码错误一样，除非设置了 `revealLocked`。

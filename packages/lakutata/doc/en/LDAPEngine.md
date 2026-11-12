@@ -378,8 +378,11 @@ process.on('SIGTERM', () => void server.close())
   below 1 or past the last entry fails the search with virtualListViewError, offsetRangeError being the result of the
   view; and a context ID is refused, since the server gives none.
 - An attribute asked for with options (`description;lang-en`) returns the attributes that have those options; `binary`
-  is a transfer option and plays no part in the match. A one-level or subtree search from the empty DN is answered
-  noSuchObject; the root DSE is read with a base-scope search.
+  is a transfer option and plays no part in the match. An attribute asked for by a range of its values
+  (`member;range=0-1`, counted from 0, as in the range retrieval of Active Directory) returns those values under a
+  description that carries the range. The end is `*` when the range includes the last value, and a range that starts
+  past the last value returns nothing. A one-level or subtree search from the empty DN is answered noSuchObject; the
+  root DSE is read with a base-scope search.
 - The server does not dereference aliases: it reads `derefAliases` and returns alias entries as they are. It accepts
   ManageDsaIT: the built-in backends keep no referral entries, so it changes nothing for them, and a backend of one's
   own that gives referrals finds it in `context.controls`.
@@ -464,8 +467,8 @@ await server.listen({port: 389})
   operational attributes it computes and before any plugin changes the entry. Entries the session may not read are left
   out before the search is paged, windowed or counted, so pages and the virtual list view contain and count only what
   the session may read. The server then sorts a virtual list view itself, within `limits.sortCandidates`. An entry an
-  interceptor of one's own adds to a search, or returns as a new object, is checked again before it is sent, as the
-  interceptor gives it.
+  interceptor of one's own adds to a search, or returns as a new object, is checked again once the whole chain has run,
+  with whatever the later steps added to it.
 - A search of the base alone (scope `base`) that the session may not read is answered as if the base did not exist,
   and a matched DN names only entries the session may read. A search below that base still returns the entries the
   session may read, so its answer shows that the base exists. To hide that an entry exists, refuse `search` on its DN:
@@ -514,8 +517,9 @@ await server.listen({port: 389})
 - Accounts are locked after too many failures, for a while or until an administrator sets a new password; the accounts
   unused for too long are locked too (`maxIdle`).
 - A password expires (`maxAge`), with warnings before (`expireWarning`) and binds allowed after (`graceAuthNLimit`).
-- After an administrator sets a password, the user changes it before doing anything else (`mustChange`); the
-  restriction ends once the change has been written, and a new bind on the same connection is judged afresh.
+- After an administrator sets a password, the user changes it before doing anything else (`mustChange`); it may still
+  start TLS first, so that the change goes over TLS; the restriction ends once the change has been written, and a new
+  bind on the same connection is judged afresh.
 - An entry governed by a policy holds one password: a write that would leave it with two is refused.
 - New passwords: with the old one (`safeModify`), not too soon again (`minAge`), and not one of the former ones
   (`inHistory`); their length (`minLength`, `maxLength`) and the `quality` check are applied when `checkQuality` is 1

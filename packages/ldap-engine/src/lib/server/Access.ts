@@ -27,7 +27,8 @@ export interface AccessRequest {
     /**
      * The entry, when it is read or changed; for a search or a compare, as the backend stores it (without the
      * operational attributes the server computes, before any plugin changes it). An entry an interceptor of one's own
-     * adds to a search, or returns as a new object, is checked again as the interceptor gives it.
+     * adds to a search, or returns as a new object, is checked again once the whole chain has run, with whatever the
+     * later steps added to it.
      */
     entry?: DirectoryEntry
     /**
