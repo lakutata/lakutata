@@ -36,6 +36,7 @@ import {
     isSelected,
     matchedDNOf,
     returnedBy,
+    rangedAttributes,
     selectAttributes,
     storedType,
     timeOrderedUUID,
@@ -945,7 +946,7 @@ export class Pipeline {
                 outcome.resultCode = ResultCode.sizeLimitExceeded
                 break
             }
-            await responder.entry({type: 'searchResultEntry', objectName: entry.dn.toString(), attributes: selectAttributes(entry, returned, context.typesOnly)})
+            await responder.entry({type: 'searchResultEntry', objectName: entry.dn.toString(), attributes: [...selectAttributes(entry, returned, context.typesOnly), ...rangedAttributes(entry, selection, this.schema, context.typesOnly)]})
             count++
         }
         outcome.entries = undefined

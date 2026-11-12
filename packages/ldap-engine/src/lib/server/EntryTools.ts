@@ -135,6 +135,7 @@ export function inScope(dn: DN, base: DN, scope: SearchScope, schema: Schema): b
 export function attributeSelection(attributes: string[], schema: Schema): AttributeSelection {
     const names: Set<string> = new Set()
     const tagged: {type: string, options: string[]}[] = []
+    const ranged: {type: string, options: string[], low: number, high?: number}[] = []
     let allUser: boolean = attributes.length === 0
     let allOperational: boolean = false
     for (const attribute of attributes) {
@@ -144,12 +145,15 @@ export function attributeSelection(attributes: string[], schema: Schema): Attrib
             //With options, the attributes having them (binary, a transfer option, is not one to have)
             const type: string = schema.primaryName(attributeTypeOf(attribute)).toLowerCase()
             const options: string[] = optionsOf(attribute).filter((option: string): boolean => option !== 'binary')
-            if (options.length) tagged.push({type: type, options: options})
+            //A range of the values, as Active Directory gives them
+            const range: RegExpMatchArray | undefined = options.map((option: string): RegExpMatchArray | null => /^range=(\d+)-(\d+|\*)$/.exec(option)).find((match: RegExpMatchArray | null): match is RegExpMatchArray => match !== null)
+            if (range) ranged.push({type: type, options: options.filter((option: string): boolean => option !== range[0]), low: Number(range[1]), ...range[2] === '*' ? {} : {high: Number(range[2])}})
+            else if (options.length) tagged.push({type: type, options: options})
             else names.add(type)
         }
     }
     //1.1 with other names asks for those names (RFC 4511 §4.5.1.8)
-    return {allUser: allUser, allOperational: allOperational, names: names, ...tagged.length ? {tagged: tagged} : {}}
+    return {allUser: allUser, allOperational: allOperational, names: names, ...tagged.length ? {tagged: tagged} : {}, ...ranged.length ? {ranged: ranged} : {}}
 }
 
 /**
@@ -178,15 +182,47 @@ export function returnedBy(selection: AttributeSelection, schema: Schema): (desc
         if (answer === undefined) {
             const type: string = attributeTypeOf(description)
             const primary: string = schema.primaryName(type).toLowerCase()
-            answer = primary !== 'userpassword' && (isSelected(type, selection, schema) || (selection.tagged ?? []).some((asked: {type: string, options: string[]}): boolean => {
-                if (primary !== asked.type && !schema.isSubtypeOf(type, asked.type)) return false
-                const options: string[] = optionsOf(description)
-                return asked.options.every((option: string): boolean => options.includes(option))
-            }))
+            answer = primary !== 'userpassword' && (isSelected(type, selection, schema) || (selection.tagged ?? []).some((asked: {type: string, options: string[]}): boolean => hasOptions(description, asked, schema)))
             answers.set(description, answer)
         }
         return answer
     }
+}
+
+/**
+ * Whether an attribute description is of a type asked for with options, or a subtype, having those options
+ * @param description The attribute description.
+ * @param asked The type and the options asked for.
+ * @param schema The schema.
+ */
+function hasOptions(description: string, asked: {type: string, options: string[]}, schema: Schema): boolean {
+    const type: string = attributeTypeOf(description)
+    if (schema.primaryName(type).toLowerCase() !== asked.type && !schema.isSubtypeOf(type, asked.type)) return false
+    const options: string[] = optionsOf(description)
+    return asked.options.every((option: string): boolean => options.includes(option))
+}
+
+/**
+ * The attributes of an entry a search asks for by ranges of their values (`member;range=0-*`): the values of each range,
+ * under the description with the range given, its end `*` when its last value is the last of the attribute (the range
+ * retrieval of Active Directory); nothing for a range starting past the last value; not userPassword
+ * @param entry The entry.
+ * @param selection The attributes asked for.
+ * @param schema The schema.
+ * @param typesOnly Whether the descriptions only are returned.
+ */
+export function rangedAttributes(entry: DirectoryEntry, selection: AttributeSelection, schema: Schema, typesOnly: boolean): PartialAttribute[] {
+    const ranged: PartialAttribute[] = []
+    for (const asked of selection.ranged ?? []) {
+        for (const attribute of entry.attributes) {
+            if (schema.primaryName(attributeTypeOf(attribute.type)).toLowerCase() === 'userpassword' || !hasOptions(attribute.type, asked, schema)) continue
+            const count: number = attribute.values.length
+            if (asked.low >= count) continue
+            const last: number = Math.min(asked.high ?? count - 1, count - 1)
+            ranged.push({type: `${attribute.type};range=${asked.low}-${last === count - 1 ? '*' : last}`, values: typesOnly ? [] : attribute.values.slice(asked.low, last + 1)})
+        }
+    }
+    return ranged
 }
 
 /**

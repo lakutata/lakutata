@@ -157,6 +157,11 @@ export interface AttributeSelection {
      * that type or a subtype and has at least those options (RFC 4512 §2.5.2).
      */
     tagged?: {type: string, options: string[]}[]
+    /**
+     * The attributes asked for by a range of their values (`member;range=0-*`, the range retrieval of Active Directory):
+     * as `tagged`, with the first value (from 0) and the last one asked (undefined for `*`)
+     */
+    ranged?: {type: string, options: string[], low: number, high?: number}[]
 }
 
 /**

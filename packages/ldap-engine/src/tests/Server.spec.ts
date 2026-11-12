@@ -1039,6 +1039,29 @@ describe('the server engine', () => {
         assert.equal(closed, true)
     })
 
+    it('gives the values of an attribute by ranges, as Active Directory does for member;range=0-*', async () => {
+        const {admin: owner} = await directory()
+        const group: string = `cn=ranged,ou=groups,${BASE}`
+        await owner.add(group, {objectClass: 'groupOfNames', cn: 'ranged', member: [1, 2, 3, 4, 5].map((index: number): string => `uid=user${index},ou=people,${BASE}`)})
+        //As the server answers (the client reads the ranges to their end unless told not to)
+        const asked = async (attributes: string[], typesOnly?: boolean): Promise<string[]> => (await owner.search(group, {scope: 'base', attributes: attributes, ranges: false, ...typesOnly ? {typesOnly} : {}})).entries[0].attributes.map((item) => `${item.type}:${item.values.length}`).sort()
+        assert.deepEqual(await asked(['member;range=0-*']), ['member;range=0-*:5'])
+        assert.deepEqual(await asked(['member;range=0-1']), ['member;range=0-1:2'])
+        assert.deepEqual(await asked(['member;range=2-*']), ['member;range=2-*:3'])
+        //The last value given: the end of the range is *
+        assert.deepEqual(await asked(['member;range=3-10']), ['member;range=3-*:2'])
+        assert.deepEqual(await asked(['member;range=4-4']), ['member;range=4-*:1'])
+        //Past the last value: nothing
+        assert.deepEqual(await asked(['member;range=9-*']), [])
+        //With the attribute itself, and names only
+        assert.deepEqual(await asked(['member', 'MEMBER;Range=0-0']), ['member:5', 'member;range=0-0:1'])
+        assert.deepEqual(await asked(['member;range=0-1'], true), ['member;range=0-1:0'])
+        //Not a range: an option the entry does not have
+        assert.deepEqual(await asked(['member;range=x']), [])
+        //The client reads them to the end, under the attribute's own name
+        assert.equal((await owner.search(group, {scope: 'base', attributes: ['member;range=0-1']})).entries[0].get('member').length, 5)
+    })
+
     it('refuses a critical control it does not know', async () => {
         await assert.rejects(admin.search(BASE, {controls: [{oid: '1.2.3.4.5', critical: true}]}), LDAPUnavailableCriticalExtensionException)
         assert.ok((await admin.search(BASE, {scope: 'base', controls: [{oid: '1.2.3.4.5', critical: false}]})).entries.length)

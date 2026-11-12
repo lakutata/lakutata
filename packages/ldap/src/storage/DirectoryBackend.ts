@@ -1212,7 +1212,9 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         const scope: {sql: string, parameters: Record<string, string>} = context.scope === 'base' ? {sql: 'e.id = :baseId', parameters: {baseId: base.id}}
             : context.scope === 'one' ? {sql: 'e.parent_id = :baseId', parameters: {baseId: base.id}}
                 : subtreeOf(base.path, context.scope !== 'children')
-        const wants = (name: string): boolean => context.attributes.allOperational || context.attributes.names.has(name) || JSON.stringify(context.filter).toLowerCase().includes(`"${name}"`)
+        //Asked for by name, with options or by ranges (memberOf;range=0-*), or in the filter
+        const asked = (name: string): boolean => context.attributes.names.has(name) || [...context.attributes.tagged ?? [], ...context.attributes.ranged ?? []].some((item: {type: string}): boolean => item.type === name)
+        const wants = (name: string): boolean => context.attributes.allOperational || asked(name) || JSON.stringify(context.filter).toLowerCase().includes(`"${name}"`)
         const virtualWanted = {memberOf: this.memberOfName !== undefined && wants(this.memberOfName), memberUid: this.memberUid && (context.attributes.allUser || wants('memberuid')), email: this.mailAlias && (context.attributes.allUser || wants('email'))}
         //The entries in scope the filter (translated) matches
         const candidates = (): SelectQueryBuilder<ObjectLiteral> => manager.createQueryBuilder()

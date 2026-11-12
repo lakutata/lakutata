@@ -436,6 +436,8 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             const staff: string = await directory.createGroup(groups, {cn: 'staff'}, [developers, `uid=user7,${people}`])
             const user5 = (await admin.search(`uid=user5,${people}`, {scope: 'base', attributes: ['memberOf']})).entries[0]
             assert.deepEqual(user5.get('memberOf').sort(), [developers, staff].sort())
+            //By ranges, as Active Directory gives it
+            assert.deepEqual((await admin.search(`uid=user5,${people}`, {scope: 'base', attributes: ['memberOf;range=0-*'], ranges: false})).entries[0].attributes.map((item) => [item.type, item.values.length]), [['memberOf;range=0-*', 2]])
             assert.deepEqual((await admin.search(people, {filter: `(memberOf=${developers})`})).entries.map((entry) => entry.first('uid')).sort(), ['user5', 'user6'])
             assert.deepEqual((await admin.search(people, {filter: `(memberOf=${staff})`})).entries.map((entry) => entry.first('uid')).sort(), ['user5', 'user6', 'user7'])
             assert.equal(await admin.compare(`uid=user6,${people}`, 'memberOf', staff), true)
