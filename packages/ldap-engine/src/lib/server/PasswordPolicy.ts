@@ -431,7 +431,8 @@ export class PasswordPolicy {
         const mustChange: boolean = context.session.state.get(MUST_CHANGE) === true && change.self
         const current: Buffer[] = entry ? valuesOfType(entry, 'userPassword', this.schema) : []
         //One password under a policy, as the policy assumes (draft-behera): a second one would stay valid out of the
-        //history and the checks, the first one still valid
+        //history and the checks, the first one still valid. An entry given more before (by an older directory) goes on
+        //with no more than it has, so that its passwords may still be changed the safe way
         const isPassword = (item: {attribute: PartialAttribute}): boolean => this.schema.primaryName(attributeTypeOf(item.attribute.type)).toLowerCase() === 'userpassword'
         const left: number = change.changes
             ? change.changes.filter(isPassword).reduce((count: number, item: {operation: string, attribute: PartialAttribute}): number => {
@@ -440,7 +441,7 @@ export class PasswordPolicy {
                 return item.attribute.values.length ? Math.max(count - item.attribute.values.length, 0) : 0
             }, current.length)
             : passwords.length
-        if (left > 1) refuse(context, ResultCode.constraintViolation, 'An entry under a password policy has one password')
+        if (left > Math.max(current.length, 1)) refuse(context, ResultCode.constraintViolation, 'An entry under a password policy has one password')
         if (change.self && rules.allowUserChange === false) refuse(context, ResultCode.insufficientAccessRights, 'Users do not change their passwords', 'passwordModNotAllowed')
         if (change.self && rules.safeModify && current.length && !change.oldGiven) refuse(context, ResultCode.insufficientAccessRights, 'The old password must be given', 'mustSupplyOldPassword')
         if (change.self && !mustChange && rules.minAge && entry) {

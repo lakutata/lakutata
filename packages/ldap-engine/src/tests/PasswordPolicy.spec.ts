@@ -324,6 +324,16 @@ describe('the password policy', () => {
         //A change: the old one deleted and the new one added, or replaced
         await session.modify(ALICE, [{operation: 'delete', attribute: 'userPassword', values: 'alice-password-1'}, {operation: 'add', attribute: 'userPassword', values: 'alice-password-2'}])
         await session.modify(ALICE, {operation: 'replace', attribute: 'userPassword', values: 'alice-password-3'})
+        //An entry given two passwords before (by an older directory): changed the safe way, the old one given, as it may
+        //go on with as many as it has, never more
+        const {server: carried, backend} = await serve({pwdSafeModify: 'TRUE'})
+        const stored = backend.entries().find((entry) => entry.dn.toString() === ALICE)!
+        backend.load([{dn: stored.dn, attributes: stored.attributes.map((attribute) => attribute.type === 'userPassword' ? {type: attribute.type, values: [...attribute.values, Buffer.from('{SSHA}0H+zTv8o4MR4H43n03eCsvw1luG8LdB7')]} : attribute)}])
+        const owner: LDAPInProcessConnection = carried.connect()
+        await owner.bind(ALICE, 'alice-password-1')
+        await owner.modify(ALICE, [{operation: 'delete', attribute: 'userPassword', values: 'alice-password-1'}, {operation: 'add', attribute: 'userPassword', values: 'alice-password-2'}])
+        await carried.connect().bind(ALICE, 'alice-password-2')
+        await assert.rejects(owner.modify(ALICE, [{operation: 'delete', attribute: 'userPassword', values: 'alice-password-2'}, {operation: 'add', attribute: 'userPassword', values: ['alice-password-3', 'alice-password-4']}]), (error: unknown) => error instanceof LDAPResultException && error.code === 19)
         //Without a policy, several passwords as the schema allows
         const {admin: free} = await serve({}, {default: undefined})
         await free.add(`uid=dave,ou=people,${BASE}`, {objectClass: 'inetOrgPerson', uid: 'dave', cn: 'dave', sn: 'dave', userPassword: ['first-password', 'second-password']})
