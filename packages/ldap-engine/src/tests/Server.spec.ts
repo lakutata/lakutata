@@ -859,6 +859,9 @@ describe('the server engine', () => {
         assert.deepEqual(await at(2, 4, 1).then((answer) => [answer.uids, answer.view?.targetPosition]), [['d1', 'd8'], 4])
         assert.deepEqual(await at(4, 4).then((answer) => [answer.uids, answer.view?.targetPosition]), [['d6'], 8])
         assert.deepEqual(await at(3, 0).then((answer) => [answer.uids, answer.view?.targetPosition]), [['d4'], 3])
+        //An offset of 1 is the first entry only when the client's count is not 1: 1 of 1 is the last (§5)
+        assert.deepEqual(await at(1, 1).then((answer) => [answer.uids, answer.view?.targetPosition]), [['d6'], 8])
+        assert.deepEqual(await at(1, 5).then((answer) => [answer.uids, answer.view?.targetPosition]), [['d2'], 1])
         //An offset below 1, or past the last entry: virtualListViewError, offsetRangeError as the result of the view
         for (const [offset, contentCount] of [[0, 0], [-1, 0], [9, 0], [5, 3], [9, 8]]) {
             assert.deepEqual(await at(offset, contentCount).then((answer) => [answer.code, answer.view?.result, answer.sort]), [76, 61, undefined], `${offset}/${contentCount}`)

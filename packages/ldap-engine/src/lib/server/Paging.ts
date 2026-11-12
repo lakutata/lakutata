@@ -340,9 +340,10 @@ function checkContext(value: VLVRequestValue, count: number, context: OperationC
 function offsetTarget(offset: {offset: number, contentCount: number}, count: number, context: OperationContext): number {
     if (offset.offset < 1 || offset.contentCount < 0) failView(context, count, ResultCode.offsetRangeError, 'The offset of the virtual list view is below 1, or its count below 0')
     if (!count) return 0
-    const position: number = offset.offset === 1 ? 1
-        : offset.contentCount === 0 ? offset.offset
-            : offset.offset === offset.contentCount ? count
+    //Ci = Cc the last entry, before Ci = 1 the first (which the draft gives for Cc ≠ 1 only)
+    const position: number = offset.contentCount === 0 ? offset.offset
+        : offset.offset === offset.contentCount ? count
+            : offset.offset === 1 ? 1
                 : Math.max(1, Math.round(count * offset.offset / offset.contentCount))
     if (position > count || (offset.contentCount && offset.offset > offset.contentCount)) failView(context, count, ResultCode.offsetRangeError, 'The offset of the virtual list view is past the last entry')
     return position - 1
