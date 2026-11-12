@@ -290,9 +290,21 @@ export class PasswordPolicy {
             const last: number | undefined = timeOf(entry, 'pwdLastSuccess', this.schema) ?? timeOf(entry, 'pwdChangedTime', this.schema)
             if (last !== undefined && now >= last + rules.maxIdle * 1000) return true
         }
-        const locked: number | undefined = lockedText === undefined ? undefined : parseGeneralizedTime(lockedText)
-        if (locked !== undefined) return !rules.lockoutDuration || now < locked + rules.lockoutDuration * 1000
-        return false
+        return this.lockInForce(rules, entry, now)
+    }
+
+    /**
+     * Whether the pwdAccountLockedTime of an entry still locks it: for good, or a lockout not over yet
+     * @param rules The rules.
+     * @param entry The entry.
+     * @param now The time.
+     */
+    protected lockInForce(rules: PasswordPolicyRules, entry: DirectoryEntry, now: number): boolean {
+        const lockedText: string | undefined = valuesOfType(entry, 'pwdAccountLockedTime', this.schema)[0]?.toString('utf8')
+        if (lockedText === undefined) return false
+        if (lockedText === LOCKED_FOR_GOOD) return true
+        const locked: number | undefined = parseGeneralizedTime(lockedText)
+        return locked !== undefined && (!rules.lockoutDuration || now < locked + rules.lockoutDuration * 1000)
     }
 
     /**
@@ -357,7 +369,8 @@ export class PasswordPolicy {
             const lockNow: boolean = rules.lockout === true && !!rules.maxFailure && after.length >= rules.maxFailure
             const state: DirectoryChange[] = []
             if (after.length > recorded) state.push({operation: 'delete', attribute: {type: 'pwdFailureTime', values: after.slice(0, after.length - recorded).map((value: string): Buffer => Buffer.from(value))}})
-            if (lockNow && !(written && valuesOfType(written, 'pwdAccountLockedTime', this.schema).length)) state.push(replace('pwdAccountLockedTime', formatGeneralizedTime(now)))
+            //Locked now, unless a bind failing at once locked it already: a lockout that is over locks no more
+            if (lockNow && !(written && this.lockInForce(rules, written, now))) state.push(replace('pwdAccountLockedTime', formatGeneralizedTime(now)))
             if (state.length) await this.writeState(dn, state)
             if (rules.minDelay) await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, Math.min(rules.minDelay! * 2 ** (Math.min(after.length, recorded) - 1), rules.maxDelay ?? rules.minDelay!) * 1000))
             refuse(context, ResultCode.invalidCredentials, 'Invalid credentials', lockNow && this.options.revealLocked ? 'accountLocked' : undefined)

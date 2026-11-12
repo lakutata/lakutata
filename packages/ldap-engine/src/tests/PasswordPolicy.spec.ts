@@ -124,6 +124,21 @@ describe('the password policy', () => {
         await other.bind(ALICE, 'alice-password-2')
     })
 
+    it('locks an account again once its lockout is over, a failure still counting those kept', async () => {
+        for (const revealLocked of [false, true]) {
+            const {server, backend, admin} = await serve({pwdLockout: 'TRUE', pwdMaxFailure: '3', pwdLockoutDuration: '60'}, {revealLocked: revealLocked})
+            //Locked an hour ago, for a minute: the lock is over, the three failures that made it still counted
+            const hourAgo: number = Date.now() - 3600000
+            await age(server, backend, ALICE, {pwdAccountLockedTime: formatGeneralizedTime(hourAgo)})
+            await backend.modify({schema: server.schema} as never, DN.parse(ALICE), [{operation: 'replace', attribute: {type: 'pwdFailureTime', values: [1, 2, 3].map((index: number): Buffer => Buffer.from(formatGeneralizedTime(hourAgo - index * 1000)))}}])
+            const session: LDAPInProcessConnection = server.connect()
+            await assert.rejects(session.bind(ALICE, 'wrong', {controls: ASK}), refused(49, revealLocked ? 'accountLocked' : undefined))
+            const locked: number = parseGeneralizedTime((await admin.search(ALICE, {scope: 'base', attributes: ['pwdAccountLockedTime']})).entries[0].first('pwdAccountLockedTime')!)!
+            assert.ok(locked > hourAgo + 60000, formatGeneralizedTime(locked))
+            await assert.rejects(session.bind(ALICE, 'alice-password-1', {controls: ASK}), refused(49, revealLocked ? 'accountLocked' : undefined))
+        }
+    })
+
     it('counts each of the failures of binds made at once, the account locked as after one at a time', async () => {
         const {server, admin} = await serve({pwdLockout: 'TRUE', pwdMaxFailure: '5', pwdLockoutDuration: '0'})
         await Promise.allSettled(Array.from({length: 10}, () => server.connect().bind(ALICE, 'wrong')))
