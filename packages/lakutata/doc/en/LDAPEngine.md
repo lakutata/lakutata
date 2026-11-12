@@ -444,6 +444,12 @@ await server.listen({port: 389})
   attributes when they are known. For a rename it is asked twice: about the entry, then about the DN the entry would get
   (`from` holds its current DN), so a check that allows writes only below one entry also refuses a move out of that
   subtree. A compare on an entry the session may not read is answered as if the entry did not exist.
+- With `access.check`, a search asks `read` for each entry as the backend stores it, before the server adds the
+  operational attributes it computes and before any plugin changes the entry. Entries the session may not read are left
+  out before the search is paged, windowed or counted, so pages and the virtual list view contain and count only what
+  the session may read. The server then sorts a virtual list view itself, within `limits.sortCandidates`. A search whose
+  base the session may not read is answered as if the base did not exist, and a bind ends the paged searches on its
+  connection.
 - `plaintextBind` says where a password is taken without TLS (a bind, a write of `userPassword`, a Password Modify):
   everywhere (`'all'`, by default), from the loopback (`'loopback'`), or nowhere (`'none'`). The Unix socket takes
   passwords whatever it says.
@@ -452,10 +458,9 @@ await server.listen({port: 389})
   invalidCredentials, which does not tell a locked account from a wrong password.
 - The `limits`: for the sessions that are not administrators, 500 entries and 3600 seconds a search, the depth and size
   of its filter; for every session, the size of the messages, the requests outstanding, the connections and the idle
-  time. The size limit of a paged search covers all of its pages together. Once it is reached, the search ends with
-  sizeLimitExceeded if the session could still read more entries; when the limit falls exactly at the end of a page,
-  that answer comes with a later page, usually the next. For sessions that are not administrators, `pagedSizeLimit` sets
-  a separate limit for paged searches (the same as `sizeLimit` when unset, 0 for none).
+  time. The size limit of a paged search covers all of its pages together: once it is reached, the search ends with
+  sizeLimitExceeded if the session could still read more entries. For sessions that are not administrators,
+  `pagedSizeLimit` sets a separate limit for paged searches (the same as `sizeLimit` when unset, 0 for none).
 
 ## 12. Passwords and the password policy
 
@@ -564,10 +569,12 @@ await server.listen({port: 389})
 - An interceptor runs for the `operations` it names: `before()` checks or changes a request, `around()` runs around
   the rest of the chain, `transformEntry()` changes the entries a search returns, and `beforeCommit()` runs in the
   transaction of a write, on a backend that has transactions. Throwing an `LDAPResultException` answers with its code.
-- An interceptor is placed before or after one of the server's own steps (`access`, `password`, `schema`,
-  `operational`, `paging`) by `{interceptor, before: 'schema'}`, and otherwise at the end of the chain, after them
-  all: what it adds to a request there is not checked against the schema. Placed before `password`, it sees the
-  passwords in clear.
+- An interceptor is placed before or after one of the server's own steps (`access`, `password`, `schema`, `operational`,
+  `paging`) by `{interceptor, before: 'schema'}`, and otherwise at the end of the chain, after them all: what it adds to
+  a request there is not checked against the schema. Placed before `password`, it sees the passwords in clear. An
+  interceptor that removes entries from searches (a `transformEntry()` returning undefined, or an `around()` that
+  replaces the entries) must be placed after `paging`; the end of the chain is. Placed earlier, the pages and the
+  virtual list view still count the entries it removes.
 - A plugin may also run around every request (`aroundRequest`, which sees the binds and the extended operations the
   server answers itself), around the check of a password (`authenticate`), and on the password changes while they are
   in clear (`passwordChange`, whose `importing` says whether the values that look hashed are hashes an administrator
@@ -619,8 +626,11 @@ await server.listen({port: 389})
   edits; a change an interceptor removed stays removed, and one it added (or replaced with a new object) is written as
   it is.
 - A backend that sorts, windows or pages itself declares it in its `capabilities`, and `sortSearchItems()` orders its
-  own records as the server would. A backend doing the work of a plugin (`memberOf`, `referentialIntegrity`,
-  `idAllocation`, `lastBind`) declares it there too, and the plugin leaves its chain.
+  own records as the server would. When entries can be left out one by one (`access.check`, or an interceptor after
+  `paging` that has a `transformEntry()` or an `around()` for searches), the server does the virtual list view and the
+  paging itself. The backend still sorts a sorted search, but the server also sorts for a virtual list view. A backend
+  doing the work of a plugin (`memberOf`, `referentialIntegrity`, `idAllocation`, `lastBind`) declares it there too, and
+  the plugin leaves its chain.
 
 ## 15. The protocol
 

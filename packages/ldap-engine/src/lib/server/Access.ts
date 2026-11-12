@@ -25,7 +25,8 @@ export interface AccessRequest {
      */
     dn: DN
     /**
-     * The entry, when it is read or changed
+     * The entry, when it is read or changed; for a search or a compare, as the backend stores it (without the
+     * operational attributes the server computes, before any plugin changes it)
      */
     entry?: DirectoryEntry
     /**

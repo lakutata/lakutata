@@ -645,7 +645,8 @@ export interface LDAPInterceptor {
      */
     around?(context: OperationContext, request: ServerRequest, next: () => Promise<ServerOutcome>): Promise<ServerOutcome>
     /**
-     * Change an entry a search returns; undefined leaves it out
+     * Change an entry a search returns; undefined leaves it out (an interceptor removing entries must be placed after
+     * `paging`, as the end of the chain is; placed earlier, the pages and the virtual list view still count them)
      * @param context The context of the search.
      * @param entry The entry, which it may change.
      */

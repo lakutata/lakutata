@@ -95,12 +95,14 @@ migrations are the application's, as for its other entities.
 
 - Searches are run by the database: the filters become SQL on the forms of the values the matching rules compare by
   (equality, substrings, integers and times), and the server checks what SQL cannot decide exactly.
-- A sorted search (the sort control, and the window of the virtual list view) is sorted by the backend, which reads
-  only the entries of the window: a window by an offset is ordered, counted and cut by the database on a sort key kept
-  with each value; otherwise the backend reads the values of the sort keys and orders the entries by them as the
-  server would. A sort key follows the ordering rule of its attribute when the value is written: after the schema
-  changes that rule, the values written before keep their old keys until they are written again (OpenLDAP likewise
-  rebuilds its indexes with slapindex).
+- A sorted search (the sort control, and the window of the virtual list view) is sorted by the backend, which reads only
+  the entries of the window: a window by an offset is ordered, counted and cut by the database on a sort key kept with
+  each value; otherwise the backend reads the values of the sort keys and orders the entries by them as the server
+  would. A sort key follows the ordering rule of its attribute when the value is written: after the schema changes that
+  rule, the values written before keep their old keys until they are written again (OpenLDAP likewise rebuilds its
+  indexes with slapindex). With `access.check`, or an interceptor that removes entries from searches, the server sorts
+  and windows a virtual list view itself, within `limits.sortCandidates`, so that its counts leave out what the session
+  may not read.
 - The entries of a search come in a set order: an entry before the entries below it, siblings in the order they were
   added (entryUUID is a UUID of version 7, whose order is the order of creation; an entry imported with its own
   entryUUID takes its place by that value). Entries with equal sort keys keep this order.

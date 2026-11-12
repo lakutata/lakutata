@@ -315,10 +315,12 @@ one row per value.
 
 - The searches run in the database: the filters become SQL on the forms of the values the matching rules compare by
   (equality, substrings, integers and times); the server checks what SQL cannot decide exactly.
-- A sorted search is sorted by the backend, which reads only the entries of the window (`window`): a window by an
-  offset is ordered, counted and cut by the database on a sort key kept with each value; otherwise the backend reads
-  the values of the sort keys and orders the entries by them as the server would. After the schema changes the
-  ordering rule of an attribute, its values written before keep their old sort keys until they are written again.
+- A sorted search is sorted by the backend, which reads only the entries of the window (`window`): a window by an offset
+  is ordered, counted and cut by the database on a sort key kept with each value; otherwise the backend reads the values
+  of the sort keys and orders the entries by them as the server would. After the schema changes the ordering rule of an
+  attribute, its values written before keep their old sort keys until they are written again. With `access.check`, or an
+  interceptor that removes entries from searches, the server sorts and windows a virtual list view itself, within
+  `limits.sortCandidates`, so that its counts leave out what the session may not read.
 - The entries of a search come in a set order: an entry before the entries below it, siblings in the order they were
   added (entryUUID is a UUID of version 7; an entry imported with its own entryUUID takes its place by that value).
   Entries with equal sort keys keep this order.
