@@ -8,7 +8,7 @@ import type {Schema} from '../schema/Schema.js'
 import type {SchemaSource} from '../schema/SchemaDocument.js'
 import type {LDAPInProcessConnection} from './InProcessConnection.js'
 import type {PasswordScheme, PasswordSchemes} from './Passwords.js'
-import type {ExtendedHandler} from './Pipeline.js'
+import type {ExtendedHandler, ExtendedOperationDefinition} from './Pipeline.js'
 import type {SASLMechanism} from './SASL.js'
 
 /**
@@ -825,9 +825,10 @@ export interface LDAPPlugin {
      */
     readonly controls?: readonly PluginControl[]
     /**
-     * The extended operations it handles, by their OIDs, published in the root DSE
+     * The extended operations it handles, by their OIDs, published in the root DSE: their handlers, or their handlers
+     * with the controls they apply
      */
-    readonly extendedOperations?: Readonly<Record<string, ExtendedHandler>>
+    readonly extendedOperations?: Readonly<Record<string, ExtendedHandler | ExtendedOperationDefinition>>
     /**
      * The SASL mechanisms it adds
      */

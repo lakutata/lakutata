@@ -15,7 +15,7 @@ import {certificatesOf} from './ClientCertificate.js'
 import {LDAPInProcessConnection, sessionId} from './InProcessConnection.js'
 import type {PasswordPolicyOptions} from './PasswordPolicy.js'
 import {PasswordSchemes} from './Passwords.js'
-import {type EngineLimits, ENGINE_CONTROLS, ENGINE_EXTENSIONS, type ExtendedHandler, Pipeline, type PlacedInterceptor, type ServerLimits, type SessionState} from './Pipeline.js'
+import {type EngineLimits, ENGINE_CONTROLS, ENGINE_EXTENSIONS, type ExtendedHandler, type ExtendedOperationDefinition, Pipeline, type PlacedInterceptor, type ServerLimits, type SessionState} from './Pipeline.js'
 import {externalMechanism, plainMechanism, type SASLMechanism} from './SASL.js'
 import {type ConnectionHost, ServerConnection} from './ServerConnection.js'
 import {BindThrottle, type BindThrottleOptions} from './Throttle.js'
@@ -100,9 +100,9 @@ export interface LDAPServerEngineOptions {
      */
     sasl?: SASLMechanism[]
     /**
-     * Extended operations of one's own, by OID
+     * Extended operations of one's own, by OID: their handlers, or their handlers with the controls they apply
      */
-    extendedOperations?: Record<string, ExtendedHandler>
+    extendedOperations?: Record<string, ExtendedHandler | ExtendedOperationDefinition>
     /**
      * The vendorName of the root DSE
      */
@@ -247,7 +247,7 @@ function schemaOf(option: Schema | readonly SchemaSource[] | undefined, backends
 function contributionsOf(options: LDAPServerEngineOptions, passwords: PasswordSchemes): {
     interceptors: PlacedInterceptor[]
     controls: Map<string, OperationType[] | undefined>
-    extendedOperations: Map<string, ExtendedHandler>
+    extendedOperations: Map<string, ExtendedOperationDefinition>
     sasl: SASLMechanism[]
     rootDSEAttributes: PartialAttribute[]
 } {
@@ -284,13 +284,13 @@ function contributionsOf(options: LDAPServerEngineOptions, passwords: PasswordSc
         }
     }
     //The extended operations: those of the options, then those of the plugins
-    const extendedOperations: Map<string, ExtendedHandler> = new Map()
+    const extendedOperations: Map<string, ExtendedOperationDefinition> = new Map()
     const extensionOwners: Map<string, string> = new Map(ENGINE_EXTENSIONS.map((oid: string): [string, string] => [oid, 'the engine']))
-    const addExtension = (oid: string, handler: ExtendedHandler, owner: string): void => {
+    const addExtension = (oid: string, handler: ExtendedHandler | ExtendedOperationDefinition, owner: string): void => {
         const existing: string | undefined = extensionOwners.get(oid)
         if (existing) conflict(`The extended operation ${oid} of ${owner} is handled by ${existing}`)
         extensionOwners.set(oid, owner)
-        extendedOperations.set(oid, handler)
+        extendedOperations.set(oid, typeof handler === 'function' ? {handler: handler} : {handler: handler.handler, ...handler.controls ? {controls: [...handler.controls]} : {}})
     }
     for (const [oid, handler] of Object.entries(options.extendedOperations ?? {})) addExtension(oid, handler, 'the options')
     for (const plugin of plugins) for (const [oid, handler] of Object.entries(plugin.extendedOperations ?? {})) addExtension(oid, handler, `the plugin ${plugin.name}`)

@@ -143,6 +143,33 @@ export type EngineLimits = Required<Omit<ServerLimits, 'pagedSizeLimit'>> & Pick
 export type ExtendedHandler = (context: OperationContext, value: Buffer | undefined) => Promise<{value?: Buffer, name?: string, resultCode?: number}> | {value?: Buffer, name?: string, resultCode?: number}
 
 /**
+ * An extended operation of one's own with the controls its handler applies: a critical control only backends handle is
+ * refused on an extended operation (it reaches no backend) unless its handler names it here, as a handler writing
+ * through a backend and giving it the control does
+ * @example
+ * ```typescript
+ * import {createLDAPServer, type ExtendedOperationDefinition, MemoryBackend} from '@lakutata/ldap-engine'
+ *
+ * const AUDITED: string = '1.3.6.1.4.1.99999.20'
+ * const touch: ExtendedOperationDefinition = {
+ *     controls: [AUDITED],
+ *     handler: () => ({resultCode: 0})
+ * }
+ * const server = createLDAPServer({backends: [new MemoryBackend('dc=example,dc=com')], extendedOperations: {'1.3.6.1.4.1.99999.21': touch}})
+ * ```
+ */
+export interface ExtendedOperationDefinition {
+    /**
+     * The handler
+     */
+    handler: ExtendedHandler
+    /**
+     * The OIDs of the controls it applies, those of backends among them
+     */
+    controls?: string[]
+}
+
+/**
  * An interceptor of a plugin or of the application, with what limits the chains it goes in
  */
 export interface PlacedInterceptor extends InterceptorPlacement {
@@ -189,7 +216,7 @@ export interface PipelineOptions {
     allowUnauthenticatedBind: boolean
     limits: EngineLimits
     sasl: SASLMechanism[]
-    extendedOperations: Map<string, ExtendedHandler>
+    extendedOperations: Map<string, ExtendedOperationDefinition>
     /**
      * The controls of the plugins, with the operations they come with
      */
@@ -578,8 +605,9 @@ export class Pipeline {
                     dn = request.baseObject
                     return this.search(context, request, responder)
                 case 'extendedRequest':
-                    //No backend runs an extended operation but the write of a Password Modify, which checks its own
-                    if (request.name !== ExtendedOperation.passwordModify) this.checkMountControls(undefined, context.controls)
+                    //No backend runs an extended operation but the write of a Password Modify, which checks its own, and the
+                    //controls an extension's handler applies
+                    if (request.name !== ExtendedOperation.passwordModify) this.checkMountControls(undefined, context.controls, this.options.extendedOperations.get(request.name)?.controls)
                     //StartTLS over a network connection: answered by the connection, which then upgrades it
                     if (request.name === ExtendedOperation.startTLS && responder.startTLS) return responder.startTLS()
                     return this.extended(context, request.name, request.value)
@@ -729,10 +757,11 @@ export class Pipeline {
      * §4.1.11)
      * @param mount The backend the request reaches, undefined for none.
      * @param controls The controls.
+     * @param applied The controls the handler of the operation applies itself.
      */
-    protected checkMountControls(mount: Mount | undefined, controls: readonly Control[]): void {
+    protected checkMountControls(mount: Mount | undefined, controls: readonly Control[], applied?: readonly string[]): void {
         for (const control of controls) {
-            if (!control.critical || !this.backendControl(control.oid)) continue
+            if (!control.critical || !this.backendControl(control.oid) || applied?.includes(control.oid)) continue
             if (!mount?.backend.capabilities?.controls?.includes(control.oid)) fail(ResultCode.unavailableCriticalExtension, mount ? `The critical control ${control.oid} is not supported by the backend of ${mount.suffix.toString()}` : `The critical control ${control.oid} is handled by backends, which this operation does not reach`)
         }
     }
@@ -1411,7 +1440,7 @@ export class Pipeline {
         }
         if (name === ExtendedOperation.passwordModify) return this.passwordModify(context, value)
         if (name === ExtendedOperation.startTLS) fail(ResultCode.unwillingToPerform, 'StartTLS needs a network connection')
-        const handler: ExtendedHandler | undefined = this.options.extendedOperations.get(name)
+        const handler: ExtendedHandler | undefined = this.options.extendedOperations.get(name)?.handler
         if (!handler) fail(ResultCode.protocolError, `The extended operation ${name} is not supported`)
         const result = await handler(context, value)
         return {resultCode: result.resultCode ?? ResultCode.success, ...result.name ? {responseName: result.name} : {}, ...result.value ? {responseValue: result.value} : {}}
