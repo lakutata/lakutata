@@ -16,7 +16,10 @@ export interface SASLContext {
      */
     readonly state: Map<string, unknown>
     /**
-     * Check the password of a DN as a simple bind does (the backend, the password schemes, the throttle)
+     * Check the password of a DN as a simple bind does (the backend, the password schemes, the throttle). The check runs
+     * inside the bind chain of the DN's backend: bind interceptors see it, and the time of the bind is recorded when it
+     * succeeds, even if the mechanism then fails the bind. Returns false for a wrong password; any other refusal throws
+     * (plaintextBind, a critical control the backend does not list, an interceptor's answer).
      * @param dn The DN.
      * @param password The password.
      */

@@ -355,7 +355,7 @@ await server.listen({port: 389})
 - 设置了 `access.check` 时，搜索会按后端存储的内容对每个条目询问 `read`，这时服务器还没有加上它计算出来的操作属性，插件也还没有改动条目。会话不能读的条目在分页、开窗和计数之前就被去掉，所以每一页和虚拟列表视图里只有会话能读的条目，总数也只算这些条目。这时虚拟列表视图由服务器自己排序，受 `limits.sortCandidates` 限制。自己写的拦截器往搜索结果里加入的条目，或者以新对象返回的条目，会在整条链运行完之后再检查一次，这时条目已带上后面的步骤加上的内容。
 - 只搜索基准本身（scope 为 `base`）而会话不能读它时，按基准不存在回答；matched DN 也只给出会话能读的条目。搜索基准下面的条目时，仍然返回会话能读的那些，所以回答会显示基准是存在的。要隐藏一个条目是否存在，就拒绝对它的 DN 做 `search`：这样的搜索不论条目是否存在，都以 insufficientAccessRights 拒绝。
 - 绑定会结束这个连接上的分页搜索，被拒绝的绑定也是这样。
-- `plaintextBind` 规定在哪里可以不经过 TLS 接受密码（绑定、写入 `userPassword`、Password Modify）：任何地方（`'all'`，默认）、只限本机回环地址（`'loopback'`），或者任何地方都不行（`'none'`）。Unix 套接字不受这个选项限制，总是接受密码。
+- `plaintextBind` 规定在哪里可以不经过 TLS 接受密码（简单绑定或 SASL PLAIN 绑定、写入 `userPassword`、Password Modify）：任何地方（`'all'`，默认）、只限本机回环地址（`'loopback'`），或者任何地方都不行（`'none'`）。Unix 套接字不受这个选项限制，总是接受密码。自己写的 SASL 机制如果凭据里带密码，要设置 `takesPassword`，这样它在读取任何名字之前就会受 `plaintextBind` 约束。
 - 带名字、密码为空的绑定会被拒绝（`allowUnauthenticatedBind` 会把它当作匿名绑定接受）。同一个 DN 或地址的失败绑定，回应会越来越慢，之后在一段时间内直接拒绝（`bindThrottle`）；这些情况都回 invalidCredentials，从回应上分不出账号被锁定还是密码错误。
 - `limits`：对不是管理员的会话，每次搜索最多 500 个条目、3600 秒，并限制过滤器的深度和大小；对所有会话，限制消息的大小、未完成的请求数、连接数和空闲时间。分页搜索的条数限制按所有页的总数计算：达到限制后，如果会话还有能读到的条目，搜索以 sizeLimitExceeded 结束。对不是管理员的会话，可以用 `pagedSizeLimit` 给分页搜索单独设一个限制（不设时等于 `sizeLimit`，0 表示不限）。
 
@@ -445,7 +445,7 @@ const server = createLDAPServer({
 await server.listen({port: 389})
 ```
 
-- 拦截器只在它列出的 `operations` 上运行：`before()` 检查或修改请求，`around()` 包住链上后面的部分运行，`transformEntry()` 修改搜索返回的条目，`beforeCommit()` 在写操作的事务里运行（后端支持事务时）。抛出 `LDAPResultException` 时，以它的结果码回应。
+- 拦截器只在它列出的 `operations` 上运行：`before()` 检查或修改请求，`around()` 包住链上后面的部分运行，`transformEntry()` 修改搜索返回的条目，`beforeCommit()` 在写操作的事务里运行（后端支持事务时）。抛出 `LDAPResultException` 时，以它的结果码回应。`bind` 上的拦截器围绕密码校验运行，简单绑定和 SASL PLAIN 绑定都会经过它（用 `authentication.type` 区分）；它返回而不是抛出一个非成功的结果时，绑定以这个结果失败。匿名绑定和 SASL EXTERNAL 不校验密码，不经过它。
 - 拦截器可以放在服务器内置步骤（`access`、`password`、`schema`、`operational`、`paging`）的前面或后面，写法是 `{interceptor, before: 'schema'}`；不指定时放在链的末尾，也就是所有内置步骤之后，这时它往请求里加的内容不会经过 schema 检查。放在 `password` 之前的拦截器能看到明文密码。会把条目从搜索结果里去掉的拦截器（`transformEntry()` 返回 undefined，或者用 `around()` 替换条目），必须放在 `paging` 之后，链的末尾就在它之后。放在它之前时，分页和虚拟列表视图仍然会把被去掉的条目算进去。只修改条目的拦截器最好放在 `paging` 之前（`GroupPresentationPlugin` 就是这样放的），这样后端仍然可以自己排序、开窗和分页；这时排序和虚拟列表视图用的是存储的条目，不包括它做的修改。
 - 在拦截器和插件里，绑定时的 `context.session` 就是会话本身；其他操作拿到的是会话的一个视图，其中的身份始终是操作开始时的身份，不论这期间是否有新的绑定：会话的数据请放在 `session.state` 里，或者以 `session.id` 为键，不要以会话对象为键。
 - 插件还可以在每个请求前后运行（`aroundRequest`，能看到绑定、StartTLS 和服务器自己回答的扩展操作）、在校验密码前后运行（`authenticate`），以及在密码修改时、密码还是明文的时候运行（`passwordChange`，其中的 `importing` 表示看起来像哈希的值是不是管理员导入的哈希）。插件可以带上 schema 文件、控制、扩展操作、SASL 机制和密码格式，根 DSE 和子模式条目会公布它们。两个插件声明同一个 OID 时，服务器在启动时就会报错。根 DSE 和子模式条目不经过任何后端的链，插件的控制只有在 `aroundRequest` 里应用时才对它们有效；这样的控制要标上 `serverEntries: true`，否则带着这个关键控制搜索这些条目会被拒绝。

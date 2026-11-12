@@ -475,9 +475,10 @@ await server.listen({port: 389})
   session may read, so its answer shows that the base exists. To hide that an entry exists, refuse `search` on its DN:
   such a search is refused with insufficientAccessRights whether the entry exists or not.
 - A bind ends the paged searches on its connection, including a bind that is refused.
-- `plaintextBind` says where a password is taken without TLS (a bind, a write of `userPassword`, a Password Modify):
-  everywhere (`'all'`, by default), from the loopback (`'loopback'`), or nowhere (`'none'`). The Unix socket takes
-  passwords whatever it says.
+- `plaintextBind` says where a password is taken without TLS (a simple bind or a SASL PLAIN bind, a write of
+  `userPassword`, a Password Modify): everywhere (`'all'`, by default), from the loopback (`'loopback'`), or nowhere
+  (`'none'`). The Unix socket takes passwords whatever it says. A SASL mechanism of one's own whose credentials carry a
+  password sets `takesPassword`, so that `plaintextBind` applies to it before it reads any name.
 - A bind with a name and an empty password is refused (`allowUnauthenticatedBind` takes it as anonymous). The failed
   binds of a DN or an address are answered later and later, then refused for a while (`bindThrottle`), all with
   invalidCredentials, which does not tell a locked account from a wrong password.
@@ -594,9 +595,12 @@ const server = createLDAPServer({
 await server.listen({port: 389})
 ```
 
-- An interceptor runs for the `operations` it names: `before()` checks or changes a request, `around()` runs around
-  the rest of the chain, `transformEntry()` changes the entries a search returns, and `beforeCommit()` runs in the
-  transaction of a write, on a backend that has transactions. Throwing an `LDAPResultException` answers with its code.
+- An interceptor runs for the `operations` it names: `before()` checks or changes a request, `around()` runs around the
+  rest of the chain, `transformEntry()` changes the entries a search returns, and `beforeCommit()` runs in the
+  transaction of a write, on a backend that has transactions. Throwing an `LDAPResultException` answers with its code. A
+  `bind` interceptor runs around the password check of a simple bind and of a SASL PLAIN bind;
+  `request.authentication.type` tells which. If it returns a result other than success instead of throwing, the bind
+  fails with that result. Anonymous binds and SASL EXTERNAL check no password and do not go through it.
 - An interceptor is placed before or after one of the server's own steps (`access`, `password`, `schema`, `operational`,
   `paging`) by `{interceptor, before: 'schema'}`, and otherwise at the end of the chain, after them all: what it adds to
   a request there is not checked against the schema. Placed before `password`, it sees the passwords in clear. An
