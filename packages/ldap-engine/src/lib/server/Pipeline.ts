@@ -41,7 +41,7 @@ import {
     timeOrderedUUID,
     valuesOfType
 } from './EntryTools.js'
-import {closePaged, endPagedSearch, keepApproval, pagingInterceptor, type PagedStates, SEARCH_SOURCE, type SearchSource} from './Paging.js'
+import {closeIterator, closePaged, endPagedSearch, keepApproval, pagingInterceptor, type PagedStates, SEARCH_SOURCE, type SearchSource} from './Paging.js'
 import type {PasswordSchemes} from './Passwords.js'
 import {rootDSEEntry, schemaConfigEntries, subschemaEntry} from './RootDSE.js'
 import type {SASLContext, SASLMechanism, SASLStep} from './SASL.js'
@@ -992,7 +992,7 @@ export class Pipeline {
             void searching.then((late: BackendSearchResult): void => {
                 const entries = late.entries as Partial<AsyncIterable<DirectoryEntry>>
                 const iterate: (() => AsyncIterator<DirectoryEntry>) | undefined = entries[Symbol.asyncIterator]
-                if (typeof iterate === 'function') void iterate.call(entries).return?.()?.catch((): undefined => undefined)
+                if (typeof iterate === 'function') closeIterator(iterate.call(entries))
             }, (): undefined => undefined)
             throw error
         }
@@ -1018,7 +1018,7 @@ export class Pipeline {
                     try {
                         next = await untilAborted(iterator.next(), source.signal)
                     } catch (error) {
-                        void iterator.return?.()?.catch((): undefined => undefined)
+                        closeIterator(iterator)
                         throw error
                     }
                     if (next.done) return

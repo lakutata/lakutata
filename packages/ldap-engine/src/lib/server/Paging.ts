@@ -86,11 +86,20 @@ export function keepApproval(context: OperationContext, stored: DirectoryEntry, 
 export type PagedStates = Map<string, PagedState>
 
 /**
+ * Close an iterator of entries, whatever its return() gives (an iterator of a backend or an interceptor may return
+ * no promise) and whatever it throws
+ * @param iterator The iterator.
+ */
+export function closeIterator(iterator: AsyncIterator<unknown>): void {
+    void Promise.resolve().then((): unknown => iterator.return?.()).catch((): undefined => undefined)
+}
+
+/**
  * Close a paged search
  * @param state The paged search.
  */
 export function closePaged(state: PagedState): void {
-    void state.iterator.return?.().catch((): undefined => undefined)
+    closeIterator(state.iterator)
 }
 
 /**
@@ -578,7 +587,7 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
                     context.responseControls.push(SortResponseControl.encode(problem))
                     //A critical view is not done without its sort either (RFC 4511 §4.1.11)
                     if (sortControl.critical || vlvControl?.critical) {
-                        void iterator.return?.()
+                        closeIterator(iterator)
                         fail(ResultCode.unavailableCriticalExtension, problem.result === ResultCode.adminLimitExceeded ? `More than ${options.sortCandidates} entries to sort` : problem.result === ResultCode.noSuchAttribute ? `No attribute ${problem.attribute} to sort by` : `No ordering rule for ${problem.attribute}`)
                     }
                     //Unsorted, the entries read so far first (RFC 2891 §2, scenario 4)

@@ -1016,6 +1016,29 @@ describe('the server engine', () => {
         await assert.rejects(owner.whoAmI({controls: critical}), code(12))
     })
 
+    it('closes the entries of an interceptor whose iterator does not return a promise when it closes', async () => {
+        let closed: boolean = false
+        const {server: custom} = await directory({interceptors: [{name: 'custom', operations: ['search'], around: async (_context: unknown, _request: unknown, next: () => Promise<{entries?: AsyncIterable<DirectoryEntry>}>): Promise<unknown> => {
+            const outcome = await next()
+            const inner: AsyncIterator<DirectoryEntry> | undefined = outcome.entries?.[Symbol.asyncIterator]()
+            return {...outcome, entries: inner && {[Symbol.asyncIterator]: () => ({
+                next: (): Promise<IteratorResult<DirectoryEntry>> => inner.next(),
+                return: (): IteratorResult<DirectoryEntry> => {
+                    closed = true
+                    return {done: true, value: undefined}
+                }
+            })}}
+        }} as never]})
+        const session: LDAPInProcessConnection = custom.connect()
+        await session.bind(`uid=user1,ou=people,${BASE}`, 'password1')
+        const first = await session.search(`ou=people,${BASE}`, {scope: 'one', paged: false, controls: [PagedResultsControl.encode({size: 2, cookie: Buffer.alloc(0)})]})
+        assert.ok(PagedResultsControl.decode(findControl(first.controls, PagedResultsControl)!).cookie.length)
+        //The bind ends the paged search, closing its entries
+        await session.bind(`uid=user2,ou=people,${BASE}`, 'password2')
+        await new Promise<void>((resolve: () => void): void => void setImmediate(resolve))
+        assert.equal(closed, true)
+    })
+
     it('refuses a critical control it does not know', async () => {
         await assert.rejects(admin.search(BASE, {controls: [{oid: '1.2.3.4.5', critical: true}]}), LDAPUnavailableCriticalExtensionException)
         assert.ok((await admin.search(BASE, {scope: 'base', controls: [{oid: '1.2.3.4.5', critical: false}]})).entries.length)
