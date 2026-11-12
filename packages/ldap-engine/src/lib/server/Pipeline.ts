@@ -628,6 +628,9 @@ export class Pipeline {
             session.identity = undefined
             session.authenticationMethod = undefined
         }
+        //Any answer to a bind but saslBindInProgress ends a SASL exchange (RFC 4513 §5.2.1.2), refused before its
+        //mechanism ran too (a control, a plugin)
+        if (operation === 'bind' && outcome.resultCode !== ResultCode.saslBindInProgress) session.sasl = undefined
         this.options.events.emit('operation', {session: session.id, operation: operation, dn: dn, resultCode: outcome.resultCode, duration: Date.now() - started})
         const response: Record<string, unknown> = {type: RESPONSE_TYPES[operation], resultCode: outcome.resultCode, matchedDN: outcome.matchedDN ?? '', diagnosticMessage: outcome.diagnosticMessage ?? ''}
         if (outcome.referral?.length) response.referral = outcome.referral

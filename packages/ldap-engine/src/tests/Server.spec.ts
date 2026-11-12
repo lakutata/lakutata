@@ -1074,6 +1074,12 @@ describe('the server engine', () => {
         await assert.rejects(resumed.saslBind('COUNTED', Buffer.from('second'), {controls: critical}), code(12))
         await resumed.saslBind('COUNTED', Buffer.from('first'), {step: () => Buffer.from('second')})
         assert.equal(starts, 2)
+        //Refused before the mechanism runs (a critical control the server does not know): the exchange ends too
+        const again: LDAPInProcessConnection = stepping.connect()
+        await assert.rejects(again.saslBind('COUNTED', Buffer.from('first')), LDAPUsageException)
+        await assert.rejects(again.saslBind('COUNTED', Buffer.from('second'), {controls: [{oid: '1.2.3.4.5.6', critical: true}]}), code(12))
+        await again.saslBind('COUNTED', Buffer.from('first'), {step: () => Buffer.from('second')})
+        assert.equal(starts, 4)
         //A Password Modify refuses the control before it checks the old password
         await assert.rejects(owner.passwordModify({userIdentity: 'uid=u,dc=a,dc=example,dc=com', oldPassword: 'wrong-old', newPassword: 'changed-u', controls: critical}), code(12))
     })
