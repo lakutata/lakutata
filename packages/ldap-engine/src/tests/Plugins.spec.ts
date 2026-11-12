@@ -263,6 +263,12 @@ describe('the plugins of the engine', () => {
         await sam.bind(dn, 'password')
         await sam.passwordModify({oldPassword: 'password', newPassword: 'secret'})
         assert.deepEqual(await valuesOf(admin, dn, 'sambaNTPassword'), ['878D8014606CDA29677A44EFA1353FC7'])
+        //A user's password looking like a hash is a password in clear: its NT hash written, the old one gone
+        await sam.modify(dn, {operation: 'replace', attribute: 'userPassword', values: '{SSHA}looks-hashed'})
+        const [looking] = await valuesOf(admin, dn, 'sambaNTPassword')
+        assert.match(looking, /^[0-9A-F]{32}$/)
+        assert.notEqual(looking, '878D8014606CDA29677A44EFA1353FC7')
+        await server.connect().bind(dn, '{SSHA}looks-hashed')
         //Not a Samba account: no hash
         await admin.modify(`uid=bob,${PEOPLE}`, {operation: 'replace', attribute: 'userPassword', values: 'other'})
         assert.deepEqual(await valuesOf(admin, `uid=bob,${PEOPLE}`, 'sambaNTPassword'), [])

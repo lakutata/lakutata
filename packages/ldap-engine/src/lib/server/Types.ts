@@ -740,9 +740,14 @@ export interface PasswordChange {
      */
     changes?: {operation: ModifyOperation, attribute: PartialAttribute}[]
     /**
-     * The new passwords as they were written: in clear, or hashed by an administrator importing them
+     * The new passwords as they were written: in clear, or hashed by an administrator importing them (see `importing`)
      */
     passwords: Buffer[]
+    /**
+     * Whether the passwords that look hashed (`{SCHEME}…`) are hashes, kept as they are: written by an administrator
+     * importing them. Otherwise every password is in clear, whatever it looks like (and the server hashes it).
+     */
+    importing: boolean
     /**
      * Whether the user changes their own password
      */

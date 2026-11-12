@@ -590,12 +590,14 @@ export class Pipeline {
      * @param context The context of the write.
      * @param change The change.
      */
-    protected async checkPasswordChange(mount: Mount, context: OperationContext, change: PasswordChange): Promise<void> {
+    protected async checkPasswordChange(mount: Mount, context: OperationContext, given: Omit<PasswordChange, 'importing'>): Promise<void> {
+        //The hashes kept as they are only for an administrator, as the engine keeps them
+        const change: PasswordChange = {...given, importing: !context.internal && this.access.isAdmin(context.session.identity)}
         const state: DirectoryChange[] = []
         for (const plugin of this.options.plugins) {
             if (!plugin.passwordChange || !this.runsFor(plugin, mount)) continue
-            const given: DirectoryChange[] | void = await plugin.passwordChange(context, change)
-            if (given) state.push(...given)
+            const written: DirectoryChange[] | void = await plugin.passwordChange(context, change)
+            if (written) state.push(...written)
         }
         if (state.length) context.state.set(PASSWORD_STATE, state)
     }

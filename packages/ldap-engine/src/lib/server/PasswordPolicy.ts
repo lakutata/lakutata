@@ -420,10 +420,11 @@ export class PasswordPolicy {
      * @param dn The DN of the entry.
      * @param entry The entry, undefined for an entry being added.
      * @param passwords The new passwords as they were written (in clear, or hashed by an administrator importing them).
-     * @param change Whether the user changes their own password, and whether they gave the old one.
+     * @param change Whether the user changes their own password, whether they gave the old one, and whether the values
+     * looking hashed are hashes an administrator imports.
      * @returns The state changes, undefined when no policy governs the entry.
      */
-    public async check(context: OperationContext, dn: DN, entry: DirectoryEntry | undefined, passwords: Buffer[], change: {self: boolean, oldGiven: boolean, entryAttributes?: PartialAttribute[]}): Promise<DirectoryChange[] | undefined> {
+    public async check(context: OperationContext, dn: DN, entry: DirectoryEntry | undefined, passwords: Buffer[], change: {self: boolean, oldGiven: boolean, importing?: boolean, entryAttributes?: PartialAttribute[]}): Promise<DirectoryChange[] | undefined> {
         const rules: PasswordPolicyRules | undefined = await this.rulesFor(context, entry ?? (change.entryAttributes ? {dn: dn, attributes: change.entryAttributes} : undefined))
         if (!rules) return undefined
         const now: number = Date.now()
@@ -436,7 +437,8 @@ export class PasswordPolicy {
             if (changed !== undefined && now - changed < rules.minAge * 1000) refuse(context, ResultCode.constraintViolation, 'The password was changed too recently', 'passwordTooYoung')
         }
         for (const password of passwords) {
-            const hashed: boolean = this.passwords.isHashed(password)
+            //A hash only when an administrator imports it; otherwise a password in clear, whatever it looks like
+            const hashed: boolean = change.importing === true && this.passwords.isHashed(password)
             if (rules.checkQuality) {
                 if (hashed) {
                     if (rules.checkQuality === 2) refuse(context, ResultCode.constraintViolation, 'The quality of a hashed password cannot be checked', 'insufficientPasswordQuality')

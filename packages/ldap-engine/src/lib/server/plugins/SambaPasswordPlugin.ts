@@ -80,7 +80,7 @@ export class SambaPasswordPlugin extends BaseLDAPPlugin {
      */
     public passwordChange(context: OperationContext, change: PasswordChange): DirectoryChange[] | void {
         const schema: Schema = context.schema
-        const password: string | undefined = this.clearPassword(change.passwords, context.server.passwords)
+        const password: string | undefined = this.clearPassword(change.passwords, context.server.passwords, change.importing)
         if (password === undefined) return
         //The classes of the entry, with those a modify adds
         const classes: (Buffer | string)[] = change.entry
@@ -94,12 +94,14 @@ export class SambaPasswordPlugin extends BaseLDAPPlugin {
     }
 
     /**
-     * The last password in clear among values (a value already hashed cannot give the NT hash)
+     * The last password in clear among values (a value already hashed cannot give the NT hash): a value looking hashed
+     * is a hash only when an administrator imports it
      * @param values The values of userPassword.
      * @param passwords The password schemes of the server.
+     * @param importing Whether the values that look hashed are hashes.
      */
-    protected clearPassword(values: Buffer[], passwords: PasswordSchemes): string | undefined {
-        const clear: Buffer[] = values.filter((value: Buffer): boolean => !passwords.isHashed(value))
+    protected clearPassword(values: Buffer[], passwords: PasswordSchemes, importing: boolean = true): string | undefined {
+        const clear: Buffer[] = values.filter((value: Buffer): boolean => !(importing && passwords.isHashed(value)))
         return clear.length ? clear[clear.length - 1].toString('utf8') : undefined
     }
 

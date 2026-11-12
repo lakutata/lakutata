@@ -239,6 +239,17 @@ describe('the password policy', () => {
         await assert.rejects(admin.add(`uid=carol,ou=people,${BASE}`, {objectClass: 'inetOrgPerson', uid: 'carol', cn: 'c', sn: 'c', userPassword: '{SSHA}0H+zTv8o4MR4H43n03eCsvw1luG8LdB7'}), refused(19))
     })
 
+    it('checks a user\'s password looking like a hash as a password in clear, a hash an administrator imports as a hash', async () => {
+        const {server, admin} = await serve({pwdCheckQuality: '1', pwdMinLength: '10'})
+        const session: LDAPInProcessConnection = server.connect()
+        await session.bind(ALICE, 'alice-password-1')
+        //Seven characters, however it looks
+        await assert.rejects(session.passwordModify({newPassword: '{SSHA}x', controls: ASK}), refused(19, 'passwordTooShort'))
+        await assert.rejects(session.modify(ALICE, {operation: 'replace', attribute: 'userPassword', values: '{SSHA}x'}), (error: unknown) => error instanceof LDAPResultException && error.code === 19)
+        //An administrator importing a hash: kept, its quality not checked (pwdCheckQuality 1)
+        await admin.modify(BOB, {operation: 'replace', attribute: 'userPassword', values: '{SSHA}0H+zTv8o4MR4H43n03eCsvw1luG8LdB7'})
+    })
+
     it('refuses the passwords of the history, and the current one', async () => {
         const {server, admin} = await serve({pwdInHistory: '2'})
         const session: LDAPInProcessConnection = server.connect()
