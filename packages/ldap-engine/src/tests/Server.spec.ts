@@ -285,11 +285,13 @@ describe('the server engine', () => {
 
     it('counts the entries of all the pages of a paged search in its size limit, as they are sent', async () => {
         //The pages of a search, asked for with the control itself (not the client's paging, which counts on its own)
-        const pages = async (connection: LDAPInProcessConnection, size: number, sizeLimit: number = 0): Promise<{counts: number[], exceeded: boolean}> => {
+        const pages = async (connection: LDAPInProcessConnection, size: number | number[], sizeLimit: number = 0): Promise<{counts: number[], exceeded: boolean}> => {
             const counts: number[] = []
             let cookie: Buffer = Buffer.alloc(0)
             for (;;) {
-                const controls = [PagedResultsControl.encode({size: size, cookie: cookie})]
+                //The page size of each page, the last one going on
+                const sizes: number[] = Array.isArray(size) ? size : [size]
+                const controls = [PagedResultsControl.encode({size: sizes[Math.min(counts.length, sizes.length - 1)], cookie: cookie})]
                 let entries: number
                 let responseControls
                 let exceeded: boolean
@@ -373,6 +375,10 @@ describe('the server engine', () => {
         const sparseReader: LDAPInProcessConnection = sparse.connect()
         await sparseReader.bind(`uid=user1,ou=people,${BASE}`, 'password1')
         assert.deepEqual(await pages(sparseReader, 100, 2), {counts: [2], exceeded: false})
+        //A page reads within the limit of the search, not what is left of it: a run of hidden entries after the first
+        //page is passed in pages as large as the limit
+        const {admin: gapped} = await directory({access: {admins: [ADMIN], check: (request: {operation: string, dn?: {toString(): string}}): boolean | undefined => request.operation === 'read' && /^uid=user([89]|1\d|2[0-7]),/i.test(String(request.dn)) ? false : undefined}})
+        assert.deepEqual(await pages(gapped, [8, 100], 10), {counts: [8, 0, 2], exceeded: false})
         //The client's own paging still tells it was cut
         const cut = await owner.search(`ou=people,${BASE}`, {scope: 'one', filter: '(uid=user*)', sizeLimit: 15, paged: {pageSize: 10}})
         assert.deepEqual([cut.entries.length, cut.truncated], [15, true])

@@ -39,8 +39,8 @@ export interface PagedState {
 }
 
 /**
- * A page of a paged search as the engine sends it: the most entries it gives (0 for no limit), and the count of those
- * sent, which tells whether the size limit of the search ends it there
+ * A page of a paged search as the engine sends it: the most entries it gives (0 once the size limit of the search is
+ * reached), and the count of those sent, which tells whether the size limit ends the search there
  */
 export interface PageSending {
     /**
