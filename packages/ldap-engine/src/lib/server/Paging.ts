@@ -478,10 +478,7 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
                 }
                 return page(context, states, state, paged.size, {resultCode: ResultCode.success})
             }
-            if (paged && paged.size === 0 && enginePages) {
-                context.responseControls.push(PagedResultsControl.encode({size: 0, cookie: Buffer.alloc(0)}))
-                return {resultCode: ResultCode.success, entries: fromArray([])}
-            }
+            //A first page of size 0 is a page of no entry, its cookie given while entries are left (RFC 2696 §2)
             const outcome: ServerOutcome = await next()
             if (!outcome.entries) return outcome
             let iterator: AsyncIterator<DirectoryEntry> = outcome.entries[Symbol.asyncIterator]()

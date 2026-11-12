@@ -1,5 +1,6 @@
 import {randomBytes} from 'node:crypto'
 import type {EventEmitter} from 'node:events'
+import {LDAPDecodeException} from '../../exceptions/LDAPDecodeException.js'
 import {LDAPException} from '../../exceptions/LDAPException.js'
 import {LDAPResultException, LDAPTimeLimitExceededException} from '../../exceptions/LDAPResultException.js'
 import type {Control} from '../controls/Control.js'
@@ -10,6 +11,7 @@ import {
     PasswordPolicyRequestControl,
     SortRequestControl,
     TreeDeleteControl,
+    type VLVRequestValue,
     VLVRequestControl
 } from '../controls/Controls.js'
 import {type AttributeTypeAndValue, DN, RDN} from '../dn/DN.js'
@@ -592,6 +594,7 @@ export class Pipeline {
         if (operation === 'bind') this.endPaged(session)
         try {
             this.checkControls(controls, operation)
+            this.readControls(controls)
             outcome = await run()
         } catch (error) {
             outcome = this.outcomeOf(error, signal)
@@ -702,6 +705,32 @@ export class Pipeline {
                 : [PagedResultsControl.oid, SortRequestControl.oid, VLVRequestControl.oid].includes(control.oid) ? operation === 'search'
                     : operations ? operations.includes(operation) : true
             if (!known || !fits) fail(ResultCode.unavailableCriticalExtension, `The critical control ${control.oid} is not supported`)
+        }
+    }
+
+    /**
+     * Refuse a control of the engine whose value cannot be read, critical or not, with protocolError (as OpenLDAP
+     * answers it): a value that is not the BER its control defines, a page size or a count of a view below zero (their
+     * INTEGER is 0..maxInt), a value given to a control that has none
+     * @param controls The controls.
+     */
+    protected readControls(controls: Control[]): void {
+        for (const control of controls) {
+            try {
+                if (control.oid === PagedResultsControl.oid) {
+                    if (PagedResultsControl.decode(control).size < 0) fail(ResultCode.protocolError, 'The page size of the paged results control is below zero')
+                } else if (control.oid === SortRequestControl.oid) {
+                    SortRequestControl.decode(control)
+                } else if (control.oid === VLVRequestControl.oid) {
+                    const view: VLVRequestValue = VLVRequestControl.decode(control)
+                    if (view.beforeCount < 0 || view.afterCount < 0) fail(ResultCode.protocolError, 'A count of the virtual list view control is below zero')
+                } else if ((control.oid === ManageDsaITControl.oid || control.oid === TreeDeleteControl.oid) && control.value !== undefined) {
+                    fail(ResultCode.protocolError, `The control ${control.oid} has no value`)
+                }
+            } catch (error) {
+                if (error instanceof LDAPDecodeException) fail(ResultCode.protocolError, error.message)
+                throw error
+            }
         }
     }
 

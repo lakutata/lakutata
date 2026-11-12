@@ -26,6 +26,7 @@ import {
     LDAPUnavailableCriticalExtensionException,
     LDAPUnwillingToPerformException,
     MemoryBackend,
+    ManageDsaITControl,
     PagedResultsControl,
     readSchema,
     type Schema,
@@ -741,6 +742,33 @@ describe('the server engine', () => {
         //Its own size limit asked for: one entry, sizeLimitExceeded, and no cookie going on past the entries it left out
         const second = await admin.search(`ou=people,${BASE}`, {scope: 'one', sizeLimit: 1, paged: false, controls: [PagedResultsControl.encode({size: 4, cookie: cookie})]})
         assert.deepEqual([second.entries.length, second.truncated, PagedResultsControl.decode(findControl(second.controls, PagedResultsControl)!).cookie.length], [1, true, 0])
+    })
+
+    it('answers a control of the engine whose value cannot be read with protocolError, critical or not', async () => {
+        const people: string = `ou=people,${BASE}`
+        const raw = (oid: string, bytes: number[] | undefined, critical: boolean): {oid: string, critical: boolean, value?: Buffer} => ({oid, critical, ...bytes ? {value: Buffer.from(bytes)} : {}})
+        for (const critical of [true, false]) {
+            await assert.rejects(admin.search(people, {scope: 'one', paged: false, controls: [raw(SortRequestControl.oid, [0x30, 0x03, 0x04], critical)]}), code(2))
+            await assert.rejects(admin.search(people, {scope: 'one', paged: false, controls: [raw(PagedResultsControl.oid, [0x02, 0x01], critical)]}), code(2))
+            await assert.rejects(admin.search(people, {scope: 'one', paged: false, controls: [SortRequestControl.encode([{attribute: 'cn'}]), raw(VLVRequestControl.oid, [0x30, 0x00], critical)]}), code(2))
+            //A page size, and the counts of a view, below zero
+            await assert.rejects(admin.search(people, {scope: 'one', paged: false, controls: [{...PagedResultsControl.encode({size: -1, cookie: Buffer.alloc(0)}), critical}]}), code(2))
+            await assert.rejects(admin.search(people, {scope: 'one', paged: false, controls: [SortRequestControl.encode([{attribute: 'cn'}]), VLVRequestControl.encode({beforeCount: -1, afterCount: 0, offset: {offset: 1, contentCount: 0}}, critical)]}), code(2))
+            //A value for a control that has none
+            await assert.rejects(admin.search(people, {scope: 'one', paged: false, controls: [raw(ManageDsaITControl.oid, [0x01], critical)]}), code(2))
+        }
+    })
+
+    it('pages none of the entries for a first page of size 0, with a cookie while entries are left', async () => {
+        const people: string = `ou=people,${BASE}`
+        const first = await admin.search(people, {scope: 'one', paged: false, controls: [PagedResultsControl.encode({size: 0, cookie: Buffer.alloc(0)})]})
+        const cookie: Buffer = PagedResultsControl.decode(findControl(first.controls, PagedResultsControl)!).cookie
+        assert.deepEqual([first.entries.length, cookie.length > 0], [0, true])
+        const second = await admin.search(people, {scope: 'one', paged: false, controls: [PagedResultsControl.encode({size: 2, cookie: cookie})]})
+        assert.equal(second.entries.length, 2)
+        //Nothing to return: no cookie
+        const none = await admin.search(people, {scope: 'one', filter: '(uid=nobody)', paged: false, controls: [PagedResultsControl.encode({size: 0, cookie: Buffer.alloc(0)})]})
+        assert.equal(PagedResultsControl.decode(findControl(none.controls, PagedResultsControl)!).cookie.length, 0)
     })
 
     it('refuses a critical control it does not know', async () => {
