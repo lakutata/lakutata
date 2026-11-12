@@ -586,6 +586,13 @@ describe('the server engine', () => {
         assert.equal(await answer(`cn=below,uid=user4,ou=people,${BASE}`), await answer(`cn=below,uid=nobody,ou=people,${BASE}`))
         const compared = (dn: string): Promise<string> => reader.compare(dn, 'cn', 'x').then(String, (error: unknown): string => `${(error as LDAPResultException).code} ${(error as LDAPResultException).matchedDN}`)
         assert.equal(await compared(`cn=below,uid=user4,ou=people,${BASE}`), await compared(`cn=below,uid=nobody,ou=people,${BASE}`))
+        //Refused search on a DN: the same answer whether the entry is there or not
+        const {server: guarded} = await directory({access: {admins: [ADMIN], check: (request: {operation: string, identity?: {toString(): string}, dn: {toString(): string}}): boolean | undefined => request.operation === 'search' && String(request.identity) !== ADMIN && [`uid=user4,ou=people,${BASE}`, `uid=ghost,ou=people,${BASE}`].includes(String(request.dn)) ? false : undefined}})
+        const prober: LDAPInProcessConnection = guarded.connect()
+        await prober.bind(READER, 'password1')
+        const probe = (dn: string, scope: 'base' | 'sub'): Promise<string> => prober.search(dn, {scope: scope}).then((result): string => `found ${result.entries.length}`, (error: unknown): string => `${(error as LDAPResultException).code} ${(error as LDAPResultException).diagnosticMessage} ${(error as LDAPResultException).matchedDN}`)
+        for (const scope of ['base', 'sub'] as const) assert.equal(await probe(`uid=user4,ou=people,${BASE}`, scope), await probe(`uid=ghost,ou=people,${BASE}`, scope))
+        assert.match(await probe(`uid=user4,ou=people,${BASE}`, 'sub'), /^50 /)
         //A base it may not read, searched below: the entries it reads below it
         const {server: selves} = await directory({access: {admins: [ADMIN], check: (request: {operation: string, identity?: {toString(): string}, dn: {toString(): string}}): boolean | undefined => request.operation === 'read' && String(request.identity) !== ADMIN ? String(request.dn).toLowerCase() === String(request.identity).toLowerCase() : undefined}})
         const self: LDAPInProcessConnection = selves.connect()

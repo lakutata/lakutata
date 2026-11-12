@@ -346,11 +346,12 @@ export abstract class LDAPOperations implements LDAPConnection {
             const controls: Control[] = [...extra, SortRequestControl.encode(options.sort, true), VLVRequestControl.encode({beforeCount: 0, afterCount: Math.max(options.window.limit - 1, 0), offset: {offset: options.window.offset, contentCount: 0}}, true)]
             const page = await this.searchPage(request, controls, options)
             const vlv: Control | undefined = findControl(page.done.controls, VLVResponseControl)
-            //A window past the last entry, which the server refuses (offsetRangeError): no entries, the count it gives
+            //A window past the last entry, which a server refuses (virtualListViewError; offsetRangeError as the result of the
+            //view by the draft, 77 from OpenLDAP): no entries, the count it gives
             const response: LDAPResponse = page.done.response
             if ('resultCode' in response && response.resultCode === ResultCode.virtualListViewError && vlv) {
                 const view: VLVResponseValue = VLVResponseControl.decode(vlv)
-                if (view.result === ResultCode.offsetRangeError && options.window.offset > view.contentCount) return {entries: [], references: page.references, controls: page.done.controls, truncated: false, total: view.contentCount}
+                if (options.window.offset > view.contentCount) return {entries: [], references: page.references, controls: page.done.controls, truncated: false, total: view.contentCount}
             }
             const truncated: boolean = await this.searchEnd(page.done, options, page.entries)
             const result: SearchResult = {entries: [], references: page.references, controls: page.done.controls, truncated: truncated}

@@ -216,6 +216,8 @@ describe('the server engine against OpenLDAP', {skip: !URL}, () => {
         //A context ID the server never gave: OpenLDAP ignores it, the draft fails the search with protocolError
         const context: Answer = (await both(UNIT, {filter: PEOPLE_FILTER, controls: [sort('uidNumber'), view({beforeCount: 0, afterCount: 1, offset: {offset: 1, contentCount: 0}, contextId: Buffer.from('nonsense')})]})).ours
         assert.deepEqual([context.code, (context.controls.vlv as {result: number}).result], [76, 2])
+        //The window of the client past the last entry, on either: no entries, the count of the server
+        for (const connection of [ours, theirs]) assert.deepEqual(await connection.search(UNIT, {scope: 'one', filter: PEOPLE_FILTER, sort: [{attribute: 'uidNumber'}], window: {offset: 20, limit: 5}}).then((result) => [result.entries.length, result.total]), [0, PEOPLE.length])
     })
 
     it('gives the result of the sort with every page', async () => {
