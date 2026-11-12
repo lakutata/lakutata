@@ -252,7 +252,8 @@ export interface BackendCapabilities {
      */
     sort?: boolean
     /**
-     * Whether the backend pages by the paged results control itself
+     * Whether the backend pages by the paged results control itself, the entries of all the pages of a search within
+     * its size limit (`sizeLimit` of the search context)
      */
     paging?: boolean
     /**

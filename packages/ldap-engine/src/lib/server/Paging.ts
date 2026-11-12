@@ -6,7 +6,7 @@ import {ResultCode} from '../protocol/ResultCode.js'
 import {byCodePoints, type MatchingRule} from '../schema/MatchingRules.js'
 import type {Schema} from '../schema/Schema.js'
 import {fail, valuesOfType} from './EntryTools.js'
-import type {BackendCapabilities, DirectoryEntry, LDAPInterceptor, OperationContext, ServerOutcome, ServerRequest, ServerSearchRequest} from './Types.js'
+import type {BackendCapabilities, DirectoryEntry, LDAPInterceptor, OperationContext, SearchContext, ServerOutcome, ServerRequest, ServerSearchRequest} from './Types.js'
 
 /**
  * A paged search kept between its pages
@@ -28,7 +28,34 @@ export interface PagedState {
      * When it was last used
      */
     used: number
+    /**
+     * The entries its pages may still give: its size limit less those sent (undefined without a limit)
+     */
+    remaining?: number
 }
+
+/**
+ * A page of a paged search as the engine sends it: the most entries it gives (0 for no limit), and the count of those
+ * sent, which tells whether the size limit of the search ends it there
+ */
+export interface PageSending {
+    /**
+     * The most entries the page gives (0 for no limit)
+     */
+    limit: number
+    /**
+     * Count the entries sent
+     * @param count The entries sent.
+     * @param exceeded Whether more were left in the page than its limit.
+     * @returns Whether the search ends there, its size limit reached (sizeLimitExceeded).
+     */
+    sent(count: number, exceeded: boolean): boolean
+}
+
+/**
+ * The key of the page a search sends, in the state of its operation
+ */
+export const PAGE_SENDING: unique symbol = Symbol('the page a paged search sends')
 
 /**
  * The paged searches of a session, by their cookies in hex
@@ -362,7 +389,26 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
             }
             states.set(cookie.toString('hex'), state)
         }
-        context.responseControls.push(PagedResultsControl.encode({size: 0, cookie: cookie}))
+        const control: Control = PagedResultsControl.encode({size: 0, cookie: cookie})
+        context.responseControls.push(control)
+        //The size limit of the search counts the entries of all its pages, as they are sent (those the access control
+        //leaves out not counted): reached with entries left, the search ends there, its cookie no longer given
+        if (state.remaining !== undefined) {
+            const sending: PageSending = {
+                limit: state.remaining,
+                sent: (count: number, exceeded: boolean): boolean => {
+                    state.remaining! -= count
+                    const ended: boolean = exceeded || (!exhausted && state.remaining! <= 0)
+                    if (ended && !exhausted) {
+                        states.delete(cookie.toString('hex'))
+                        closePaged(state)
+                        context.responseControls[context.responseControls.indexOf(control)] = PagedResultsControl.encode({size: 0, cookie: Buffer.alloc(0)})
+                    }
+                    return ended
+                }
+            }
+            context.state.set(PAGE_SENDING, sending)
+        }
         outcome.entries = fromArray(entries)
         return outcome
     }
@@ -444,7 +490,8 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
                 outcome.entries = fromIterator(iterator)
                 return outcome
             }
-            return page(context, states, {key: key, iterator: iterator, used: Date.now()}, paged.size, outcome)
+            const sizeLimit: number = (context as SearchContext).sizeLimit
+            return page(context, states, {key: key, iterator: iterator, used: Date.now(), ...sizeLimit ? {remaining: sizeLimit} : {}}, paged.size, outcome)
         }
     }
 }

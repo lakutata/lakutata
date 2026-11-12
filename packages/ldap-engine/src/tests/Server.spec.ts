@@ -24,6 +24,7 @@ import {
     LDAPUnavailableCriticalExtensionException,
     LDAPUnwillingToPerformException,
     MemoryBackend,
+    PagedResultsControl,
     readSchema,
     type Schema,
     SortRequestControl,
@@ -269,11 +270,74 @@ describe('the server engine', () => {
         const user: LDAPInProcessConnection = small.server.connect()
         await user.bind(`uid=user1,ou=people,${BASE}`, 'password1')
         await assert.rejects(user.search(`ou=people,${BASE}`, {paged: false}), code(4))
-        assert.equal((await user.search(`ou=people,${BASE}`, {paged: {pageSize: 10}})).entries.length, 31)
+        //The pages of a paged search count together
+        await assert.rejects(user.search(`ou=people,${BASE}`, {paged: {pageSize: 4}}), code(4))
+        const paging = await directory({limits: {sizeLimit: 10, pagedSizeLimit: 0}})
+        const pager: LDAPInProcessConnection = paging.server.connect()
+        await pager.bind(`uid=user1,ou=people,${BASE}`, 'password1')
+        assert.equal((await pager.search(`ou=people,${BASE}`, {paged: {pageSize: 4}})).entries.length, 31)
+        assert.equal((await pager.search(`ou=people,${BASE}`, {paged: {pageSize: 20}})).entries.length, 31)
         assert.equal((await small.admin.search(`ou=people,${BASE}`, {paged: false})).entries.length, 31)
         const filter = Filter.or(...Array.from({length: 1001}, (_, index) => Filter.equal('uid', `user${index}`)))
         await assert.rejects(user.search(BASE, {filter: filter, paged: {pageSize: 10}}), LDAPUnwillingToPerformException)
         assert.equal((await small.admin.search(`ou=people,${BASE}`, {filter: filter, paged: false})).entries.length, 30)
+    })
+
+    it('counts the entries of all the pages of a paged search in its size limit, as they are sent', async () => {
+        //The pages of a search, asked for with the control itself (not the client's paging, which counts on its own)
+        const pages = async (connection: LDAPInProcessConnection, size: number, sizeLimit: number = 0): Promise<{counts: number[], exceeded: boolean}> => {
+            const counts: number[] = []
+            let cookie: Buffer = Buffer.alloc(0)
+            for (;;) {
+                const controls = [PagedResultsControl.encode({size: size, cookie: cookie})]
+                let entries: number
+                let responseControls
+                let exceeded: boolean
+                try {
+                    const result = await connection.search(`ou=people,${BASE}`, {scope: 'one', filter: '(uid=user*)', paged: false, controls: controls, ...sizeLimit ? {sizeLimit: sizeLimit} : {}})
+                    entries = result.entries.length
+                    responseControls = result.controls
+                    exceeded = result.truncated === true
+                } catch (error) {
+                    if (!code(4)(error)) throw error
+                    entries = ((error as {partial?: unknown[]}).partial ?? []).length
+                    responseControls = (error as LDAPResultException).controls
+                    exceeded = true
+                }
+                counts.push(entries)
+                cookie = PagedResultsControl.decode(findControl(responseControls, PagedResultsControl)!).cookie
+                if (!cookie.length) return {counts: counts, exceeded: exceeded}
+                assert.equal(exceeded, false, 'a page answered sizeLimitExceeded gives no cookie')
+            }
+        }
+        const {server: limited, admin: owner} = await directory({limits: {sizeLimit: 10}})
+        //The size limit of the search: within a page, at the end of one, the search ending with its entries
+        assert.deepEqual(await pages(owner, 10, 15), {counts: [10, 5], exceeded: true})
+        assert.deepEqual(await pages(owner, 10, 20), {counts: [10, 10], exceeded: true})
+        assert.deepEqual(await pages(owner, 10, 30), {counts: [10, 10, 10], exceeded: false})
+        //A page as large as the size limit: one page
+        assert.deepEqual(await pages(owner, 10, 5), {counts: [5], exceeded: true})
+        assert.deepEqual(await pages(owner, 7), {counts: [7, 7, 7, 7, 2], exceeded: false})
+        //The size limit of the server for a user, across the pages
+        const user: LDAPInProcessConnection = limited.connect()
+        await user.bind(`uid=user1,ou=people,${BASE}`, 'password1')
+        assert.deepEqual(await pages(user, 4), {counts: [4, 4, 2], exceeded: true})
+        assert.deepEqual(await pages(user, 20), {counts: [10], exceeded: true})
+        //pagedSizeLimit apart from sizeLimit
+        const {server: wider} = await directory({limits: {sizeLimit: 10, pagedSizeLimit: 25}})
+        const other: LDAPInProcessConnection = wider.connect()
+        await other.bind(`uid=user1,ou=people,${BASE}`, 'password1')
+        assert.deepEqual(await pages(other, 10), {counts: [10, 10, 5], exceeded: true})
+        //The entries the access control leaves out are not counted
+        const {server: hiding} = await directory({access: {admins: [ADMIN], check: (request: {operation: string, dn?: {toString(): string}}): boolean | undefined => request.operation === 'read' && /^uid=user\d*[02468],/i.test(String(request.dn)) ? false : undefined}})
+        const reader: LDAPInProcessConnection = hiding.connect()
+        await reader.bind(`uid=user1,ou=people,${BASE}`, 'password1')
+        const seen: {counts: number[], exceeded: boolean} = await pages(reader, 4, 10)
+        assert.equal(seen.counts.reduce((sum: number, count: number): number => sum + count, 0), 10)
+        assert.equal(seen.exceeded, true)
+        //The client's own paging still tells it was cut
+        const cut = await owner.search(`ou=people,${BASE}`, {scope: 'one', filter: '(uid=user*)', sizeLimit: 15, paged: {pageSize: 10}})
+        assert.deepEqual([cut.entries.length, cut.truncated], [15, true])
     })
 
     it('sorts strings by their code points, a character above U+FFFF after U+FA0E', async () => {

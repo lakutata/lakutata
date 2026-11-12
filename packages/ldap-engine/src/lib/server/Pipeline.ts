@@ -39,7 +39,7 @@ import {
     timeOrderedUUID,
     valuesOfType
 } from './EntryTools.js'
-import {closePaged, pagingInterceptor, type PagedStates} from './Paging.js'
+import {closePaged, PAGE_SENDING, type PageSending, pagingInterceptor, type PagedStates} from './Paging.js'
 import type {PasswordSchemes} from './Passwords.js'
 import {rootDSEEntry, schemaConfigEntries, subschemaEntry} from './RootDSE.js'
 import type {SASLContext, SASLMechanism, SASLStep} from './SASL.js'
@@ -75,9 +75,14 @@ import type {
 export interface ServerLimits {
     /**
      * The most entries a search returns, for every identity but the administrators (500 by default; 0 for none);
-     * a paged search counts each page
+     * a paged search counts the entries of all its pages, within `pagedSizeLimit`
      */
     sizeLimit?: number
+    /**
+     * The most entries a paged search returns in all its pages, for every identity but the administrators (`sizeLimit`
+     * when not set; 0 for none)
+     */
+    pagedSizeLimit?: number
     /**
      * The most seconds a search runs (3600 by default; 0 for none)
      */
@@ -123,6 +128,11 @@ export interface ServerLimits {
      */
     connections?: number
 }
+
+/**
+ * The limits of a server with their defaults (`pagedSizeLimit` left unset follows `sizeLimit`)
+ */
+export type EngineLimits = Required<Omit<ServerLimits, 'pagedSizeLimit'>> & Pick<ServerLimits, 'pagedSizeLimit'>
 
 /**
  * A handler of an extended operation of one's own
@@ -171,7 +181,7 @@ export interface PipelineOptions {
     throttle: BindThrottle
     plaintextBind: 'all' | 'loopback' | 'none'
     allowUnauthenticatedBind: boolean
-    limits: Required<ServerLimits>
+    limits: EngineLimits
     sasl: SASLMechanism[]
     extendedOperations: Map<string, ExtendedHandler>
     /**
@@ -700,7 +710,9 @@ export class Pipeline {
             const {depth, elements} = complexity(request.filter)
             if (depth > this.options.limits.filterDepth || elements > this.options.limits.filterElements) fail(ResultCode.unwillingToPerform, `The filter is too complex (${depth} levels, ${elements} items)`)
         }
-        const serverSize: number = admin ? 0 : this.options.limits.sizeLimit
+        //A paged search: the entries of all its pages within the limit of the paged searches
+        const limits: EngineLimits = this.options.limits
+        const serverSize: number = admin ? 0 : findControl(context.controls, PagedResultsControl) ? limits.pagedSizeLimit ?? limits.sizeLimit : limits.sizeLimit
         const sizeLimit: number = Math.min(request.sizeLimit || Infinity, serverSize || Infinity)
         const timeLimit: number = Math.min(request.timeLimit || Infinity, (admin ? 0 : this.options.limits.timeLimit) || Infinity)
         const deadline: number = Number.isFinite(timeLimit) ? Date.now() + timeLimit * 1000 : 0
@@ -744,6 +756,9 @@ export class Pipeline {
     protected async output(context: SearchContext, outcome: ServerOutcome, selection: AttributeSelection, sizeLimit: number, deadline: number, responder: Responder): Promise<ServerOutcome> {
         if (!outcome.entries) return outcome
         const returned: (description: string) => boolean = returnedBy(selection, this.schema)
+        //A page of a paged search: within what the size limit of the search leaves
+        const page: PageSending | undefined = context.state.get(PAGE_SENDING) as PageSending | undefined
+        const limit: number = page ? page.limit : sizeLimit
         let count: number = 0
         for await (const entry of outcome.entries) {
             if (context.signal.aborted) throw context.signal.reason
@@ -751,13 +766,14 @@ export class Pipeline {
                 outcome.resultCode = ResultCode.timeLimitExceeded
                 break
             }
-            if (sizeLimit && count >= sizeLimit) {
+            if (limit && count >= limit) {
                 outcome.resultCode = ResultCode.sizeLimitExceeded
                 break
             }
             await responder.entry({type: 'searchResultEntry', objectName: entry.dn.toString(), attributes: selectAttributes(entry, returned, context.typesOnly)})
             count++
         }
+        if (page?.sent(count, outcome.resultCode === ResultCode.sizeLimitExceeded)) outcome.resultCode = ResultCode.sizeLimitExceeded
         outcome.entries = undefined
         return outcome
     }

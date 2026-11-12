@@ -15,7 +15,7 @@ import {certificatesOf} from './ClientCertificate.js'
 import {LDAPInProcessConnection, sessionId} from './InProcessConnection.js'
 import type {PasswordPolicyOptions} from './PasswordPolicy.js'
 import {PasswordSchemes} from './Passwords.js'
-import {ENGINE_CONTROLS, ENGINE_EXTENSIONS, type ExtendedHandler, Pipeline, type PlacedInterceptor, type ServerLimits, type SessionState} from './Pipeline.js'
+import {type EngineLimits, ENGINE_CONTROLS, ENGINE_EXTENSIONS, type ExtendedHandler, Pipeline, type PlacedInterceptor, type ServerLimits, type SessionState} from './Pipeline.js'
 import {externalMechanism, plainMechanism, type SASLMechanism} from './SASL.js'
 import {type ConnectionHost, ServerConnection} from './ServerConnection.js'
 import {BindThrottle, type BindThrottleOptions} from './Throttle.js'
@@ -165,7 +165,7 @@ export interface SocketListenOptions {
 /**
  * The default limits
  */
-const LIMITS: Required<ServerLimits> = {
+const LIMITS: EngineLimits = {
     sizeLimit: 500,
     timeLimit: 3600,
     filterDepth: 12,
@@ -375,7 +375,7 @@ export class LDAPServerEngine implements LDAPPluginHost {
     /**
      * The limits
      */
-    protected readonly limits: Required<ServerLimits>
+    protected readonly limits: EngineLimits
 
     /**
      * The TLS context

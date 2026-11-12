@@ -10,14 +10,14 @@ import {ResultCode} from '../protocol/ResultCode.js'
 import type {X509Certificate} from 'node:crypto'
 import {clientCertificateTrusted} from './ClientCertificate.js'
 import {sessionId} from './InProcessConnection.js'
-import type {Pipeline, ServerLimits, SessionState} from './Pipeline.js'
+import type {EngineLimits, Pipeline, SessionState} from './Pipeline.js'
 
 /**
  * What a connection needs of its server
  */
 export interface ConnectionHost {
     pipeline: Pipeline
-    limits: Required<ServerLimits>
+    limits: EngineLimits
     secureContext?: tls.SecureContext
     requestCert: boolean
     clientAuthorities: X509Certificate[]
