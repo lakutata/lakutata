@@ -1047,7 +1047,7 @@ export class Pipeline {
             if (this.options.allowUnauthenticatedBind) return {resultCode: ResultCode.success}
             fail(ResultCode.unwillingToPerform, 'Unauthenticated binds are not allowed')
         }
-        if (!session.secure && !session.inProcess && !session.local && (this.options.plaintextBind === 'none' || (this.options.plaintextBind === 'loopback' && !isLoopback(session.remoteAddress)))) fail(ResultCode.confidentialityRequired, 'A password is sent only over TLS or a Unix socket of this machine')
+        this.passwordsTaken(session)
         const bindRequest: ServerBindRequest = {type: 'bind', name: request.name, dn: dn, authentication: {type: 'simple', password: password}}
         const mount: Mount | undefined = this.route(dn)
         const verify = async (): Promise<ServerOutcome> => {
@@ -1187,6 +1187,8 @@ export class Pipeline {
         } catch {
             fail(ResultCode.protocolError, 'The value of the Password Modify request cannot be decoded')
         }
+        //The passwords of the request, and a generated one in the response, are sent in clear
+        if (!context.internal) this.passwordsTaken(context.session)
         const identity: DN | undefined = context.session.identity
         const target: DN | undefined = request.userIdentity !== undefined ? this.parseDN(request.userIdentity.replace(/^dn:/, '')) : identity
         if (!target) fail(ResultCode.unwillingToPerform, 'An anonymous session has no password to change')
@@ -1259,6 +1261,16 @@ export class Pipeline {
     }
 
     /**
+     * Refuse a password sent in clear where plaintextBind does not allow it (a bind, a write of userPassword, a
+     * Password Modify): TLS, the process and a Unix socket of this machine take passwords whatever it says
+     * @param session The session.
+     */
+    protected passwordsTaken(session: ServerSession): void {
+        if (session.secure || session.inProcess || session.local) return
+        if (this.options.plaintextBind === 'none' || (this.options.plaintextBind === 'loopback' && !isLoopback(session.remoteAddress))) fail(ResultCode.confidentialityRequired, 'A password is sent only over TLS or a Unix socket of this machine')
+    }
+
+    /**
      * The engine's interceptor of the passwords: a password in clear written by an add or a modify is hashed (a hashed
      * value written by an administrator is kept, for an import); a value of a modify deleting a password is matched with
      * the hash it is the password of
@@ -1278,12 +1290,14 @@ export class Pipeline {
             before: async (context: OperationContext, request: ServerRequest): Promise<void> => {
                 if (request.type === 'add') {
                     const given: Buffer[] = request.entry.attributes.filter((attribute: PartialAttribute): boolean => isPassword(attribute.type)).flatMap((attribute: PartialAttribute): Buffer[] => attribute.values)
+                    if (given.length && !context.internal) this.passwordsTaken(context.session)
                     //The plugins check the passwords in clear, before they are hashed
                     if (given.length) await this.checkPasswordChange(mount, context, {dn: request.entry.dn, attributes: request.entry.attributes, passwords: given, self: false, oldGiven: false})
                     request.entry = {dn: request.entry.dn, attributes: await Promise.all(request.entry.attributes.map(async (attribute: PartialAttribute): Promise<PartialAttribute> => isPassword(attribute.type) ? {type: attribute.type, values: await hashed(context, attribute.values)} : attribute))}
                     return
                 }
                 if (request.type !== 'modify' || !request.changes.some((change: {attribute: PartialAttribute}): boolean => isPassword(change.attribute.type))) return
+                if (!context.internal && request.changes.some((change: {attribute: PartialAttribute}): boolean => isPassword(change.attribute.type) && change.attribute.values.length > 0)) this.passwordsTaken(context.session)
                 let current: DirectoryEntry | undefined
                 let oldGiven: boolean = false
                 const changes: ServerModifyRequest['changes'] = []

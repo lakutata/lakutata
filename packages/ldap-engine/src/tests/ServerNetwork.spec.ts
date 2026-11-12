@@ -303,6 +303,18 @@ describe('the limits and the end of the server', () => {
         await secure.bind(`uid=user1,ou=people,${BASE}`, 'password1')
     })
 
+    it('refuses a password in clear in a write too when asked to (an entry added with its password), and takes it over StartTLS', async () => {
+        //Anyone may sign up below the people
+        const {url} = await serve({plaintextBind: 'none', access: {admins: [ADMIN], anonymousRead: true, check: (request: {operation: string, dn: {isDescendantOf(dn: string): boolean}}): boolean | undefined => request.operation === 'add' && request.dn.isDescendantOf(`ou=people,${BASE}`) ? true : undefined}})
+        const plain: LDAPClientConnection = await client(url)
+        await assert.rejects(plain.add(`uid=signup1,ou=people,${BASE}`, {objectClass: 'inetOrgPerson', uid: 'signup1', cn: 'Signup', sn: 'S', userPassword: 'chosen-in-clear'}), (error: unknown) => error instanceof LDAPResultException && error.code === 13)
+        //Without a password, or over TLS: added
+        await plain.add(`uid=signup2,ou=people,${BASE}`, {objectClass: 'inetOrgPerson', uid: 'signup2', cn: 'Signup', sn: 'S'})
+        const secure: LDAPClientConnection = await client({url: url, tls: TLS, startTLS: true})
+        await secure.add(`uid=signup3,ou=people,${BASE}`, {objectClass: 'inetOrgPerson', uid: 'signup3', cn: 'Signup', sn: 'S', userPassword: 'chosen-over-tls'})
+        await secure.bind(`uid=signup3,ou=people,${BASE}`, 'chosen-over-tls')
+    })
+
     it('locks a DN after too many failed binds, with invalidCredentials like any failure', async () => {
         const {url} = await serve({bindThrottle: {maxFailures: 3, lockout: 300, delay: 0}})
         const connection: LDAPClientConnection = await client(url)
