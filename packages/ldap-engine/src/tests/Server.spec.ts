@@ -298,7 +298,7 @@ describe('the server engine', () => {
     it('checks a password given to delete only on one\'s own entry, so that a writer of others\' passwords does not learn them', async () => {
         //A manager writing the passwords of the people
         const MANAGER: string = `cn=manager,${BASE}`
-        const {server: managed, admin: owner} = await directory({access: {admins: [ADMIN], check: (request: {operation: string, identity?: {toString(): string}, dn: {isDescendantOf(dn: string): boolean}}): boolean | undefined => String(request.identity) === MANAGER && request.operation === 'modify' ? request.dn.isDescendantOf(`ou=people,${BASE}`) : undefined}})
+        const {server: managed, admin: owner, backend: stored} = await directory({access: {admins: [ADMIN], check: (request: {operation: string, identity?: {toString(): string}, dn: {isDescendantOf(dn: string): boolean}}): boolean | undefined => String(request.identity) === MANAGER && request.operation === 'modify' ? request.dn.isDescendantOf(`ou=people,${BASE}`) : undefined}})
         await owner.add(MANAGER, {objectClass: ['organizationalRole', 'simpleSecurityObject'], cn: 'manager', userPassword: 'manager-password'})
         const manager: LDAPInProcessConnection = managed.connect()
         await manager.bind(MANAGER, 'manager-password')
@@ -306,6 +306,12 @@ describe('the server engine', () => {
         //The right password and a wrong one answered alike, the password left as it was
         assert.deepEqual([await guess('password5'), await guess('wrong-guess')], [16, 16])
         await managed.connect().bind(`uid=user5,ou=people,${BASE}`, 'password5')
+        //A password stored in clear by an older directory, not yet hashed again by a bind: the same
+        const carried: DirectoryEntry = stored.entries().find((entry: DirectoryEntry): boolean => entry.dn.toString() === `uid=user7,ou=people,${BASE}`)!
+        stored.load([{dn: carried.dn, attributes: carried.attributes.map((attribute) => attribute.type === 'userPassword' ? {type: attribute.type, values: [Buffer.from('carried-in-clear')]} : attribute)}])
+        const guessClear = (value: string): Promise<unknown> => manager.modify(`uid=user7,ou=people,${BASE}`, [{operation: 'delete', attribute: 'userPassword', values: value}, {operation: 'add', attribute: 'userPassword', values: 'by-manager'}]).then((): string => 'success', (error: unknown): string => `${(error as LDAPResultException).code} ${(error as LDAPResultException).diagnosticMessage}`)
+        assert.equal(await guessClear('carried-in-clear'), await guessClear('wrong-guess'))
+        await managed.connect().bind(`uid=user7,ou=people,${BASE}`, 'carried-in-clear')
         //Replacing it is what a writer of passwords does
         await manager.modify(`uid=user5,ou=people,${BASE}`, {operation: 'replace', attribute: 'userPassword', values: 'set-by-manager'})
         await managed.connect().bind(`uid=user5,ou=people,${BASE}`, 'set-by-manager')

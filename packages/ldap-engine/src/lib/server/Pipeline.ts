@@ -1468,6 +1468,9 @@ export class Pipeline {
                         const own: boolean = !context.internal && identity !== undefined && identity.equals(request.dn, schema)
                         for (const value of change.attribute.values) {
                             let match: Buffer | undefined = stored.find((item: Buffer): boolean => item.equals(value))
+                            //On another's entry, a password stored in clear (by an older directory, not yet hashed again
+                            //by a bind) is not matched by its value either: answered as a wrong guess is
+                            if (match && !own && !context.internal && !passwords.isHashed(match)) fail(ResultCode.noSuchAttribute, `${change.attribute.type}: the entry has no such value`)
                             for (const item of own ? stored : []) {
                                 if (match) break
                                 if (await passwords.verify(item, value)) match = item
