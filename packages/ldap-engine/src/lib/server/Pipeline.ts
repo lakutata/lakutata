@@ -803,6 +803,8 @@ export class Pipeline {
     public saslMechanisms(session: ServerSession | undefined): string[] {
         return this.options.sasl.filter((mechanism: SASLMechanism): boolean => {
             if (mechanism.requiresCertificate) return session?.secure === true
+            //Credentials with a password where plaintextBind refuses one: not offered
+            if (mechanism.takesPassword && session && !this.passwordsAllowed(session)) return false
             return mechanism.requiresTLS === false || session?.secure === true || session?.local === true
         }).map((mechanism: SASLMechanism): string => mechanism.name)
     }
@@ -1573,8 +1575,17 @@ export class Pipeline {
      * @param session The session.
      */
     protected passwordsTaken(session: ServerSession): void {
-        if (session.secure || session.inProcess || session.local) return
-        if (this.options.plaintextBind === 'none' || (this.options.plaintextBind === 'loopback' && !isLoopback(session.remoteAddress))) fail(ResultCode.confidentialityRequired, 'A password is sent only over TLS or a Unix socket of this machine')
+        if (!this.passwordsAllowed(session)) fail(ResultCode.confidentialityRequired, 'A password is sent only over TLS or a Unix socket of this machine')
+    }
+
+    /**
+     * Whether a session may send a password (plaintextBind): over TLS, in the process, on a Unix socket, or in clear
+     * where plaintextBind allows it
+     * @param session The session.
+     */
+    protected passwordsAllowed(session: ServerSession): boolean {
+        if (session.secure || session.inProcess || session.local) return true
+        return !(this.options.plaintextBind === 'none' || (this.options.plaintextBind === 'loopback' && !isLoopback(session.remoteAddress)))
     }
 
     /**

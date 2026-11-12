@@ -487,9 +487,13 @@ describe('the limits and the end of the server', () => {
         const {url: clearURL} = await serve({plaintextBind: 'none', sasl: [{...plainMechanism(), requiresTLS: false}]})
         const connection: LDAPClientConnection = await client({url: clearURL})
         const answer = (name: string): Promise<number> => connection.saslBind('PLAIN', Buffer.from(`\0dn:${name}\0password1`)).then((): number => 0, (error: unknown): number => (error as LDAPResultException).code)
-        assert.deepEqual([await answer(`uid=user1,ou=people,${BASE}`), await answer(`uid=nobody,ou=people,${BASE}`)], [13, 13])
-        //Over TLS: taken
+        //Not offered in clear, as the root DSE says: the same answer for both names
+        assert.deepEqual([await answer(`uid=user1,ou=people,${BASE}`), await answer(`uid=nobody,ou=people,${BASE}`)], [7, 7])
+        const offered = async (session: LDAPClientConnection): Promise<string[]> => (await session.search('', {scope: 'base', attributes: ['supportedSASLMechanisms']})).entries[0].get('supportedSASLMechanisms')
+        assert.equal((await offered(connection)).includes('PLAIN'), false)
+        //Over TLS: offered and taken
         const secure: LDAPClientConnection = await client({url: clearURL, tls: TLS, startTLS: true})
+        assert.equal((await offered(secure)).includes('PLAIN'), true)
         await secure.saslBind('PLAIN', Buffer.from(`\0dn:uid=user1,ou=people,${BASE}\0password1`))
     })
 
