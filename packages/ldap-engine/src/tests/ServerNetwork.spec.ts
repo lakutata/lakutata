@@ -318,6 +318,28 @@ describe('the server engine on the network', () => {
         await settle()
         socket.destroy()
         assert.deepEqual([(answer(7)!.protocolOp as {resultCode: number}).resultCode, (answer(9)!.protocolOp as {resultCode: number}).resultCode, starts], [14, 14, 2])
+        //Through the plugins and the events as any bind: a session that must change its password goes on anonymous
+        const POLICY: string = `cn=default,ou=policies,${BASE}`
+        const binds: number[] = []
+        const {server: policed, port: policedPort} = await serve({passwordPolicy: {default: POLICY}})
+        policed.events.on('operation', (event: {operation: string, resultCode: number}) => {
+            if (event.operation === 'bind') binds.push(event.resultCode)
+        })
+        const owner = policed.connect({as: ADMIN})
+        await owner.add(`ou=policies,${BASE}`, {objectClass: 'organizationalUnit', ou: 'policies'})
+        await owner.add(POLICY, {objectClass: ['organizationalRole', 'pwdPolicy'], cn: 'default', pwdAttribute: 'userPassword', pwdMustChange: 'TRUE'})
+        await owner.modify(`uid=user2,ou=people,${BASE}`, {operation: 'replace', attribute: 'userPassword', values: 'reset-by-admin'})
+        const reset: Socket = createConnection({port: policedPort, host: '127.0.0.1'})
+        await once(reset, 'connect')
+        reset.write(encodeMessage({messageId: 1, protocolOp: {type: 'bindRequest', version: 3, name: `uid=user2,ou=people,${BASE}`, authentication: {type: 'simple', password: Buffer.from('reset-by-admin')}}}))
+        await settle()
+        reset.write(Buffer.from([0x30, 0x0e, 0x02, 0x01, 0x02, 0x60, 0x09, 0x02, 0x01, 0x03, 0x04, 0x02, 0xff, 0xfe, 0x80, 0x00]))
+        await settle()
+        reset.write(encodeMessage({messageId: 3, protocolOp: {type: 'searchRequest', baseObject: '', scope: 'base', derefAliases: 'never', sizeLimit: 0, timeLimit: 0, typesOnly: false, filter: Filter.parse('(objectClass=*)'), attributes: ['1.1']}}))
+        const {messages: after} = await received(reset)
+        reset.destroy()
+        const done = [...after].reverse().find((message) => message.messageId === 3)
+        assert.deepEqual([(done!.protocolOp as {resultCode: number}).resultCode, binds], [0, [0, 2]])
     })
 
     it('answers a bind of another version than 3 with protocolError, and closes on a message it cannot frame', async () => {

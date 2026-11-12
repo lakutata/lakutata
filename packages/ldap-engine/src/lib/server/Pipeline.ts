@@ -561,8 +561,10 @@ export class Pipeline {
      * @param controls Its controls.
      * @param responder Where the entries of a search go.
      * @param signal Aborted when the request is abandoned or its connection ends.
+     * @param refusal The answer of a request the connection could not read (a bind it cannot decode), given in place of
+     * running it, the plugins around it and its event as for any request.
      */
-    public async handle(session: SessionState, request: LDAPRequest, controls: Control[], responder: Responder, signal: AbortSignal): Promise<{response: LDAPResponse, controls: Control[]}> {
+    public async handle(session: SessionState, request: LDAPRequest, controls: Control[], responder: Responder, signal: AbortSignal, refusal?: ServerOutcome): Promise<{response: LDAPResponse, controls: Control[]}> {
         const operation: OperationType | undefined = OPERATIONS[request.type]
         if (!operation) throw new LDAPException('E_LDAP_SERVER', `A ${request.type} has no response`)
         const started: number = Date.now()
@@ -580,6 +582,7 @@ export class Pipeline {
         const startTLS: boolean = request.type === 'extendedRequest' && request.name === ExtendedOperation.startTLS && responder.startTLS !== undefined
         let connectionAgreed: boolean = false
         const dispatch = async (): Promise<ServerOutcome> => {
+            if (refusal) return refusal
             switch (request.type) {
                 case 'bindRequest':
                     dn = request.name

@@ -49,6 +49,9 @@ const RESPONSE_OF: Partial<Record<string, LDAPResponse['type']>> = {
 //The operations a client sends: the others end the session (RFC 4511 §4.1.1)
 const REQUESTS: ReadonlySet<string> = new Set([...Object.keys(RESPONSE_OF), 'abandonRequest', 'unbindRequest'])
 
+//A bind the connection could not read, as the plugins and the events see it: anonymous, its values unknown
+const UNREADABLE_BIND: LDAPRequest = {type: 'bindRequest', version: 3, name: '', authentication: {type: 'simple', password: Buffer.alloc(0)}}
+
 /**
  * A network connection of a server: the messages read and dispatched, the binds run one at a time, Abandon, StartTLS,
  * the limits, the entries written as the socket takes them, the Notice of Disconnection
@@ -185,12 +188,18 @@ export class ServerConnection {
             answer()
             return
         }
-        //A bind that cannot be decoded is a failed bind: it ends what is outstanding, waits for the bind in flight, and
-        //leaves the session anonymous, its SASL exchange and paged searches ended
+        //A bind that cannot be decoded is a failed bind: it ends what is outstanding, waits for the bind in flight, goes
+        //through the plugins and the events as any bind, and leaves the session anonymous, its SASL exchange and paged
+        //searches ended; answered protocolError whatever a plugin makes of it
         this.abandonForBind()
         this.queueBind(async (): Promise<void> => {
+            try {
+                await this.host.pipeline.handle(this.session, UNREADABLE_BIND, [], {entry: (): void => undefined}, this.closing.signal, {resultCode: ResultCode.protocolError, diagnosticMessage: error.message})
+            } catch (failure) {
+                this.host.emit('error', failure)
+            }
             this.host.pipeline.failedBind(this.session)
-            answer()
+            if (!this.isClosed) answer()
         })
     }
 
