@@ -1073,8 +1073,13 @@ describe('the server engine', () => {
         assert.deepEqual(await asked(['member;range=4-4']), ['member;range=4-*:1'])
         //Past the last value: nothing
         assert.deepEqual(await asked(['member;range=9-*']), [])
-        //With the attribute itself, and names only
-        assert.deepEqual(await asked(['member', 'MEMBER;Range=0-0']), ['member:5', 'member;range=0-0:1'])
+        //With the attribute itself: the attribute whole, once (RFC 4511 §4.5.1.8: an attribute at most once)
+        assert.deepEqual(await asked(['member', 'MEMBER;Range=0-0']), ['member:5'])
+        assert.deepEqual(await asked(['*', 'member;range=0-1']).then((items) => items.filter((item) => item.startsWith('member'))), ['member:5'])
+        //The same range asked twice, or by a supertype as well: once
+        assert.deepEqual(await asked(['member;range=0-1', 'member;range=0-1']), ['member;range=0-1:2'])
+        assert.deepEqual(await asked(['cn;range=0-*', 'name;range=0-*']), ['cn;range=0-*:1'])
+        //Names only
         assert.deepEqual(await asked(['member;range=0-1'], true), ['member;range=0-1:0'])
         //Not a range: an option the entry does not have
         assert.deepEqual(await asked(['member;range=x']), [])

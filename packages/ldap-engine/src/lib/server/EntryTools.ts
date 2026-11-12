@@ -205,22 +205,28 @@ function hasOptions(description: string, asked: {type: string, options: string[]
 /**
  * The attributes of an entry a search asks for by ranges of their values (`member;range=0-*`): the values of each range,
  * under the description with the range given, its end `*` when its last value is the last of the attribute (the range
- * retrieval of Active Directory); nothing for a range starting past the last value or ending before its start; not
- * userPassword
+ * retrieval of Active Directory); nothing for a range starting past the last value or ending before its start, for an
+ * attribute returned whole (asked for by its name too) or for a range given already; not userPassword
  * @param entry The entry.
  * @param selection The attributes asked for.
  * @param schema The schema.
  * @param typesOnly Whether the descriptions only are returned.
+ * @param returned Whether an attribute description is returned whole (see `returnedBy()`).
  */
-export function rangedAttributes(entry: DirectoryEntry, selection: AttributeSelection, schema: Schema, typesOnly: boolean): PartialAttribute[] {
+export function rangedAttributes(entry: DirectoryEntry, selection: AttributeSelection, schema: Schema, typesOnly: boolean, returned?: (description: string) => boolean): PartialAttribute[] {
     const ranged: PartialAttribute[] = []
+    const given: Set<string> = new Set()
     for (const asked of selection.ranged ?? []) {
         for (const attribute of entry.attributes) {
-            if (schema.primaryName(attributeTypeOf(attribute.type)).toLowerCase() === 'userpassword' || !hasOptions(attribute.type, asked, schema)) continue
+            if (schema.primaryName(attributeTypeOf(attribute.type)).toLowerCase() === 'userpassword' || !hasOptions(attribute.type, asked, schema) || returned?.(attribute.type)) continue
             const count: number = attribute.values.length
             if (asked.low >= count || (asked.high !== undefined && asked.high < asked.low)) continue
             const last: number = Math.min(asked.high ?? count - 1, count - 1)
-            ranged.push({type: `${attribute.type};range=${asked.low}-${last === count - 1 ? '*' : last}`, values: typesOnly ? [] : attribute.values.slice(asked.low, last + 1)})
+            const description: string = `${attribute.type};range=${asked.low}-${last === count - 1 ? '*' : last}`
+            //An attribute at most once (RFC 4511 §4.5.1.8)
+            if (given.has(description.toLowerCase())) continue
+            given.add(description.toLowerCase())
+            ranged.push({type: description, values: typesOnly ? [] : attribute.values.slice(asked.low, last + 1)})
         }
     }
     return ranged

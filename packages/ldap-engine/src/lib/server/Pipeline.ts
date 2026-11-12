@@ -977,7 +977,7 @@ export class Pipeline {
                 outcome.resultCode = ResultCode.sizeLimitExceeded
                 break
             }
-            await responder.entry({type: 'searchResultEntry', objectName: entry.dn.toString(), attributes: [...selectAttributes(entry, returned, context.typesOnly), ...rangedAttributes(entry, selection, this.schema, context.typesOnly)]})
+            await responder.entry({type: 'searchResultEntry', objectName: entry.dn.toString(), attributes: [...selectAttributes(entry, returned, context.typesOnly), ...rangedAttributes(entry, selection, this.schema, context.typesOnly, returned)]})
             count++
         }
         outcome.entries = undefined
