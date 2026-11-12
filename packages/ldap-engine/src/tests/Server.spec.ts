@@ -892,6 +892,13 @@ describe('the server engine', () => {
         for (const timeLimit of [2147483647, 2147484]) assert.equal((await slow.connect().search('ou=devices,dc=example,dc=com', {scope: 'base', timeLimit: timeLimit, paged: false})).entries.length, 1)
     })
 
+    it('evaluates a presence of an attribute the schema does not know as undefined, in a not too', async () => {
+        const people: string = `ou=people,${BASE}`
+        assert.equal((await admin.search(people, {scope: 'one', filter: '(!(shoeSize=*))', paged: false})).entries.length, 0)
+        assert.deepEqual((await admin.search(people, {scope: 'one', filter: '(!(&(shoeSize=*)(uid=user1)))', attributes: ['uid'], paged: false})).entries.some((entry) => entry.first('uid') === 'user1'), false)
+        assert.equal((await admin.search(people, {scope: 'one', filter: '(|(shoeSize=*)(uid=user1))', paged: false})).entries.length, 1)
+    })
+
     it('refuses a critical control it does not know', async () => {
         await assert.rejects(admin.search(BASE, {controls: [{oid: '1.2.3.4.5', critical: true}]}), LDAPUnavailableCriticalExtensionException)
         assert.ok((await admin.search(BASE, {scope: 'base', controls: [{oid: '1.2.3.4.5', critical: false}]})).entries.length)

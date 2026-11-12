@@ -222,7 +222,7 @@ describe('the matching rules', () => {
         assert.equal(match('(&(uid=bob)(unknownAttribute=x))'), false)
         assert.equal(match('(|(uid=alice)(unknownAttribute=x))'), true)
         assert.equal(match('(uidNumber>=many)'), undefined)
-        assert.equal(match('(unknownAttribute=*)'), false)
+        assert.equal(match('(unknownAttribute=*)'), undefined)
         assert.equal(match('(&)'), true)
         assert.equal(match('(|)'), false)
     })

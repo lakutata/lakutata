@@ -234,6 +234,8 @@ export function matchFilter(filter: Filter, entry: FilterEntry, schema?: Schema)
             return value === undefined ? undefined : !value
         }
         case 'present':
+            //An attribute the schema does not know: undefined, as (shoeSize=*) in RFC 4511 §4.5.1.7
+            if (schema && !schema.attributeType(attributeTypeOf(filter.attribute))) return undefined
             return entry.attributes.some((attribute: PartialAttribute): boolean => {
                 const type: string = attributeTypeOf(attribute.type)
                 const wanted: string = attributeTypeOf(filter.attribute)
