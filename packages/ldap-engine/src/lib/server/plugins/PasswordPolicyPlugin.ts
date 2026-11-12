@@ -44,9 +44,11 @@ export interface PasswordPolicyPluginOptions extends PasswordPolicyOptions, Base
  */
 export class PasswordPolicyPlugin extends BaseLDAPPlugin {
     /**
-     * The control of the policy: its warnings and errors in the responses
+     * The control of the policy: its warnings and errors in the responses. It may come with any request
+     * (draft-behera-ldap-password-policy §6.1), applied around the request, the entries the server serves itself
+     * included
      */
-    public readonly controls: PluginControl[] = [{oid: PasswordPolicyRequestControl.oid, operations: ['bind', 'add', 'modify', 'extended']}]
+    public readonly controls: PluginControl[] = [{oid: PasswordPolicyRequestControl.oid, serverEntries: true}]
 
     /**
      * The policy
