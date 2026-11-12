@@ -22,6 +22,7 @@ import {
     LDAPNotAllowedOnNonLeafException,
     LDAPObjectClassViolationException,
     LDAPResultException,
+    LDAPUsageException,
     type LDAPServerEngine,
     LDAPUnavailableCriticalExtensionException,
     LDAPUnwillingToPerformException,
@@ -1049,7 +1050,17 @@ describe('the server engine', () => {
                 return {done: true, identity: DN.parse(dn)}
             }
         })
-        const stepping: LDAPServerEngine = createLDAPServer({backends: [new Listing('dc=b,dc=example,dc=com')], access: {admins: [ADMIN]}, passwords: {iterations: 1000}, sasl: [twoSteps('VERIFY-FIRST', true), twoSteps('VERIFY-LAST', false)]})
+        let starts: number = 0
+        const counted = {
+            name: 'COUNTED',
+            requiresTLS: false,
+            start: async () => {
+                starts++
+                return {done: false, serverCredentials: Buffer.from('next')}
+            },
+            step: async () => ({done: true, identity: DN.parse('uid=u,dc=b,dc=example,dc=com')})
+        }
+        const stepping: LDAPServerEngine = createLDAPServer({backends: [new Listing('dc=b,dc=example,dc=com')], access: {admins: [ADMIN]}, passwords: {iterations: 1000}, sasl: [twoSteps('VERIFY-FIRST', true), twoSteps('VERIFY-LAST', false), counted]})
         await stepping.connect({as: ADMIN}).add('dc=b,dc=example,dc=com', {objectClass: 'domain', dc: 'b'})
         await stepping.connect({as: ADMIN}).add('uid=u,dc=b,dc=example,dc=com', {objectClass: ['account', 'simpleSecurityObject'], uid: 'u', userPassword: 'secret-u'})
         const credentials: Buffer = Buffer.from('uid=u,dc=b,dc=example,dc=com\0secret-u')
@@ -1057,6 +1068,12 @@ describe('the server engine', () => {
         await stepping.connect().saslBind('VERIFY-FIRST', credentials, {controls: critical, step: () => Buffer.from('more')})
         //A first step reaching no backend yet: refused there
         await assert.rejects(stepping.connect().saslBind('VERIFY-LAST', credentials, {controls: critical, step: () => Buffer.from('more')}), code(12))
+        //A step refused for its controls ends the exchange: the mechanism starts again on the next bind
+        const resumed: LDAPInProcessConnection = stepping.connect()
+        await assert.rejects(resumed.saslBind('COUNTED', Buffer.from('first')), LDAPUsageException)
+        await assert.rejects(resumed.saslBind('COUNTED', Buffer.from('second'), {controls: critical}), code(12))
+        await resumed.saslBind('COUNTED', Buffer.from('first'), {step: () => Buffer.from('second')})
+        assert.equal(starts, 2)
         //A Password Modify refuses the control before it checks the old password
         await assert.rejects(owner.passwordModify({userIdentity: 'uid=u,dc=a,dc=example,dc=com', oldPassword: 'wrong-old', newPassword: 'changed-u', controls: critical}), code(12))
     })

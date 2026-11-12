@@ -1400,11 +1400,12 @@ export class Pipeline {
         let step: SASLStep
         try {
             step = continuing && mechanism.step ? await mechanism.step(saslContext, credentials) : await mechanism.start(saslContext, credentials)
+            //Refused for its controls, the exchange ends as on any failure
+            if (!verified) this.checkMountControls(SASL_MOUNTS.get(state), context.controls)
         } catch (error) {
             session.sasl = undefined
             throw error
         }
-        if (!verified) this.checkMountControls(SASL_MOUNTS.get(state), context.controls)
         if (!step.done) {
             session.sasl = {mechanism: mechanism, state: state}
             return {resultCode: ResultCode.saslBindInProgress, serverSaslCredentials: step.serverCredentials ?? Buffer.alloc(0)}
