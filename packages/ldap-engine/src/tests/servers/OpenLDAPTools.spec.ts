@@ -108,9 +108,10 @@ describe('against the command line tools of OpenLDAP', {skip: !CONTAINER}, () =>
         const user = ['-x', '-H', ldap, '-D', `uid=user1,ou=people,${BASE}`, '-w', 'password1']
         const limited = await run('ldapsearch', [...user, '-LLL', '-b', `ou=people,${BASE}`, '-s', 'one', '1.1'])
         assert.equal(limited.code, 4)
+        //Paged: the pages together within the size limit, as OpenLDAP counts them (size.prtotal)
         const paged = await run('ldapsearch', [...user, '-LLL', '-b', `ou=people,${BASE}`, '-s', 'one', '-E', 'pr=2/noprompt', '1.1'])
-        assert.equal(paged.code, 0, paged.stderr)
-        assert.equal((paged.stdout.match(/^dn: /gm) ?? []).length, 5)
+        assert.equal(paged.code, 4, paged.stderr)
+        assert.equal((paged.stdout.match(/^dn: /gm) ?? []).length, 3)
         const sorted = await run('ldapsearch', [...admin(), '-LLL', '-b', `ou=people,${BASE}`, '-s', 'one', '-E', 'sss=cn', 'cn'])
         assert.deepEqual([...sorted.stdout.matchAll(/^cn: (.*)$/gm)].map((match) => match[1]), ['User 1', 'User 2', 'User 3', 'User 4', 'User 5'])
         const window = await run('ldapsearch', [...admin(), '-LLL', '-b', `ou=people,${BASE}`, '-s', 'one', '-E', 'sss=cn', '-E', 'vlv=0/1/2/0', 'cn'])
