@@ -33,7 +33,6 @@ import {
     LDAPEntryAlreadyExistsException,
     matchFilter,
     type ObjectClassDefinition,
-    onceBound,
     type OperationContext,
     type PartialAttribute,
     ResultCode,
@@ -975,10 +974,8 @@ export class DirectoryBackend extends Component implements LDAPBackend {
                     operations: ['bind'],
                     around: async (context: OperationContext, request: ServerRequest, next: () => Promise<ServerOutcome>): Promise<ServerOutcome> => {
                         const outcome: ServerOutcome = await next()
-                        //Only a bind that succeeds, once it does: refused after (by a plugin around it, an interceptor
-                        //outside this one), it keeps no time; a write failing leaves the bind done
-                        const dn: DN | undefined = request.type === 'bind' ? request.dn : undefined
-                        if (dn && outcome.resultCode === ResultCode.success) await onceBound(context, (finishing: OperationContext): Promise<void> => this.writeOperational(finishing, dn, 'authTimestamp', formatGeneralizedTime(new Date()).replace(/\.\d+Z$/, 'Z'), true).catch((): undefined => undefined))
+                        //Only a bind that succeeded: an interceptor inside may answer one without the password checked
+                        if (request.type === 'bind' && request.dn && outcome.resultCode === ResultCode.success) await this.writeOperational(context, request.dn, 'authTimestamp', formatGeneralizedTime(new Date()).replace(/\.\d+Z$/, 'Z'), true).catch((): undefined => undefined)
                         return outcome
                     }
                 }
