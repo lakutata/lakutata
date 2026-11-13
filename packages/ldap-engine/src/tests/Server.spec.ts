@@ -1311,6 +1311,50 @@ describe('the server engine', () => {
         createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ROOT], adminPasswords: {[ROOT]: '{OWN}secret'}}, passwords: new PasswordSchemes({iterations: 1000}).register({name: 'OWN', verify: async () => false})})
     })
 
+    it('lets a password administrator change the passwords of the others, not those of the administrators', async () => {
+        const BOSS: string = `cn=boss,${BASE}`
+        const CHIEF: string = `cn=chief,${BASE}`
+        const ROOT: string = 'cn=root,o=configuration'
+        const HELPDESK: string = `uid=user20,ou=people,${BASE}`
+        const USER: string = `uid=user21,ou=people,${BASE}`
+        const OTHER: string = `uid=user22,ou=people,${BASE}`
+        const {server: engine, admin: owner} = await directory({access: {admins: [ADMIN, BOSS, CHIEF, ROOT], passwordAdmins: [HELPDESK], adminPasswords: {[ROOT]: 'root-secret'}}})
+        for (const dn of [BOSS, CHIEF]) await owner.add(dn, {objectClass: ['organizationalRole', 'simpleSecurityObject'], cn: dn.slice(3, dn.indexOf(',')), userPassword: `${dn.slice(3, dn.indexOf(','))}-password`})
+        const bound = async (dn: string, password: string): Promise<LDAPInProcessConnection> => {
+            const connection: LDAPInProcessConnection = engine.connect()
+            await connection.bind(dn, password)
+            return connection
+        }
+        //Who changes whose password, by a Password Modify or a modify of userPassword, and what it is answered
+        const actors: {name: string, dn: string, connection: LDAPInProcessConnection}[] = [
+            {name: 'an administrator', dn: BOSS, connection: await bound(BOSS, 'boss-password')},
+            {name: 'a password administrator', dn: HELPDESK, connection: await bound(HELPDESK, 'password20')},
+            {name: 'a user', dn: USER, connection: await bound(USER, 'password21')}
+        ]
+        const expected: Record<string, Record<string, [number, number | undefined]>> = {
+            'an administrator': {self: [0, 0], user: [0, 0], 'an administrator with an entry': [0, 0], 'an administrator of the options': [53, undefined]},
+            'a password administrator': {self: [0, 0], user: [0, 50], 'an administrator with an entry': [50, 50], 'an administrator of the options': [50, undefined]},
+            'a user': {self: [0, 0], user: [50, 50], 'an administrator with an entry': [50, 50], 'an administrator of the options': [50, undefined]}
+        }
+        const wrong: string[] = []
+        for (const [index, actor] of actors.entries()) {
+            for (const [target, dn] of [['self', actor.dn], ['user', OTHER], ['an administrator with an entry', CHIEF], ['an administrator of the options', ROOT]] as [string, string][]) {
+                const [byPasswordModify, byModify] = expected[actor.name][target]
+                const answerOf = (operation: Promise<unknown>): Promise<number> => operation.then(() => 0, (error: unknown) => error instanceof LDAPResultException ? error.code : -1)
+                const answered: number = await answerOf(actor.connection.passwordModify(target === 'self' ? {newPassword: `set-by-${index}`} : {userIdentity: dn, newPassword: `set-by-${index}`}))
+                if (answered !== byPasswordModify) wrong.push(`${actor.name}, ${target}, Password Modify: ${answered}`)
+                if (byModify === undefined) continue
+                const modified: number = await answerOf(actor.connection.modify(dn, {operation: 'replace', attribute: 'userPassword', values: `written-by-${index}`}))
+                if (modified !== byModify) wrong.push(`${actor.name}, ${target}, modify: ${modified}`)
+            }
+        }
+        assert.deepEqual(wrong, [])
+        //The passwords of the administrators as the administrator left them, none of those the others tried
+        await bound(ROOT, 'root-secret')
+        await bound(CHIEF, 'written-by-0')
+        for (const password of ['set-by-1', 'written-by-1', 'set-by-2', 'written-by-2']) await assert.rejects(engine.connect().bind(CHIEF, password), code(49), password)
+    })
+
     it('hashes a password again at a bind only while the entry still holds the value the bind matched', async () => {
         const USER: string = `uid=rehashed,${BASE}`
         const GONE: string = `uid=gone,${BASE}`

@@ -142,7 +142,9 @@ export class AccessPolicy {
             case 'read':
                 return identity ? this.options.authenticatedRead !== false : this.options.anonymousRead === true
             case 'passwordModify':
-                return identity !== undefined && (identity.equals(request.dn, this.schema) || this.passwordAdmins.has(identity.key(this.schema)))
+                //A password administrator changes the passwords of the others but those of the administrators: a password
+                //it set would let it bind as one
+                return identity !== undefined && (identity.equals(request.dn, this.schema) || (this.passwordAdmins.has(identity.key(this.schema)) && !this.isAdmin(request.dn)))
             case 'modify':
                 //A session changes its own password with a modify too
                 return identity !== undefined && identity.equals(request.dn, this.schema) && request.attributes !== undefined && request.attributes.length > 0 && request.attributes.every((name: string): boolean => name.toLowerCase() === 'userpassword')
