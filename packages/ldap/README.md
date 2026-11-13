@@ -101,9 +101,9 @@ migrations are the application's, as for its other entities.
   would. A sort key follows the ordering rule of its attribute when the value is written: after the schema changes that
   rule, the values written before keep their old keys until they are written again (OpenLDAP likewise rebuilds its
   indexes with slapindex). An entry without a value of a sort key comes after the others, and before them in reverse
-  (RFC 2891). With `access.check`, or an interceptor that removes entries from searches, the server sorts
-  and windows a virtual list view itself, within `limits.sortCandidates`, so that its counts leave out what the session
-  may not read.
+  (RFC 2891). With `access.check` (unless `access.checkReads` is false, as for a check that does not
+  decide reads), or an interceptor that removes entries from searches, the server sorts and windows a virtual list view
+  itself, within `limits.sortCandidates`, so that its counts leave out what the session may not read.
 - The entries of a search come in a set order: an entry before the entries below it, siblings in the order they were
   added (entryUUID is a UUID of version 7, whose order is the order of creation; an entry imported with its own
   entryUUID takes its place by that value). Entries with equal sort keys keep this order.

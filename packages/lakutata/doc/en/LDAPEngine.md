@@ -482,9 +482,13 @@ await server.listen({port: 389})
 - With `access.check`, a search asks `read` for each entry as the backend stores it, before the server adds the
   operational attributes it computes and before any plugin changes the entry. Entries the session may not read are left
   out before the search is paged, windowed or counted, so pages and the virtual list view contain and count only what
-  the session may read. The server then sorts a virtual list view itself, within `limits.sortCandidates`. An entry an
-  interceptor of one's own adds to a search, or returns as a new object, is checked again once the whole chain has run,
-  with whatever the later steps added to it.
+  the session may read. The server then sorts and windows a virtual list view itself, within `limits.sortCandidates`,
+  even when the backend could. An entry an interceptor of one's own adds to a search, or returns as a new object, is
+  checked again once the whole chain has run, with whatever the later steps added to it.
+- A check that does not decide reads (one that decides only writes, say) sets `access.checkReads` to false: it is
+  then never asked about `read`, the table decides what sessions read, and the backend sorts, windows and pages as it
+  does without a check. With `checkReads: false`, a session the table does not let read has its searches refused with
+  insufficientAccessRights, even where the check allows the search.
 - A search of the base alone (scope `base`) that the session may not read is answered as if the base did not exist,
   and a matched DN names only entries the session may read. A search below that base still returns the entries the
   session may read, so its answer shows that the base exists. To hide that an entry exists, refuse `search` on its DN:
@@ -501,7 +505,12 @@ await server.listen({port: 389})
   of its filter; for every session, the size of the messages, the requests outstanding, the connections and the idle
   time. The size limit of a paged search covers all of its pages together: once it is reached, the search ends with
   sizeLimitExceeded if the session could still read more entries. For sessions that are not administrators,
-  `pagedSizeLimit` sets a separate limit for paged searches (the same as `sizeLimit` when unset, 0 for none).
+  `pagedSizeLimit` sets a separate limit for paged searches (the same as `sizeLimit` when unset, 0 for none). The
+  server sorts at most `sortCandidates` entries in memory (10000 by default); a sort the backend does itself is not
+  bound by it. Past that number, a search whose sort or virtual list view is critical is refused with
+  unavailableCriticalExtension (the engine's client sends both as critical for a `window`, and a sort on its own as not
+  critical); otherwise every entry comes back, neither sorted nor windowed, with adminLimitExceeded in the sort
+  response control (RFC 2891).
 
 ## 12. Passwords and the password policy
 
@@ -726,14 +735,14 @@ await server.listen({port: 389})
   edits; a change an interceptor removed stays removed, and one it added (or replaced with a new object) is written as
   it is.
 - A backend that sorts, windows or pages itself declares it in its `capabilities`, and `sortSearchItems()` orders its
-  own records as the server would. When entries can be left out one by one (`access.check`, or an interceptor after
-  `paging` that has a `transformEntry()` or an `around()` for searches), the server does the virtual list view and the
-  paging itself. The backend still sorts a sorted search, but the server also sorts for a virtual list view. A backend
-  doing the work of a plugin (`memberOf`, `referentialIntegrity`, `idAllocation`, `lastBind`) declares it there too, and
-  the plugin leaves its chain. The controls a backend handles go in `capabilities.controls`: a request with one of them
-  critical is refused when it reaches a different backend or none at all: an anonymous or unauthenticated bind, a step
-  of a SASL exchange that has verified no password so far, or an extended operation. Password Modify is checked against
-  the backend of the entry it changes.
+  own records as the server would. When entries can be left out one by one (`access.check` without `checkReads: false`,
+  or an interceptor after `paging` that has a `transformEntry()` or an `around()` for searches), the server does the
+  virtual list view and the paging itself. The backend still sorts a sorted search, but the server also sorts for a
+  virtual list view. A backend doing the work of a plugin (`memberOf`, `referentialIntegrity`, `idAllocation`,
+  `lastBind`) declares it there too, and the plugin leaves its chain. The controls a backend handles go in
+  `capabilities.controls`: a request with one of them critical is refused when it reaches a different backend or none at
+  all: an anonymous or unauthenticated bind, a step of a SASL exchange that has verified no password so far, or an
+  extended operation. Password Modify is checked against the backend of the entry it changes.
 
 ## 15. The protocol
 
