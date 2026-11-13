@@ -54,10 +54,11 @@ export interface AccessOptions {
     admins?: string[]
     /**
      * The passwords of administrators, by their DNs (each among `admins`), in clear or hashed (`{SCHEME}`), like the
-     * rootdn and rootpw of OpenLDAP but stricter: such an administrator binds only with this password, whether or not
-     * an entry has its DN (OpenLDAP's back-mdb also takes the entry's userPassword when the rootpw does not match,
-     * ITS#4962); the entry's userPassword and password policy are ignored, the bind throttle still applies, and a
-     * Password Modify changes the entry's userPassword, not this password
+     * rootdn and rootpw of OpenLDAP but stricter: a simple or SASL PLAIN bind of such an administrator takes only this
+     * password, whether or not an entry has its DN (OpenLDAP's back-mdb also takes the entry's userPassword when the
+     * rootpw does not match, ITS#4962). The entry's userPassword and the plugins' checks of a bind (a password policy)
+     * do not apply, the bind throttle does; a Password Modify of it is refused (it is changed here); a value starting
+     * with `{…}` whose scheme the server does not have stops the server at its start
      */
     adminPasswords?: Record<string, string>
     /**

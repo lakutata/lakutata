@@ -457,10 +457,15 @@ await server.listen({port: 389})
 ```
 
 - `access.adminPasswords` gives administrators their passwords by DN, in clear or hashed (`{SCHEME}`), like OpenLDAP's
-  rootdn and rootpw but stricter: such an administrator binds only with that password, whether or not an entry has its
-  DN (OpenLDAP's back-mdb also takes the entry's userPassword when the rootpw does not match). The entry's userPassword
-  and password policy are ignored, the bind throttle still applies, and a Password Modify changes the entry's
-  userPassword, not this password. The administrator's credentials then stay out of the data it governs.
+  rootdn and rootpw but stricter: a simple or SASL PLAIN bind of such an administrator takes only that password, whether
+  or not an entry has its DN (OpenLDAP's back-mdb also takes the entry's userPassword when the rootpw does not match).
+  The administrator's credentials then stay out of the data it governs. The entry's userPassword and the checks plugins
+  make at a bind, such as the password policy, do not apply to it; the bind throttle does. A SASL mechanism that
+  establishes an identity without a password (SASL EXTERNAL with a client certificate, or a mechanism of the
+  application's that does the same) does not check this password. A Password Modify for such an administrator is refused
+  with unwillingToPerform; the password is changed in the options. A write to the entry's userPassword is allowed and
+  does not change this password. If a value begins with `{…}` and names a scheme the server does not have, the server
+  refuses to start, so a clear password that begins with `{…}` must be given hashed.
 - `access.check` decides first: `true` allows, `false` refuses, `undefined` leaves it to the table. It is given the
   operation (`read` for what a search returns or a compare reads), the DN, the session's identity, and the entry or the
   attributes when they are known. For a rename it is asked three times: `modifyDN` about the entry; `modifyDN` about the
@@ -503,7 +508,7 @@ of the server (`rehashOnBind`). An administrator may write a hashed value as it 
 `rehashOnBind`, a value in another scheme than the server's is replaced at its first successful bind, the only time the
 password is known in clear. To keep it (a hash an application also checks), turn `rehashOnBind` off; an application may
 also register a scheme of its own with `PasswordSchemes.register()` (a native bcrypt, say) and give the server those
-schemes. a value written by anyone else is treated as a password in clear, even if it looks hashed. When a modify
+schemes. A value written by anyone else is treated as a password in clear, even if it looks hashed. When a modify
 deletes a password given in clear (the old password of a change), it is checked against the stored one only on the
 session's own entry; to change someone else's password, replace it.
 
@@ -607,8 +612,13 @@ await server.listen({port: 389})
   rest of the chain, `transformEntry()` changes the entries a search returns, and `beforeCommit()` runs in the
   transaction of a write, on a backend that has transactions. Throwing an `LDAPResultException` answers with its code. A
   `bind` interceptor runs around the password check of a simple bind and of a SASL PLAIN bind;
-  `request.authentication.type` tells which. If it returns a result other than success instead of throwing, the bind
-  fails with that result. These binds do not go through it: anonymous and unauthenticated binds, a bind of a DN no
+  `request.authentication.type` tells which. The bind succeeds only when the chain answers success, so an `around()`
+  must return the outcome of `next()` or an outcome of its own. If it returns a result other than success instead of
+  throwing, the bind fails with that result; if it returns nothing, or a value without a result code, the bind fails
+  with other (80). An `around()` that answers success without calling `next()` authenticates the bind itself: the
+  password check, the checks plugins make at a bind and the bind throttle are all skipped, so a locked account binds. A
+  plugin's `authenticate()` that returns without calling `verify()` skips the password check and the throttle in the
+  same way. These binds do not go through a `bind` interceptor: anonymous and unauthenticated binds, a bind of a DN no
   backend holds, an administrator bound by `access.adminPasswords`, and SASL EXTERNAL.
 - An interceptor is placed before or after one of the server's own steps (`access`, `password`, `schema`, `operational`,
   `paging`) by `{interceptor, before: 'schema'}`, and otherwise at the end of the chain, after them all: what it adds to

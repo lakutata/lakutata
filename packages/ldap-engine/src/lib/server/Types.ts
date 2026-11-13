@@ -651,7 +651,9 @@ export interface LDAPInterceptor {
      */
     before?(context: OperationContext, request: ServerRequest): Promise<void> | void
     /**
-     * Run around the rest of the chain, which `next()` runs
+     * Run around the rest of the chain, which `next()` runs. A bind succeeds only on an answer of success: an answer
+     * without a result code (nothing, null or `{}`) fails it with other, and success answered without `next()` binds
+     * with no password checked (the interceptor authenticates the bind itself)
      * @param context The context of the operation.
      * @param request The request.
      * @param next The rest of the chain.
@@ -857,7 +859,7 @@ export interface LDAPPlugin {
     aroundRequest?(context: OperationContext, request: LDAPRequest, next: () => Promise<ServerOutcome>): Promise<ServerOutcome>
     /**
      * Run around the check of a password (a simple bind, a SASL PLAIN bind): `verify` throws invalidCredentials when
-     * it is wrong
+     * it is wrong; returning without calling it binds with no password checked (the plugin authenticates the bind)
      * @param context The context of the bind.
      * @param bind The DN, and its entry as it is (undefined when there is none).
      * @param verify The check of the password.
