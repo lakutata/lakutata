@@ -1710,6 +1710,24 @@ describe('the server engine', () => {
         for (const password of ['set-by-1', 'written-by-1', 'set-by-2', 'written-by-2']) await assert.rejects(engine.connect().bind(CHIEF, password), code(49), password)
     })
 
+    it('checks a password of its own scheme for a DN with no entry or no password, as for a wrong one', async () => {
+        //The checks the server makes, by the scheme of the value checked
+        const schemes: PasswordSchemes = new PasswordSchemes({iterations: 1000})
+        const own: PasswordSchemes['verify'] = schemes.verify.bind(schemes)
+        const checked: string[] = []
+        schemes.verify = async (stored: Buffer | string, password: Buffer | string): Promise<boolean> => {
+            checked.push(String(stored).slice(0, String(stored).indexOf('}') + 1))
+            return own(stored, password)
+        }
+        const {server: engine, admin: owner} = await directory({passwords: schemes})
+        await owner.add(`cn=no-password,${BASE}`, {objectClass: 'organizationalRole', cn: 'no-password'})
+        for (const dn of [`uid=nobody,ou=people,${BASE}`, `cn=no-password,${BASE}`, `uid=user10,ou=people,${BASE}`]) {
+            checked.length = 0
+            await assert.rejects(engine.connect().bind(dn, 'wrong'), code(49), dn)
+            assert.deepEqual(checked, ['{PBKDF2-SHA512}'], dn)
+        }
+    })
+
     it('hashes a password again at a bind only while the entry still holds the value the bind matched', async () => {
         const USER: string = `uid=rehashed,${BASE}`
         const GONE: string = `uid=gone,${BASE}`

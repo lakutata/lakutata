@@ -456,6 +456,11 @@ export class Pipeline {
 
     protected readonly started: Date = new Date()
 
+    /**
+     * A hash in the scheme of the server of a password nobody gives, made once
+     */
+    protected unmatchableHash: Promise<string> | undefined
+
     constructor(public readonly options: PipelineOptions) {
         this.schema = options.schema
         this.access = new AccessPolicy(options.access, options.schema)
@@ -1454,6 +1459,8 @@ export class Pipeline {
                     break
                 }
             }
+            //No value to check (no entry, no password): the same check as for a wrong password, then the failure
+            if (!matched && !stored.length) await this.options.passwords.verify(await this.unmatchable(), password)
             if (!matched) return failed()
             if (this.options.rehashOnBind && this.options.passwords.needsRehash(matched) && mount.backend.modify) {
                 const rehashed: Buffer = Buffer.from(await this.options.passwords.hash(password))
@@ -1499,6 +1506,14 @@ export class Pipeline {
     protected async throttleSucceeded(checking: OperationContext, finishing: OperationContext, key: string): Promise<void> {
         if (finishing !== checking && (await this.options.throttle.check([key])).locked) return
         await this.options.throttle.success(key)
+    }
+
+    /**
+     * The hash checked for a DN with no value to check, so that its bind takes the check a wrong password takes
+     */
+    protected unmatchable(): Promise<string> {
+        this.unmatchableHash ??= this.options.passwords.hash(randomBytes(32))
+        return this.unmatchableHash
     }
 
     /**
