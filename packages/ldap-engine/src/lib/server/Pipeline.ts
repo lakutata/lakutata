@@ -423,12 +423,16 @@ function isLoopback(address: string | undefined): boolean {
  * requests to `handle()`.
  */
 /**
- * The answer of the chain of a bind: one without a result code (an interceptor returning nothing, null or `{}`) is
- * other, so that only an answer of success binds
+ * The answer of the chain of a bind, or of one of its interceptors: one without a result code (an interceptor returning
+ * nothing, null or `{}`) is other, and so is success while the password has not been checked (an interceptor answering
+ * success without next(), or swallowing its refusal), so that only a password checked binds
  * @param outcome The answer.
+ * @param passed Whether the password has been checked.
  */
-function answerOfBind(outcome: ServerOutcome | null | undefined): ServerOutcome {
-    return Number.isInteger(outcome?.resultCode) ? outcome! : {resultCode: ResultCode.other, diagnosticMessage: 'An interceptor of the bind gave no answer'}
+function answerOfBind(outcome: ServerOutcome | null | undefined, passed: boolean): ServerOutcome {
+    if (!Number.isInteger(outcome?.resultCode)) return {resultCode: ResultCode.other, diagnosticMessage: 'An interceptor of the bind gave no answer'}
+    if (outcome!.resultCode === ResultCode.success && !passed) return {resultCode: ResultCode.other, diagnosticMessage: 'An interceptor of the bind answered success without the password checked'}
+    return outcome!
 }
 
 export class Pipeline {
@@ -660,15 +664,18 @@ export class Pipeline {
 
     /**
      * A bind with a password: its verification, within the password policy when there is one; invalidCredentials when
-     * it fails
+     * it fails, other when a plugin's hook returned without the password checked (not calling verify, or swallowing its
+     * refusal)
      * @param session The session.
      * @param context The context of the bind.
      * @param dn The DN.
      * @param password The password.
      */
     public async authenticate(session: SessionState, context: OperationContext, dn: DN, password: Buffer): Promise<void> {
+        let passed: boolean = false
         const verify = async (): Promise<void> => {
             if (!await this.verifyPassword(session, context, dn, password)) fail(ResultCode.invalidCredentials, 'Invalid credentials')
+            passed = true
         }
         const mount: Mount | undefined = this.route(dn)
         //An administrator whose password the options give is not under the plugins of an entry (a password policy)
@@ -683,6 +690,8 @@ export class Pipeline {
             run = (): Promise<void> => plugin.authenticate!(context, {dn: dn, entry: entry}, inner)
         }
         await run()
+        //Only a password checked binds: a hook does not authenticate a bind in its place
+        if (!passed) fail(ResultCode.other, 'A plugin\'s authenticate() returned without the password checked')
     }
 
     /**
@@ -1083,8 +1092,9 @@ export class Pipeline {
      * @param context The context.
      * @param request The request.
      * @param last The end of the chain.
+     * @param settle What the answer of each interceptor becomes before the interceptor around it gets it (a bind's).
      */
-    protected async run(mount: Mount, context: OperationContext, request: ServerRequest, last: () => Promise<ServerOutcome>): Promise<ServerOutcome> {
+    protected async run(mount: Mount, context: OperationContext, request: ServerRequest, last: () => Promise<ServerOutcome>, settle?: (outcome: ServerOutcome | null | undefined) => ServerOutcome): Promise<ServerOutcome> {
         let next: () => Promise<ServerOutcome> = last
         for (let index: number = mount.chain.length - 1; index >= 0; index--) {
             const interceptor: LDAPInterceptor = mount.chain[index]
@@ -1092,7 +1102,8 @@ export class Pipeline {
             const inner: () => Promise<ServerOutcome> = next
             next = async (): Promise<ServerOutcome> => {
                 if (interceptor.before) await interceptor.before(context, request)
-                const outcome: ServerOutcome = interceptor.around ? await interceptor.around(context, request, inner) : await inner()
+                const answered: ServerOutcome = interceptor.around ? await interceptor.around(context, request, inner) : await inner()
+                const outcome: ServerOutcome = settle ? settle(answered) : answered
                 if (interceptor.transformEntry && outcome.entries) {
                     const entries: AsyncIterable<DirectoryEntry> = outcome.entries
                     const transform: NonNullable<LDAPInterceptor['transformEntry']> = interceptor.transformEntry.bind(interceptor)
@@ -1328,13 +1339,18 @@ export class Pipeline {
         //An administrator whose password the options give binds by them, through no backend's chain (it may have no entry)
         const mount: Mount | undefined = this.access.adminPassword(dn) ? undefined : this.route(dn)
         this.checkMountControls(mount, context.controls)
+        //The password checked once the plugins' hooks around the check are done with it
+        let passed: boolean = false
         const verify = async (): Promise<ServerOutcome> => {
             await this.authenticate(session, context, dn, password)
+            passed = true
             return {resultCode: ResultCode.success}
         }
-        //The bind succeeds only on an answer of success from its chain: an interceptor answering otherwise instead of
-        //throwing fails it with that answer, one answering nothing with other
-        const chained: ServerOutcome = answerOfBind(await (mount ? this.run(mount, context, bindRequest, verify) : verify()))
+        //The bind succeeds only on an answer of success from its chain with the password checked: an interceptor answering
+        //otherwise instead of throwing fails it with that answer, one answering nothing or success without the check with
+        //other; so does each interceptor's answer before the one around it gets it (the time of the bind not kept)
+        const settle = (outcome: ServerOutcome | null | undefined): ServerOutcome => answerOfBind(outcome, passed)
+        const chained: ServerOutcome = settle(await (mount ? this.run(mount, context, bindRequest, verify, settle) : verify()))
         if (chained.resultCode !== ResultCode.success) return chained
         session.identity = dn
         session.authenticationMethod = 'simple'
@@ -1448,16 +1464,21 @@ export class Pipeline {
                 SASL_MOUNTS.set(state, mount)
                 verified = true
                 //Through the chain of the backend, as a simple bind (the time of the bind kept, the backend's controls)
+                //The password checked once the plugins' hooks are done with it, for this call (a mechanism may verify more)
+                let passed: boolean = false
                 const verify = async (): Promise<ServerOutcome> => {
                     await this.authenticate(session, context, dn, password)
+                    passed = true
                     return {resultCode: ResultCode.success}
                 }
+                const settle = (outcome: ServerOutcome | null | undefined): ServerOutcome => answerOfBind(outcome, passed)
                 const bindRequest: ServerBindRequest = {type: 'bind', name: name, dn: dn, authentication: {type: 'sasl', mechanism: mechanism.name, ...credentials ? {credentials: credentials} : {}}}
-                //The step succeeds only on an answer of success from the chain: another answer of an interceptor fails it
-                //whole (its message, its matched DN, its referral), invalidCredentials too, and no answer with other
+                //The step succeeds only on an answer of success from the chain with the password checked: another answer of
+                //an interceptor fails it whole (its message, its matched DN, its referral), invalidCredentials too, and no
+                //answer or success without the check with other
                 let answered: LDAPResultException | undefined
                 try {
-                    const chained: ServerOutcome = answerOfBind(await (mount ? this.run(mount, context, bindRequest, verify) : verify()))
+                    const chained: ServerOutcome = settle(await (mount ? this.run(mount, context, bindRequest, verify, settle) : verify()))
                     if (chained.resultCode !== ResultCode.success) {
                         answered = resultException({resultCode: chained.resultCode, matchedDN: chained.matchedDN ?? '', diagnosticMessage: chained.diagnosticMessage ?? 'The bind is refused', ...chained.referral ? {referral: chained.referral} : {}})
                         throw answered

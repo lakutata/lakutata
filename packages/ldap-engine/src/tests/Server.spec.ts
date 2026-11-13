@@ -1186,28 +1186,35 @@ describe('the server engine', () => {
         await assert.rejects(holding.connect().saslBind('PLAIN', Buffer.from(`\0dn:uid=user6,ou=people,${BASE}\0password6`)), (error: unknown) => error instanceof LDAPResultException && error.code === 49 && error.diagnosticMessage === 'Held back for review')
     })
 
-    it('binds only when the chain answers success: what a bind interceptor returns, simple and SASL PLAIN, with the time of the bind kept or not', async () => {
+    it('binds only when the password was checked and the chain answers success: what a bind interceptor or a plugin does, simple and SASL PLAIN, with the time of the bind kept or not', async () => {
         const TARGET: string = `uid=user10,ou=people,${BASE}`
+        const NO_ANSWER: RegExp = /gave no answer/
+        const UNCHECKED: RegExp = /answered success without the password checked/
         //What an around() of the application does for the target, the password sent, the answer of the bind
-        const rows: {name: string, password: string, around: (next: () => Promise<unknown>) => Promise<unknown>, code: number}[] = [
+        const rows: {name: string, password: string, around: (next: () => Promise<unknown>) => Promise<unknown>, code: number, message?: RegExp}[] = [
             {name: 'returns the outcome of next()', password: 'password10', around: (next) => next(), code: 0},
             {name: 'returns the outcome of next(), the password wrong', password: 'wrong', around: (next) => next(), code: 49},
+            {name: 'calls next(), then answers a success of its own', password: 'password10', around: async (next) => {
+                await next()
+                return {resultCode: 0, diagnosticMessage: 'Welcome'}
+            }, code: 0},
             {name: 'answers a refusal without next()', password: 'password10', around: async () => ({resultCode: 53}), code: 53},
-            //The interceptor authenticating the bind itself: no password checked
-            {name: 'answers success without next()', password: 'wrong', around: async () => ({resultCode: 0}), code: 0},
-            {name: 'returns nothing without next()', password: 'wrong', around: async () => undefined, code: 80},
-            {name: 'returns {} without next()', password: 'wrong', around: async () => ({}), code: 80},
-            {name: 'returns null without next()', password: 'wrong', around: async () => null, code: 80},
+            {name: 'answers success without next()', password: 'wrong', around: async () => ({resultCode: 0}), code: 80, message: UNCHECKED},
+            {name: 'swallows the rejection of next() and answers success', password: 'wrong', around: (next) => next().catch(() => ({resultCode: 0})), code: 80, message: UNCHECKED},
+            {name: 'returns nothing without next()', password: 'wrong', around: async () => undefined, code: 80, message: NO_ANSWER},
+            {name: 'returns {} without next()', password: 'wrong', around: async () => ({}), code: 80, message: NO_ANSWER},
+            {name: 'returns null without next()', password: 'wrong', around: async () => null, code: 80, message: NO_ANSWER},
             {name: 'calls next() and returns nothing', password: 'password10', around: async (next) => {
                 await next()
-            }, code: 80},
+            }, code: 80, message: NO_ANSWER},
             {name: 'swallows the rejection of next() and returns nothing', password: 'wrong', around: async (next) => {
                 await next().catch(() => undefined)
-            }, code: 80},
+            }, code: 80, message: NO_ANSWER},
             {name: 'throws a result', password: 'password10', around: async () => {
                 throw new LDAPUnwillingToPerformException('Not now')
             }, code: 53}
         ]
+        const answerOf = (binding: Promise<unknown>): Promise<{code: number, message: string}> => binding.then(() => ({code: 0, message: ''}), (error: unknown) => error instanceof LDAPResultException ? {code: error.code, message: error.diagnosticMessage} : {code: -1, message: String(error)})
         //Every cell checked, those answering otherwise listed
         const wrong: string[] = []
         for (const lastBind of [false, true]) {
@@ -1218,33 +1225,75 @@ describe('the server engine', () => {
                         ...lastBind ? {plugins: [new LastBindPlugin()]} : {},
                         interceptors: [{name: 'application', operations: ['bind'], around: (_context: unknown, request: {dn?: DN}, next: () => Promise<unknown>) => request.dn?.toString().startsWith('uid=user10,') ? row.around(next) : next()} as never]
                     })
+                    const errors: unknown[] = []
+                    engine.events.on('error', (error: unknown) => errors.push(error))
                     //A session bound before, which a failed bind leaves anonymous
                     const client: LDAPInProcessConnection = engine.connect()
                     await client.bind(`uid=user20,ou=people,${BASE}`, 'password20')
-                    const answer: number = await (sasl ? client.saslBind('PLAIN', Buffer.from(`\0dn:${TARGET}\0${row.password}`)) : client.bind(TARGET, row.password)).then(() => 0, (error: unknown) => error instanceof LDAPResultException ? error.code : -1)
+                    const answer: {code: number, message: string} = await answerOf(sasl ? client.saslBind('PLAIN', Buffer.from(`\0dn:${TARGET}\0${row.password}`)) : client.bind(TARGET, row.password))
                     const identity: string = await client.whoAmI()
                     const kept: boolean | undefined = lastBind ? (await owner.search(TARGET, {scope: 'base', attributes: ['authTimestamp']})).entries[0].first('authTimestamp') !== undefined : undefined
-                    if (answer !== row.code || identity !== (row.code ? '' : `dn:${TARGET}`) || (lastBind && kept !== !row.code)) wrong.push(`${label}: ${answer}, ${identity || 'anonymous'}${lastBind ? kept ? ', time kept' : ', no time' : ''}`)
+                    if (answer.code !== row.code || (row.message && !row.message.test(answer.message)) || identity !== (row.code ? '' : `dn:${TARGET}`) || (lastBind && kept !== !row.code) || errors.length) wrong.push(`${label}: ${answer.code} ${answer.message}, ${identity || 'anonymous'}${lastBind ? kept ? ', time kept' : ', no time' : ''}${errors.length ? `, ${errors.length} error events` : ''}`)
                 }
             }
         }
         assert.deepEqual(wrong, [])
-        //Placed outside the plugin's interceptor, one calling next() and returning nothing fails the bind after the time
-        //of the bind is kept: the plugin saw the password checked
+        //Placed outside the plugin's interceptor: one calling next() and returning nothing fails the bind after the time of
+        //the bind is kept (the plugin saw the password checked); one answering success without next() keeps no time
         const plugin: LastBindPlugin = new LastBindPlugin()
-        const {server: outside, admin: keeper} = await directory({plugins: [plugin], interceptors: [{interceptor: {name: 'application', operations: ['bind'], around: async (_context: unknown, _request: unknown, next: () => Promise<unknown>) => {
+        const {server: outside, admin: keeper} = await directory({plugins: [plugin], interceptors: [{interceptor: {name: 'application', operations: ['bind'], around: async (_context: unknown, request: {dn?: DN}, next: () => Promise<unknown>) => {
+            if (request.dn?.toString().startsWith('uid=user11,')) return {resultCode: 0}
             await next()
         }}, before: plugin.name} as never]})
         await assert.rejects(outside.connect().bind(TARGET, 'password10'), code(80))
         assert.ok((await keeper.search(TARGET, {scope: 'base', attributes: ['authTimestamp']})).entries[0].first('authTimestamp'))
-        //A plugin's authenticate() returning without verify() authenticates the bind itself, as an interceptor answering
-        //success without next() does
-        const {server: trusting} = await directory({plugins: [{name: 'trusting', authenticate: async () => undefined} as never]})
-        for (const sasl of [false, true]) {
-            const client: LDAPInProcessConnection = trusting.connect()
-            await (sasl ? client.saslBind('PLAIN', Buffer.from(`\0dn:${TARGET}\0wrong`)) : client.bind(TARGET, 'wrong'))
-            assert.equal(await client.whoAmI(), `dn:${TARGET}`)
+        await assert.rejects(outside.connect().bind(`uid=user11,ou=people,${BASE}`, 'wrong'), code(80))
+        assert.equal((await keeper.search(`uid=user11,ou=people,${BASE}`, {scope: 'base', attributes: ['authTimestamp']})).entries[0].first('authTimestamp'), undefined)
+        //A plugin's authenticate() returning without verify(), or swallowing its rejection, or an outer one skipping an
+        //inner one that calls it: refused
+        const PLUGIN: RegExp = /authenticate\(\) returned without the password checked/
+        for (const [name, plugins, password] of [
+            ['returning without verify()', [{name: 'trusting', authenticate: async () => undefined}], 'password10'],
+            ['swallowing the rejection of verify()', [{name: 'swallowing', authenticate: async (_context: unknown, _bind: unknown, verify: () => Promise<void>) => verify().catch(() => undefined)}], 'wrong'],
+            ['skipping an inner one', [{name: 'outer', authenticate: async () => undefined}, {name: 'inner', authenticate: async (_context: unknown, _bind: unknown, verify: () => Promise<void>) => verify()}], 'password10']
+        ] as [string, unknown[], string][]) {
+            const {server: engine} = await directory({plugins: plugins as never})
+            for (const sasl of [false, true]) {
+                const client: LDAPInProcessConnection = engine.connect()
+                const answer: {code: number, message: string} = await answerOf(sasl ? client.saslBind('PLAIN', Buffer.from(`\0dn:${TARGET}\0${password}`)) : client.bind(TARGET, password))
+                assert.equal(answer.code, 80, `${name}, ${sasl ? 'PLAIN' : 'simple'}`)
+                assert.match(answer.message, PLUGIN)
+                assert.equal(await client.whoAmI(), '')
+            }
         }
+        //An interceptor swallowing the refusal of the password policy (a locked account, its right password) or of the
+        //bind throttle (the DN locked after its failures), and answering success: refused
+        const swallowing = {name: 'swallowing', operations: ['bind'], around: (_context: unknown, _request: unknown, next: () => Promise<unknown>) => next().catch(() => ({resultCode: 0}))}
+        const POLICY: string = `cn=default,ou=policies,${BASE}`
+        const {server: policed, admin: officer} = await directory({schema: [...DEFAULTS, PPOLICY], passwordPolicy: {default: POLICY}, interceptors: [swallowing as never]})
+        await officer.add(`ou=policies,${BASE}`, {objectClass: 'organizationalUnit', ou: 'policies'})
+        await officer.add(POLICY, {objectClass: ['organizationalRole', 'pwdPolicy'], cn: 'default', pwdAttribute: 'userPassword', pwdLockout: 'TRUE'})
+        await policed.connect().bind(TARGET, 'password10')
+        await officer.modify(TARGET, {operation: 'add', attribute: 'pwdAccountLockedTime', values: '000001010000Z'})
+        await assert.rejects(policed.connect().bind(TARGET, 'password10'), code(80))
+        const {server: throttled} = await directory({bindThrottle: {maxFailures: 3, ipMaxFailures: 0, delay: 0}, interceptors: [swallowing as never]})
+        await throttled.connect().bind(TARGET, 'password10')
+        for (let index: number = 0; index < 3; index++) await assert.rejects(throttled.connect().bind(TARGET, `wrong-${index}`), code(80))
+        await assert.rejects(throttled.connect().bind(TARGET, 'password10'), code(80))
+        //An outer interceptor answering success where an inner one refused, the password checked: bound (the outer decides)
+        const {server: overruling} = await directory({interceptors: [
+            {name: 'overruling', operations: ['bind'], around: async (_context: unknown, _request: unknown, next: () => Promise<{resultCode: number}>) => {
+                const outcome: {resultCode: number} = await next()
+                return outcome.resultCode === 53 ? {resultCode: 0} : outcome
+            }},
+            {name: 'refusing', operations: ['bind'], around: async (_context: unknown, _request: unknown, next: () => Promise<unknown>) => {
+                await next()
+                return {resultCode: 53}
+            }}
+        ] as never})
+        const overruled: LDAPInProcessConnection = overruling.connect()
+        await overruled.bind(TARGET, 'password10')
+        assert.equal(await overruled.whoAmI(), `dn:${TARGET}`)
     })
 
     it('binds an administrator by the password its options give, with no entry, whatever an entry at its DN holds', async () => {
