@@ -46,7 +46,7 @@ import {
 import {ONCE_BOUND, onceBound, type OnceBoundEffects} from './OnceBound.js'
 import {MUST_CHANGE} from './PasswordPolicy.js'
 import {closeIterator, closePaged, endPagedSearch, keepApproval, pagingInterceptor, type PagedStates, SEARCH_SOURCE, type SearchSource} from './Paging.js'
-import type {PasswordSchemes} from './Passwords.js'
+import {argon2Function, isOwnArgon2, type PasswordSchemes} from './Passwords.js'
 import {rootDSEEntry, schemaConfigEntries, subschemaEntry} from './RootDSE.js'
 import type {SASLContext, SASLMechanism, SASLStep} from './SASL.js'
 import {checkEntry, objectClassesOf, structuralClassOf} from './SchemaCheck.js'
@@ -490,6 +490,8 @@ export class Pipeline {
         for (const [dn, password] of Object.entries(options.access.adminPasswords ?? {})) {
             const scheme: string | undefined = /^\{([^}]*)\}/.exec(password)?.[1]
             if (scheme !== undefined && !options.passwords.isHashed(password)) throw new LDAPUsageException(`The password of ${dn} in access.adminPasswords names the scheme {${scheme}}, which the server does not have: register it with the server's password schemes, or give the password hashed by one of them`)
+            //So would {ARGON2} of the server's own scheme where node:crypto does not run argon2: it could never bind
+            if (isOwnArgon2(options.passwords.schemeOf(password)) && !argon2Function()) throw new LDAPUsageException(`The password of ${dn} in access.adminPasswords is {ARGON2}, which node:crypto does not run here (Node.js 24.7 and later do, Electron does not): it could never bind`)
             //So would a hash without its {SCHEME} (a crypt or argon2 value as its library gives it), or one after blanks
             if (/^\s+\{/.test(password)) throw new LDAPUsageException(`The password of ${dn} in access.adminPasswords has blanks before its {SCHEME}`)
             //(the message names the scheme verifying it, none for one the server's schemes do not verify, and shows
@@ -497,7 +499,7 @@ export class Pipeline {
             const bare: string | undefined = /^\$(1|2[abxy]|5|6|7|y|gy|argon2(?:id|i|d))\$/.exec(password)?.[1]
             if (bare !== undefined) {
                 const scheme: string | undefined = /^(?:1|2[aby]|5|6)$/.test(bare) ? '{CRYPT}' : bare.startsWith('argon2') ? '{ARGON2}' : undefined
-                throw new LDAPUsageException(`The password of ${dn} in access.adminPasswords is a hash without its {SCHEME}: ${scheme === '{ARGON2}' ? 'give it with {ARGON2} before it, where node:crypto has argon2' : scheme ? `give it with ${scheme} before it` : 'the server\'s own schemes do not verify it; register one that does, and give it with that scheme\'s {SCHEME}'}`)
+                throw new LDAPUsageException(`The password of ${dn} in access.adminPasswords is a hash without its {SCHEME}: ${scheme === '{ARGON2}' ? 'give it with {ARGON2} before it, where node:crypto runs argon2' : scheme ? `give it with ${scheme} before it` : 'the server\'s own schemes do not verify it; register one that does, and give it with that scheme\'s {SCHEME}'}`)
             }
         }
         this.mounts = options.backends.map((backend: LDAPBackend): Mount => ({backend: backend, suffix: DN.parse(backend.suffix), chain: []}))

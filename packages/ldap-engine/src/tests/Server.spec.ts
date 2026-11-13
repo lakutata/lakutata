@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import {createHash, randomBytes} from 'node:crypto'
+import {argon2Function} from '../lib/server/Passwords.js'
 import {before, describe, it} from 'node:test'
 import {
     createDirectory,
@@ -1455,6 +1456,13 @@ describe('the server engine', () => {
         //A DN not among the administrators, or an empty password: refused at the start
         assert.throws(() => createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ADMIN], adminPasswords: {[ROOT]: 'x'}}}), LDAPUsageException)
         assert.throws(() => createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ROOT], adminPasswords: {[ROOT]: ''}}}), LDAPUsageException)
+        //{ARGON2} of the server's own scheme where node:crypto does not run argon2 (Electron, Node.js before 24.7): refused,
+        //as it could never bind; taken where it runs, and where an application registered its own ARGON2
+        const argon2Value: string = '{ARGON2}$argon2id$v=19$m=65536,t=2,p=1$c2FsdHNhbHQ$aGFzaGhhc2g'
+        const argon2Options = {backends: [new MemoryBackend(BASE)], access: {admins: [ROOT], adminPasswords: {[ROOT]: argon2Value}}}
+        if (argon2Function()) createLDAPServer(argon2Options)
+        else assert.throws(() => createLDAPServer(argon2Options), (error: unknown) => error instanceof LDAPUsageException && /argon2/i.test(error.message))
+        createLDAPServer({...argon2Options, passwords: new PasswordSchemes({iterations: 1000}).register({name: 'ARGON2', verify: async () => false})})
         //One DN given twice (its case, its spaces): refused, not the last one taken
         assert.throws(() => createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ROOT], adminPasswords: {[ROOT]: 'first', [ROOT.toUpperCase().replace(',', ', ')]: 'second'}}}), LDAPUsageException)
         //A scheme the server does not have, or a mistyped one: refused too, not compared as it is (its text the password)

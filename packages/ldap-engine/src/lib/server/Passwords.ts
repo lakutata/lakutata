@@ -186,6 +186,14 @@ const ARGON2: PasswordScheme = {
 }
 
 /**
+ * Whether a scheme is the server's own {ARGON2}, which verifies only where node:crypto runs argon2
+ * @param scheme The scheme.
+ */
+export function isOwnArgon2(scheme: PasswordScheme | undefined): boolean {
+    return scheme === ARGON2
+}
+
+/**
  * The password storage schemes of a server: the scheme the passwords are written in (`{PBKDF2-SHA512}` by default,
  * as the pw-pbkdf2 module of OpenLDAP writes it), and the schemes the binds verify: `{PBKDF2}`, `{PBKDF2-SHA1}`,
  * `{PBKDF2-SHA256}`, `{PBKDF2-SHA512}`, `{SSHA}`, `{SSHA256}`, `{SSHA384}`, `{SSHA512}`, `{SHA}`, `{SHA256}`,
