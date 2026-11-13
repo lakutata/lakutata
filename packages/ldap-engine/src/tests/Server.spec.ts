@@ -1394,6 +1394,23 @@ describe('the server engine', () => {
         //A hash without its {SCHEME} (a bare crypt or argon2 value), or a {SCHEME} after blanks: refused too, the text of
         //the hash not the password
         for (const value of ['$2b$10$abcdefghijklmnopqrstuuabcdefghijklmnopqrstuvwxyz01234', '$2y$12$abcdefghijklmnopqrstuuabcdefghijklmnopqrstuvwxyz01234', '$6$salt$abcdefghij', '$5$rounds=5000$salt$abc', '$1$salt$abc', '$y$j9T$salt$abc', '$argon2id$v=19$m=65536,t=3,p=4$c2FsdA$aGFzaA', ' {PBKDF2-SHA512}1000$x$y', '\t{SSHA}abcd']) assert.throws(() => createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ROOT], adminPasswords: {[ROOT]: value}}}), LDAPUsageException, JSON.stringify(value))
+        //The message names the scheme that verifies the hash, none for a hash the server's schemes do not verify, and
+        //shows nothing of the value
+        const refusal = (value: string): string => {
+            try {
+                createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ROOT], adminPasswords: {[ROOT]: value}}})
+            } catch (error) {
+                return (error as Error).message
+            }
+            return ''
+        }
+        for (const [value, scheme] of [['$2b$10$abcdefghijklmnopqrstuuabcdefghijklmnopqrstuvwxyz01234', '{CRYPT}'], ['$6$salt$abcdefghij', '{CRYPT}'], ['$1$salt$abc', '{CRYPT}'], ['$argon2id$v=19$m=65536,t=3,p=4$c2FsdA$aGFzaA', '{ARGON2}'], ['$7$abcdefgh', undefined], ['$y$j9T$salt$abc', undefined], ['$gy$j9T$salt$abc', undefined], ['$2x$10$abcdefghijklmnopqrstuuabcdefghijklmnopqrstuvwxyz01234', undefined]] as [string, string | undefined][]) {
+            const message: string = refusal(value)
+            assert.ok(message, value)
+            assert.ok(!message.includes(value.slice(0, 3)), `${value}: ${message}`)
+            if (scheme) assert.ok(message.includes(scheme), `${value}: ${message}`)
+            else assert.ok(!message.includes('{CRYPT}') && !message.includes('{ARGON2}') && /no scheme/.test(message), `${value}: ${message}`)
+        }
         for (const value of ['{BCRYPT}$2b$10$abcdefghijklmnopqrstuuabcdefghijklmnopqrstuvwxyz01234', '{SSHA_512}abcd', '{}abcd']) assert.throws(() => createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ROOT], adminPasswords: {[ROOT]: value}}}), LDAPUsageException, value)
         //A scheme registered with the server's schemes is taken
         createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ROOT], adminPasswords: {[ROOT]: '{OWN}secret'}}, passwords: new PasswordSchemes({iterations: 1000}).register({name: 'OWN', verify: async () => false})})

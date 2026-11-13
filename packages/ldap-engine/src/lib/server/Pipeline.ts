@@ -463,7 +463,13 @@ export class Pipeline {
             if (scheme !== undefined && !options.passwords.isHashed(password)) throw new LDAPUsageException(`The password of ${dn} in access.adminPasswords names the scheme {${scheme}}, which the server does not have: register it with the server's password schemes, or give the password hashed by one of them`)
             //So would a hash without its {SCHEME} (a crypt or argon2 value as its library gives it), or one after blanks
             if (/^\s+\{/.test(password)) throw new LDAPUsageException(`The password of ${dn} in access.adminPasswords has blanks before its {SCHEME}`)
-            if (/^\$(?:1|2[abxy]|5|6|7|y|gy|argon2(?:id|i|d))\$/.test(password)) throw new LDAPUsageException(`The password of ${dn} in access.adminPasswords is a hash without its {SCHEME}: give it as {CRYPT}${password.slice(0, 4)}… (or {ARGON2}$argon2…)`)
+            //(the message names the scheme verifying it, none for one the server's schemes do not verify, and shows
+            //nothing of the value)
+            const bare: string | undefined = /^\$(1|2[abxy]|5|6|7|y|gy|argon2(?:id|i|d))\$/.exec(password)?.[1]
+            if (bare !== undefined) {
+                const scheme: string | undefined = /^(?:1|2[aby]|5|6)$/.test(bare) ? '{CRYPT}' : bare.startsWith('argon2') ? '{ARGON2}' : undefined
+                throw new LDAPUsageException(`The password of ${dn} in access.adminPasswords is a hash without its {SCHEME}: ${scheme ? `give it with ${scheme} before it` : 'no scheme of the server verifies it; register one that does, or give a password of a scheme the server has'}`)
+            }
         }
         this.mounts = options.backends.map((backend: LDAPBackend): Mount => ({backend: backend, suffix: DN.parse(backend.suffix), chain: []}))
         //The longest suffix first
