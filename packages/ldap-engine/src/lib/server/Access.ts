@@ -109,6 +109,8 @@ export class AccessPolicy {
             const key: string = DN.parse(dn).key(schema)
             if (!this.admins.has(key)) throw new LDAPUsageException(`The password of ${dn} in access.adminPasswords is for a DN that is not among access.admins`)
             if (typeof password !== 'string' || !password) throw new LDAPUsageException(`The password of ${dn} in access.adminPasswords is empty`)
+            //One DN written twice (its case, its spaces): which password binds would be the last key's, unseen
+            if (this.adminPasswords.has(key)) throw new LDAPUsageException(`The DN ${dn} is given twice in access.adminPasswords`)
             this.adminPasswords.set(key, Buffer.from(password, 'utf8'))
         }
     }

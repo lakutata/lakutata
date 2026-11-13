@@ -1416,6 +1416,8 @@ describe('the server engine', () => {
         //A DN not among the administrators, or an empty password: refused at the start
         assert.throws(() => createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ADMIN], adminPasswords: {[ROOT]: 'x'}}}), LDAPUsageException)
         assert.throws(() => createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ROOT], adminPasswords: {[ROOT]: ''}}}), LDAPUsageException)
+        //One DN given twice (its case, its spaces): refused, not the last one taken
+        assert.throws(() => createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ROOT], adminPasswords: {[ROOT]: 'first', [ROOT.toUpperCase().replace(',', ', ')]: 'second'}}}), LDAPUsageException)
         //A scheme the server does not have, or a mistyped one: refused too, not compared as it is (its text the password)
         //A hash without its {SCHEME} (a bare crypt or argon2 value), or a {SCHEME} after blanks: refused too, the text of
         //the hash not the password
