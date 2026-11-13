@@ -282,11 +282,11 @@ interface Mount {
     backend: LDAPBackend
     suffix: DN
     chain: LDAPInterceptor[]
-    //Whether its searches leave entries out one by one (access.check, an interceptor inside the paging that may drop or
-    //replace entries): the backend then neither windows nor pages, as it would count what is left out
+    //Whether its searches leave entries out one by one (access.check asked about reads, an interceptor inside the paging
+    //that may drop or replace entries): the backend then neither windows nor pages, as it would count what is left out
     hides?: boolean
-    //Whether, with access.check, an interceptor of its own may add or replace the entries of a search after the access
-    //check made at the source: those it adds are checked as they are sent
+    //Whether, with access.check asked about reads, an interceptor of its own may add or replace the entries of a search
+    //after the access check made at the source: those it adds are checked as they are sent
     rechecks?: boolean
 }
 
@@ -543,8 +543,8 @@ export class Pipeline {
         //The entries left out one by one: by the access check (at the source, before the paging), or by an interceptor
         //inside the paging that transforms or replaces the entries of searches
         const paging: number = chain.findIndex((interceptor: LDAPInterceptor): boolean => interceptor.name === 'paging')
-        mount.hides = this.options.access.check !== undefined || chain.slice(paging + 1).some((interceptor: LDAPInterceptor): boolean => interceptor.operations.includes('search') && (interceptor.transformEntry !== undefined || interceptor.around !== undefined))
-        mount.rechecks = this.options.access.check !== undefined && chain.some((interceptor: LDAPInterceptor): boolean => !ENGINE_STEPS.includes(interceptor.name) && interceptor.operations.includes('search') && (interceptor.transformEntry !== undefined || interceptor.around !== undefined))
+        mount.hides = this.access.readsChecked || chain.slice(paging + 1).some((interceptor: LDAPInterceptor): boolean => interceptor.operations.includes('search') && (interceptor.transformEntry !== undefined || interceptor.around !== undefined))
+        mount.rechecks = this.access.readsChecked && chain.some((interceptor: LDAPInterceptor): boolean => !ENGINE_STEPS.includes(interceptor.name) && interceptor.operations.includes('search') && (interceptor.transformEntry !== undefined || interceptor.around !== undefined))
         return chain
     }
 
@@ -586,8 +586,8 @@ export class Pipeline {
     }
 
     /**
-     * Whether an entry is there for a session: it exists and, with access.check, the session may read it (an entry it
-     * may not read is told neither by an answer nor by a matched DN)
+     * Whether an entry is there for a session: it exists and, with access.check asked about reads, the session may read
+     * it (an entry it may not read is told neither by an answer nor by a matched DN)
      * @param mount The backend.
      * @param context The context.
      * @param dn The DN.
@@ -1104,7 +1104,7 @@ export class Pipeline {
     protected async backendSearch(mount: Mount, context: SearchContext, request: ServerSearchRequest): Promise<ServerOutcome> {
         await this.existing(mount, context, context.base)
         const access: AccessPolicy = this.access
-        const checked: boolean = this.options.access.check !== undefined && !context.internal
+        const checked: boolean = this.access.readsChecked && !context.internal
         //A base the session may not read, searched alone: as one that is not there (below it, the entries it may read)
         if (checked && context.scope === 'base') {
             const base: DirectoryEntry | undefined = await mount.backend.get(context, context.base)
@@ -1744,7 +1744,9 @@ export class Pipeline {
                 const identity: DN | undefined = session.identity
                 switch (request.type) {
                     case 'search':
-                        if (!await access.allows({operation: 'search', session: session, identity: identity, dn: request.base})) fail(ResultCode.insufficientAccessRights, identity ? 'Insufficient access' : 'Anonymous sessions read only the root DSE and the subschema')
+                        //Reads not asked of the check (checkReads false, or no check): the table decides them for the session,
+                        //which may then not search, whatever the check says of the search
+                        if (!await access.allows({operation: 'search', session: session, identity: identity, dn: request.base}) || (!access.readsChecked && !await access.allows({operation: 'read', session: session, identity: identity, dn: request.base}))) fail(ResultCode.insufficientAccessRights, identity ? 'Insufficient access' : 'Anonymous sessions read only the root DSE and the subschema')
                         //Nobody reads userPassword, nor finds entries by it
                         request.filter = hideInFilter(request.filter, (type: string): boolean => schema.primaryName(type).toLowerCase() === 'userpassword')
                         Object.assign(context, {filter: request.filter})
@@ -1794,7 +1796,7 @@ export class Pipeline {
      */
     protected rechecked(mount: Mount, context: SearchContext, outcome: ServerOutcome): ServerOutcome {
         const entries: AsyncIterable<DirectoryEntry> | undefined = outcome.entries
-        if (!mount.rechecks || context.internal || this.options.access.check === undefined || !entries) return outcome
+        if (!mount.rechecks || context.internal || !this.access.readsChecked || !entries) return outcome
         const access: AccessPolicy = this.access
         outcome.entries = (async function* (): AsyncGenerator<DirectoryEntry> {
             for await (const entry of entries) {

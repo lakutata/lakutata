@@ -8,9 +8,9 @@ import type {DirectoryEntry, OperationType, ServerSession} from './Types.js'
  */
 export interface AccessRequest {
     /**
-     * The operation; `read` for an entry a search returns or a compare reads, `passwordModify` for the Password Modify
-     * operation. A `modifyDN` is asked about the entry, then about the DN it gets (with `from`): a check refusing the
-     * writes outside a subtree refuses a move out of it too.
+     * The operation; `read` for an entry a search returns or a compare reads (not asked with `checkReads: false`),
+     * `passwordModify` for the Password Modify operation. A `modifyDN` is asked about the entry, then about the DN it
+     * gets (with `from`): a check refusing the writes outside a subtree refuses a move out of it too.
      */
     operation: OperationType | 'read' | 'passwordModify'
     /**
@@ -81,6 +81,14 @@ export interface AccessOptions {
      * @param request The request.
      */
     check?(request: AccessRequest): boolean | undefined | Promise<boolean | undefined>
+    /**
+     * Whether `check` is asked about `read` (true by default). With false it is never asked about `read`: the rules
+     * above decide what sessions read (the entries a search returns, the entry a compare reads), and a backend that
+     * sorts, windows or pages itself does so as it does without a check. A session the rules above do not let read then
+     * has its searches refused (insufficientAccessRights), even where `check` allows them. Set it to false for a check
+     * that does not decide reads.
+     */
+    checkReads?: boolean
 }
 
 /**
@@ -102,7 +110,13 @@ export class AccessPolicy {
      */
     protected readonly adminPasswords: Map<string, Buffer>
 
+    /**
+     * Whether the reads are asked of the check of the options: entries a search finds may then be left out one by one
+     */
+    public readonly readsChecked: boolean
+
     constructor(protected readonly options: AccessOptions, protected readonly schema: Schema) {
+        this.readsChecked = options.check !== undefined && options.checkReads !== false
         this.admins = new Set((options.admins ?? []).map((dn: string): string => DN.parse(dn).key(schema)))
         this.passwordAdmins = new Set((options.passwordAdmins ?? []).map((dn: string): string => DN.parse(dn).key(schema)))
         this.adminPasswords = new Map()
@@ -137,7 +151,8 @@ export class AccessPolicy {
      * @param request The request.
      */
     public async allows(request: AccessRequest): Promise<boolean> {
-        const decided: boolean | undefined = await this.options.check?.(request)
+        //A read not asked of the check with checkReads false: the rules below decide it
+        const decided: boolean | undefined = request.operation === 'read' && !this.readsChecked ? undefined : await this.options.check?.(request)
         if (decided !== undefined) return decided
         const identity: DN | undefined = request.identity
         if (this.isAdmin(identity)) return true

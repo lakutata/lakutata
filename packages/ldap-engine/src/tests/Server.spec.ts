@@ -4,6 +4,7 @@ import {argon2Function} from '../lib/server/Passwords.js'
 import {before, describe, it} from 'node:test'
 import {
     afterBind,
+    type BackendSearchResult,
     createDirectory,
     createHandlerBackend,
     createLDAPServer,
@@ -637,6 +638,84 @@ describe('the server engine', () => {
             Date.now = now
             ticking = false
         }
+    })
+
+    it('asks access.check nothing about reads with checkReads false: the table decides them, the backend windows and pages', async () => {
+        //A backend sorting itself, telling the test of the controls it is given
+        const given: string[][] = []
+        class SortingBackend extends MemoryBackend {
+            public readonly capabilities = {sort: true}
+
+            public async search(context: SearchContext): Promise<BackendSearchResult> {
+                given.push(context.controls.map((control) => control.oid))
+                return super.search(context)
+            }
+        }
+        const READER: string = `uid=user1,ou=people,${BASE}`
+        //A check refusing every read it is asked about, the writes of userPassword and a search on user4
+        const asked: string[] = []
+        const check = (request: {operation: string, dn: {toString(): string}, attributes?: string[]}): boolean | undefined => {
+            asked.push(request.operation)
+            if (request.operation === 'read') return false
+            if (request.operation === 'search' && String(request.dn) === `uid=user4,ou=people,${BASE}`) return false
+            return request.operation === 'modify' && request.attributes?.includes('userPassword') ? false : undefined
+        }
+        const serve = async (access: Record<string, unknown>): Promise<LDAPServerEngine> => {
+            const served: LDAPServerEngine = createLDAPServer({backends: [new SortingBackend(BASE)], access: {admins: [ADMIN], check: check, ...access}, passwords: {iterations: 1000}, bindThrottle: {delay: 0}})
+            const owner: LDAPInProcessConnection = served.connect({as: ADMIN})
+            await owner.add(BASE, {objectClass: ['dcObject', 'organization'], dc: 'example', o: 'Example'})
+            await owner.add(`ou=people,${BASE}`, {objectClass: 'organizationalUnit', ou: 'people'})
+            for (let index: number = 0; index < 10; index++) await owner.add(`uid=user${index},ou=people,${BASE}`, {objectClass: 'inetOrgPerson', uid: `user${index}`, cn: `User ${index}`, sn: 'Surname', userPassword: `password${index}`})
+            return served
+        }
+        const view = [SortRequestControl.encode([{attribute: 'cn'}], true), VLVRequestControl.encode({beforeCount: 0, afterCount: 4, offset: {offset: 1, contentCount: 0}}, true)]
+        const unchecked: LDAPServerEngine = await serve({checkReads: false})
+        const reader: LDAPInProcessConnection = unchecked.connect()
+        await reader.bind(READER, 'password1')
+        asked.length = 0
+        given.length = 0
+        //Every read: a search of the subtree, of a base, paged, a view, a compare, the matched DN of a missing entry
+        assert.equal((await reader.search(BASE, {filter: '(uid=user2)'})).entries.length, 1)
+        assert.equal((await reader.search(`uid=user2,ou=people,${BASE}`, {scope: 'base'})).entries.length, 1)
+        assert.equal((await reader.search(`ou=people,${BASE}`, {scope: 'one', paged: {pageSize: 4}})).entries.length, 10)
+        await reader.search(`ou=people,${BASE}`, {scope: 'one', paged: false, controls: view})
+        assert.equal(await reader.compare(`uid=user2,ou=people,${BASE}`, 'cn', 'User 2'), true)
+        await assert.rejects(reader.search(`cn=nobody,uid=user2,ou=people,${BASE}`, {scope: 'base'}), (error: unknown): boolean => error instanceof LDAPNoSuchObjectException && error.matchedDN === `uid=user2,ou=people,${BASE}`)
+        assert.ok(!asked.includes('read'), asked.join())
+        //The view given to the backend, which sorts and windows it
+        assert.ok(given.some((oids: string[]): boolean => oids.includes(VLVRequestControl.oid) && oids.includes(SortRequestControl.oid)), JSON.stringify(given))
+        //What the check is asked about it still refuses; the table still refuses an anonymous session
+        await assert.rejects(reader.modify(READER, {operation: 'replace', attribute: 'userPassword', values: 'changed'}), code(50))
+        await assert.rejects(reader.search(`uid=user4,ou=people,${BASE}`, {scope: 'base'}), code(50))
+        const anonymous: LDAPInProcessConnection = unchecked.connect()
+        await assert.rejects(anonymous.search(`ou=people,${BASE}`, {scope: 'one'}), code(50))
+        await assert.rejects(anonymous.compare(`uid=user2,ou=people,${BASE}`, 'cn', 'User 2'), (error: unknown): boolean => error instanceof LDAPResultException && [32, 50].includes(error.code))
+        //A check allowing a search, the table refusing the reads of the session: not asked of the check, the reads are
+        //still the table's, the search refused, nor the existence of an entry told by a matched DN
+        const closed: LDAPServerEngine = createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ADMIN], authenticatedRead: false, checkReads: false, check: (request: {operation: string}): boolean | undefined => request.operation === 'search' || request.operation === 'compare' ? true : undefined}, passwords: {iterations: 1000}, bindThrottle: {delay: 0}})
+        const closer: LDAPInProcessConnection = closed.connect({as: ADMIN})
+        await closer.add(BASE, {objectClass: ['dcObject', 'organization'], dc: 'example', o: 'Example'})
+        await closer.add(`ou=people,${BASE}`, {objectClass: 'organizationalUnit', ou: 'people'})
+        await closer.add(READER, {objectClass: 'inetOrgPerson', uid: 'user1', cn: 'User 1', sn: 'Surname', userPassword: 'password1'})
+        const shut: LDAPInProcessConnection = closed.connect()
+        await shut.bind(READER, 'password1')
+        for (const scope of ['base', 'one', 'sub'] as const) await assert.rejects(shut.search(`ou=people,${BASE}`, {scope: scope}), code(50), scope)
+        const compares = (dn: string): Promise<string> => shut.compare(dn, 'cn', 'User 1').then(String, (error: unknown): string => `${(error as LDAPResultException).code} ${(error as LDAPResultException).matchedDN}`)
+        assert.equal(await compares(READER), await compares(`uid=nobody,ou=people,${BASE}`))
+        assert.equal(await compares(`cn=nobody,${READER}`), await compares(`cn=nobody,uid=nobody,ou=people,${BASE}`))
+        assert.equal(await compares(`cn=nobody,${READER}`), '32 ')
+        //The administrators still read
+        assert.equal((await closer.search(`ou=people,${BASE}`, {scope: 'one'})).entries.length, 1)
+        //Without it, the same check is asked about the reads: they are hidden, the view not given to the backend
+        const checked: LDAPServerEngine = await serve({})
+        const hidden: LDAPInProcessConnection = checked.connect()
+        await hidden.bind(READER, 'password1')
+        given.length = 0
+        asked.length = 0
+        assert.equal((await hidden.search(`ou=people,${BASE}`, {scope: 'one', paged: false})).entries.length, 0)
+        await hidden.search(`ou=people,${BASE}`, {scope: 'one', paged: false, controls: view})
+        assert.ok(asked.includes('read'))
+        assert.ok(given.every((oids: string[]): boolean => !oids.includes(VLVRequestControl.oid)), JSON.stringify(given))
     })
 
     it('sorts strings by their code points, a character above U+FFFF after U+FA0E', async () => {

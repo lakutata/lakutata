@@ -423,6 +423,48 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             }
         })
 
+        it('sorts, windows and pages in the database with an access check not asked about reads', async () => {
+            //A check deciding only the writes of userPassword, on a server sorting at most 5 entries in memory
+            const asked: string[] = []
+            const check = (request: {operation: string, attributes?: string[]}): boolean | undefined => {
+                asked.push(request.operation)
+                return request.operation === 'modify' && request.attributes?.includes('userPassword') ? false : undefined
+            }
+            const checking: Container = new Container()
+            try {
+                await checking.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                for (const [name, access] of [['ldap', {checkReads: false}], ['asking', {}]] as const) await checking.setNamed(name, LDAPServer, {port: false, schema: schema, backends: [{class: DirectoryBackend, suffix: BASE, database: 'database'}], access: {admins: [ADMIN], check: check, ...access}, limits: {sortCandidates: 5}})
+                const reader: LDAPInProcessConnection = (await checking.get<LDAPServer>('ldap')).connect()
+                await reader.bind(`uid=user1,${people}`, 'password1')
+                asked.length = 0
+                //The virtual list view past the sort limit of the engine: sorted and windowed in SQL
+                const window = await reader.search(people, {scope: 'one', sort: [{attribute: 'cn'}], window: {offset: 3, limit: 4}})
+                assert.deepEqual(window.entries.map((entry) => entry.first('cn')), ['User 02', 'User 03', 'User 04', 'User 05'])
+                assert.equal(window.total, 30)
+                //Sorted and paged
+                const counts: number[] = []
+                const names: string[] = []
+                let cookie: Buffer = Buffer.alloc(0)
+                do {
+                    const page = await reader.search(people, {scope: 'one', paged: false, controls: [SortRequestControl.encode([{attribute: 'cn'}]), PagedResultsControl.encode({size: 8, cookie: cookie})]})
+                    counts.push(page.entries.length)
+                    names.push(...page.entries.map((entry) => entry.first('cn')!))
+                    cookie = PagedResultsControl.decode(findControl(page.controls, PagedResultsControl)!).cookie
+                } while (cookie.length)
+                assert.deepEqual(counts, [8, 8, 8, 6])
+                assert.deepEqual(names, [...names].sort())
+                assert.ok(!asked.includes('read'), asked.join())
+                //What the check decides it still refuses
+                await assert.rejects(reader.modify(`uid=user1,${people}`, {operation: 'replace', attribute: 'userPassword', values: 'changed'}), (error: unknown): boolean => error instanceof LDAPResultException && error.code === 50)
+                //Asked about the reads, the same check leaves the view to the engine, past its sort limit
+                const asking: LDAPInProcessConnection = (await checking.get<LDAPServer>('asking')).connect()
+                await asking.bind(`uid=user1,${people}`, 'password1')
+                await assert.rejects(asking.search(people, {scope: 'one', sort: [{attribute: 'cn'}], window: {offset: 3, limit: 4}}), LDAPUnavailableCriticalExtensionException)
+            } finally {
+                await checking.destroy()
+            }
+        })
+
         it('orders and windows in SQL by the forms of the values, as the engine sorts', async () => {
             const unit: string = await directory.createOrganizationalUnit(BASE, {ou: 'sorting'})
             try {
