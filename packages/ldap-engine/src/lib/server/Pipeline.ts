@@ -1437,7 +1437,7 @@ export class Pipeline {
         const configured: Buffer | undefined = this.access.adminPassword(dn)
         if (configured) {
             if (!await this.options.passwords.verify(configured, password)) return failed()
-            await onceBound(context, (): Promise<void> => this.options.throttle.success(keys[0]))
+            await onceBound(context, (finishing: OperationContext): Promise<void> => this.throttleSucceeded(context, finishing, keys[0]))
             return true
         }
         const mount: Mount | undefined = this.route(dn)
@@ -1463,7 +1463,7 @@ export class Pipeline {
                 })
             }
         }
-        await onceBound(context, (): Promise<void> => this.options.throttle.success(keys[0]))
+        await onceBound(context, (finishing: OperationContext): Promise<void> => this.throttleSucceeded(context, finishing, keys[0]))
         return true
     }
 
@@ -1487,6 +1487,18 @@ export class Pipeline {
         }
         if (backend.transaction && backend.lock) return backend.transaction(context, async (): Promise<void> => write(await backend.lock!(context, dn)))
         return write(await backend.get(context, dn))
+    }
+
+    /**
+     * Tell the bind throttle a password was right, once the bind succeeds: at a later step of a SASL exchange than the
+     * one that checked it, not when the throttle locked the DN meanwhile (failures between the steps)
+     * @param checking The context of the operation that checked the password.
+     * @param finishing The context of the operation ending the bind.
+     * @param key The key of the DN.
+     */
+    protected async throttleSucceeded(checking: OperationContext, finishing: OperationContext, key: string): Promise<void> {
+        if (finishing !== checking && (await this.options.throttle.check([key])).locked) return
+        await this.options.throttle.success(key)
     }
 
     /**

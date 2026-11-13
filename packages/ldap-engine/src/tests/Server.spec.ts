@@ -1564,6 +1564,13 @@ describe('the server engine', () => {
             assert.equal(outcome.code, completes ? 0 : 53, last)
             assert.deepEqual(await state(watcher), completes ? {lastSuccess: true, failures: 0} : {lastSuccess: false, failures: 2}, last)
         }
+        //The throttle locking the DN between the steps (failures meanwhile): still locked once the exchange completes
+        const {server: throttling} = await directory({sasl: [checkThenAsk] as never, bindThrottle: {maxFailures: 3, ipMaxFailures: 0, delay: 0}})
+        await throttling.connect().saslBind('CHECK-THEN-ASK', Buffer.from(`${TARGET}\0password10`), {step: async () => {
+            for (let index: number = 0; index < 3; index++) await assert.rejects(throttling.connect().bind(TARGET, `wrong-${index}`), code(49))
+            return Buffer.from('complete')
+        }})
+        await assert.rejects(throttling.connect().bind(TARGET, 'password10'), code(49))
         //What is written between the steps stays once the exchange completes: a failure meanwhile, a lock an
         //administrator set (the failure first: a locked account records none)
         const {server: locking, admin: locker} = await policed({sasl: [checkThenAsk] as never}, {pwdLockout: 'TRUE'})
