@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import {createHash, randomBytes} from 'node:crypto'
 import {before, describe, it} from 'node:test'
 import {
     createDirectory,
@@ -1308,6 +1309,67 @@ describe('the server engine', () => {
         for (const value of ['{BCRYPT}$2b$10$abcdefghijklmnopqrstuuabcdefghijklmnopqrstuvwxyz01234', '{SSHA_512}abcd', '{}abcd']) assert.throws(() => createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ROOT], adminPasswords: {[ROOT]: value}}}), LDAPUsageException, value)
         //A scheme registered with the server's schemes is taken
         createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ROOT], adminPasswords: {[ROOT]: '{OWN}secret'}}, passwords: new PasswordSchemes({iterations: 1000}).register({name: 'OWN', verify: async () => false})})
+    })
+
+    it('hashes a password again at a bind only while the entry still holds the value the bind matched', async () => {
+        const USER: string = `uid=rehashed,${BASE}`
+        const GONE: string = `uid=gone,${BASE}`
+        //A value of another scheme than the server's, as an import gives
+        const ssha = (password: string): string => {
+            const salt: Buffer = randomBytes(8)
+            return `{SSHA}${Buffer.concat([createHash('sha1').update(password).update(salt).digest(), salt]).toString('base64')}`
+        }
+        //A backend running a write of the test once a bind has read the entry, before the bind checks the password and
+        //hashes it again; and failing the writes of the engine when the test asks
+        let meanwhile: (() => Promise<unknown>) | undefined
+        let failing: boolean = false
+        class Meanwhile extends MemoryBackend {
+            public async get(...args: Parameters<MemoryBackend['get']>): Promise<DirectoryEntry | undefined> {
+                const entry: DirectoryEntry | undefined = await super.get(...args)
+                const run: (() => Promise<unknown>) | undefined = meanwhile
+                if (run && (args[1].toString() === USER || args[1].toString() === GONE)) {
+                    meanwhile = undefined
+                    await run()
+                }
+                return entry
+            }
+
+            public async modify(...args: Parameters<MemoryBackend['modify']>): Promise<void> {
+                if (failing && args[0].internal) throw new Error('The write of the backend failed')
+                return super.modify(...args)
+            }
+        }
+        const backend: Meanwhile = new Meanwhile(BASE)
+        const errors: unknown[] = []
+        const engine: LDAPServerEngine = createLDAPServer({backends: [backend], access: {admins: [ADMIN]}, passwords: {iterations: 1000}, bindThrottle: {delay: 0}})
+        engine.events.on('error', (error: unknown) => errors.push(error))
+        const owner: LDAPInProcessConnection = engine.connect({as: ADMIN})
+        await owner.add(BASE, {objectClass: ['dcObject', 'organization'], dc: 'example', o: 'Example'})
+        const stored = (dn: string): string[] => (backend.entries().find((entry) => entry.dn.toString() === dn)?.attributes.find((attribute) => attribute.type.toLowerCase() === 'userpassword')?.values ?? []).map((value) => value.toString())
+        //The value as it was: replaced by one of the server's scheme
+        await owner.add(USER, {objectClass: ['account', 'simpleSecurityObject'], uid: 'rehashed', userPassword: ssha('first')})
+        await engine.connect().bind(USER, 'first')
+        assert.equal(stored(USER).length, 1)
+        assert.match(stored(USER)[0], /^\{PBKDF2-SHA512\}/)
+        //Changed meanwhile: left as it is, the password the bind checked no longer binding
+        await owner.modify(USER, {operation: 'replace', attribute: 'userPassword', values: ssha('second')})
+        const third: string = ssha('third')
+        meanwhile = () => owner.modify(USER, {operation: 'replace', attribute: 'userPassword', values: third})
+        await engine.connect().bind(USER, 'second')
+        assert.deepEqual(stored(USER), [third])
+        await assert.rejects(engine.connect().bind(USER, 'second'), code(49))
+        //Deleted meanwhile: nothing written
+        await owner.add(GONE, {objectClass: ['account', 'simpleSecurityObject'], uid: 'gone', userPassword: ssha('gone')})
+        meanwhile = () => owner.delete(GONE)
+        await engine.connect().bind(GONE, 'gone')
+        assert.equal(backend.entries().some((entry) => entry.dn.toString() === GONE), false)
+        assert.deepEqual(errors, [])
+        //A write failing: the bind done, the error an event, the value kept
+        failing = true
+        await engine.connect().bind(USER, 'third')
+        failing = false
+        assert.equal(errors.length, 1)
+        assert.deepEqual(stored(USER), [third])
     })
 
     it('refuses a critical control it does not know', async () => {

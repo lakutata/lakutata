@@ -1,5 +1,6 @@
 //The tests of the directory backend, run on each database: SQLite in the unit tests, PostgreSQL and MySQL in Docker
 import assert from 'node:assert/strict'
+import {createHash, randomBytes} from 'node:crypto'
 import {after, before, describe, it} from 'node:test'
 import {Container} from '@lakutata/core'
 import {Database} from '@lakutata/orm/com/database'
@@ -107,6 +108,42 @@ class HoldingBackend extends DirectoryBackend {
     public async delete(context: WriteContext, dn: Parameters<DirectoryBackend['delete']>[1], options: {subtree: boolean}): Promise<void> {
         await super.delete(context, dn, options)
         await hold()
+    }
+}
+
+/**
+ * What a MeanwhileBackend runs once a bind has read the entry of a DN, before the bind checks the password and hashes
+ * it again, as many times as left
+ */
+let meanwhile: {dn: string, left: number, run: () => Promise<unknown>} | undefined
+
+/**
+ * A directory backend running a step of the test once a bind has read an entry, and giving the stored passwords
+ */
+class MeanwhileBackend extends DirectoryBackend {
+    public static last: MeanwhileBackend | undefined
+
+    protected reading: Parameters<DirectoryBackend['get']>[0] | undefined
+
+    public async get(...args: Parameters<DirectoryBackend['get']>): Promise<DirectoryEntry | undefined> {
+        this.reading = args[0]
+        MeanwhileBackend.last = this
+        const entry: DirectoryEntry | undefined = await super.get(...args)
+        const current: {dn: string, left: number, run: () => Promise<unknown>} | undefined = meanwhile
+        if (current && current.left > 0 && args[1].toString() === current.dn) {
+            current.left--
+            await current.run()
+        }
+        return entry
+    }
+
+    /**
+     * The values of userPassword the backend holds for a DN
+     * @param dn The DN.
+     */
+    public async passwords(dn: string): Promise<string[]> {
+        const entry: DirectoryEntry | undefined = await super.get(this.reading!, DN.parse(dn))
+        return (entry?.attributes.find((attribute) => attribute.type.toLowerCase() === 'userpassword')?.values ?? []).map((value) => value.toString())
     }
 }
 
@@ -1053,6 +1090,50 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             } finally {
                 held = undefined
                 await admin.delete(doomed).catch((): undefined => undefined)
+            }
+        })
+
+        it('hashes a password again at a bind only while the entry still holds the value the bind matched', {timeout: 60000}, async () => {
+            //A value of another scheme than the server's, as an import gives
+            const ssha = (password: string): string => {
+                const salt: Buffer = randomBytes(8)
+                return `{SSHA}${Buffer.concat([createHash('sha1').update(password).update(salt).digest(), salt]).toString('base64')}`
+            }
+            if (!container.has('meanwhile')) await container.setNamed('meanwhile', LDAPServer, {port: false, schema: schema, backends: [{class: MeanwhileBackend, suffix: BASE, database: 'database'}], access: {admins: [ADMIN]}, passwords: {iterations: 1000}})
+            const server: LDAPServer = await container.get<LDAPServer>('meanwhile')
+            const user: string = `uid=rehashing,${people}`
+            try {
+                await admin.add(user, {objectClass: ['account', 'simpleSecurityObject'], uid: 'rehashing', userPassword: ssha('second')})
+                //Changed meanwhile: left as it is, the password the bind checked no longer binding
+                const third: string = ssha('third')
+                meanwhile = {dn: user, left: 1, run: () => admin.modify(user, {operation: 'replace', attribute: 'userPassword', values: third})}
+                await server.connect().bind(user, 'second')
+                assert.deepEqual(await MeanwhileBackend.last!.passwords(user), [third])
+                await assert.rejects(server.connect().bind(user, 'second'), LDAPInvalidCredentialsException)
+                //Two binds having read the value at once: one hashes it again, the other finds it gone
+                let arrived: number = 0
+                let open: () => void = (): void => undefined
+                const met: Promise<void> = new Promise<void>((resolve: () => void): void => {
+                    open = resolve
+                })
+                meanwhile = {dn: user, left: 2, run: async (): Promise<void> => {
+                    if (++arrived === 2) open()
+                    await Promise.race([met, new Promise<void>((resolve: () => void): void => {
+                        setTimeout(resolve, 5000)
+                    })])
+                }}
+                await Promise.all([server.connect().bind(user, 'third'), server.connect().bind(user, 'third')])
+                const kept: string[] = await MeanwhileBackend.last!.passwords(user)
+                assert.equal(kept.length, 1, kept.join(' '))
+                assert.match(kept[0], /^\{PBKDF2-SHA512\}/)
+                //Deleted meanwhile: nothing written
+                await admin.modify(user, {operation: 'replace', attribute: 'userPassword', values: ssha('fourth')})
+                meanwhile = {dn: user, left: 1, run: () => admin.delete(user)}
+                await server.connect().bind(user, 'fourth')
+                assert.deepEqual(await MeanwhileBackend.last!.passwords(user), [])
+            } finally {
+                meanwhile = undefined
+                await admin.delete(user).catch((): undefined => undefined)
             }
         })
 

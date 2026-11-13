@@ -1385,14 +1385,36 @@ export class Pipeline {
             if (!matched) return failed()
             if (this.options.rehashOnBind && this.options.passwords.needsRehash(matched) && mount.backend.modify) {
                 const rehashed: Buffer = Buffer.from(await this.options.passwords.hash(password))
-                const type: string = findAttribute(entry!, 'userPassword', this.schema)?.type ?? 'userPassword'
-                await mount.backend.modify(this.context(session, 'modify', [], context.signal, true), dn, [{operation: 'delete', attribute: {type: type, values: [matched]}}, {operation: 'add', attribute: {type: type, values: [rehashed]}}]).catch((error: unknown): void => {
+                //A rehash failing leaves the bind as it is, the error an event
+                await this.rehash(mount, this.context(session, 'modify', [], context.signal, true), dn, matched, rehashed).catch((error: unknown): void => {
                     this.options.events.emit('error', error)
                 })
             }
         }
         await this.options.throttle.success(keys[0])
         return true
+    }
+
+    /**
+     * Replace the value of userPassword a bind matched by its hash in the scheme of the server, while the entry still
+     * holds it: a value changed or removed since the bind read it (a password changed meanwhile, another bind's rehash)
+     * is left as it is. In a transaction of the backend with the entry locked when it has both (exact, across the
+     * processes sharing its database too), otherwise checked just before the write.
+     * @param mount The backend.
+     * @param context The context of the write.
+     * @param dn The DN.
+     * @param matched The value the bind matched.
+     * @param rehashed The value replacing it.
+     */
+    protected async rehash(mount: Mount, context: WriteContext, dn: DN, matched: Buffer, rehashed: Buffer): Promise<void> {
+        const backend: LDAPBackend = mount.backend
+        const write = async (fresh: DirectoryEntry | undefined): Promise<void> => {
+            const attribute: PartialAttribute | undefined = fresh ? findAttribute(fresh, 'userPassword', this.schema) : undefined
+            if (!attribute?.values.some((value: Buffer): boolean => value.equals(matched))) return
+            await backend.modify!(context, dn, [{operation: 'delete', attribute: {type: attribute.type, values: [matched]}}, {operation: 'add', attribute: {type: attribute.type, values: [rehashed]}}])
+        }
+        if (backend.transaction && backend.lock) return backend.transaction(context, async (): Promise<void> => write(await backend.lock!(context, dn)))
+        return write(await backend.get(context, dn))
     }
 
     /**
