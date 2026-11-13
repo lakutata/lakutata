@@ -818,6 +818,8 @@ export class Pipeline {
      * @param signal The signal of the operation.
      */
     public outcomeOf(error: unknown, signal?: AbortSignal): ServerOutcome {
+        //A result code no operation has (below 0, not a whole number): other
+        if (error instanceof LDAPResultException && !(Number.isInteger(error.code) && error.code >= 0)) return {resultCode: ResultCode.other, diagnosticMessage: error.diagnosticMessage || error.message}
         if (error instanceof LDAPResultException) return {resultCode: error.code, matchedDN: error.matchedDN, diagnosticMessage: error.diagnosticMessage || error.message, referral: error.referral}
         if (signal?.aborted) return {resultCode: ResultCode.canceled, diagnosticMessage: 'The operation was abandoned'}
         this.options.events.emit('error', error)

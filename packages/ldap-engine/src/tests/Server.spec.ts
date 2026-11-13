@@ -1707,6 +1707,16 @@ describe('the server engine', () => {
         for (const password of ['set-by-1', 'written-by-1', 'set-by-2', 'written-by-2']) await assert.rejects(engine.connect().bind(CHIEF, password), code(49), password)
     })
 
+    it('answers other for a result code no operation has, thrown by an interceptor', async () => {
+        const {server: engine} = await directory({access: {admins: [ADMIN], anonymousRead: true}, interceptors: [{name: 'negative', operations: ['search', 'bind'], before: async () => {
+            throw new LDAPResultException(-1, 'Odd')
+        }}] as never})
+        const client: LDAPInProcessConnection = engine.connect()
+        await assert.rejects(client.search(`ou=people,${BASE}`, {scope: 'one'}), code(80))
+        await assert.rejects(client.bind(`uid=user10,ou=people,${BASE}`, 'password10'), code(80))
+        assert.equal(await client.whoAmI(), '')
+    })
+
     it('refuses a whole hash an administrator writes without its {SCHEME}, as a password in clear it would be', async () => {
         const {server: engine, admin: owner} = await directory()
         const bcrypt: string = `$2b$10$${'N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'}`
