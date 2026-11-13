@@ -413,10 +413,18 @@ export class PasswordPolicy {
             const age: number = (now - changed) / 1000
             if (age >= rules.maxAge - rules.expireWarning) warning = {timeBeforeExpiration: Math.max(Math.floor(rules.maxAge - age), 0)}
         }
-        //The state of a right password and the warning once the bind succeeds: a bind refused after keeps none
+        //The state of a right password and the warning once the bind succeeds: a bind refused after keeps none. The
+        //failures and the lock the check read are deleted, not all of them: those written since (between the steps of a
+        //SASL exchange: a failure, a lock an administrator set) stay
         const warned: PasswordPolicyValue | undefined = warning
+        const read = (type: string): Buffer[] => valuesOfType(entry, type, this.schema)
         await onceBound(context, async (finishing: OperationContext): Promise<void> => {
-            await this.writeState(dn, changes)
+            const succeeded: DirectoryChange[] = []
+            for (const type of ['pwdFailureTime', 'pwdAccountLockedTime']) {
+                if (read(type).length) succeeded.push({operation: 'delete', attribute: {type: type, values: read(type)}})
+            }
+            succeeded.push(replace('pwdLastSuccess', formatGeneralizedTime(Date.now())))
+            await this.writeState(dn, succeeded)
             if (warned) respond(finishing, warned)
         })
     }

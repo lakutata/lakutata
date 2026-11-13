@@ -9,6 +9,7 @@ import {attributeTypeOf, type Schema} from '../../schema/Schema.js'
 import type {SchemaSource} from '../../schema/SchemaDocument.js'
 import {PPOLICY} from '../../schema/bundled/Bundled.js'
 import {MUST_CHANGE, PasswordPolicy, type PasswordPolicyOptions} from '../PasswordPolicy.js'
+import type {SessionState} from '../Pipeline.js'
 import type {DirectoryChange, DirectoryEntry, LDAPPluginHost, OperationContext, PasswordChange, PluginControl, ServerOutcome} from '../Types.js'
 import {BaseLDAPPlugin, type BasePluginOptions} from './BaseLDAPPlugin.js'
 import {readEntry} from './PluginTools.js'
@@ -102,13 +103,27 @@ export class PasswordPolicyPlugin extends BaseLDAPPlugin {
      */
     public async aroundRequest(context: OperationContext, request: LDAPRequest, next: () => Promise<ServerOutcome>): Promise<ServerOutcome> {
         const state: Map<string | symbol, unknown> = context.session.state
-        if (request.type === 'bindRequest') state.delete(MUST_CHANGE)
+        //A new bind judges the session afresh; a step continuing a SASL exchange keeps what an earlier step of it found
+        //(the password checked at the first step of two), a failure of the exchange clearing it
+        if (request.type === 'bindRequest' && !this.continuesExchange(context, request)) state.delete(MUST_CHANGE)
         if (state.get(MUST_CHANGE)) this.policyOf(context).guard(context, this.allowedBeforeChange(context, request))
         //This request's own: another request of the session ending meanwhile does not let it go
         const own: {changing: boolean} = {changing: false}
         const outcome: ServerOutcome = await REQUEST.run(own, next)
         if (own.changing && outcome.resultCode === ResultCode.success) state.delete(MUST_CHANGE)
         return outcome
+    }
+
+    /**
+     * Whether a bind request continues the SASL exchange of its session (its mechanism the one in progress), as the
+     * engine takes it
+     * @param context The context of the bind, whose session is the session itself.
+     * @param request The request.
+     */
+    protected continuesExchange(context: OperationContext, request: LDAPRequest): boolean {
+        if (request.type !== 'bindRequest' || request.authentication.type !== 'sasl') return false
+        const exchange: {mechanism: {name: string}} | undefined = (context.session as SessionState).sasl
+        return exchange !== undefined && exchange.mechanism.name.toUpperCase() === request.authentication.mechanism.toUpperCase()
     }
 
     /**

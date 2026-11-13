@@ -1407,10 +1407,10 @@ describe('the server engine', () => {
         const answerOf = (binding: Promise<unknown>): Promise<{code: number, controls: {oid: string}[]}> => binding.then((result: unknown) => ({code: 0, controls: (result as {controls?: {oid: string}[]}).controls ?? []}), (error: unknown) => error instanceof LDAPResultException ? {code: error.code, controls: (error as unknown as {controls?: {oid: string}[]}).controls ?? []} : {code: -1, controls: []})
         //A directory under a policy wanting a password an administrator set changed, the bind throttle locking at three
         //failures, the target's password set by the administrator and two wrong binds made
-        const policed = async (options: Partial<Parameters<typeof createLDAPServer>[0]> = {}): Promise<{server: LDAPServerEngine, admin: LDAPInProcessConnection, backend: MemoryBackend}> => {
+        const policed = async (options: Partial<Parameters<typeof createLDAPServer>[0]> = {}, rules: Record<string, string> = {pwdMustChange: 'TRUE'}): Promise<{server: LDAPServerEngine, admin: LDAPInProcessConnection, backend: MemoryBackend}> => {
             const made = await directory({schema: [...DEFAULTS, PPOLICY], passwordPolicy: {default: POLICY}, access: {admins: [ADMIN], anonymousRead: true}, bindThrottle: {maxFailures: 3, ipMaxFailures: 0, delay: 0}, ...options})
             await made.admin.add(`ou=policies,${BASE}`, {objectClass: 'organizationalUnit', ou: 'policies'})
-            await made.admin.add(POLICY, {objectClass: ['organizationalRole', 'pwdPolicy'], cn: 'default', pwdAttribute: 'userPassword', pwdMustChange: 'TRUE'})
+            await made.admin.add(POLICY, {objectClass: ['organizationalRole', 'pwdPolicy'], cn: 'default', pwdAttribute: 'userPassword', ...rules})
             await made.admin.passwordModify({userIdentity: TARGET, newPassword: 'reset-password'})
             for (let index: number = 0; index < 2; index++) await assert.rejects(made.server.connect().bind(TARGET, `wrong-${index}`), code(49))
             return made
@@ -1482,6 +1482,31 @@ describe('the server engine', () => {
             assert.equal(outcome.code, completes ? 0 : 53, last)
             assert.deepEqual(await state(watcher), completes ? {lastSuccess: true, failures: 0} : {lastSuccess: false, failures: 2}, last)
         }
+        //What is written between the steps stays once the exchange completes: a failure meanwhile, a lock an
+        //administrator set (the failure first: a locked account records none)
+        const {server: locking, admin: locker} = await policed({sasl: [checkThenAsk] as never}, {pwdLockout: 'TRUE'})
+        await locking.connect().saslBind('CHECK-THEN-ASK', Buffer.from(`${TARGET}\0reset-password`), {step: async () => {
+            await assert.rejects(locking.connect().bind(TARGET, 'wrong-between'), code(49))
+            await locker.modify(TARGET, {operation: 'add', attribute: 'pwdAccountLockedTime', values: '000001010000Z'})
+            return Buffer.from('complete')
+        }})
+        const between = (await locker.search(TARGET, {scope: 'base', attributes: ['pwdAccountLockedTime', 'pwdFailureTime', 'pwdLastSuccess']})).entries[0]
+        assert.deepEqual([between.first('pwdAccountLockedTime'), between.get('pwdFailureTime').length, between.first('pwdLastSuccess') !== undefined], ['000001010000Z', 1, true])
+        await assert.rejects(locking.connect().bind(TARGET, 'reset-password'), code(49))
+        //Held to change its password at the end of the exchange, a user whose password an administrator set; not held, a
+        //user whose password it is, or an exchange refused at its last step
+        const {server: holding} = await policed({sasl: [checkThenAsk] as never})
+        const held: LDAPInProcessConnection = holding.connect()
+        const finished = await answerOf(held.saslBind('CHECK-THEN-ASK', Buffer.from(`${TARGET}\0reset-password`), {controls: ASK, step: () => Buffer.from('complete')}))
+        assert.equal(finished.code, 0)
+        assert.ok(finished.controls.some((control) => control.oid === PPOLICY_RESPONSE))
+        await assert.rejects(held.search(BASE, {scope: 'base'}), code(50))
+        const free: LDAPInProcessConnection = holding.connect()
+        await free.saslBind('CHECK-THEN-ASK', Buffer.from(`uid=user11,ou=people,${BASE}\0password11`), {step: () => Buffer.from('complete')})
+        await free.search(BASE, {scope: 'base'})
+        const stopped: LDAPInProcessConnection = holding.connect()
+        await assert.rejects(stopped.saslBind('CHECK-THEN-ASK', Buffer.from(`${TARGET}\0reset-password`), {step: () => Buffer.from('refuse')}), code(53))
+        await stopped.search(BASE, {scope: 'base'})
         //A bind that succeeds: the warning, the session held to change the password, the state of a right password, the
         //throttle told
         const {server: plain, admin: keeper} = await policed()
