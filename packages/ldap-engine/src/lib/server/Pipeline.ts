@@ -3,6 +3,7 @@ import type {EventEmitter} from 'node:events'
 import {LDAPDecodeException} from '../../exceptions/LDAPDecodeException.js'
 import {LDAPException} from '../../exceptions/LDAPException.js'
 import {LDAPResultException, LDAPTimeLimitExceededException, resultException} from '../../exceptions/LDAPResultException.js'
+import {LDAPUsageException} from '../../exceptions/LDAPUsageException.js'
 import type {Control} from '../controls/Control.js'
 import {
     findControl,
@@ -444,6 +445,12 @@ export class Pipeline {
     constructor(public readonly options: PipelineOptions) {
         this.schema = options.schema
         this.access = new AccessPolicy(options.access, options.schema)
+        //A password of the options naming a scheme the server does not have would be compared as it is, the text of its
+        //hash the password
+        for (const [dn, password] of Object.entries(options.access.adminPasswords ?? {})) {
+            const scheme: string | undefined = /^\{([^}]*)\}/.exec(password)?.[1]
+            if (scheme !== undefined && !options.passwords.isHashed(password)) throw new LDAPUsageException(`The password of ${dn} in access.adminPasswords names the scheme {${scheme}}, which the server does not have: register it with the server's password schemes, or give the password hashed by one of them`)
+        }
         this.mounts = options.backends.map((backend: LDAPBackend): Mount => ({backend: backend, suffix: DN.parse(backend.suffix), chain: []}))
         //The longest suffix first
         this.mounts.sort((left: Mount, right: Mount): number => right.suffix.length - left.suffix.length)

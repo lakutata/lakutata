@@ -1294,6 +1294,10 @@ describe('the server engine', () => {
         //A DN not among the administrators, or an empty password: refused at the start
         assert.throws(() => createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ADMIN], adminPasswords: {[ROOT]: 'x'}}}), LDAPUsageException)
         assert.throws(() => createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ROOT], adminPasswords: {[ROOT]: ''}}}), LDAPUsageException)
+        //A scheme the server does not have, or a mistyped one: refused too, not compared as it is (its text the password)
+        for (const value of ['{BCRYPT}$2b$10$abcdefghijklmnopqrstuuabcdefghijklmnopqrstuvwxyz01234', '{SSHA_512}abcd', '{}abcd']) assert.throws(() => createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ROOT], adminPasswords: {[ROOT]: value}}}), LDAPUsageException, value)
+        //A scheme registered with the server's schemes is taken
+        createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ROOT], adminPasswords: {[ROOT]: '{OWN}secret'}}, passwords: new PasswordSchemes({iterations: 1000}).register({name: 'OWN', verify: async () => false})})
     })
 
     it('refuses a critical control it does not know', async () => {
