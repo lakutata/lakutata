@@ -1710,6 +1710,24 @@ describe('the server engine', () => {
         for (const password of ['set-by-1', 'written-by-1', 'set-by-2', 'written-by-2']) await assert.rejects(engine.connect().bind(CHIEF, password), code(49), password)
     })
 
+    it('refuses a whole hash an administrator writes without its {SCHEME}, as a password in clear it would be', async () => {
+        const {server: engine, admin: owner} = await directory()
+        const bcrypt: string = `$2b$10$${'N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'}`
+        const sha512: string = `$6$saltsalt$${'a'.repeat(86)}`
+        //Refused, by an add and by a modify: its text would be the password
+        await assert.rejects(owner.add(`uid=imported,ou=people,${BASE}`, {objectClass: 'inetOrgPerson', uid: 'imported', cn: 'i', sn: 'i', userPassword: bcrypt}), code(19))
+        await assert.rejects(owner.modify(`uid=user10,ou=people,${BASE}`, {operation: 'replace', attribute: 'userPassword', values: sha512}), code(19))
+        //With its {SCHEME}: imported as it is; a password in clear only starting like one: hashed, binding
+        await owner.modify(`uid=user11,ou=people,${BASE}`, {operation: 'replace', attribute: 'userPassword', values: `{CRYPT}${bcrypt}`})
+        await owner.modify(`uid=user12,ou=people,${BASE}`, {operation: 'replace', attribute: 'userPassword', values: '$5$chosen'})
+        await engine.connect().bind(`uid=user12,ou=people,${BASE}`, '$5$chosen')
+        //A user's own value is a password in clear, whatever it looks like
+        const self: LDAPInProcessConnection = engine.connect()
+        await self.bind(`uid=user13,ou=people,${BASE}`, 'password13')
+        await self.modify(`uid=user13,ou=people,${BASE}`, {operation: 'replace', attribute: 'userPassword', values: bcrypt})
+        await engine.connect().bind(`uid=user13,ou=people,${BASE}`, bcrypt)
+    })
+
     it('checks a password of its own scheme for a DN with no entry or no password, as for a wrong one', async () => {
         //The checks the server makes, by the scheme of the value checked
         const schemes: PasswordSchemes = new PasswordSchemes({iterations: 1000})

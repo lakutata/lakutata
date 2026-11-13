@@ -445,6 +445,27 @@ function answerOfBind(outcome: ServerOutcome | null | undefined, passed: boolean
     return outcome!
 }
 
+/**
+ * The whole hashes the crypt libraries and argon2 give, without a {SCHEME}: bcrypt, MD5, SHA-256 and SHA-512 crypt,
+ * yescrypt, argon2 (their lengths and characters, not only their prefixes)
+ */
+const BARE_HASHES: readonly RegExp[] = [
+    /^\$2[abxy]\$\d{2}\$[./A-Za-z0-9]{53}$/,
+    /^\$1\$[^$]{0,8}\$[./A-Za-z0-9]{22}$/,
+    /^\$5\$(?:rounds=\d+\$)?[^$]{0,16}\$[./A-Za-z0-9]{43}$/,
+    /^\$6\$(?:rounds=\d+\$)?[^$]{0,16}\$[./A-Za-z0-9]{86}$/,
+    /^\$y\$[./A-Za-z0-9]+\$[./A-Za-z0-9]*\$[./A-Za-z0-9]{43}$/,
+    /^\$argon2(?:id|i|d)\$v=\d+\$m=\d+,t=\d+,p=\d+\$[A-Za-z0-9+/]+\$[A-Za-z0-9+/]+$/
+]
+
+/**
+ * Whether a value is a whole hash given without its {SCHEME}
+ * @param value The value.
+ */
+function isBareHash(value: string): boolean {
+    return BARE_HASHES.some((shape: RegExp): boolean => shape.test(value))
+}
+
 export class Pipeline {
     public readonly schema: Schema
 
@@ -1778,6 +1799,9 @@ export class Pipeline {
         const isPassword = (description: string): boolean => schema.primaryName(attributeTypeOf(description)).toLowerCase() === 'userpassword'
         const hashed = async (context: OperationContext, values: Buffer[]): Promise<Buffer[]> => {
             const keep: boolean = context.internal ? false : this.access.isAdmin(context.session.identity)
+            //An administrator's import of a whole hash without its {SCHEME} would be hashed as a password in clear: its
+            //text the password
+            if (keep && values.some((value: Buffer): boolean => !passwords.isHashed(value) && isBareHash(value.toString('utf8')))) fail(ResultCode.constraintViolation, 'A hash without its {SCHEME} would be taken as a password in clear: write it with its {SCHEME} ({CRYPT} for a crypt hash, {ARGON2} for an argon2 one)')
             return Promise.all(values.map(async (value: Buffer): Promise<Buffer> => keep && passwords.isHashed(value) ? value : Buffer.from(await passwords.hash(value))))
         }
         return {
