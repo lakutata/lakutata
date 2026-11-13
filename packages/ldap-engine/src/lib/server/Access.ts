@@ -58,7 +58,8 @@ export interface AccessOptions {
      * password, whether or not an entry has its DN (OpenLDAP's back-mdb also takes the entry's userPassword when the
      * rootpw does not match, ITS#4962). The entry's userPassword and the plugins' checks of a bind (a password policy)
      * do not apply, the bind throttle does; a Password Modify of it is refused (it is changed here); a value starting
-     * with `{…}` whose scheme the server does not have stops the server at its start
+     * with `{…}` whose scheme the server does not have, or a crypt or argon2 hash without its `{SCHEME}`, stops the
+     * server at its start
      */
     adminPasswords?: Record<string, string>
     /**

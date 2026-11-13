@@ -465,7 +465,11 @@ await server.listen({port: 389})
   application's that does the same) does not check this password. A Password Modify for such an administrator is refused
   with unwillingToPerform; the password is changed in the options. A write to the entry's userPassword is allowed and
   does not change this password. If a value begins with `{…}` and names a scheme the server does not have, the server
-  refuses to start, so a clear password that begins with `{…}` must be given hashed.
+  refuses to start, so a clear password that begins with `{…}` must be given hashed. A crypt or argon2 hash given
+  without its `{SCHEME}` (`$2b$…`, as a bcrypt library returns it), or with blanks before the `{SCHEME}`, also stops the
+  start; write it as `{CRYPT}$2b$…`. A value the server cannot verify (a malformed hash, a DES `{CRYPT}`, `{ARGON2}`
+  where node:crypto has no argon2) does not stop the start, but the administrator can never bind with it, so bind once
+  after setting it.
 - `access.check` decides first: `true` allows, `false` refuses, `undefined` leaves it to the table. It is given the
   operation (`read` for what a search returns or a compare reads), the DN, the session's identity, and the entry or the
   attributes when they are known. For a rename it is asked three times: `modifyDN` about the entry; `modifyDN` about the
@@ -511,9 +515,10 @@ removed, nothing is written. A backend with `transaction()` and `lock()`, such a
 @lakutata/ldap, locks the entry while the value is checked and replaced; other backends read the value again just before
 the write. To keep an imported hash (one an application also checks), turn `rehashOnBind` off; an application may also
 register a scheme of its own with `PasswordSchemes.register()` (a native bcrypt, say) and give the server those schemes.
-A value written by anyone else is treated as a password in clear, even if it looks hashed. When a modify deletes a
-password given in clear (the old password of a change), it is checked against the stored one only on the session's own
-entry; to change someone else's password, replace it.
+A scheme's name may contain only letters, digits, `.` and `-`; `register()` refuses any other. A value written by anyone
+else is treated as a password in clear, even if it looks hashed. When a modify deletes a password given in clear (the
+old password of a change), it is checked against the stored one only on the session's own entry; to change someone
+else's password, replace it.
 
 `passwordPolicy` applies the password policy of draft-behera, with the attributes OpenLDAP's ppolicy uses:
 
@@ -535,6 +540,9 @@ await server.listen({port: 389})
 - Accounts are locked after too many failures, for a while or until an administrator sets a new password; the accounts
   unused for too long are locked too (`maxIdle`).
 - A password expires (`maxAge`), with warnings before (`expireWarning`) and binds allowed after (`graceAuthNLimit`).
+  Within one instance, binds made at the same time do not take more grace binds than are left: each is counted after it
+  is written, and a bind that finds more than the limit is refused and its use removed. When several arrive at once for
+  the last grace bind, all of them may be refused; the grace bind is then still available.
 - After an administrator sets a password, the user changes it before doing anything else (`mustChange`); it may still
   start TLS first, so that the change goes over TLS; the restriction ends once the change has been written, and a new
   bind on the same connection is judged afresh.
@@ -549,7 +557,10 @@ await server.listen({port: 389})
   millisecond on two instances sharing a backend, before either is written, can be given the same time; whether they
   then count once or twice depends on what the backend does with a value it already has. The clients that send the
   password policy control get the warnings and the reasons; a locked account is answered as a wrong password, unless
-  `revealLocked` is set.
+  `revealLocked` is set. When an interceptor or a plugin refuses a bind after its password was checked, the bind does
+  not count as successful: the recorded failures stay, pwdLastSuccess is not written, the bind throttle's count is not
+  reset and no warning is sent. Two things still happen: a grace bind already counted stays used, and the password is
+  still hashed again where `rehashOnBind` applies.
 - The policy is a plugin, the `PasswordPolicyPlugin` the option adds after the others, and it loads the schema ppolicy
   itself.
 

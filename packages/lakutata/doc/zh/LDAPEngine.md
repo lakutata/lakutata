@@ -351,7 +351,7 @@ const server = createLDAPServer({
 await server.listen({port: 389})
 ```
 
-- `access.adminPasswords` 按 DN 给出管理员的口令，明文或哈希（`{SCHEME}`）都可以，类似 OpenLDAP 的 rootdn 和 rootpw，但更严格：这样的管理员做简单绑定或 SASL PLAIN 绑定时只认这个口令，不论目录里有没有它的条目（OpenLDAP 的 back-mdb 在 rootpw 不匹配时，还会接受条目里的 userPassword）。这样管理员的凭据就不会落在它自己管辖的数据里。条目里的 userPassword 和插件在绑定时做的检查（比如密码策略）对它不起作用，绑定限速照常生效。不靠密码确定身份的 SASL 机制（比如用客户端证书的 SASL EXTERNAL，或者应用自己写的这类机制）不校验这个口令。对这样的管理员做 Password Modify 会被拒绝，回应 unwillingToPerform；要改这个口令，请改配置。直接写入条目里的 userPassword 是允许的，但不会改变这个口令。值以 `{…}` 开头、而服务器没有其中的格式时，服务器拒绝启动；所以以 `{…}` 开头的明文口令要先哈希再配置。
+- `access.adminPasswords` 按 DN 给出管理员的口令，明文或哈希（`{SCHEME}`）都可以，类似 OpenLDAP 的 rootdn 和 rootpw，但更严格：这样的管理员做简单绑定或 SASL PLAIN 绑定时只认这个口令，不论目录里有没有它的条目（OpenLDAP 的 back-mdb 在 rootpw 不匹配时，还会接受条目里的 userPassword）。这样管理员的凭据就不会落在它自己管辖的数据里。条目里的 userPassword 和插件在绑定时做的检查（比如密码策略）对它不起作用，绑定限速照常生效。不靠密码确定身份的 SASL 机制（比如用客户端证书的 SASL EXTERNAL，或者应用自己写的这类机制）不校验这个口令。对这样的管理员做 Password Modify 会被拒绝，回应 unwillingToPerform；要改这个口令，请改配置。直接写入条目里的 userPassword 是允许的，但不会改变这个口令。值以 `{…}` 开头、而服务器没有其中的格式时，服务器拒绝启动；所以以 `{…}` 开头的明文口令要先哈希再配置。不带 `{SCHEME}` 前缀的 crypt 或 argon2 哈希（比如 bcrypt 库直接返回的 `$2b$…`），或者 `{SCHEME}` 前面有空白的值，也会让服务器拒绝启动；要写成 `{CRYPT}$2b$…`。服务器校验不了的值（格式错误的哈希、DES 的 `{CRYPT}`、node:crypto 不支持 argon2 时的 `{ARGON2}`）不会阻止启动，但这个管理员永远绑定不上，所以配置之后请实际绑定一次确认。
 - `access.check` 最先判断：返回 `true` 表示允许，`false` 表示拒绝，`undefined` 表示交给上表的规则。它收到的信息有：操作（搜索返回的内容和比较读取的条目为 `read`）、DN、会话的身份，以及已知时的条目或属性。改名时它会被问三次：先以 `modifyDN` 问原来的条目；再以 `modifyDN` 问条目的新 DN（`from` 给出原来的 DN），所以只允许在某个条目下面写入的检查，也会拒绝把条目移出去；最后以 `modify` 问新 RDN 写入值的属性，以及设置了 deleteOldRDN 时旧 RDN 去掉值的属性，就像 OpenLDAP 要求对前者有添加权限、对后者有删除权限一样。RDN 不变的移动不写任何属性，不会被问第三次。对会话不能读的条目做比较时，按条目不存在回答。
 - 设置了 `access.check` 时，搜索会按后端存储的内容对每个条目询问 `read`，这时服务器还没有加上它计算出来的操作属性，插件也还没有改动条目。会话不能读的条目在分页、开窗和计数之前就被去掉，所以每一页和虚拟列表视图里只有会话能读的条目，总数也只算这些条目。这时虚拟列表视图由服务器自己排序，受 `limits.sortCandidates` 限制。自己写的拦截器往搜索结果里加入的条目，或者以新对象返回的条目，会在整条链运行完之后再检查一次，这时条目已带上后面的步骤加上的内容。
 - 只搜索基准本身（scope 为 `base`）而会话不能读它时，按基准不存在回答；matched DN 也只给出会话能读的条目。搜索基准下面的条目时，仍然返回会话能读的那些，所以回答会显示基准是存在的。要隐藏一个条目是否存在，就拒绝对它的 DN 做 `search`：这样的搜索不论条目是否存在，都以 insufficientAccessRights 拒绝。
@@ -362,7 +362,7 @@ await server.listen({port: 389})
 
 ## 12. 密码和密码策略
 
-服务器收到的每个密码都会被哈希成 `{PBKDF2-SHA512}`（OpenLDAP 的 pw-pbkdf2 模块使用的格式；`passwords: {iterations}` 调整迭代次数）。绑定时也能校验 OpenLDAP 的其他格式（`{SSHA}`、SHA-2 系列、使用 MD5、SHA-256、SHA-512 和 bcrypt 的 `{CRYPT}`，以及 node:crypto 支持 argon2 时的 `{ARGON2}`：Node.js 24.7 及以上，Electron 不支持），还能校验旧目录里的明文密码，校验通过后再用服务器的格式重新哈希（`rehashOnBind`）。管理员可以直接写入已经哈希过的值，用于导入账号；开启 `rehashOnBind` 时，格式与服务器不同的值会在第一次绑定成功时被替换，因为只有这时才拿得到明文密码。只有条目里还是这个值时才会替换；发现这个值已经被改掉或删除时，什么都不写。提供了 `transaction()` 和 `lock()` 的后端（比如 @lakutata/ldap 的目录后端）会先锁住条目，再判断和替换；其他后端在写入之前重新读一遍这个值。要保留导入的哈希（比如应用自己也要校验的那一份），就关掉 `rehashOnBind`；应用也可以用 `PasswordSchemes.register()` 注册自己的格式（比如原生的 bcrypt），再把这组格式交给服务器。其他用户写入的值，即使看起来像哈希，也按明文密码处理。修改操作删除以明文给出的密码时（修改密码时给出的旧密码），只在修改自己的条目时才和存储的密码比对；要改别人的密码，请用 replace。
+服务器收到的每个密码都会被哈希成 `{PBKDF2-SHA512}`（OpenLDAP 的 pw-pbkdf2 模块使用的格式；`passwords: {iterations}` 调整迭代次数）。绑定时也能校验 OpenLDAP 的其他格式（`{SSHA}`、SHA-2 系列、使用 MD5、SHA-256、SHA-512 和 bcrypt 的 `{CRYPT}`，以及 node:crypto 支持 argon2 时的 `{ARGON2}`：Node.js 24.7 及以上，Electron 不支持），还能校验旧目录里的明文密码，校验通过后再用服务器的格式重新哈希（`rehashOnBind`）。管理员可以直接写入已经哈希过的值，用于导入账号；开启 `rehashOnBind` 时，格式与服务器不同的值会在第一次绑定成功时被替换，因为只有这时才拿得到明文密码。只有条目里还是这个值时才会替换；发现这个值已经被改掉或删除时，什么都不写。提供了 `transaction()` 和 `lock()` 的后端（比如 @lakutata/ldap 的目录后端）会先锁住条目，再判断和替换；其他后端在写入之前重新读一遍这个值。要保留导入的哈希（比如应用自己也要校验的那一份），就关掉 `rehashOnBind`；应用也可以用 `PasswordSchemes.register()` 注册自己的格式（比如原生的 bcrypt），再把这组格式交给服务器。格式的名字只能包含字母、数字、`.` 和 `-`，其他名字 `register()` 会拒绝。其他用户写入的值，即使看起来像哈希，也按明文密码处理。修改操作删除以明文给出的密码时（修改密码时给出的旧密码），只在修改自己的条目时才和存储的密码比对；要改别人的密码，请用 replace。
 
 `passwordPolicy` 实现 draft-behera 的密码策略，使用的属性和 OpenLDAP 的 ppolicy 一样：
 
@@ -382,12 +382,12 @@ await server.listen({port: 389})
 ```
 
 - 失败次数过多时锁定账号，锁定一段时间，或者直到管理员设置新密码为止；太久没有使用的账号也会被锁定（`maxIdle`）。
-- 密码会过期（`maxAge`），过期前会提醒（`expireWarning`），过期后还允许绑定几次（`graceAuthNLimit`）。
+- 密码会过期（`maxAge`），过期前会提醒（`expireWarning`），过期后还允许绑定几次（`graceAuthNLimit`）。在同一个实例内，同时到达的绑定不会多用宽限次数：每次先写入、再计数，发现超过上限的那一次会被拒绝，并撤回自己的记录。只剩最后一次时，同时到达的几次绑定可能全部被拒绝，这一次仍然留着。
 - 管理员设置密码后，用户必须先修改密码，才能做别的事（`mustChange`），但可以先做 StartTLS，以便通过 TLS 修改；修改写入之后，这个限制才解除；在同一个连接上重新绑定时，会重新判断。
 - 受策略约束的条目只能有一个密码：写入后会留下两个密码的操作会被拒绝。
 - 策略的请求控制可以随任何请求发送（draft-behera §6.1），包括对根 DSE 的搜索；策略有话要说时，响应里会带上它的响应控制。
 - 新密码的要求：修改时必须给出旧密码（`safeModify`），两次修改之间要隔一段时间（`minAge`），并且不能和以前用过的密码相同（`inHistory`）；长度（`minLength`、`maxLength`）和 `quality` 检查在 `checkQuality` 为 1（管理员导入的哈希值可以通过）或 2（总是检查）时生效，和 pwdCheckQuality 的规定一致。
-- 策略的状态存在条目的操作属性里（pwdChangedTime、pwdAccountLockedTime、pwdFailureTime……），所以任何后端都能保存它。每次绑定失败都会计数，同时发生的几次也一样。共用一个后端的两个实例在同一毫秒内、都还没写入时各有一次失败，可能拿到相同的时间；这时算一次还是两次，取决于后端怎样处理已有的值。发送密码策略控制的客户端会在回应里收到提醒和原因；账号被锁定时，回应和密码错误一样，除非设置了 `revealLocked`。
+- 策略的状态存在条目的操作属性里（pwdChangedTime、pwdAccountLockedTime、pwdFailureTime……），所以任何后端都能保存它。每次绑定失败都会计数，同时发生的几次也一样。共用一个后端的两个实例在同一毫秒内、都还没写入时各有一次失败，可能拿到相同的时间；这时算一次还是两次，取决于后端怎样处理已有的值。发送密码策略控制的客户端会在回应里收到提醒和原因；账号被锁定时，回应和密码错误一样，除非设置了 `revealLocked`。密码已经校验通过、之后绑定又被拦截器或插件拒绝时，这次绑定不算成功：失败记录保留，不写 pwdLastSuccess，绑定限速的计数不清零，也不发提醒。有两件事照常发生：已经计入的宽限绑定不退回；`rehashOnBind` 该改写的密码照样改写。
 - 密码策略是一个插件：这个选项会在其他插件之后加上一个 `PasswordPolicyPlugin`，它会自己加载 ppolicy schema。
 
 ## 13. 插件和拦截器
