@@ -421,6 +421,15 @@ function isLoopback(address: string | undefined): boolean {
  * passwords, the root DSE and the subschema. The network connections and the in-process connections give their
  * requests to `handle()`.
  */
+/**
+ * The answer of the chain of a bind: one without a result code (an interceptor returning nothing, null or `{}`) is
+ * other, so that only an answer of success binds
+ * @param outcome The answer.
+ */
+function answerOfBind(outcome: ServerOutcome | null | undefined): ServerOutcome {
+    return Number.isInteger(outcome?.resultCode) ? outcome! : {resultCode: ResultCode.other, diagnosticMessage: 'An interceptor of the bind gave no answer'}
+}
+
 export class Pipeline {
     public readonly schema: Schema
 
@@ -1316,10 +1325,10 @@ export class Pipeline {
             await this.authenticate(session, context, dn, password)
             return {resultCode: ResultCode.success}
         }
-        //An interceptor of the chain may answer the bind instead of throwing: that answer fails it
-        //(an interceptor returning nothing leaves the bind as the rest of the chain made it)
-        const chained: ServerOutcome | undefined = await (mount ? this.run(mount, context, bindRequest, verify) : verify())
-        if (chained && chained.resultCode !== ResultCode.success) return chained
+        //The bind succeeds only on an answer of success from its chain: an interceptor answering otherwise instead of
+        //throwing fails it with that answer, one answering nothing with other
+        const chained: ServerOutcome = answerOfBind(await (mount ? this.run(mount, context, bindRequest, verify) : verify()))
+        if (chained.resultCode !== ResultCode.success) return chained
         session.identity = dn
         session.authenticationMethod = 'simple'
         this.options.events.emit('bind', {session: session.id, dn: dn.toString(), method: 'simple'})
@@ -1415,12 +1424,12 @@ export class Pipeline {
                     return {resultCode: ResultCode.success}
                 }
                 const bindRequest: ServerBindRequest = {type: 'bind', name: name, dn: dn, authentication: {type: 'sasl', mechanism: mechanism.name, ...credentials ? {credentials: credentials} : {}}}
-                //An answer of an interceptor of the chain other than success fails the step with it, whole (its message, its
-                //matched DN, its referral), invalidCredentials too
+                //The step succeeds only on an answer of success from the chain: another answer of an interceptor fails it
+                //whole (its message, its matched DN, its referral), invalidCredentials too, and no answer with other
                 let answered: LDAPResultException | undefined
                 try {
-                    const chained: ServerOutcome | undefined = await (mount ? this.run(mount, context, bindRequest, verify) : verify())
-                    if (chained && chained.resultCode !== ResultCode.success) {
+                    const chained: ServerOutcome = answerOfBind(await (mount ? this.run(mount, context, bindRequest, verify) : verify()))
+                    if (chained.resultCode !== ResultCode.success) {
                         answered = resultException({resultCode: chained.resultCode, matchedDN: chained.matchedDN ?? '', diagnosticMessage: chained.diagnosticMessage ?? 'The bind is refused', ...chained.referral ? {referral: chained.referral} : {}})
                         throw answered
                     }
