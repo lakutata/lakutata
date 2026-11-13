@@ -1738,6 +1738,8 @@ describe('the server engine', () => {
         //Refused, by an add and by a modify: its text would be the password
         await assert.rejects(owner.add(`uid=imported,ou=people,${BASE}`, {objectClass: 'inetOrgPerson', uid: 'imported', cn: 'i', sn: 'i', userPassword: bcrypt}), code(19))
         await assert.rejects(owner.modify(`uid=user10,ou=people,${BASE}`, {operation: 'replace', attribute: 'userPassword', values: sha512}), code(19))
+        //(an argon2 hash without its version, as version 1.0 wrote it, too)
+        await assert.rejects(owner.modify(`uid=user10,ou=people,${BASE}`, {operation: 'replace', attribute: 'userPassword', values: '$argon2i$m=4096,t=3,p=1$c2FsdHNhbHQ$aGFzaGhhc2hoYXNo'}), code(19))
         //With its {SCHEME}: imported as it is; a password in clear only starting like one: hashed, binding
         await owner.modify(`uid=user11,ou=people,${BASE}`, {operation: 'replace', attribute: 'userPassword', values: `{CRYPT}${bcrypt}`})
         await owner.modify(`uid=user12,ou=people,${BASE}`, {operation: 'replace', attribute: 'userPassword', values: '$5$chosen'})

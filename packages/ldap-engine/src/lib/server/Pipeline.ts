@@ -447,7 +447,7 @@ function answerOfBind(outcome: ServerOutcome | null | undefined, passed: boolean
 
 /**
  * The whole hashes the crypt libraries and argon2 give, without a {SCHEME}: bcrypt, MD5, SHA-256 and SHA-512 crypt,
- * yescrypt, argon2 (their lengths and characters, not only their prefixes)
+ * yescrypt, argon2 with or without its version (their lengths and characters, not only their prefixes)
  */
 const BARE_HASHES: readonly RegExp[] = [
     /^\$2[abxy]\$\d{2}\$[./A-Za-z0-9]{53}$/,
@@ -455,7 +455,7 @@ const BARE_HASHES: readonly RegExp[] = [
     /^\$5\$(?:rounds=\d+\$)?[^$]{0,16}\$[./A-Za-z0-9]{43}$/,
     /^\$6\$(?:rounds=\d+\$)?[^$]{0,16}\$[./A-Za-z0-9]{86}$/,
     /^\$y\$[./A-Za-z0-9]+\$[./A-Za-z0-9]*\$[./A-Za-z0-9]{43}$/,
-    /^\$argon2(?:id|i|d)\$v=\d+\$m=\d+,t=\d+,p=\d+\$[A-Za-z0-9+/]+\$[A-Za-z0-9+/]+$/
+    /^\$argon2(?:id|i|d)\$(?:v=\d+\$)?m=\d+,t=\d+,p=\d+\$[A-Za-z0-9+/]+\$[A-Za-z0-9+/]+$/
 ]
 
 /**
