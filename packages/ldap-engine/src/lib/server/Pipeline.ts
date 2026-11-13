@@ -431,13 +431,16 @@ function isLoopback(address: string | undefined): boolean {
  */
 /**
  * The answer of the chain of a bind, or of one of its interceptors: one without a result code (an interceptor returning
- * nothing, null or `{}`) is other, and so is success while the password has not been checked (an interceptor answering
- * success without next(), or swallowing its refusal), so that only a password checked binds
+ * nothing, null or `{}`) or with one no bind has (below 0, saslBindInProgress) is other, and so is success while the
+ * password has not been checked (an interceptor answering success without next(), or swallowing its refusal), so that
+ * only a password checked binds
  * @param outcome The answer.
  * @param passed Whether the password has been checked.
  */
 function answerOfBind(outcome: ServerOutcome | null | undefined, passed: boolean): ServerOutcome {
     if (!Number.isInteger(outcome?.resultCode)) return {resultCode: ResultCode.other, diagnosticMessage: 'An interceptor of the bind gave no answer'}
+    //Nor is a result code no bind has: none below 0, and no step in progress (the mechanism's, not the chain's)
+    if (outcome!.resultCode < 0 || outcome!.resultCode === ResultCode.saslBindInProgress) return {resultCode: ResultCode.other, diagnosticMessage: 'An interceptor of the bind gave no answer a bind can have'}
     if (outcome!.resultCode === ResultCode.success && !passed) return {resultCode: ResultCode.other, diagnosticMessage: 'An interceptor of the bind answered success without the password checked'}
     return outcome!
 }

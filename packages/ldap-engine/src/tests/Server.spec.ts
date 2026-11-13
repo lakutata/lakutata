@@ -1206,6 +1206,13 @@ describe('the server engine', () => {
             {name: 'returns nothing without next()', password: 'wrong', around: async () => undefined, code: 80, message: NO_ANSWER},
             {name: 'returns {} without next()', password: 'wrong', around: async () => ({}), code: 80, message: NO_ANSWER},
             {name: 'returns null without next()', password: 'wrong', around: async () => null, code: 80, message: NO_ANSWER},
+            //An answer no bind has: in progress (a step of SASL is the mechanism's), or no result code there is
+            {name: 'answers saslBindInProgress without next()', password: 'wrong', around: async () => ({resultCode: 14}), code: 80, message: NO_ANSWER},
+            {name: 'answers saslBindInProgress after next()', password: 'password10', around: async (next) => {
+                await next()
+                return {resultCode: 14}
+            }, code: 80, message: NO_ANSWER},
+            {name: 'answers a negative result code', password: 'wrong', around: async () => ({resultCode: -1}), code: 80, message: NO_ANSWER},
             {name: 'calls next() and returns nothing', password: 'password10', around: async (next) => {
                 await next()
             }, code: 80, message: NO_ANSWER},
