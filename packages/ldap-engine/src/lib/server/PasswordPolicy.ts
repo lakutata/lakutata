@@ -392,8 +392,22 @@ export class PasswordPolicy {
                 await this.writeState(dn, changes.slice(0, 2))
                 refuse(context, ResultCode.invalidCredentials, 'Invalid credentials', 'passwordExpired')
             }
-            changes.push({operation: 'add', attribute: {type: 'pwdGraceUseTime', values: [Buffer.from(formatGeneralizedTime(now))]}})
-            warning = {graceAuthNsRemaining: remaining - 1}
+            //The grace bind counted once written, with a time of its own: when the uses then written are more than the
+            //limit (grace binds made at once), this one is taken back and refused, so that no more bind than the grace
+            //binds left (some made at once may all be refused, none above the limit binds)
+            const taken: Set<string> = new Set(valuesOfType(entry, 'pwdGraceUseTime', this.schema).map((value: Buffer): string => value.toString('utf8')))
+            let at: number = uniqueTime(now)
+            while (taken.has(formatGeneralizedTime(at))) at = uniqueTime(at + 1)
+            const use: Buffer = Buffer.from(formatGeneralizedTime(at))
+            await this.writeState(dn, [{operation: 'add', attribute: {type: 'pwdGraceUseTime', values: [use]}}])
+            const written: DirectoryEntry | undefined = await this.getEntry(dn, ['pwdGraceUseTime'])
+            const uses: number = written ? valuesOfType(written, 'pwdGraceUseTime', this.schema).length : used + 1
+            const limit: number = rules.graceAuthNLimit ?? 0
+            if (uses > limit) {
+                await this.writeState(dn, [{operation: 'delete', attribute: {type: 'pwdGraceUseTime', values: [use]}}])
+                refuse(context, ResultCode.invalidCredentials, 'Invalid credentials', 'passwordExpired')
+            }
+            warning = {graceAuthNsRemaining: limit - uses}
         } else if (rules.maxAge && rules.expireWarning && changed !== undefined) {
             const age: number = (now - changed) / 1000
             if (age >= rules.maxAge - rules.expireWarning) warning = {timeBeforeExpiration: Math.max(Math.floor(rules.maxAge - age), 0)}

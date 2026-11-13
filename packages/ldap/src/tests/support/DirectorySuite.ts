@@ -1137,6 +1137,39 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             }
         })
 
+        it('lets no more binds through at once than the grace binds left', {timeout: 60000}, async () => {
+            if (!container.has('graced')) await container.setNamed('graced', LDAPServer, {port: false, schema: schema, backends: [{class: MeanwhileBackend, suffix: BASE, database: 'database'}], access: {admins: [ADMIN]}, passwords: {iterations: 1000}, bindThrottle: {maxFailures: 0, ipMaxFailures: 0, delay: 0}, passwordPolicy: {default: {maxAge: 1, graceAuthNLimit: 1}}})
+            const server: LDAPServer = await container.get<LDAPServer>('graced')
+            const user: string = `uid=graced,${people}`
+            try {
+                await admin.add(user, {objectClass: 'inetOrgPerson', uid: 'graced', cn: 'Graced', sn: 'Graced'})
+                //Its password changed under the policy, expired a second later
+                await server.connect(ADMIN).passwordModify({userIdentity: user, newPassword: 'graced-password'})
+                await new Promise<void>((resolve: () => void): void => {
+                    setTimeout(resolve, 1500)
+                })
+                //Two binds meeting once each has read the entry, before either writes
+                let arrived: number = 0
+                let open: () => void = (): void => undefined
+                const met: Promise<void> = new Promise<void>((resolve: () => void): void => {
+                    open = resolve
+                })
+                meanwhile = {dn: user, left: 2, run: async (): Promise<void> => {
+                    if (++arrived === 2) open()
+                    await Promise.race([met, new Promise<void>((resolve: () => void): void => {
+                        setTimeout(resolve, 5000)
+                    })])
+                }}
+                const answers: number[] = await Promise.all([0, 1].map(() => server.connect().bind(user, 'graced-password').then(() => 0, (error: unknown) => error instanceof LDAPResultException ? error.code : -1)))
+                meanwhile = undefined
+                assert.deepEqual(answers.sort(), [0, 49])
+                assert.equal((await admin.search(user, {scope: 'base', attributes: ['pwdGraceUseTime']})).entries[0].get('pwdGraceUseTime').length, 1)
+            } finally {
+                meanwhile = undefined
+                await admin.delete(user).catch((): undefined => undefined)
+            }
+        })
+
         it('does not hold a bind behind a write to its entry, the authTimestamp of the bind left out', {timeout: 60000}, async () => {
             const user: string = `uid=binding,${people}`
             await admin.add(user, {objectClass: 'inetOrgPerson', uid: 'binding', cn: 'Binding', sn: 'Binding'})

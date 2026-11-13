@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import {describe, it} from 'node:test'
 import {
+    type DirectoryEntry,
     type Control,
     createLDAPServer,
     DN,
@@ -54,9 +55,9 @@ function refused(code: number, error?: PasswordPolicyValue['error']): (thrown: u
  * A server with a default policy entry of rules, a few users, and their passwords
  * @param rules The attributes of the policy entry, by name.
  * @param options More options of the policy.
+ * @param backend The backend.
  */
-async function serve(rules: Record<string, string>, options: Partial<PasswordPolicyOptions> = {}): Promise<{server: LDAPServerEngine, backend: MemoryBackend, admin: LDAPInProcessConnection}> {
-    const backend: MemoryBackend = new MemoryBackend(BASE)
+async function serve(rules: Record<string, string>, options: Partial<PasswordPolicyOptions> = {}, backend: MemoryBackend = new MemoryBackend(BASE)): Promise<{server: LDAPServerEngine, backend: MemoryBackend, admin: LDAPInProcessConnection}> {
     const server: LDAPServerEngine = createLDAPServer({
         backends: [backend],
         access: {admins: [ADMIN]},
@@ -211,6 +212,38 @@ describe('the password policy', () => {
         await assert.rejects(session.bind(ALICE, 'alice-password-1', {controls: ASK}), refused(49, 'passwordExpired'))
         //Without the request control, no response control
         await assert.rejects(session.bind(ALICE, 'alice-password-1'), (error: unknown) => error instanceof LDAPInvalidCredentialsException && !policyOf(error.controls))
+    })
+
+    it('lets no more binds through at once than the grace binds left', async () => {
+        //A backend making the binds of the test meet once each has read the entry, before either writes
+        let meeting: {arrived: number, open: () => void, met: Promise<void>} | undefined
+        class Meeting extends MemoryBackend {
+            public async get(...args: Parameters<MemoryBackend['get']>): Promise<DirectoryEntry | undefined> {
+                const entry: DirectoryEntry | undefined = await super.get(...args)
+                const current: {arrived: number, open: () => void, met: Promise<void>} | undefined = meeting
+                if (current && args[1].toString() === ALICE) {
+                    if (++current.arrived >= 2) current.open()
+                    await Promise.race([current.met, new Promise<void>((resolve: () => void): void => {
+                        setTimeout(resolve, 2000)
+                    })])
+                }
+                return entry
+            }
+        }
+        const {server, backend} = await serve({pwdMaxAge: '86400', pwdGraceAuthNLimit: '1'}, {}, new Meeting(BASE))
+        await age(server, backend, ALICE, {pwdChangedTime: formatGeneralizedTime(Date.now() - 90000 * 1000)})
+        let open: () => void = (): void => undefined
+        const met: Promise<void> = new Promise<void>((resolve: () => void): void => {
+            open = resolve
+        })
+        meeting = {arrived: 0, open: (): void => open(), met: met}
+        const answers: number[] = await Promise.all([0, 1].map(() => server.connect().bind(ALICE, 'alice-password-1', {controls: ASK}).then(() => 0, (error: unknown) => error instanceof LDAPResultException ? error.code : -1)))
+        meeting = undefined
+        //One bind of the grace binds left, the other refused; one grace bind used
+        assert.deepEqual(answers.sort(), [0, 49])
+        const uses = (): number => backend.entries().find((entry) => entry.dn.toString() === ALICE)!.attributes.find((attribute) => attribute.type.toLowerCase() === 'pwdgraceusetime')?.values.length ?? 0
+        assert.equal(uses(), 1)
+        await assert.rejects(server.connect().bind(ALICE, 'alice-password-1', {controls: ASK}), refused(49, 'passwordExpired'))
     })
 
     it('makes a user change a password an administrator set before anything else', async () => {
