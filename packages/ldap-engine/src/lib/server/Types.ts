@@ -354,8 +354,12 @@ export interface LDAPBackend {
      */
     add?(context: WriteContext, entry: DirectoryEntry): Promise<void>
     /**
-     * Change the attributes of an entry. The engine has checked the changes against the entry: the values to delete
-     * are written as the entry has them, an increment is a replace, and the result is valid for the schema.
+     * Change the attributes of an entry. For a write of a client, the engine has checked the changes against the
+     * entry: the values to delete are written as the entry has them, an increment is a replace, and the result is
+     * valid for the schema. The engine also writes straight to the backend, with `context.internal` set and without
+     * that check: the state the password policy keeps, and a password hashed again at a bind. Such a write may delete
+     * a value the entry no longer has, which the backend skips; when the entry is no longer there, the backend makes no
+     * write and raises no error.
      * @param context The context of the operation.
      * @param dn The DN of the entry.
      * @param changes The changes, applied in order.

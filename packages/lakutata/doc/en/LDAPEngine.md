@@ -515,10 +515,13 @@ removed, nothing is written. A backend with `transaction()` and `lock()`, such a
 @lakutata/ldap, locks the entry while the value is checked and replaced; other backends read the value again just before
 the write. To keep an imported hash (one an application also checks), turn `rehashOnBind` off; an application may also
 register a scheme of its own with `PasswordSchemes.register()` (a native bcrypt, say) and give the server those schemes.
-A scheme's name may contain only letters, digits, `.` and `-`; `register()` refuses any other. A value written by anyone
-else is treated as a password in clear, even if it looks hashed. When a modify deletes a password given in clear (the
-old password of a change), it is checked against the stored one only on the session's own entry; to change someone
-else's password, replace it.
+A scheme's name may contain only letters, digits, `.` and `-`; `register()` refuses any other. A scheme registered under
+a name the server already has replaces the server's own. To have `{CRYPT}` bcrypt values checked by a native library,
+register the scheme as `CRYPT` and pass every value it does not take to the scheme it replaces, which
+`schemeOf('{CRYPT}')` gives before the registration: `$1$`, `$5$` and `$6$`, and also `$2y$`, which the `bcrypt` package
+on npm does not accept. A value written by anyone else is treated as a password in clear, even if it looks hashed. When
+a modify deletes a password given in clear (the old password of a change), it is checked against the stored one only on
+the session's own entry; to change someone else's password, replace it.
 
 `passwordPolicy` applies the password policy of draft-behera, with the attributes OpenLDAP's ppolicy uses:
 
@@ -562,7 +565,9 @@ await server.listen({port: 389})
   reset and no warning is sent. Some things still happen: a grace bind already counted stays used; the password is still
   hashed again where `rehashOnBind` applies; and the time of the last bind is still kept when the refusal comes from
   around `LastBindPlugin` or the directory backend's `lastBind`: a plugin's `aroundRequest`, an interceptor placed
-  before theirs, or a failure to write this state.
+  before theirs, or a failure to write this state. The policy's own refusal of an expired password with no grace bind
+  left is different: as draft-behera §8.1.2.1 says, a password that validates clears the recorded failures before its
+  expiry is looked at.
 - The policy is a plugin, the `PasswordPolicyPlugin` the option adds after the others, and it loads the schema ppolicy
   itself.
 
