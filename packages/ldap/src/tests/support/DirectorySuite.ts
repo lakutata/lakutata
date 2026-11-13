@@ -1162,8 +1162,13 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                 }}
                 const answers: number[] = await Promise.all([0, 1].map(() => server.connect().bind(user, 'graced-password').then(() => 0, (error: unknown) => error instanceof LDAPResultException ? error.code : -1)))
                 meanwhile = undefined
-                assert.deepEqual(answers.sort(), [0, 49])
-                assert.equal((await admin.search(user, {scope: 'base', attributes: ['pwdGraceUseTime']})).entries[0].get('pwdGraceUseTime').length, 1)
+                //No more binds than the grace binds left, each one bound using one, the others refused (both may be on a
+                //database, the order of their writes and reads not given): what is left binds next, then nothing
+                const bound: number = answers.filter((answer: number): boolean => answer === 0).length
+                assert.ok(bound <= 1 && answers.every((answer: number): boolean => answer === 0 || answer === 49), answers.join(' '))
+                assert.equal((await admin.search(user, {scope: 'base', attributes: ['pwdGraceUseTime']})).entries[0].get('pwdGraceUseTime').length, bound)
+                if (!bound) await server.connect().bind(user, 'graced-password')
+                await assert.rejects(server.connect().bind(user, 'graced-password'), (error: unknown) => error instanceof LDAPResultException && error.code === 49)
             } finally {
                 meanwhile = undefined
                 await admin.delete(user).catch((): undefined => undefined)

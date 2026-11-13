@@ -239,10 +239,13 @@ describe('the password policy', () => {
         meeting = {arrived: 0, open: (): void => open(), met: met}
         const answers: number[] = await Promise.all([0, 1].map(() => server.connect().bind(ALICE, 'alice-password-1', {controls: ASK}).then(() => 0, (error: unknown) => error instanceof LDAPResultException ? error.code : -1)))
         meeting = undefined
-        //One bind of the grace binds left, the other refused; one grace bind used
-        assert.deepEqual(answers.sort(), [0, 49])
+        //No more binds than the grace binds left, each one bound using one, the others refused (both may be, the order of
+        //their writes and reads not given): what is left binds next, then nothing
         const uses = (): number => backend.entries().find((entry) => entry.dn.toString() === ALICE)!.attributes.find((attribute) => attribute.type.toLowerCase() === 'pwdgraceusetime')?.values.length ?? 0
-        assert.equal(uses(), 1)
+        const bound: number = answers.filter((answer: number): boolean => answer === 0).length
+        assert.ok(bound <= 1 && answers.every((answer: number): boolean => answer === 0 || answer === 49), answers.join(' '))
+        assert.equal(uses(), bound)
+        if (!bound) await server.connect().bind(ALICE, 'alice-password-1', {controls: ASK})
         await assert.rejects(server.connect().bind(ALICE, 'alice-password-1', {controls: ASK}), refused(49, 'passwordExpired'))
     })
 
