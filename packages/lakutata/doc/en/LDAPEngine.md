@@ -467,10 +467,10 @@ await server.listen({port: 389})
   does not change this password. If a value begins with `{…}` and names a scheme the server does not have, the server
   refuses to start, so a clear password that begins with `{…}` must be given hashed. A crypt or argon2 hash given
   without its `{SCHEME}` (`$2b$…`, as a bcrypt library returns it), or with blanks before the `{SCHEME}`, also stops the
-  start; write it as `{CRYPT}$2b$…`. A value the server cannot verify (a malformed hash, a DES `{CRYPT}`, `{ARGON2}`
-  where node:crypto has no argon2) does not stop the start, but the administrator can never bind with it, so bind once
-  after setting it. The server also refuses to start if the same DN is given twice, written with a different case or
-  spacing.
+  start; write it as `{CRYPT}$2b$…`. A value the server cannot verify (a malformed hash, a DES `{CRYPT}`) does not stop
+  the start, but the administrator can never bind with it, so bind once after setting it. An `{ARGON2}` value of the
+  server's own scheme stops the start where node:crypto does not run argon2 (Node.js before 24.7, Electron). The server
+  also refuses to start if the same DN is given twice, written with a different case or spacing.
 - `access.check` decides first: `true` allows, `false` refuses, `undefined` leaves it to the table. It is given the
   operation (`read` for what a search returns or a compare reads), the DN, the session's identity, and the entry or the
   attributes when they are known. For a rename it is asked three times: `modifyDN` about the entry; `modifyDN` about the
@@ -644,18 +644,18 @@ await server.listen({port: 389})
   `around()` answers success when the password has not been checked, because it did not call `next()` or caught its
   rejection. The interceptors around it receive that answer. A plugin's `authenticate()` that returns without calling
   `verify()`, or catches its rejection, fails the bind in the same way; if it calls `verify()` more than once, the call
-  that finishes last decides. A plugin's `aroundRequest()` may refuse a bind, but it cannot turn a bind the server did
-  not complete into a success or a step in progress: such a bind fails with the server's own refusal, or with other (80)
-  when the server gave none. A refusal of its own that an interceptor throws, invalidCredentials included, reaches the
-  client as thrown, on a simple bind and on SASL PLAIN. Some things are done only once the bind has succeeded and the
-  server has written its own state: the time of the last bind and the records a plugin or an interceptor added with
-  `afterBind()` are made in the order they were added (along a SASL exchange, those of every step), and the `bind` event
-  is emitted last. If a record fails, or a listener of the `bind` event throws, the server emits an `error` event; the
-  bind still succeeds and the remaining records are made. To check passwords elsewhere, a backend implements `bind()`,
-  which then checks the password of every DN under its suffix, except an administrator bound by `access.adminPasswords`,
-  in place of the server's check of userPassword. These binds do not go through a `bind` interceptor: anonymous and
-  unauthenticated binds, a bind of a DN no backend holds, an administrator bound by `access.adminPasswords`, and a SASL
-  mechanism that verifies no password, such as EXTERNAL.
+  that finishes last decides, and none may still be running when it returns. A plugin's `aroundRequest()` may refuse a
+  bind, but it cannot turn a bind the server did not complete into a success or a step in progress: such a bind fails
+  with the server's own refusal, or with other (80) when the server gave none. A refusal of its own that an interceptor
+  throws, invalidCredentials included, reaches the client as thrown, on a simple bind and on SASL PLAIN. Some things are
+  done only once the bind has succeeded and the server has written its own state: the time of the last bind and the
+  records a plugin or an interceptor added with `afterBind()` are made in the order they were added (along a SASL
+  exchange, those of every step), and the `bind` event is emitted last. If a record fails, or a listener of the `bind`
+  event throws, the server emits an `error` event; the bind still succeeds and the remaining records are made. To check
+  passwords elsewhere, a backend implements `bind()`, which then checks the password of every DN under its suffix,
+  except an administrator bound by `access.adminPasswords`, in place of the server's check of userPassword. These binds
+  do not go through a `bind` interceptor: anonymous and unauthenticated binds, a bind of a DN no backend holds, an
+  administrator bound by `access.adminPasswords`, and a SASL mechanism that verifies no password, such as EXTERNAL.
 - An interceptor is placed before or after one of the server's own steps (`access`, `password`, `schema`, `operational`,
   `paging`) by `{interceptor, before: 'schema'}`, and otherwise at the end of the chain, after them all: what it adds to
   a request there is not checked against the schema. Placed before `password`, it sees the passwords in clear. An
