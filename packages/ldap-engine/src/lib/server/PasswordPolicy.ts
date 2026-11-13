@@ -6,6 +6,7 @@ import {ResultCode} from '../protocol/ResultCode.js'
 import {formatGeneralizedTime, parseGeneralizedTime} from '../schema/MatchingRules.js'
 import {attributeTypeOf, type Schema} from '../schema/Schema.js'
 import {valuesOfType} from './EntryTools.js'
+import {onceBound} from './OnceBound.js'
 import type {PasswordSchemes} from './Passwords.js'
 import type {DirectoryChange, DirectoryEntry, OperationContext} from './Types.js'
 
@@ -412,8 +413,12 @@ export class PasswordPolicy {
             const age: number = (now - changed) / 1000
             if (age >= rules.maxAge - rules.expireWarning) warning = {timeBeforeExpiration: Math.max(Math.floor(rules.maxAge - age), 0)}
         }
-        await this.writeState(dn, changes)
-        if (warning) respond(context, warning)
+        //The state of a right password and the warning once the bind succeeds: a bind refused after keeps none
+        const warned: PasswordPolicyValue | undefined = warning
+        await onceBound(context, async (finishing: OperationContext): Promise<void> => {
+            await this.writeState(dn, changes)
+            if (warned) respond(finishing, warned)
+        })
     }
 
     /**

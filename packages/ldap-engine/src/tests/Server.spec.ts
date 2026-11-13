@@ -10,6 +10,7 @@ import {
     DN,
     Filter,
     findControl,
+    formatGeneralizedTime,
     GroupPresentationPlugin,
     LDAPAttributeOrValueExistsException,
     LDAPConstraintViolationException,
@@ -31,6 +32,7 @@ import {
     MemoryBackend,
     ManageDsaITControl,
     PagedResultsControl,
+    PasswordPolicyRequestControl,
     PasswordSchemes,
     readSchema,
     type Schema,
@@ -1395,6 +1397,125 @@ describe('the server engine', () => {
         for (const value of ['{BCRYPT}$2b$10$abcdefghijklmnopqrstuuabcdefghijklmnopqrstuvwxyz01234', '{SSHA_512}abcd', '{}abcd']) assert.throws(() => createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ROOT], adminPasswords: {[ROOT]: value}}}), LDAPUsageException, value)
         //A scheme registered with the server's schemes is taken
         createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ROOT], adminPasswords: {[ROOT]: '{OWN}secret'}}, passwords: new PasswordSchemes({iterations: 1000}).register({name: 'OWN', verify: async () => false})})
+    })
+
+    it('keeps the effects of a right password for a bind that succeeds: a bind refused after the check leaves none', async () => {
+        const TARGET: string = `uid=user10,ou=people,${BASE}`
+        const POLICY: string = `cn=default,ou=policies,${BASE}`
+        const ASK = [PasswordPolicyRequestControl.encode()]
+        const PPOLICY_RESPONSE: string = '1.3.6.1.4.1.42.2.27.8.5.1'
+        const answerOf = (binding: Promise<unknown>): Promise<{code: number, controls: {oid: string}[]}> => binding.then((result: unknown) => ({code: 0, controls: (result as {controls?: {oid: string}[]}).controls ?? []}), (error: unknown) => error instanceof LDAPResultException ? {code: error.code, controls: (error as unknown as {controls?: {oid: string}[]}).controls ?? []} : {code: -1, controls: []})
+        //A directory under a policy wanting a password an administrator set changed, the bind throttle locking at three
+        //failures, the target's password set by the administrator and two wrong binds made
+        const policed = async (options: Partial<Parameters<typeof createLDAPServer>[0]> = {}): Promise<{server: LDAPServerEngine, admin: LDAPInProcessConnection, backend: MemoryBackend}> => {
+            const made = await directory({schema: [...DEFAULTS, PPOLICY], passwordPolicy: {default: POLICY}, access: {admins: [ADMIN], anonymousRead: true}, bindThrottle: {maxFailures: 3, ipMaxFailures: 0, delay: 0}, ...options})
+            await made.admin.add(`ou=policies,${BASE}`, {objectClass: 'organizationalUnit', ou: 'policies'})
+            await made.admin.add(POLICY, {objectClass: ['organizationalRole', 'pwdPolicy'], cn: 'default', pwdAttribute: 'userPassword', pwdMustChange: 'TRUE'})
+            await made.admin.passwordModify({userIdentity: TARGET, newPassword: 'reset-password'})
+            for (let index: number = 0; index < 2; index++) await assert.rejects(made.server.connect().bind(TARGET, `wrong-${index}`), code(49))
+            return made
+        }
+        const state = async (owner: LDAPInProcessConnection): Promise<{lastSuccess: boolean, failures: number}> => {
+            const entry = (await owner.search(TARGET, {scope: 'base', attributes: ['pwdLastSuccess', 'pwdFailureTime']})).entries[0]
+            return {lastSuccess: entry.first('pwdLastSuccess') !== undefined, failures: entry.get('pwdFailureTime').length}
+        }
+        //Where a bind with the right password is refused after the check
+        const refusals: [string, Partial<Parameters<typeof createLDAPServer>[0]>][] = [
+            ['an interceptor answering 53 after next()', {interceptors: [{name: 'refusing', operations: ['bind'], around: async (_context: unknown, _request: unknown, next: () => Promise<unknown>) => {
+                await next()
+                return {resultCode: 53}
+            }}] as never}],
+            ['an interceptor throwing after next()', {interceptors: [{name: 'refusing', operations: ['bind'], around: async (_context: unknown, _request: unknown, next: () => Promise<unknown>) => {
+                await next()
+                throw new LDAPUnwillingToPerformException('Not now')
+            }}] as never}],
+            ['a plugin throwing after verify()', {plugins: [{name: 'refusing', authenticate: async (_context: unknown, _bind: unknown, verify: () => Promise<void>) => {
+                await verify()
+                throw new LDAPUnwillingToPerformException('Not now')
+            }}] as never}],
+            ['a plugin answering 53 after next() around the request', {plugins: [{name: 'refusing', aroundRequest: async (_context: unknown, request: {type: string}, next: () => Promise<unknown>) => {
+                const outcome: unknown = await next()
+                return request.type === 'bindRequest' ? {resultCode: 53} : outcome
+            }}] as never}]
+        ]
+        const wrong: string[] = []
+        for (const [name, options] of refusals) {
+            for (const sasl of [false, true]) {
+                const label: string = `${name}, ${sasl ? 'PLAIN' : 'simple'}`
+                const {server: engine, admin: owner} = await policed(options)
+                const client: LDAPInProcessConnection = engine.connect()
+                const answer = await answerOf(sasl ? client.saslBind('PLAIN', Buffer.from(`\0dn:${TARGET}\0reset-password`), {controls: ASK}) : client.bind(TARGET, 'reset-password', {controls: ASK}))
+                if (answer.code !== 53) wrong.push(`${label}: answered ${answer.code}`)
+                if (answer.controls.some((control) => control.oid === PPOLICY_RESPONSE)) wrong.push(`${label}: the warning of the policy`)
+                //The session not held to change the password: its anonymous search answered
+                const searched: number = await client.search(BASE, {scope: 'base'}).then(() => 0, (error: unknown) => error instanceof LDAPResultException ? error.code : -1)
+                if (searched !== 0) wrong.push(`${label}: the session held to change the password (${searched})`)
+                const after = await state(owner)
+                if (after.lastSuccess) wrong.push(`${label}: pwdLastSuccess written`)
+                if (after.failures !== 2) wrong.push(`${label}: ${after.failures} failures kept`)
+                //The throttle not told: one more failure locks the DN
+                await assert.rejects(engine.connect().bind(TARGET, 'wrong-2'), code(49))
+                const locked: number = await answerOf(engine.connect().bind(TARGET, 'reset-password')).then((outcome) => outcome.code)
+                if (locked !== 49) wrong.push(`${label}: the throttle told (${locked} after one more failure)`)
+            }
+        }
+        assert.deepEqual(wrong, [])
+        //A bind that succeeds: the warning, the session held to change the password, the state of a right password, the
+        //throttle told
+        const {server: plain, admin: keeper} = await policed()
+        const bound: LDAPInProcessConnection = plain.connect()
+        const answer = await answerOf(bound.bind(TARGET, 'reset-password', {controls: ASK}))
+        assert.equal(answer.code, 0)
+        assert.ok(answer.controls.some((control) => control.oid === PPOLICY_RESPONSE))
+        await assert.rejects(bound.search(BASE, {scope: 'base'}), code(50))
+        assert.deepEqual(await state(keeper), {lastSuccess: true, failures: 0})
+        for (let index: number = 0; index < 2; index++) await assert.rejects(plain.connect().bind(TARGET, `again-${index}`), code(49))
+        await plain.connect().bind(TARGET, 'reset-password')
+        //A write of that state failing: the bind refused, the session anonymous
+        let failing: boolean = false
+        class Failing extends MemoryBackend {
+            public async modify(...args: Parameters<MemoryBackend['modify']>): Promise<void> {
+                if (failing && args[2].some((change) => change.attribute.type === 'pwdLastSuccess')) throw new Error('The write of the state failed')
+                return super.modify(...args)
+            }
+        }
+        const {server: broken} = await policed({backends: [new Failing(BASE)]})
+        const refused: LDAPInProcessConnection = broken.connect()
+        failing = true
+        await assert.rejects(refused.bind(TARGET, 'reset-password'), code(80))
+        failing = false
+        assert.equal(await refused.whoAmI(), '')
+        //Told at once where no bind is: the old password of a Password Modify; an administrator of the options
+        const {server: changing} = await directory({bindThrottle: {maxFailures: 3, ipMaxFailures: 0, delay: 0}})
+        const self: LDAPInProcessConnection = changing.connect()
+        await self.bind(TARGET, 'password10')
+        for (let index: number = 0; index < 2; index++) await assert.rejects(changing.connect().bind(TARGET, `wrong-${index}`), code(49))
+        await self.passwordModify({oldPassword: 'password10', newPassword: 'changed-password'})
+        await assert.rejects(changing.connect().bind(TARGET, 'wrong-2'), code(49))
+        await changing.connect().bind(TARGET, 'changed-password')
+        const ROOT: string = 'cn=root,o=configuration'
+        const {server: rooted} = await directory({access: {admins: [ADMIN, ROOT], adminPasswords: {[ROOT]: 'root-secret'}}, bindThrottle: {maxFailures: 3, ipMaxFailures: 0, delay: 0}})
+        for (let round: number = 0; round < 2; round++) {
+            for (let index: number = 0; index < 2; index++) await assert.rejects(rooted.connect().bind(ROOT, `wrong-${index}`), code(49))
+            await rooted.connect().bind(ROOT, 'root-secret')
+        }
+        //Left as they are, decided where the policy checks the password: a grace bind refused after the check keeps its
+        //grace use; an expired password with no grace bind left clears the failures as it is refused
+        const expired = async (limit: string, options: Partial<Parameters<typeof createLDAPServer>[0]> = {}): Promise<{server: LDAPServerEngine, admin: LDAPInProcessConnection}> => {
+            const made = await directory({schema: [...DEFAULTS, PPOLICY], passwordPolicy: {default: POLICY}, ...options})
+            await made.admin.add(`ou=policies,${BASE}`, {objectClass: 'organizationalUnit', ou: 'policies'})
+            await made.admin.add(POLICY, {objectClass: ['organizationalRole', 'pwdPolicy'], cn: 'default', pwdAttribute: 'userPassword', pwdMaxAge: '86400', pwdGraceAuthNLimit: limit})
+            await made.backend.modify({schema: made.server.schema} as never, DN.parse(TARGET), [{operation: 'replace', attribute: {type: 'pwdChangedTime', values: [Buffer.from(formatGeneralizedTime(Date.now() - 90000 * 1000))]}}])
+            return made
+        }
+        const {server: graced, admin: grader} = await expired('2', refusals[0][1])
+        await assert.rejects(graced.connect().bind(TARGET, 'password10'), code(53))
+        assert.equal((await grader.search(TARGET, {scope: 'base', attributes: ['pwdGraceUseTime']})).entries[0].get('pwdGraceUseTime').length, 1)
+        const {server: spent, admin: spender} = await expired('0')
+        await assert.rejects(spent.connect().bind(TARGET, 'wrong'), code(49))
+        assert.equal((await spender.search(TARGET, {scope: 'base', attributes: ['pwdFailureTime']})).entries[0].get('pwdFailureTime').length, 1)
+        await assert.rejects(spent.connect().bind(TARGET, 'password10'), code(49))
+        assert.equal((await spender.search(TARGET, {scope: 'base', attributes: ['pwdFailureTime']})).entries[0].get('pwdFailureTime').length, 0)
     })
 
     it('lets a password administrator change the passwords of the others, not those of the administrators', async () => {

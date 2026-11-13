@@ -43,6 +43,8 @@ import {
     timeOrderedUUID,
     valuesOfType
 } from './EntryTools.js'
+import {ONCE_BOUND, onceBound, type OnceBoundEffects} from './OnceBound.js'
+import {MUST_CHANGE} from './PasswordPolicy.js'
 import {closeIterator, closePaged, endPagedSearch, keepApproval, pagingInterceptor, type PagedStates, SEARCH_SOURCE, type SearchSource} from './Paging.js'
 import type {PasswordSchemes} from './Passwords.js'
 import {rootDSEEntry, schemaConfigEntries, subschemaEntry} from './RootDSE.js'
@@ -267,6 +269,11 @@ function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
  * The backend a SASL exchange reached (the one of the DN whose password a step verified), by the state of the exchange
  */
 const SASL_MOUNTS: WeakMap<Map<string, unknown>, Mount | undefined> = new WeakMap()
+
+/**
+ * The effects of a right password a SASL exchange applies once it succeeds, by the state of the exchange
+ */
+const SASL_EFFECTS: WeakMap<Map<string, unknown>, OnceBoundEffects> = new WeakMap()
 
 /**
  * A backend mounted at its suffix, with its chain of interceptors
@@ -642,12 +649,27 @@ export class Pipeline {
         //also when it is refused before it is done (a control, a hook), which leaves the session anonymous. The session
         //gets new ones, so that a page still being read keeps no search either
         if (operation === 'bind') this.endPaged(session)
+        //The effects of a right password, applied once the bind succeeds (SASL: those of the exchange)
+        if (operation === 'bind') context.state.set(ONCE_BOUND, [] as OnceBoundEffects)
         try {
             this.checkControls(controls, operation)
             this.readControls(controls, operation)
             outcome = await run()
         } catch (error) {
             outcome = this.outcomeOf(error, signal)
+        }
+        //Applied when the bind succeeds, whatever refused it otherwise (an interceptor, a hook, a plugin around the
+        //request) dropping them; kept along a SASL exchange in progress. One failing refuses the bind
+        if (operation === 'bind') {
+            const effects: OnceBoundEffects = context.state.get(ONCE_BOUND) as OnceBoundEffects
+            context.state.delete(ONCE_BOUND)
+            if (outcome.resultCode === ResultCode.success) {
+                try {
+                    for (const effect of effects) await effect(context)
+                } catch (error) {
+                    outcome = this.outcomeOf(error, signal)
+                }
+            }
         }
         //A bind a hook refused after it was checked leaves the session anonymous (RFC 4511 §4.2.1)
         if (operation === 'bind' && outcome.resultCode !== ResultCode.success && outcome.resultCode !== ResultCode.saslBindInProgress) this.failedBind(session)
@@ -1389,7 +1411,7 @@ export class Pipeline {
         const configured: Buffer | undefined = this.access.adminPassword(dn)
         if (configured) {
             if (!await this.options.passwords.verify(configured, password)) return failed()
-            await this.options.throttle.success(keys[0])
+            await onceBound(context, (): Promise<void> => this.options.throttle.success(keys[0]))
             return true
         }
         const mount: Mount | undefined = this.route(dn)
@@ -1415,7 +1437,7 @@ export class Pipeline {
                 })
             }
         }
-        await this.options.throttle.success(keys[0])
+        await onceBound(context, (): Promise<void> => this.options.throttle.success(keys[0]))
         return true
     }
 
@@ -1457,6 +1479,10 @@ export class Pipeline {
             fail(ResultCode.authMethodNotSupported, `The SASL mechanism ${mechanismName} is not offered`)
         }
         const state: Map<string, unknown> = continuing ? session.sasl!.state : new Map()
+        //The effects of a right password an earlier step checked, kept along the exchange
+        const effects: OnceBoundEffects = (continuing ? SASL_EFFECTS.get(state) : undefined) ?? []
+        SASL_EFFECTS.set(state, effects)
+        context.state.set(ONCE_BOUND, effects)
         //Each step checked: one verifying a password (PLAIN) against the backend of its DN, kept for the exchange; one
         //verifying none against the backend an earlier step reached, or none
         let verified: boolean = false
@@ -2014,6 +2040,8 @@ export class Pipeline {
         session.identity = undefined
         session.authenticationMethod = undefined
         session.sasl = undefined
+        //Not held to change a password it is not bound with
+        session.state.delete(MUST_CHANGE)
     }
 
     /**
