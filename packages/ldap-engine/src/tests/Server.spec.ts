@@ -1460,6 +1460,28 @@ describe('the server engine', () => {
             }
         }
         assert.deepEqual(wrong, [])
+        //Along a SASL exchange checking the password at its first step: applied when the exchange completes, none when a
+        //later step refuses it
+        const checkThenAsk = {
+            name: 'CHECK-THEN-ASK',
+            requiresTLS: false,
+            start: async (context: {state: Map<string, unknown>, verifyPassword: (dn: DN, password: Buffer) => Promise<boolean>}, credentials?: Buffer) => {
+                const [dn, password] = String(credentials).split('\0')
+                context.state.set('dn', dn)
+                if (!await context.verifyPassword(DN.parse(dn), Buffer.from(password))) throw new LDAPResultException(49, 'Invalid credentials')
+                return {done: false, serverCredentials: Buffer.from('next')}
+            },
+            step: async (context: {state: Map<string, unknown>}, credentials?: Buffer) => {
+                if (String(credentials) === 'refuse') throw new LDAPUnwillingToPerformException('Not now')
+                return {done: true, identity: DN.parse(String(context.state.get('dn')))}
+            }
+        }
+        for (const [last, completes] of [['complete', true], ['refuse', false]] as [string, boolean][]) {
+            const {server: exchanging, admin: watcher} = await policed({sasl: [checkThenAsk] as never})
+            const outcome = await answerOf(exchanging.connect().saslBind('CHECK-THEN-ASK', Buffer.from(`${TARGET}\0reset-password`), {step: () => Buffer.from(last)}))
+            assert.equal(outcome.code, completes ? 0 : 53, last)
+            assert.deepEqual(await state(watcher), completes ? {lastSuccess: true, failures: 0} : {lastSuccess: false, failures: 2}, last)
+        }
         //A bind that succeeds: the warning, the session held to change the password, the state of a right password, the
         //throttle told
         const {server: plain, admin: keeper} = await policed()
