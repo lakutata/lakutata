@@ -1407,7 +1407,10 @@ export class Pipeline {
         if (chained.resultCode !== ResultCode.success) return chained
         session.identity = dn
         session.authenticationMethod = 'simple'
-        this.options.events.emit('bind', {session: session.id, dn: dn.toString(), method: 'simple'})
+        //Told once the bind succeeds, after the effects of its password (none for a bind refused after)
+        await onceBound(context, (): void => {
+            this.options.events.emit('bind', {session: session.id, dn: dn.toString(), method: 'simple'})
+        })
         return {resultCode: ResultCode.success}
     }
 
@@ -1565,7 +1568,10 @@ export class Pipeline {
         session.sasl = undefined
         session.identity = step.identity
         session.authenticationMethod = mechanism.name
-        this.options.events.emit('bind', {session: session.id, dn: step.identity?.toString() ?? '', method: mechanism.name})
+        //Told once the exchange succeeds, after the effects of its password (none for one refused after)
+        await onceBound(context, (): void => {
+            this.options.events.emit('bind', {session: session.id, dn: step.identity?.toString() ?? '', method: mechanism.name})
+        })
         return {resultCode: ResultCode.success, ...step.serverCredentials ? {serverSaslCredentials: step.serverCredentials} : {}}
     }
 

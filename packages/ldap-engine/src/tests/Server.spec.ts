@@ -1517,9 +1517,12 @@ describe('the server engine', () => {
             for (const sasl of [false, true]) {
                 const label: string = `${name}, ${sasl ? 'PLAIN' : 'simple'}`
                 const {server: engine, admin: owner} = await policed(options)
+                const told: string[] = []
+                engine.events.on('bind', (event: {dn: string}) => told.push(event.dn))
                 const client: LDAPInProcessConnection = engine.connect()
                 const answer = await answerOf(sasl ? client.saslBind('PLAIN', Buffer.from(`\0dn:${TARGET}\0reset-password`), {controls: ASK}) : client.bind(TARGET, 'reset-password', {controls: ASK}))
                 if (answer.code !== 53) wrong.push(`${label}: answered ${answer.code}`)
+                if (told.length) wrong.push(`${label}: a bind event`)
                 if (answer.controls.some((control) => control.oid === PPOLICY_RESPONSE)) wrong.push(`${label}: the warning of the policy`)
                 //The session not held to change the password: its anonymous search answered
                 const searched: number = await client.search(BASE, {scope: 'base'}).then(() => 0, (error: unknown) => error instanceof LDAPResultException ? error.code : -1)
@@ -1552,7 +1555,10 @@ describe('the server engine', () => {
         }
         for (const [last, completes] of [['complete', true], ['refuse', false]] as [string, boolean][]) {
             const {server: exchanging, admin: watcher} = await policed({sasl: [checkThenAsk] as never})
+            const exchanged: string[] = []
+            exchanging.events.on('bind', (event: {dn: string}) => exchanged.push(event.dn))
             const outcome = await answerOf(exchanging.connect().saslBind('CHECK-THEN-ASK', Buffer.from(`${TARGET}\0reset-password`), {step: () => Buffer.from(last)}))
+            assert.deepEqual(exchanged, completes ? [TARGET] : [], `${last}: the bind events`)
             assert.equal(outcome.code, completes ? 0 : 53, last)
             assert.deepEqual(await state(watcher), completes ? {lastSuccess: true, failures: 0} : {lastSuccess: false, failures: 2}, last)
         }
@@ -1601,11 +1607,14 @@ describe('the server engine', () => {
             }
         }
         const {server: broken} = await policed({backends: [new Failing(BASE)]})
+        const brokenBinds: string[] = []
+        broken.events.on('bind', (event: {dn: string}) => brokenBinds.push(event.dn))
         const refused: LDAPInProcessConnection = broken.connect()
         failing = true
         await assert.rejects(refused.bind(TARGET, 'reset-password'), code(80))
         failing = false
         assert.equal(await refused.whoAmI(), '')
+        assert.deepEqual(brokenBinds, [])
         //Told at once where no bind is: the old password of a Password Modify; an administrator of the options
         const {server: changing} = await directory({bindThrottle: {maxFailures: 3, ipMaxFailures: 0, delay: 0}})
         const self: LDAPInProcessConnection = changing.connect()
