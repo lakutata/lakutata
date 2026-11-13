@@ -434,7 +434,7 @@ console.log(await directory.exportLDIF(people))
 | An anonymous session | Read the root DSE and the subschema (`access.anonymousRead: true` lets it read the directory) |
 | A bound session | Read the directory except `userPassword`, which nobody reads; change its own password (`access.authenticatedRead: false` keeps the directory from it) |
 | An administrator (`access.admins`) | Write, and change any password. With a password in `access.adminPasswords`, it binds with that password, whether or not it has an entry |
-| A password administrator (`access.passwordAdmins`) | Change the passwords of the others: the service accounts of Keycloak or Nextcloud |
+| A password administrator (`access.passwordAdmins`) | Change the passwords of others, but not those of administrators. Meant for service accounts such as those of Keycloak or Nextcloud |
 
 ```typescript
 import {createLDAPServer, MemoryBackend} from '@lakutata/ldap-engine'
@@ -506,11 +506,14 @@ schemes, `{CRYPT}` with MD5, SHA-256, SHA-512 and bcrypt, `{ARGON2}` where node:
 later, but not Electron) and the passwords in clear of an older directory, then hashes the password again in the scheme
 of the server (`rehashOnBind`). An administrator may write a hashed value as it is, to import accounts; with
 `rehashOnBind`, a value in another scheme than the server's is replaced at its first successful bind, the only time the
-password is known in clear. To keep it (a hash an application also checks), turn `rehashOnBind` off; an application may
-also register a scheme of its own with `PasswordSchemes.register()` (a native bcrypt, say) and give the server those
-schemes. A value written by anyone else is treated as a password in clear, even if it looks hashed. When a modify
-deletes a password given in clear (the old password of a change), it is checked against the stored one only on the
-session's own entry; to change someone else's password, replace it.
+password is known in clear. It is replaced only if the entry still holds that value, so a password changed while the
+bind runs is not overwritten. A backend with `transaction()` and `lock()`, such as the directory backend of
+@lakutata/ldap, locks the entry while the value is checked and replaced; other backends read the value again just before
+the write. To keep an imported hash (one an application also checks), turn `rehashOnBind` off; an application may also
+register a scheme of its own with `PasswordSchemes.register()` (a native bcrypt, say) and give the server those schemes.
+A value written by anyone else is treated as a password in clear, even if it looks hashed. When a modify deletes a
+password given in clear (the old password of a change), it is checked against the stored one only on the session's own
+entry; to change someone else's password, replace it.
 
 `passwordPolicy` applies the password policy of draft-behera, with the attributes OpenLDAP's ppolicy uses:
 
@@ -612,14 +615,18 @@ await server.listen({port: 389})
   rest of the chain, `transformEntry()` changes the entries a search returns, and `beforeCommit()` runs in the
   transaction of a write, on a backend that has transactions. Throwing an `LDAPResultException` answers with its code. A
   `bind` interceptor runs around the password check of a simple bind and of a SASL PLAIN bind;
-  `request.authentication.type` tells which. The bind succeeds only when the chain answers success, so an `around()`
-  must return the outcome of `next()` or an outcome of its own. If it returns a result other than success instead of
-  throwing, the bind fails with that result; if it returns nothing, or a value without a result code, the bind fails
-  with other (80). An `around()` that answers success without calling `next()` authenticates the bind itself: the
-  password check, the checks plugins make at a bind and the bind throttle are all skipped, so a locked account binds. A
-  plugin's `authenticate()` that returns without calling `verify()` skips the password check and the throttle in the
-  same way. These binds do not go through a `bind` interceptor: anonymous and unauthenticated binds, a bind of a DN no
-  backend holds, an administrator bound by `access.adminPasswords`, and SASL EXTERNAL.
+  `request.authentication.type` tells which. The bind succeeds only when the password has been checked and the chain
+  answers success. An `around()` may refuse a bind without calling `next()`; to let it through, it must call `next()`
+  and return that outcome or a success of its own. If it returns a result other than success instead of throwing, the
+  bind fails with that result. If it returns nothing, or a value without a result code, the bind fails with other (80).
+  The bind also fails with other (80) if the `around()` answers success when the password has not been checked, because
+  it did not call `next()` or caught its rejection. The interceptors around it receive that answer, so LastBindPlugin,
+  which is around it by default, keeps no time for the bind. A plugin's `authenticate()` that returns without calling
+  `verify()`, or catches its rejection, fails the bind in the same way. To check passwords elsewhere, a backend
+  implements `bind()`, which then checks the password of every DN under its suffix in place of the server's check of
+  userPassword. These binds do not go through a `bind` interceptor: anonymous and unauthenticated binds, a bind of a DN
+  no backend holds, an administrator bound by `access.adminPasswords`, and a SASL mechanism that verifies no password,
+  such as EXTERNAL.
 - An interceptor is placed before or after one of the server's own steps (`access`, `password`, `schema`, `operational`,
   `paging`) by `{interceptor, before: 'schema'}`, and otherwise at the end of the chain, after them all: what it adds to
   a request there is not checked against the schema. Placed before `password`, it sees the passwords in clear. An

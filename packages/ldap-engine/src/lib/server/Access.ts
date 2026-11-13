@@ -62,7 +62,8 @@ export interface AccessOptions {
      */
     adminPasswords?: Record<string, string>
     /**
-     * The DNs of the identities that change the passwords of others (the service accounts of Keycloak, Nextcloud…)
+     * The DNs of the identities (the service accounts of Keycloak, Nextcloud…) that change the passwords of others,
+     * but not those of the administrators
      */
     passwordAdmins?: string[]
     /**

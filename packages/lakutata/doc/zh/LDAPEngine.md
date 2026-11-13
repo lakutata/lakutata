@@ -329,7 +329,7 @@ console.log(await directory.exportLDIF(people))
 | 匿名会话 | 读取根 DSE 和子模式条目（`access.anonymousRead: true` 允许它读取目录） |
 | 已绑定的会话 | 读取目录，但 `userPassword` 除外，任何人都读不到；修改自己的密码（`access.authenticatedRead: false` 不让它读取目录） |
 | 管理员（`access.admins`） | 写入，以及修改任何人的密码；在 `access.adminPasswords` 里配置了口令时，用这个口令绑定，有没有条目都可以 |
-| 密码管理员（`access.passwordAdmins`） | 修改其他人的密码，比如 Keycloak 或 Nextcloud 的服务账号 |
+| 密码管理员（`access.passwordAdmins`） | 修改其他人的密码，但不能修改管理员的密码。适用于 Keycloak、Nextcloud 这类服务账号 |
 
 ```typescript
 import {createLDAPServer, MemoryBackend} from '@lakutata/ldap-engine'
@@ -362,7 +362,7 @@ await server.listen({port: 389})
 
 ## 12. 密码和密码策略
 
-服务器收到的每个密码都会被哈希成 `{PBKDF2-SHA512}`（OpenLDAP 的 pw-pbkdf2 模块使用的格式；`passwords: {iterations}` 调整迭代次数）。绑定时也能校验 OpenLDAP 的其他格式（`{SSHA}`、SHA-2 系列、使用 MD5、SHA-256、SHA-512 和 bcrypt 的 `{CRYPT}`，以及 node:crypto 支持 argon2 时的 `{ARGON2}`：Node.js 24.7 及以上，Electron 不支持），还能校验旧目录里的明文密码，校验通过后再用服务器的格式重新哈希（`rehashOnBind`）。管理员可以直接写入已经哈希过的值，用于导入账号；开启 `rehashOnBind` 时，格式与服务器不同的值会在第一次绑定成功时被替换，因为只有这时才拿得到明文密码。要保留它（比如应用自己也要校验的那一份哈希），就关掉 `rehashOnBind`；应用也可以用 `PasswordSchemes.register()` 注册自己的格式（比如原生的 bcrypt），再把这组格式交给服务器。其他用户写入的值，即使看起来像哈希，也按明文密码处理。修改操作删除以明文给出的密码时（修改密码时给出的旧密码），只在修改自己的条目时才和存储的密码比对；要改别人的密码，请用 replace。
+服务器收到的每个密码都会被哈希成 `{PBKDF2-SHA512}`（OpenLDAP 的 pw-pbkdf2 模块使用的格式；`passwords: {iterations}` 调整迭代次数）。绑定时也能校验 OpenLDAP 的其他格式（`{SSHA}`、SHA-2 系列、使用 MD5、SHA-256、SHA-512 和 bcrypt 的 `{CRYPT}`，以及 node:crypto 支持 argon2 时的 `{ARGON2}`：Node.js 24.7 及以上，Electron 不支持），还能校验旧目录里的明文密码，校验通过后再用服务器的格式重新哈希（`rehashOnBind`）。管理员可以直接写入已经哈希过的值，用于导入账号；开启 `rehashOnBind` 时，格式与服务器不同的值会在第一次绑定成功时被替换，因为只有这时才拿得到明文密码。只有条目里还是这个值时才会替换，所以绑定期间改过的密码不会被覆盖。提供了 `transaction()` 和 `lock()` 的后端（比如 @lakutata/ldap 的目录后端）会先锁住条目，再判断和替换；其他后端在写入之前重新读一遍这个值。要保留导入的哈希（比如应用自己也要校验的那一份），就关掉 `rehashOnBind`；应用也可以用 `PasswordSchemes.register()` 注册自己的格式（比如原生的 bcrypt），再把这组格式交给服务器。其他用户写入的值，即使看起来像哈希，也按明文密码处理。修改操作删除以明文给出的密码时（修改密码时给出的旧密码），只在修改自己的条目时才和存储的密码比对；要改别人的密码，请用 replace。
 
 `passwordPolicy` 实现 draft-behera 的密码策略，使用的属性和 OpenLDAP 的 ppolicy 一样：
 
@@ -446,7 +446,7 @@ const server = createLDAPServer({
 await server.listen({port: 389})
 ```
 
-- 拦截器只在它列出的 `operations` 上运行：`before()` 检查或修改请求，`around()` 包住链上后面的部分运行，`transformEntry()` 修改搜索返回的条目，`beforeCommit()` 在写操作的事务里运行（后端支持事务时）。抛出 `LDAPResultException` 时，以它的结果码回应。`bind` 上的拦截器围绕密码校验运行，简单绑定和 SASL PLAIN 绑定都会经过它（用 `authentication.type` 区分）；只有整条链回答成功，绑定才成功，所以 `around()` 必须返回 `next()` 的结果，或者它自己给出的结果。它返回（而不是抛出）非成功的结果时，绑定以这个结果失败；什么都不返回，或者返回的值没有结果码时，绑定以 other（80）失败。`around()` 不调用 `next()` 就回答成功，等于由它自己完成认证：密码校验、插件在绑定时做的检查和绑定限速都会跳过，被锁定的账号因此也能绑定。插件的 `authenticate()` 不调用 `verify()` 就返回时，同样跳过密码校验和绑定限速。下面这些绑定不经过 `bind` 上的拦截器：匿名绑定和不带密码的绑定、DN 不属于任何后端的绑定、按 `access.adminPasswords` 绑定的管理员，以及 SASL EXTERNAL。
+- 拦截器只在它列出的 `operations` 上运行：`before()` 检查或修改请求，`around()` 包住链上后面的部分运行，`transformEntry()` 修改搜索返回的条目，`beforeCommit()` 在写操作的事务里运行（后端支持事务时）。抛出 `LDAPResultException` 时，以它的结果码回应。`bind` 上的拦截器围绕密码校验运行，简单绑定和 SASL PLAIN 绑定都会经过它（用 `authentication.type` 区分）；只有密码校验通过、并且整条链回答成功，绑定才成功。`around()` 可以不调用 `next()` 直接拒绝绑定；要放行，就必须调用 `next()`，再返回它的结果或者自己给出的成功结果。它返回（而不是抛出）非成功的结果时，绑定以这个结果失败。什么都不返回，或者返回的值没有结果码时，绑定以 other（80）失败。密码还没有校验通过，`around()` 就回答成功（没有调用 `next()`，或者捕获了它的拒绝），绑定同样以 other（80）失败。包在它外面的拦截器拿到的也是这个结果，所以默认包在外面的 LastBindPlugin 不会为这次绑定记录时间。插件的 `authenticate()` 不调用 `verify()` 就返回，或者捕获了它的拒绝，绑定也这样失败。要在别处校验密码，可以让后端实现 `bind()`：它代替服务器对 userPassword 的校验，负责这个后端后缀下每个 DN 的密码。下面这些绑定不经过 `bind` 上的拦截器：匿名绑定和不带密码的绑定、DN 不属于任何后端的绑定、按 `access.adminPasswords` 绑定的管理员，以及不校验密码的 SASL 机制（比如 EXTERNAL）。
 - 拦截器可以放在服务器内置步骤（`access`、`password`、`schema`、`operational`、`paging`）的前面或后面，写法是 `{interceptor, before: 'schema'}`；不指定时放在链的末尾，也就是所有内置步骤之后，这时它往请求里加的内容不会经过 schema 检查。放在 `password` 之前的拦截器能看到明文密码。会把条目从搜索结果里去掉的拦截器（`transformEntry()` 返回 undefined，或者用 `around()` 替换条目），必须放在 `paging` 之后，链的末尾就在它之后。放在它之前时，分页和虚拟列表视图仍然会把被去掉的条目算进去。只修改条目的拦截器最好放在 `paging` 之前（`GroupPresentationPlugin` 就是这样放的），这样后端仍然可以自己排序、开窗和分页；这时排序和虚拟列表视图用的是存储的条目，不包括它做的修改。
 - 在拦截器和插件里，绑定时的 `context.session` 就是会话本身；其他操作拿到的是会话的一个视图，其中的身份始终是操作开始时的身份，不论这期间是否有新的绑定：会话的数据请放在 `session.state` 里，或者以 `session.id` 为键，不要以会话对象为键。
 - 插件还可以在每个请求前后运行（`aroundRequest`，能看到绑定、StartTLS 和服务器自己回答的扩展操作）、在校验密码前后运行（`authenticate`），以及在密码修改时、密码还是明文的时候运行（`passwordChange`，其中的 `importing` 表示看起来像哈希的值是不是管理员导入的哈希）。插件可以带上 schema 文件、控制、扩展操作、SASL 机制和密码格式，根 DSE 和子模式条目会公布它们。两个插件声明同一个 OID 时，服务器在启动时就会报错。根 DSE 和子模式条目不经过任何后端的链，插件的控制只有在 `aroundRequest` 里应用时才对它们有效；这样的控制要标上 `serverEntries: true`，否则带着这个关键控制搜索这些条目会被拒绝。

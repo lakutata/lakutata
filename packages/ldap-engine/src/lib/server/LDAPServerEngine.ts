@@ -71,7 +71,8 @@ export interface LDAPServerEngineOptions {
      */
     passwordPolicy?: PasswordPolicyOptions
     /**
-     * Hash a password again in the scheme of the server after a bind with it, when it is weaker (true by default)
+     * Hash a password again in the scheme of the server after a bind with it, when it is weaker and the entry still
+     * holds the value the bind matched (true by default)
      */
     rehashOnBind?: boolean
     /**

@@ -1414,8 +1414,8 @@ export class Pipeline {
     /**
      * Replace the value of userPassword a bind matched by its hash in the scheme of the server, while the entry still
      * holds it: a value changed or removed since the bind read it (a password changed meanwhile, another bind's rehash)
-     * is left as it is. In a transaction of the backend with the entry locked when it has both (exact, across the
-     * processes sharing its database too), otherwise checked just before the write.
+     * is left as it is. In a transaction of the backend, the entry locked while it is checked and written, when it has
+     * transaction() and lock(); otherwise read again just before the write.
      * @param mount The backend.
      * @param context The context of the write.
      * @param dn The DN.
