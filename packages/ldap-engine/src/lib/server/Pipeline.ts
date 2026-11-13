@@ -756,18 +756,23 @@ export class Pipeline {
         for (const plugin of [...hooks].reverse()) {
             const inner: () => Promise<void> = run
             run = async (): Promise<void> => {
-                //Its last call to verify counts: a retry after a refusal passes, a refusal of the last one swallowed does not
+                //Its call to verify that finishes last counts (a retry after a refusal passes, a refusal of the last one
+                //swallowed does not), and none may still be running when it returns
                 let done: boolean = false
+                let running: number = 0
                 await plugin.authenticate!(context, {dn: dn, entry: entry}, async (): Promise<void> => {
+                    running++
                     try {
                         await inner()
                         done = true
                     } catch (error) {
                         done = false
                         throw error
+                    } finally {
+                        running--
                     }
                 })
-                if (!done) fail(ResultCode.other, `A plugin's authenticate() returned without its verify() succeeding (${plugin.name})`)
+                if (!done || running) fail(ResultCode.other, `A plugin's authenticate() returned without its verify() succeeding (${plugin.name})`)
             }
         }
         await run()

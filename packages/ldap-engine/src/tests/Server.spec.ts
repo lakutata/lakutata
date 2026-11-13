@@ -1327,6 +1327,12 @@ describe('the server engine', () => {
             await verify().catch(() => undefined)
         }}, flaky(2)] as never})
         await assert.rejects(lastSwallowed.connect().bind(TARGET, 'password10'), code(80))
+        //(one returning while a call it made is still running: refused too)
+        const {server: unawaited} = await directory({plugins: [{name: 'not-awaiting', authenticate: async (_context: unknown, _bind: unknown, verify: () => Promise<void>) => {
+            await verify()
+            void verify().catch(() => undefined)
+        }}, flaky(2)] as never})
+        await assert.rejects(unawaited.connect().bind(TARGET, 'password10'), code(80))
         //An outer plugin catching what an inner hook threw once verify() had returned (the password policy refusing a
         //locked account, its right password; a plugin refusing): refused, no time kept; one awaiting verify() and
         //returning: bound, a wrong password refused for itself
