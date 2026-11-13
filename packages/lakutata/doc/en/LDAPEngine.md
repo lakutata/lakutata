@@ -510,16 +510,17 @@ The server hashes every password it is given, as `{PBKDF2-SHA512}` (the format o
 schemes, `{CRYPT}` with MD5, SHA-256, SHA-512 and bcrypt, `{ARGON2}` where node:crypto runs argon2: Node.js 24.7 and
 later, but not Electron) and the passwords in clear of an older directory, then hashes the password again in the scheme
 of the server (`rehashOnBind`). An administrator may write a hashed value as it is, with its `{SCHEME}`, to import
-accounts. A complete crypt or argon2 hash written without its `{SCHEME}` is refused, because its text would become the
-password. With `rehashOnBind`, a value in another scheme than the server's is replaced at its first successful bind, the
-only time the password is known in clear. It is replaced only if the entry still holds that value; if the value is found
-changed or removed, nothing is written. A backend with `transaction()` and `lock()`, such as the directory backend of
-@lakutata/ldap, locks the entry while the value is checked and replaced; other backends read the value again just before
-the write. To keep an imported hash (one an application also checks), turn `rehashOnBind` off; an application may also
-register a scheme of its own with `PasswordSchemes.register()` (a native bcrypt, say) and give the server those schemes.
-A scheme's name may contain only letters, digits, `.` and `-`; `register()` refuses any other. A scheme registered under
-a name the server already has replaces the server's own. To have `{CRYPT}` bcrypt values checked by a native library,
-register the scheme as `CRYPT` and pass every value it does not take to the scheme it replaces, which
+accounts. A value in the complete form of a common crypt or argon2 hash, written without its `{SCHEME}`, is refused,
+because its text would become the password. Other bare hashes are still taken as passwords in clear, so always write the
+`{SCHEME}`. With `rehashOnBind`, a value in another scheme than the server's is replaced at its first successful bind,
+the only time the password is known in clear. It is replaced only if the entry still holds that value; if the value is
+found changed or removed, nothing is written. A backend with `transaction()` and `lock()`, such as the directory backend
+of @lakutata/ldap, locks the entry while the value is checked and replaced; other backends read the value again just
+before the write. To keep an imported hash (one an application also checks), turn `rehashOnBind` off; an application may
+also register a scheme of its own with `PasswordSchemes.register()` (a native bcrypt, say) and give the server those
+schemes. A scheme's name may contain only letters, digits, `.` and `-`; `register()` refuses any other. A scheme
+registered under a name the server already has replaces the server's own. To have `{CRYPT}` bcrypt values checked by a
+native library, register the scheme as `CRYPT` and pass every value it does not take to the scheme it replaces, which
 `schemeOf('{CRYPT}')` gives before the registration: `$1$`, `$5$` and `$6$`, and also `$2y$`, which the `bcrypt` package
 on npm does not accept. A value written by anyone else is treated as a password in clear, even if it looks hashed. When
 a modify deletes a password given in clear (the old password of a change), it is checked against the stored one only on
@@ -566,10 +567,12 @@ await server.listen({port: 389})
   password policy control get the warnings and the reasons; a locked account is answered as a wrong password, unless
   `revealLocked` is set. When an interceptor or a plugin refuses a bind after its password was checked, the bind does
   not count as successful: the recorded failures stay, pwdLastSuccess is not written, the bind throttle's count is not
-  reset and no warning is sent. Two things still happen: a grace bind already counted stays used, and the password is
-  still hashed again where `rehashOnBind` applies. The time of the last bind is kept, and the `bind` event emitted, only
-  for a bind that succeeds. The policy's own refusal of an expired password with no grace bind left is different: as
-  draft-behera §8.1.2.1 says, a password that validates clears the recorded failures before its expiry is looked at.
+  reset and no warning is sent. Some things still happen: a grace bind already counted stays used; the password is still
+  hashed again where `rehashOnBind` applies; and the time of the last bind is still kept when the refusal comes from
+  around `LastBindPlugin` or the directory backend's `lastBind`: a plugin's `aroundRequest`, an interceptor placed
+  before theirs, or a failure to write this state. The policy's own refusal of an expired password with no grace bind
+  left is different: as draft-behera §8.1.2.1 says, a password that validates clears the recorded failures before its
+  expiry is looked at.
 - The policy is a plugin, the `PasswordPolicyPlugin` the option adds after the others, and it loads the schema ppolicy
   itself.
 
@@ -585,7 +588,7 @@ controls and extended operations that code needs.
 | `UniquePlugin` | Refuses a value another entry has | unique |
 | `PasswordPolicyPlugin` | The password policy of section 12 | ppolicy |
 | `IdAllocationPlugin` | Gives uidNumber and gidNumber to the POSIX entries added without them | (DNA of 389 Directory Server) |
-| `LastBindPlugin` | Records in authTimestamp the time of the last bind with a password that succeeded | lastbind |
+| `LastBindPlugin` | Records in authTimestamp the time of the last bind that verified a password | lastbind |
 | `SambaPasswordPlugin` | Writes the NT hash of a new password in sambaNTPassword (the schema of Samba loaded) | smbk5pwd |
 | `AuditPlugin` | Gives a record of each request and its outcome to a function of one's own | accesslog, auditlog |
 | `ConstraintPlugin` | Refuses values breaking rules: a pattern, a size, a count, a check of one's own | constraint |
@@ -641,18 +644,17 @@ await server.listen({port: 389})
   bind fails with that result. If it returns nothing, a value without a result code, or a result code no bind can have
   (saslBindInProgress, or a negative one), the bind fails with other (80). The bind also fails with other (80) if the
   `around()` answers success when the password has not been checked, because it did not call `next()` or caught its
-  rejection. The interceptors around it receive that answer. A plugin's `authenticate()` that returns without calling
-  `verify()`, or catches its rejection, fails the bind in the same way; if it calls `verify()` more than once, the call
-  that finishes last decides. A plugin's `aroundRequest()` may refuse a bind, but it cannot turn a bind the server did
-  not complete into a success or a step in progress: such a bind fails with the server's own refusal, or with other (80)
-  when the server gave none. A refusal of its own that an interceptor throws, invalidCredentials included, reaches the
-  client as thrown, on a simple bind and on SASL PLAIN. What a bind does once it succeeds (keeping the time of the last
-  bind, writing the password policy's state, emitting the `bind` event) is done only when it has succeeded; a plugin or
-  an interceptor adds its own with `onceBound()`. To check passwords elsewhere, a backend implements `bind()`, which
-  then checks the password of every DN under its suffix, except an administrator bound by `access.adminPasswords`, in
-  place of the server's check of userPassword. These binds do not go through a `bind` interceptor: anonymous and
-  unauthenticated binds, a bind of a DN no backend holds, an administrator bound by `access.adminPasswords`, and a SASL
-  mechanism that verifies no password, such as EXTERNAL.
+  rejection. The interceptors around it receive that answer, so LastBindPlugin, which is around it by default, keeps no
+  time for the bind. A plugin's `authenticate()` that returns without calling `verify()`, or catches its rejection,
+  fails the bind in the same way; if it calls `verify()` more than once, the call that finishes last decides. A plugin's
+  `aroundRequest()` may refuse a bind, but it cannot turn a bind the server did not complete into a success or a step in
+  progress: such a bind fails with the server's own refusal, or with other (80) when the server gave none. A refusal of
+  its own that an interceptor throws, invalidCredentials included, reaches the client as thrown, on a simple bind and on
+  SASL PLAIN. The `bind` event is emitted only once the bind has succeeded. To check passwords elsewhere, a backend
+  implements `bind()`, which then checks the password of every DN under its suffix, except an administrator bound by
+  `access.adminPasswords`, in place of the server's check of userPassword. These binds do not go through a `bind`
+  interceptor: anonymous and unauthenticated binds, a bind of a DN no backend holds, an administrator bound by
+  `access.adminPasswords`, and a SASL mechanism that verifies no password, such as EXTERNAL.
 - An interceptor is placed before or after one of the server's own steps (`access`, `password`, `schema`, `operational`,
   `paging`) by `{interceptor, before: 'schema'}`, and otherwise at the end of the chain, after them all: what it adds to
   a request there is not checked against the schema. Placed before `password`, it sees the passwords in clear. An
