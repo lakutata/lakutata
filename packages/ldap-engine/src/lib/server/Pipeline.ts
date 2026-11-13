@@ -454,6 +454,9 @@ export class Pipeline {
         for (const [dn, password] of Object.entries(options.access.adminPasswords ?? {})) {
             const scheme: string | undefined = /^\{([^}]*)\}/.exec(password)?.[1]
             if (scheme !== undefined && !options.passwords.isHashed(password)) throw new LDAPUsageException(`The password of ${dn} in access.adminPasswords names the scheme {${scheme}}, which the server does not have: register it with the server's password schemes, or give the password hashed by one of them`)
+            //So would a hash without its {SCHEME} (a crypt or argon2 value as its library gives it), or one after blanks
+            if (/^\s+\{/.test(password)) throw new LDAPUsageException(`The password of ${dn} in access.adminPasswords has blanks before its {SCHEME}`)
+            if (/^\$(?:1|2[abxy]|5|6|7|y|gy|argon2(?:id|i|d))\$/.test(password)) throw new LDAPUsageException(`The password of ${dn} in access.adminPasswords is a hash without its {SCHEME}: give it as {CRYPT}${password.slice(0, 4)}… (or {ARGON2}$argon2…)`)
         }
         this.mounts = options.backends.map((backend: LDAPBackend): Mount => ({backend: backend, suffix: DN.parse(backend.suffix), chain: []}))
         //The longest suffix first

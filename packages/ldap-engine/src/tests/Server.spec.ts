@@ -1389,6 +1389,9 @@ describe('the server engine', () => {
         assert.throws(() => createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ADMIN], adminPasswords: {[ROOT]: 'x'}}}), LDAPUsageException)
         assert.throws(() => createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ROOT], adminPasswords: {[ROOT]: ''}}}), LDAPUsageException)
         //A scheme the server does not have, or a mistyped one: refused too, not compared as it is (its text the password)
+        //A hash without its {SCHEME} (a bare crypt or argon2 value), or a {SCHEME} after blanks: refused too, the text of
+        //the hash not the password
+        for (const value of ['$2b$10$abcdefghijklmnopqrstuuabcdefghijklmnopqrstuvwxyz01234', '$2y$12$abcdefghijklmnopqrstuuabcdefghijklmnopqrstuvwxyz01234', '$6$salt$abcdefghij', '$5$rounds=5000$salt$abc', '$1$salt$abc', '$y$j9T$salt$abc', '$argon2id$v=19$m=65536,t=3,p=4$c2FsdA$aGFzaA', ' {PBKDF2-SHA512}1000$x$y', '\t{SSHA}abcd']) assert.throws(() => createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ROOT], adminPasswords: {[ROOT]: value}}}), LDAPUsageException, JSON.stringify(value))
         for (const value of ['{BCRYPT}$2b$10$abcdefghijklmnopqrstuuabcdefghijklmnopqrstuvwxyz01234', '{SSHA_512}abcd', '{}abcd']) assert.throws(() => createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ROOT], adminPasswords: {[ROOT]: value}}}), LDAPUsageException, value)
         //A scheme registered with the server's schemes is taken
         createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ROOT], adminPasswords: {[ROOT]: '{OWN}secret'}}, passwords: new PasswordSchemes({iterations: 1000}).register({name: 'OWN', verify: async () => false})})

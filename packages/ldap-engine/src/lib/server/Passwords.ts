@@ -250,8 +250,11 @@ export class PasswordSchemes {
     /**
      * Add a scheme, or replace the one of its name
      * @param scheme The scheme.
+     * @throws {LDAPUsageException} When its name is not one a stored value `{NAME}…` can carry (letters, digits, `.`
+     * and `-`).
      */
     public register(scheme: PasswordScheme): this {
+        if (typeof scheme.name !== 'string' || !/^[A-Za-z0-9.-]+$/.test(scheme.name)) throw new LDAPUsageException(`The name of a password scheme is made of letters, digits, '.' and '-': ${String(scheme.name)}`)
         this.registered.set(scheme.name.toUpperCase(), scheme)
         return this
     }

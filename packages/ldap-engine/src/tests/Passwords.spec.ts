@@ -2,7 +2,7 @@
 //from John the Ripper and from the hashes of the systems themselves
 import assert from 'node:assert/strict'
 import {describe, it} from 'node:test'
-import {PasswordSchemes} from '../exports/LDAPEngine.js'
+import {LDAPUsageException, PasswordSchemes} from '../exports/LDAPEngine.js'
 import {md5Crypt, shaCrypt} from '../lib/server/Crypt.js'
 import {argon2Function} from '../lib/server/Passwords.js'
 
@@ -56,6 +56,14 @@ describe('the password schemes', () => {
         assert.equal(await schemes.verify(first, 'passwörd'), false)
         for (const scheme of ['SSHA', 'SSHA512', 'SHA256', 'PBKDF2-SHA256']) assert.equal(await schemes.verify(await schemes.hash('secret', scheme), 'secret'), true, scheme)
         await assert.rejects(schemes.hash('secret', 'CRYPT'), /cannot hash/)
+    })
+
+    it('register a scheme only under a name a stored value can carry', async () => {
+        const own: PasswordSchemes = new PasswordSchemes({iterations: 1000})
+        own.register({name: 'NATIVE-BCRYPT.2', verify: async (value: string) => value === 'right'})
+        assert.equal(await own.verify('{native-bcrypt.2}right', 'anything'), true)
+        //A name {NAME} cannot carry: no stored value would reach the scheme
+        for (const name of ['BCRYPT_NATIVE', 'NATIVE BCRYPT', '', '{CRYPT}', 'ÄRGON']) assert.throws(() => own.register({name: name, verify: async () => true}), LDAPUsageException, name)
     })
 
     it('compare a password in clear, and say what to hash again', async () => {
