@@ -1275,6 +1275,25 @@ describe('the server engine', () => {
                 assert.equal(await client.whoAmI(), '')
             }
         }
+        //A plugin calling verify() more than once: the last call counts (a retry after a refusal binds; a refusal of the
+        //last call swallowed after one that returned does not)
+        const flaky = (refusedCall: number) => {
+            let calls: number = 0
+            return {name: 'flaky', authenticate: async (_context: unknown, _bind: unknown, verify: () => Promise<void>) => {
+                await verify()
+                if (++calls === refusedCall) throw new LDAPUnwillingToPerformException('Not now')
+            }}
+        }
+        const {server: retrying} = await directory({plugins: [{name: 'retrying', authenticate: async (_context: unknown, _bind: unknown, verify: () => Promise<void>) => {
+            await verify().catch(() => undefined)
+            await verify()
+        }}, flaky(1)] as never})
+        await retrying.connect().bind(TARGET, 'password10')
+        const {server: lastSwallowed} = await directory({plugins: [{name: 'swallowing-last', authenticate: async (_context: unknown, _bind: unknown, verify: () => Promise<void>) => {
+            await verify()
+            await verify().catch(() => undefined)
+        }}, flaky(2)] as never})
+        await assert.rejects(lastSwallowed.connect().bind(TARGET, 'password10'), code(80))
         //An outer plugin catching what an inner hook threw once verify() had returned (the password policy refusing a
         //locked account, its right password; a plugin refusing): refused, no time kept; one awaiting verify() and
         //returning: bound, a wrong password refused for itself
