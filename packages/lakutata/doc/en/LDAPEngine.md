@@ -650,12 +650,17 @@ await server.listen({port: 389})
   throws, invalidCredentials included, reaches the client as thrown, on a simple bind and on SASL PLAIN. Some things are
   done only once the bind has succeeded and the server has written its own state: the time of the last bind and the
   records a plugin or an interceptor added with `afterBind()` are made in the order they were added (along a SASL
-  exchange, those of every step), and the `bind` event is emitted last. If a record fails, or a listener of the `bind`
-  event throws, the server emits an `error` event; the bind still succeeds and the remaining records are made. To check
-  passwords elsewhere, a backend implements `bind()`, which then checks the password of every DN under its suffix,
-  except an administrator bound by `access.adminPasswords`, in place of the server's check of userPassword. These binds
-  do not go through a `bind` interceptor: anonymous and unauthenticated binds, a bind of a DN no backend holds, an
-  administrator bound by `access.adminPasswords`, and a SASL mechanism that verifies no password, such as EXTERNAL.
+  exchange, those of every step), and the `bind` event is emitted last. If a record throws, or a listener of the `bind`
+  event throws, the server emits an `error` event; the bind still succeeds and the remaining records are made.
+  `afterBind()` must be called before the hook that calls it returns. A hook that calls `next()` or `verify()` must
+  await it before returning. Binds on an in-process connection must be made one at a time; a network connection queues
+  its binds itself. Listeners of the server's events must not throw; only for the `bind` event does the server turn that
+  into an `error` event. Code that breaks these rules is not supported: apart from the refusals described above, what
+  happens then is not defined. To check passwords elsewhere, a backend implements `bind()`, which then checks the
+  password of every DN under its suffix, except an administrator bound by `access.adminPasswords`, in place of the
+  server's check of userPassword. These binds do not go through a `bind` interceptor: anonymous and unauthenticated
+  binds, a bind of a DN no backend holds, an administrator bound by `access.adminPasswords`, and a SASL mechanism that
+  verifies no password, such as EXTERNAL.
 - An interceptor is placed before or after one of the server's own steps (`access`, `password`, `schema`, `operational`,
   `paging`) by `{interceptor, before: 'schema'}`, and otherwise at the end of the chain, after them all: what it adds to
   a request there is not checked against the schema. Placed before `password`, it sees the passwords in clear. An

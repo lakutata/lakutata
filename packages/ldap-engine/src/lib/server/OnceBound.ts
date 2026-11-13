@@ -48,10 +48,11 @@ export async function onceBound(context: OperationContext, effect: (context: Ope
 }
 
 /**
- * Record a bind once it succeeds, after the server's own state and before the bind event: a bind refused after it (by
- * an interceptor, a plugin around it, the server) records nothing; along a SASL exchange the records wait for its end,
- * those of every step in their order. A record failing is an `error` event of the server, the bind done and the other
- * records made. Outside a bind, the record is made at once.
+ * Record a bind once it succeeds, after the server's own state and before the bind event. Call it while the bind is
+ * being handled, before the hook that calls it returns: a bind refused afterwards (by an interceptor, a plugin around
+ * it, the server) then records nothing, and along a SASL exchange the records wait for its end, those of every step in
+ * their order. A record that throws is an `error` event of the server, the bind done and the other records made.
+ * Outside a bind, the record is made at once. A call made after the hook has returned is not supported.
  * @param context The context of the operation.
  * @param record The record, given the context of the operation that ends the bind.
  * @example
