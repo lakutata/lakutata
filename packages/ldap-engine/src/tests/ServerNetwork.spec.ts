@@ -260,6 +260,36 @@ describe('the server engine on the network', () => {
         socket.destroy()
     })
 
+    it('abandons the requests waiting for a bind in flight when another bind comes (RFC 4511 §4.2.1)', async () => {
+        //A bind held in its check until the test lets it go
+        let release: () => void = (): void => undefined
+        const released: Promise<void> = new Promise<void>((resolve: () => void): void => {
+            release = resolve
+        })
+        const {port} = await serve({access: {admins: [ADMIN], anonymousRead: true}, interceptors: [{name: 'holding', operations: ['bind'], before: async (_context, request) => {
+            if (request.type === 'bind' && request.dn?.toString().startsWith('uid=user1,')) await released
+        }}]})
+        const socket: Socket = createConnection({port: port, host: '127.0.0.1'})
+        await once(socket, 'connect')
+        const reader: MessageReader = new MessageReader()
+        const answered: number[] = []
+        socket.on('data', (chunk: Buffer) => {
+            for (const item of reader.push(chunk)) if (item.message) answered.push(item.message.messageId)
+        })
+        const settle = (): Promise<void> => new Promise<void>((resolve: () => void): void => void setTimeout(resolve, 150))
+        //A bind in flight, a search waiting for it, then a bind sent before the first ends
+        socket.write(encodeMessage({messageId: 1, protocolOp: {type: 'bindRequest', version: 3, name: `uid=user1,ou=people,${BASE}`, authentication: {type: 'simple', password: Buffer.from('password1')}}}))
+        await settle()
+        socket.write(encodeMessage({messageId: 2, protocolOp: {type: 'searchRequest', baseObject: `ou=people,${BASE}`, scope: 'one', derefAliases: 'never', sizeLimit: 0, timeLimit: 0, typesOnly: false, filter: Filter.parse('(objectClass=*)'), attributes: ['1.1']}}))
+        socket.write(encodeMessage({messageId: 3, protocolOp: {type: 'bindRequest', version: 3, name: `uid=user2,ou=people,${BASE}`, authentication: {type: 'simple', password: Buffer.from('password2')}}}))
+        await settle()
+        release()
+        await settle()
+        socket.destroy()
+        //Both binds answered, the search abandoned: no answer
+        assert.deepEqual([...new Set(answered)], [1, 3])
+    })
+
     it('gives the plugins a request of its own for each bind it cannot decode', async () => {
         //A plugin changing the request of the first: the second as the server makes it
         const seen: string[] = []

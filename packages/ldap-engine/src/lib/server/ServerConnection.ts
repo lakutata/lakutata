@@ -67,6 +67,12 @@ export class ServerConnection {
     protected readonly running: Map<number, Running> = new Map()
 
     /**
+     * The requests waiting for the bind in flight, by their message IDs, not running yet: a bind or an abandon coming
+     * meanwhile abandons them as the running ones
+     */
+    protected readonly waiting: Map<number, {type: LDAPRequest['type'], abandoned: boolean}> = new Map()
+
+    /**
      * The bind in progress: the other requests wait for it
      */
     protected gate: Promise<void> | undefined
@@ -213,6 +219,7 @@ export class ServerConnection {
             running.abandoned = true
             running.controller.abort(new Error('Abandoned by a bind'))
         }
+        for (const waiting of this.waiting.values()) waiting.abandoned = true
     }
 
     /**
@@ -248,6 +255,8 @@ export class ServerConnection {
                     target.abandoned = true
                     target.controller.abort(new Error('Abandoned'))
                 }
+                const waiting: {abandoned: boolean} | undefined = this.waiting.get(request.messageId)
+                if (waiting) waiting.abandoned = true
                 return
             }
             case 'bindRequest':
@@ -263,8 +272,18 @@ export class ServerConnection {
                     return
                 }
                 const gate: Promise<void> | undefined = this.gate
-                if (gate) void gate.then((): Promise<void> => this.process(message))
-                else void this.process(message)
+                if (!gate) {
+                    void this.process(message)
+                    return
+                }
+                //Waiting for the bind in flight: abandoned meanwhile (by a bind sent before it ends, an abandon), it does not
+                //run and is not answered
+                const waiting: {type: LDAPRequest['type'], abandoned: boolean} = {type: request.type, abandoned: false}
+                this.waiting.set(message.messageId, waiting)
+                void gate.then((): Promise<void> | undefined => {
+                    if (this.waiting.get(message.messageId) === waiting) this.waiting.delete(message.messageId)
+                    return waiting.abandoned ? undefined : this.process(message)
+                })
             }
         }
     }
