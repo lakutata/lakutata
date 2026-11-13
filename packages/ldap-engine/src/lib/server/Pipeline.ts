@@ -1488,7 +1488,7 @@ export class Pipeline {
                 }
             }
             //No value to check (no entry, no password): the same check as for a wrong password, then the failure
-            if (!matched && !stored.length) await this.options.passwords.verify(await this.unmatchable(), password)
+            if (!matched && !stored.length) await this.unmatchable().then((hash: string): Promise<boolean> => this.options.passwords.verify(hash, password)).catch((): boolean => false)
             if (!matched) return failed()
             if (this.options.rehashOnBind && this.options.passwords.needsRehash(matched) && mount.backend.modify) {
                 const rehashed: Buffer = Buffer.from(await this.options.passwords.hash(password))
@@ -1541,7 +1541,11 @@ export class Pipeline {
      * The hash checked for a DN with no value to check, so that its bind takes the check a wrong password takes
      */
     protected unmatchable(): Promise<string> {
-        this.unmatchableHash ??= this.options.passwords.hash(randomBytes(32))
+        //(text, which any scheme hashes; not kept when it fails, made again at the next bind)
+        this.unmatchableHash ??= this.options.passwords.hash(randomBytes(32).toString('hex')).catch((error: unknown): never => {
+            this.unmatchableHash = undefined
+            throw error
+        })
         return this.unmatchableHash
     }
 

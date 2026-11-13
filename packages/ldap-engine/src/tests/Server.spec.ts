@@ -1757,6 +1757,21 @@ describe('the server engine', () => {
             await assert.rejects(engine.connect().bind(dn, 'wrong'), code(49), dn)
             assert.deepEqual(checked, ['{PBKDF2-SHA512}'], dn)
         }
+        //The hash failing to be made: the bind still a wrong password, and the hash made again at the next one
+        const {server: failing} = await directory({passwords: schemes})
+        const hash: PasswordSchemes['hash'] = schemes.hash.bind(schemes)
+        let refuse: boolean = true
+        schemes.hash = async (password: Buffer | string, scheme?: string): Promise<string> => {
+            if (refuse) {
+                refuse = false
+                throw new Error('No hash made')
+            }
+            return hash(password, scheme)
+        }
+        await assert.rejects(failing.connect().bind(`uid=nobody,ou=people,${BASE}`, 'wrong'), code(49))
+        checked.length = 0
+        await assert.rejects(failing.connect().bind(`uid=nobody,ou=people,${BASE}`, 'wrong'), code(49))
+        assert.deepEqual(checked, ['{PBKDF2-SHA512}'])
     })
 
     it('hashes a password again at a bind only while the entry still holds the value the bind matched', async () => {
