@@ -138,6 +138,8 @@ describe('the password policy', () => {
             const locked: number = parseGeneralizedTime((await admin.search(ALICE, {scope: 'base', attributes: ['pwdAccountLockedTime']})).entries[0].first('pwdAccountLockedTime')!)!
             assert.ok(locked > hourAgo + 60000, formatGeneralizedTime(locked))
             await assert.rejects(session.bind(ALICE, 'alice-password-1', {controls: ASK}), refused(49, revealLocked ? 'accountLocked' : undefined))
+            //By SASL PLAIN, answered alike: invalidCredentials as the server says it, the reason when revealLocked
+            await assert.rejects(server.connect().saslBind('PLAIN', Buffer.from(`\0dn:${ALICE}\0alice-password-1`), {controls: ASK}), (error: unknown) => refused(49, revealLocked ? 'accountLocked' : undefined)(error) && (error as LDAPResultException).diagnosticMessage === 'Invalid credentials')
         }
     })
 

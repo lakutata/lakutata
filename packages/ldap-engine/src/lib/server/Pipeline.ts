@@ -1538,8 +1538,16 @@ export class Pipeline {
                 //Through the chain of the backend, as a simple bind (the time of the bind kept, the backend's controls)
                 //The password checked once the plugins' hooks are done with it, for this call (a mechanism may verify more)
                 let passed: boolean = false
+                //A refusal of the password the server itself makes (a wrong password, the password policy, a plugin's
+                //hook), told the mechanism as false; one an interceptor makes of its own reaches the client whole
+                let refusedPassword: unknown
                 const verify = async (): Promise<ServerOutcome> => {
-                    await this.authenticate(session, context, dn, password)
+                    try {
+                        await this.authenticate(session, context, dn, password)
+                    } catch (error) {
+                        refusedPassword = error
+                        throw error
+                    }
                     passed = true
                     return {resultCode: ResultCode.success}
                 }
@@ -1557,7 +1565,7 @@ export class Pipeline {
                     }
                     return true
                 } catch (error) {
-                    if (error !== answered && error instanceof LDAPResultException && error.code === ResultCode.invalidCredentials) return false
+                    if (error === refusedPassword && error !== answered && error instanceof LDAPResultException && error.code === ResultCode.invalidCredentials) return false
                     throw error
                 }
             }

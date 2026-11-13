@@ -1186,6 +1186,13 @@ describe('the server engine', () => {
         //Its answer whole on PLAIN too: its message with invalidCredentials
         const {server: holding} = await directory({interceptors: [{name: 'holding', operations: ['bind'], around: async () => ({resultCode: 49, diagnosticMessage: 'Held back for review'})} as never]})
         await assert.rejects(holding.connect().saslBind('PLAIN', Buffer.from(`\0dn:uid=user6,ou=people,${BASE}\0password6`)), (error: unknown) => error instanceof LDAPResultException && error.code === 49 && error.diagnosticMessage === 'Held back for review')
+        //Thrown too: its message reaches the PLAIN client; a wrong password, or a refusal of the password policy, as the
+        //server says it (the answer of a locked account unchanged)
+        const {server: throwing} = await directory({interceptors: [{name: 'throwing', operations: ['bind'], around: async () => {
+            throw new LDAPInvalidCredentialsException('Held back for review')
+        }} as never]})
+        await assert.rejects(throwing.connect().saslBind('PLAIN', Buffer.from(`\0dn:uid=user6,ou=people,${BASE}\0password6`)), (error: unknown) => error instanceof LDAPResultException && error.code === 49 && error.diagnosticMessage === 'Held back for review')
+        await assert.rejects(answering.connect().saslBind('PLAIN', Buffer.from(`\0dn:uid=user7,ou=people,${BASE}\0wrong`)), (error: unknown) => error instanceof LDAPResultException && error.code === 49 && error.diagnosticMessage === 'Invalid credentials')
     })
 
     it('binds only when the password was checked and the chain answers success: what a bind interceptor or a plugin does, simple and SASL PLAIN, with the time of the bind kept or not', async () => {
