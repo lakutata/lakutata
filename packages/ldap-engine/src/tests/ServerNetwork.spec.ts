@@ -260,6 +260,32 @@ describe('the server engine on the network', () => {
         socket.destroy()
     })
 
+    it('gives the plugins a request of its own for each bind it cannot decode', async () => {
+        //A plugin changing the request of the first: the second as the server makes it
+        const seen: string[] = []
+        const {port} = await serve({plugins: [{name: 'touching', aroundRequest: async (_context: unknown, request: {type: string, name?: string}, next: () => Promise<unknown>) => {
+            if (request.type === 'bindRequest') {
+                seen.push(String(request.name))
+                request.name = 'changed by a plugin'
+            }
+            return next()
+        }}] as never})
+        const socket: Socket = createConnection({port: port, host: '127.0.0.1'})
+        await once(socket, 'connect')
+        const reader: MessageReader = new MessageReader()
+        const answered: number[] = []
+        socket.on('data', (chunk: Buffer) => {
+            for (const item of reader.push(chunk)) if (item.message) answered.push(item.message.messageId)
+        })
+        for (const id of [1, 2]) {
+            socket.write(Buffer.from([0x30, 0x0e, 0x02, 0x01, id, 0x60, 0x09, 0x02, 0x01, 0x03, 0x04, 0x02, 0xff, 0xfe, 0x80, 0x00]))
+            await new Promise<void>((resolve: () => void): void => void setTimeout(resolve, 150))
+        }
+        socket.destroy()
+        assert.deepEqual(answered, [1, 2])
+        assert.deepEqual(seen, ['', ''])
+    })
+
     it('takes a bind it cannot decode for a failed bind: the session anonymous, its paged searches, SASL exchange and requests ended', async () => {
         //A search held until released, a two-step mechanism counting its starts
         let release: () => void = (): void => undefined
