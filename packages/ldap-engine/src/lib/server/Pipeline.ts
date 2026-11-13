@@ -43,7 +43,7 @@ import {
     timeOrderedUUID,
     valuesOfType
 } from './EntryTools.js'
-import {ONCE_BOUND, onceBound, type OnceBoundEffects} from './OnceBound.js'
+import {type OnceBound, ONCE_BOUND, onceBound, tellBound} from './OnceBound.js'
 import {MUST_CHANGE} from './PasswordPolicy.js'
 import {closeIterator, closePaged, endPagedSearch, keepApproval, pagingInterceptor, type PagedStates, SEARCH_SOURCE, type SearchSource} from './Paging.js'
 import {argon2Function, isOwnArgon2, type PasswordSchemes} from './Passwords.js'
@@ -273,7 +273,7 @@ const SASL_MOUNTS: WeakMap<Map<string, unknown>, Mount | undefined> = new WeakMa
 /**
  * The effects of a right password a SASL exchange applies once it succeeds, by the state of the exchange
  */
-const SASL_EFFECTS: WeakMap<Map<string, unknown>, OnceBoundEffects> = new WeakMap()
+const SASL_EFFECTS: WeakMap<Map<string, unknown>, OnceBound> = new WeakMap()
 
 /**
  * A backend mounted at its suffix, with its chain of interceptors
@@ -690,7 +690,7 @@ export class Pipeline {
         //gets new ones, so that a page still being read keeps no search either
         if (operation === 'bind') this.endPaged(session)
         //The effects of a right password, applied once the bind succeeds (SASL: those of the exchange)
-        if (operation === 'bind') context.state.set(ONCE_BOUND, [] as OnceBoundEffects)
+        if (operation === 'bind') context.state.set(ONCE_BOUND, {state: [], records: []} as OnceBound)
         try {
             this.checkControls(controls, operation)
             this.readControls(controls, operation)
@@ -704,17 +704,22 @@ export class Pipeline {
             outcome = served && served.resultCode !== ResultCode.success && served.resultCode !== ResultCode.saslBindInProgress ? served : {resultCode: ResultCode.other, diagnosticMessage: 'A plugin answered the bind otherwise than the server did'}
         }
         //Applied when the bind succeeds, whatever refused it otherwise (an interceptor, a hook, a plugin around the
-        //request) dropping them; kept along a SASL exchange in progress. One failing refuses the bind
+        //request) dropping them; kept along a SASL exchange in progress: the server's state first (one failing refuses
+        //the bind, nothing after it done), the records (one failing an error event only), the bind event last
         if (operation === 'bind') {
-            const effects: OnceBoundEffects = context.state.get(ONCE_BOUND) as OnceBoundEffects
+            const holder: OnceBound = context.state.get(ONCE_BOUND) as OnceBound
             context.state.delete(ONCE_BOUND)
             if (outcome.resultCode === ResultCode.success) {
                 try {
-                    for (const effect of effects) await effect(context)
+                    for (const effect of holder.state) await effect(context)
                 } catch (error) {
                     outcome = this.outcomeOf(error, signal)
                 }
-            }
+                if (outcome.resultCode === ResultCode.success) {
+                    for (const record of holder.records) await this.recorded((): Promise<void> | void => record(context))
+                    if (holder.event) await this.recorded(holder.event)
+                }
+            } else if (outcome.resultCode === ResultCode.saslBindInProgress && session.sasl) SASL_EFFECTS.set(session.sasl.state, holder)
         }
         //A bind a hook refused after it was checked leaves the session anonymous (RFC 4511 §4.2.1)
         if (operation === 'bind' && outcome.resultCode !== ResultCode.success && outcome.resultCode !== ResultCode.saslBindInProgress) this.failedBind(session)
@@ -1442,8 +1447,8 @@ export class Pipeline {
         if (chained.resultCode !== ResultCode.success) return chained
         session.identity = dn
         session.authenticationMethod = 'simple'
-        //Told once the bind succeeds, after the effects of its password (none for a bind refused after)
-        await onceBound(context, (): void => {
+        //Told once the bind succeeds, after its records (none for a bind refused after)
+        tellBound(context, (): void => {
             this.options.events.emit('bind', {session: session.id, dn: dn.toString(), method: 'simple'})
         })
         return {resultCode: ResultCode.success}
@@ -1552,6 +1557,18 @@ export class Pipeline {
     }
 
     /**
+     * Make a record of a bind that succeeded, or tell its event: a failure is an error event, the bind done
+     * @param run The record.
+     */
+    protected async recorded(run: () => Promise<void> | void): Promise<void> {
+        try {
+            await run()
+        } catch (error) {
+            this.options.events.emit('error', error)
+        }
+    }
+
+    /**
      * A SASL bind, step by step
      * @param session The session.
      * @param context The context.
@@ -1567,10 +1584,15 @@ export class Pipeline {
             fail(ResultCode.authMethodNotSupported, `The SASL mechanism ${mechanismName} is not offered`)
         }
         const state: Map<string, unknown> = continuing ? session.sasl!.state : new Map()
-        //The effects of a right password an earlier step checked, kept along the exchange
-        const effects: OnceBoundEffects = (continuing ? SASL_EFFECTS.get(state) : undefined) ?? []
-        SASL_EFFECTS.set(state, effects)
-        context.state.set(ONCE_BOUND, effects)
+        //What an earlier step of the exchange left to do once it succeeds, before what this one adds (handle() keeps
+        //the whole of it for the next step while the exchange goes on)
+        const carried: OnceBound | undefined = continuing ? SASL_EFFECTS.get(state) : undefined
+        const holder: OnceBound | undefined = context.state.get(ONCE_BOUND) as OnceBound | undefined
+        if (carried && holder) {
+            holder.state.unshift(...carried.state)
+            holder.records.unshift(...carried.records)
+        }
+        SASL_EFFECTS.delete(state)
         //Each step checked: one verifying a password (PLAIN) against the backend of its DN, kept for the exchange; one
         //verifying none against the backend an earlier step reached, or none
         let verified: boolean = false
@@ -1638,8 +1660,8 @@ export class Pipeline {
         session.sasl = undefined
         session.identity = step.identity
         session.authenticationMethod = mechanism.name
-        //Told once the exchange succeeds, after the effects of its password (none for one refused after)
-        await onceBound(context, (): void => {
+        //Told once the exchange succeeds, after its records (none for one refused after)
+        tellBound(context, (): void => {
             this.options.events.emit('bind', {session: session.id, dn: step.identity?.toString() ?? '', method: mechanism.name})
         })
         return {resultCode: ResultCode.success, ...step.serverCredentials ? {serverSaslCredentials: step.serverCredentials} : {}}

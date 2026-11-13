@@ -567,12 +567,10 @@ await server.listen({port: 389})
   password policy control get the warnings and the reasons; a locked account is answered as a wrong password, unless
   `revealLocked` is set. When an interceptor or a plugin refuses a bind after its password was checked, the bind does
   not count as successful: the recorded failures stay, pwdLastSuccess is not written, the bind throttle's count is not
-  reset and no warning is sent. Some things still happen: a grace bind already counted stays used; the password is still
-  hashed again where `rehashOnBind` applies; and the time of the last bind is still kept when the refusal comes from
-  around `LastBindPlugin` or the directory backend's `lastBind`: a plugin's `aroundRequest`, an interceptor placed
-  before theirs, or a failure to write this state. The policy's own refusal of an expired password with no grace bind
-  left is different: as draft-behera §8.1.2.1 says, a password that validates clears the recorded failures before its
-  expiry is looked at.
+  reset and no warning is sent. Two things still happen: a grace bind already counted stays used, and the password is
+  still hashed again where `rehashOnBind` applies. The time of the last bind is kept only for a bind that succeeds. The
+  policy's own refusal of an expired password with no grace bind left is different: as draft-behera §8.1.2.1 says, a
+  password that validates clears the recorded failures before its expiry is looked at.
 - The policy is a plugin, the `PasswordPolicyPlugin` the option adds after the others, and it loads the schema ppolicy
   itself.
 
@@ -588,7 +586,7 @@ controls and extended operations that code needs.
 | `UniquePlugin` | Refuses a value another entry has | unique |
 | `PasswordPolicyPlugin` | The password policy of section 12 | ppolicy |
 | `IdAllocationPlugin` | Gives uidNumber and gidNumber to the POSIX entries added without them | (DNA of 389 Directory Server) |
-| `LastBindPlugin` | Records in authTimestamp the time of the last bind that verified a password | lastbind |
+| `LastBindPlugin` | Records in authTimestamp the time of the last successful bind that verified a password | lastbind |
 | `SambaPasswordPlugin` | Writes the NT hash of a new password in sambaNTPassword (the schema of Samba loaded) | smbk5pwd |
 | `AuditPlugin` | Gives a record of each request and its outcome to a function of one's own | accesslog, auditlog |
 | `ConstraintPlugin` | Refuses values breaking rules: a pattern, a size, a count, a check of one's own | constraint |
@@ -644,17 +642,20 @@ await server.listen({port: 389})
   bind fails with that result. If it returns nothing, a value without a result code, or a result code no bind can have
   (saslBindInProgress, or a negative one), the bind fails with other (80). The bind also fails with other (80) if the
   `around()` answers success when the password has not been checked, because it did not call `next()` or caught its
-  rejection. The interceptors around it receive that answer, so LastBindPlugin, which is around it by default, keeps no
-  time for the bind. A plugin's `authenticate()` that returns without calling `verify()`, or catches its rejection,
-  fails the bind in the same way; if it calls `verify()` more than once, the call that finishes last decides. A plugin's
-  `aroundRequest()` may refuse a bind, but it cannot turn a bind the server did not complete into a success or a step in
-  progress: such a bind fails with the server's own refusal, or with other (80) when the server gave none. A refusal of
-  its own that an interceptor throws, invalidCredentials included, reaches the client as thrown, on a simple bind and on
-  SASL PLAIN. The `bind` event is emitted only once the bind has succeeded. To check passwords elsewhere, a backend
-  implements `bind()`, which then checks the password of every DN under its suffix, except an administrator bound by
-  `access.adminPasswords`, in place of the server's check of userPassword. These binds do not go through a `bind`
-  interceptor: anonymous and unauthenticated binds, a bind of a DN no backend holds, an administrator bound by
-  `access.adminPasswords`, and a SASL mechanism that verifies no password, such as EXTERNAL.
+  rejection. The interceptors around it receive that answer. A plugin's `authenticate()` that returns without calling
+  `verify()`, or catches its rejection, fails the bind in the same way; if it calls `verify()` more than once, the call
+  that finishes last decides. A plugin's `aroundRequest()` may refuse a bind, but it cannot turn a bind the server did
+  not complete into a success or a step in progress: such a bind fails with the server's own refusal, or with other (80)
+  when the server gave none. A refusal of its own that an interceptor throws, invalidCredentials included, reaches the
+  client as thrown, on a simple bind and on SASL PLAIN. Some things are done only once the bind has succeeded and the
+  server has written its own state: the time of the last bind and the records a plugin or an interceptor added with
+  `afterBind()` are made in the order they were added (along a SASL exchange, those of every step), and the `bind` event
+  is emitted last. If a record fails, or a listener of the `bind` event throws, the server emits an `error` event; the
+  bind still succeeds and the remaining records are made. To check passwords elsewhere, a backend implements `bind()`,
+  which then checks the password of every DN under its suffix, except an administrator bound by `access.adminPasswords`,
+  in place of the server's check of userPassword. These binds do not go through a `bind` interceptor: anonymous and
+  unauthenticated binds, a bind of a DN no backend holds, an administrator bound by `access.adminPasswords`, and a SASL
+  mechanism that verifies no password, such as EXTERNAL.
 - An interceptor is placed before or after one of the server's own steps (`access`, `password`, `schema`, `operational`,
   `paging`) by `{interceptor, before: 'schema'}`, and otherwise at the end of the chain, after them all: what it adds to
   a request there is not checked against the schema. Placed before `password`, it sees the passwords in clear. An

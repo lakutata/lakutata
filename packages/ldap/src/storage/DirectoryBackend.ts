@@ -8,6 +8,7 @@ import {Configurable, Singleton} from '@lakutata/core/decorator/di'
 import type {EntityManager, ObjectLiteral, SelectQueryBuilder, UpdateQueryBuilder} from '@lakutata/orm'
 import type {Database} from '@lakutata/orm/com/database'
 import {
+    afterBind,
     type AttributeTypeAndValue,
     type AttributeTypeDefinition,
     attributeTypeOf,
@@ -974,8 +975,10 @@ export class DirectoryBackend extends Component implements LDAPBackend {
                     operations: ['bind'],
                     around: async (context: OperationContext, request: ServerRequest, next: () => Promise<ServerOutcome>): Promise<ServerOutcome> => {
                         const outcome: ServerOutcome = await next()
-                        //Only a bind that succeeded: an interceptor inside may answer one without the password checked
-                        if (request.type === 'bind' && request.dn && outcome.resultCode === ResultCode.success) await this.writeOperational(context, request.dn, 'authTimestamp', formatGeneralizedTime(new Date()).replace(/\.\d+Z$/, 'Z'), true).catch((): undefined => undefined)
+                        //Only a bind that succeeds, once it does: refused after (by a plugin around it, an interceptor
+                        //outside this one), it keeps no time; a write failing leaves the bind done
+                        const dn: DN | undefined = request.type === 'bind' ? request.dn : undefined
+                        if (dn && outcome.resultCode === ResultCode.success) await afterBind(context, (finishing: OperationContext): Promise<void> => this.writeOperational(finishing, dn, 'authTimestamp', formatGeneralizedTime(new Date()).replace(/\.\d+Z$/, 'Z'), true).catch((): undefined => undefined))
                         return outcome
                     }
                 }

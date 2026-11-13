@@ -387,7 +387,7 @@ await server.listen({port: 389})
 - 受策略约束的条目只能有一个密码：写入后会留下两个密码的操作会被拒绝。
 - 策略的请求控制可以随任何请求发送（draft-behera §6.1），包括对根 DSE 的搜索；策略有话要说时，响应里会带上它的响应控制。
 - 新密码的要求：修改时必须给出旧密码（`safeModify`），两次修改之间要隔一段时间（`minAge`），并且不能和以前用过的密码相同（`inHistory`）；长度（`minLength`、`maxLength`）和 `quality` 检查在 `checkQuality` 为 1（管理员导入的哈希值可以通过）或 2（总是检查）时生效，和 pwdCheckQuality 的规定一致。
-- 策略的状态存在条目的操作属性里（pwdChangedTime、pwdAccountLockedTime、pwdFailureTime……），所以任何后端都能保存它。每次绑定失败都会计数，同时发生的几次也一样。共用一个后端的两个实例在同一毫秒内、都还没写入时各有一次失败，可能拿到相同的时间；这时算一次还是两次，取决于后端怎样处理已有的值。发送密码策略控制的客户端会在回应里收到提醒和原因；账号被锁定时，回应和密码错误一样，除非设置了 `revealLocked`。密码已经校验通过、之后绑定又被拦截器或插件拒绝时，这次绑定不算成功：失败记录保留，不写 pwdLastSuccess，绑定限速的计数不清零，也不发提醒。有几件事照常发生：已经计入的宽限绑定不退回；`rehashOnBind` 该改写的密码照样改写；拒绝来自 `LastBindPlugin` 或目录后端 `lastBind` 外层时（插件的 `aroundRequest`、放在它们前面的拦截器，或者上面这些状态写入失败），最后绑定时间也照样记录。密码策略自己拒绝已过期、宽限也用完的密码时不一样：按 draft-behera §8.1.2.1，密码校验通过就先清掉失败记录，然后才判断是否过期。
+- 策略的状态存在条目的操作属性里（pwdChangedTime、pwdAccountLockedTime、pwdFailureTime……），所以任何后端都能保存它。每次绑定失败都会计数，同时发生的几次也一样。共用一个后端的两个实例在同一毫秒内、都还没写入时各有一次失败，可能拿到相同的时间；这时算一次还是两次，取决于后端怎样处理已有的值。发送密码策略控制的客户端会在回应里收到提醒和原因；账号被锁定时，回应和密码错误一样，除非设置了 `revealLocked`。密码已经校验通过、之后绑定又被拦截器或插件拒绝时，这次绑定不算成功：失败记录保留，不写 pwdLastSuccess，绑定限速的计数不清零，也不发提醒。有两件事照常发生：已经计入的宽限绑定不退回；`rehashOnBind` 该改写的密码照样改写。只有绑定成功，才会记录最后绑定时间。密码策略自己拒绝已过期、宽限也用完的密码时不一样：按 draft-behera §8.1.2.1，密码校验通过就先清掉失败记录，然后才判断是否过期。
 - 密码策略是一个插件：这个选项会在其他插件之后加上一个 `PasswordPolicyPlugin`，它会自己加载 ppolicy schema。
 
 ## 13. 插件和拦截器
@@ -401,7 +401,7 @@ await server.listen({port: 389})
 | `UniquePlugin` | 拒绝其他条目已经用过的值 | unique |
 | `PasswordPolicyPlugin` | 第 12 节的密码策略 | ppolicy |
 | `IdAllocationPlugin` | 给新增时没有 uidNumber 和 gidNumber 的 POSIX 条目分配这两个值 | （389 Directory Server 的 DNA） |
-| `LastBindPlugin` | 在 authTimestamp 里记录最后一次带密码的绑定的时间 | lastbind |
+| `LastBindPlugin` | 在 authTimestamp 里记录最后一次成功的密码绑定的时间 | lastbind |
 | `SambaPasswordPlugin` | 把新密码的 NT 哈希写进 sambaNTPassword（需要加载 Samba 的 schema） | smbk5pwd |
 | `AuditPlugin` | 把每个请求和它的结果交给你自己的函数记录 | accesslog、auditlog |
 | `ConstraintPlugin` | 拒绝违反规则的值：模式、大小、个数，或者你自己的检查 | constraint |
@@ -446,7 +446,7 @@ const server = createLDAPServer({
 await server.listen({port: 389})
 ```
 
-- 拦截器只在它列出的 `operations` 上运行：`before()` 检查或修改请求，`around()` 包住链上后面的部分运行，`transformEntry()` 修改搜索返回的条目，`beforeCommit()` 在写操作的事务里运行（后端支持事务时）。抛出 `LDAPResultException` 时，以它的结果码回应。`bind` 上的拦截器围绕密码校验运行，简单绑定和 SASL PLAIN 绑定都会经过它（用 `authentication.type` 区分）；只有密码校验通过、并且整条链回答成功，绑定才成功。`around()` 可以不调用 `next()` 直接拒绝绑定；要放行，就必须调用 `next()`，再返回它的结果或者自己给出的成功结果。它返回（而不是抛出）非成功的结果时，绑定以这个结果失败。什么都不返回、返回的值没有结果码，或者结果码是绑定不可能有的（saslBindInProgress 或负数）时，绑定以 other（80）失败。密码还没有校验通过，`around()` 就回答成功（没有调用 `next()`，或者捕获了它的拒绝），绑定同样以 other（80）失败。包在它外面的拦截器拿到的也是这个结果，所以默认包在外面的 LastBindPlugin 不会为这次绑定记录时间。插件的 `authenticate()` 不调用 `verify()` 就返回，或者捕获了它的拒绝，绑定也这样失败；多次调用 `verify()` 时，以最后结束的那一次为准。插件的 `aroundRequest()` 可以拒绝绑定，但不能把服务器没有完成的绑定改成成功或“交换进行中”：这样的绑定以服务器自己的拒绝结果失败，服务器没有给出结果时以 other（80）失败。拦截器自己抛出的拒绝（包括 invalidCredentials）会原样传给客户端，简单绑定和 SASL PLAIN 都一样。`bind` 事件只在绑定成功之后才发出。要在别处校验密码，可以让后端实现 `bind()`：它代替服务器对 userPassword 的校验，负责这个后端后缀下每个 DN 的密码，按 `access.adminPasswords` 绑定的管理员除外。下面这些绑定不经过 `bind` 上的拦截器：匿名绑定和不带密码的绑定、DN 不属于任何后端的绑定、按 `access.adminPasswords` 绑定的管理员，以及不校验密码的 SASL 机制（比如 EXTERNAL）。
+- 拦截器只在它列出的 `operations` 上运行：`before()` 检查或修改请求，`around()` 包住链上后面的部分运行，`transformEntry()` 修改搜索返回的条目，`beforeCommit()` 在写操作的事务里运行（后端支持事务时）。抛出 `LDAPResultException` 时，以它的结果码回应。`bind` 上的拦截器围绕密码校验运行，简单绑定和 SASL PLAIN 绑定都会经过它（用 `authentication.type` 区分）；只有密码校验通过、并且整条链回答成功，绑定才成功。`around()` 可以不调用 `next()` 直接拒绝绑定；要放行，就必须调用 `next()`，再返回它的结果或者自己给出的成功结果。它返回（而不是抛出）非成功的结果时，绑定以这个结果失败。什么都不返回、返回的值没有结果码，或者结果码是绑定不可能有的（saslBindInProgress 或负数）时，绑定以 other（80）失败。密码还没有校验通过，`around()` 就回答成功（没有调用 `next()`，或者捕获了它的拒绝），绑定同样以 other（80）失败。包在它外面的拦截器拿到的也是这个结果。插件的 `authenticate()` 不调用 `verify()` 就返回，或者捕获了它的拒绝，绑定也这样失败；多次调用 `verify()` 时，以最后结束的那一次为准。插件的 `aroundRequest()` 可以拒绝绑定，但不能把服务器没有完成的绑定改成成功或“交换进行中”：这样的绑定以服务器自己的拒绝结果失败，服务器没有给出结果时以 other（80）失败。拦截器自己抛出的拒绝（包括 invalidCredentials）会原样传给客户端，简单绑定和 SASL PLAIN 都一样。有些事只在绑定成功、服务器写完自己的状态之后才做：最后绑定时间，以及插件或拦截器用 `afterBind()` 加入的记录，按加入的顺序执行（SASL 交换中包括每一步加入的）；`bind` 事件最后发出。某条记录失败，或者 `bind` 事件的监听器抛错时，服务器发出一条 `error` 事件；绑定照样成功，其余记录照常执行。要在别处校验密码，可以让后端实现 `bind()`：它代替服务器对 userPassword 的校验，负责这个后端后缀下每个 DN 的密码，按 `access.adminPasswords` 绑定的管理员除外。下面这些绑定不经过 `bind` 上的拦截器：匿名绑定和不带密码的绑定、DN 不属于任何后端的绑定、按 `access.adminPasswords` 绑定的管理员，以及不校验密码的 SASL 机制（比如 EXTERNAL）。
 - 拦截器可以放在服务器内置步骤（`access`、`password`、`schema`、`operational`、`paging`）的前面或后面，写法是 `{interceptor, before: 'schema'}`；不指定时放在链的末尾，也就是所有内置步骤之后，这时它往请求里加的内容不会经过 schema 检查。放在 `password` 之前的拦截器能看到明文密码。会把条目从搜索结果里去掉的拦截器（`transformEntry()` 返回 undefined，或者用 `around()` 替换条目），必须放在 `paging` 之后，链的末尾就在它之后。放在它之前时，分页和虚拟列表视图仍然会把被去掉的条目算进去。只修改条目的拦截器最好放在 `paging` 之前（`GroupPresentationPlugin` 就是这样放的），这样后端仍然可以自己排序、开窗和分页；这时排序和虚拟列表视图用的是存储的条目，不包括它做的修改。
 - 在拦截器和插件里，绑定时的 `context.session` 就是会话本身；其他操作拿到的是会话的一个视图，其中的身份始终是操作开始时的身份，不论这期间是否有新的绑定：会话的数据请放在 `session.state` 里，或者以 `session.id` 为键，不要以会话对象为键。
 - 插件还可以在每个请求前后运行（`aroundRequest`，能看到绑定、StartTLS 和服务器自己回答的扩展操作）、在校验密码前后运行（`authenticate`），以及在密码修改时、密码还是明文的时候运行（`passwordChange`，其中的 `importing` 表示看起来像哈希的值是不是管理员导入的哈希）。插件可以带上 schema 文件、控制、扩展操作、SASL 机制和密码格式，根 DSE 和子模式条目会公布它们。两个插件声明同一个 OID 时，服务器在启动时就会报错。根 DSE 和子模式条目不经过任何后端的链，插件的控制只有在 `aroundRequest` 里应用时才对它们有效；这样的控制要标上 `serverEntries: true`，否则带着这个关键控制搜索这些条目会被拒绝。

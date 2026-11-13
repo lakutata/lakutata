@@ -2,6 +2,7 @@ import {LDAPUsageException} from '../../../exceptions/LDAPUsageException.js'
 import {formatGeneralizedTime, parseGeneralizedTime} from '../../schema/MatchingRules.js'
 import {ResultCode} from '../../protocol/ResultCode.js'
 import type {LDAPInProcessConnection} from '../InProcessConnection.js'
+import {afterBind} from '../OnceBound.js'
 import type {LDAPInterceptor, OperationContext, PluginCapability, ServerOutcome, ServerRequest} from '../Types.js'
 import {BaseLDAPPlugin, type BasePluginOptions} from './BaseLDAPPlugin.js'
 import {readEntry} from './PluginTools.js'
@@ -77,14 +78,16 @@ export class LastBindPlugin extends BaseLDAPPlugin {
         //A bind an interceptor inside answered otherwise than success: no password was checked, no time kept
         if (request.type !== 'bind' || !request.dn || outcome.resultCode !== ResultCode.success) return outcome
         const dn = request.dn
-        const now: Date = new Date()
-        await this.afterwards(context, (): Promise<void> => this.internally(context, async (connection: LDAPInProcessConnection): Promise<void> => {
+        //Once the bind succeeds, at the time it does: a bind refused after (by a plugin around it, an interceptor
+        //outside this one) keeps no time; a write failing is an error event, the bind done
+        await afterBind(context, (finishing: OperationContext): Promise<void> => this.afterwards(finishing, (): Promise<void> => this.internally(finishing, async (connection: LDAPInProcessConnection): Promise<void> => {
+            const now: Date = new Date()
             if (this.precision > 0) {
                 const kept: number | undefined = parseGeneralizedTime((await readEntry(connection, dn, ['authTimestamp']))?.first('authTimestamp') ?? '')
                 if (kept !== undefined && now.getTime() - kept < this.precision * 1000) return
             }
             await connection.modify(dn, {operation: 'replace', attribute: 'authTimestamp', values: formatGeneralizedTime(now).replace(/\.\d+Z$/, 'Z')})
-        }))
+        })))
         return outcome
     }
 }

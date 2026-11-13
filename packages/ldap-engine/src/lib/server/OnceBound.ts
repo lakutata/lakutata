@@ -1,25 +1,96 @@
 import type {OperationContext} from './Types.js'
 
 /**
- * What a bind does once it succeeds, kept on the context of the bind: the effects of a right password (the bind
- * throttle told, the state the password policy keeps, its warning), applied when the bind succeeds and dropped when it
- * fails, so that a bind refused after its password was checked leaves none; kept along a SASL exchange
+ * What a bind does once it succeeds, kept on the context of the bind (one holder for the bind, carried along a SASL
+ * exchange), applied in three parts in this order once it succeeds and dropped when it fails: the state of the server
+ * (the bind throttle told, the state the password policy keeps), one failing refusing the bind and stopping the rest;
+ * the records (the time of the last bind, those of plugins and interceptors), one failing an error event only; the
+ * bind event
  */
 export const ONCE_BOUND: unique symbol = Symbol('what a bind does once it succeeds')
 
 /**
- * The effects a bind applies once it succeeds, in their order
+ * What a bind does once it succeeds, by part
  */
-export type OnceBoundEffects = ((context: OperationContext) => Promise<void> | void)[]
+export interface OnceBound {
+    /**
+     * The changes of the server's state, in their order
+     */
+    state: ((context: OperationContext) => Promise<void> | void)[]
+    /**
+     * The records, in their order
+     */
+    records: ((context: OperationContext) => Promise<void> | void)[]
+    /**
+     * The bind event
+     */
+    event?: () => void
+}
 
 /**
- * Apply an effect of a right password once the bind succeeds, or at once outside a bind (the old password of a
- * Password Modify). An effect applies a change and never decides the outcome: one failing refuses the bind.
+ * The holder of a bind's context, undefined outside a bind
  * @param context The context of the operation.
- * @param effect The effect, given the context of the operation that ends the bind.
+ */
+function holderOf(context: OperationContext): OnceBound | undefined {
+    return context.state.get(ONCE_BOUND) as OnceBound | undefined
+}
+
+/**
+ * Change the state of the server once the bind succeeds (the bind throttle told, the state the password policy keeps),
+ * or at once outside a bind (the old password of a Password Modify): one failing refuses the bind, the rest not done
+ * @param context The context of the operation.
+ * @param effect The change, given the context of the operation that ends the bind.
  */
 export async function onceBound(context: OperationContext, effect: (context: OperationContext) => Promise<void> | void): Promise<void> {
-    const queued: OnceBoundEffects | undefined = context.state.get(ONCE_BOUND) as OnceBoundEffects | undefined
-    if (queued) queued.push(effect)
+    const holder: OnceBound | undefined = holderOf(context)
+    if (holder) holder.state.push(effect)
     else await effect(context)
+}
+
+/**
+ * Record a bind once it succeeds, after the server's own state and before the bind event: a bind refused after it (by
+ * an interceptor, a plugin around it, the server) records nothing; along a SASL exchange the records wait for its end,
+ * those of every step in their order. A record failing is an `error` event of the server, the bind done and the other
+ * records made. Outside a bind, the record is made at once.
+ * @param context The context of the operation.
+ * @param record The record, given the context of the operation that ends the bind.
+ * @example
+ * import {afterBind, type LDAPInterceptor, type ServerOutcome} from '@lakutata/ldap-engine'
+ *
+ * //Count the binds that succeed, not those an interceptor or a plugin refuses after the password was checked
+ * let bound: number = 0
+ * const counting: LDAPInterceptor = {
+ *     name: 'counting',
+ *     operations: ['bind'],
+ *     around: async (context, request, next): Promise<ServerOutcome> => {
+ *         const outcome: ServerOutcome = await next()
+ *         if (outcome.resultCode === 0) await afterBind(context, (): void => {
+ *             bound++
+ *         })
+ *         return outcome
+ *     }
+ * }
+ */
+export async function afterBind(context: OperationContext, record: (context: OperationContext) => Promise<void> | void): Promise<void> {
+    const holder: OnceBound | undefined = holderOf(context)
+    if (holder) {
+        holder.records.push(record)
+        return
+    }
+    try {
+        await record(context)
+    } catch (error) {
+        context.server.events.emit('error', error)
+    }
+}
+
+/**
+ * Tell the bind event once the bind succeeds, after its records, or at once outside a bind
+ * @param context The context of the operation.
+ * @param tell What tells it.
+ */
+export function tellBound(context: OperationContext, tell: () => void): void {
+    const holder: OnceBound | undefined = holderOf(context)
+    if (holder) holder.event = tell
+    else tell()
 }

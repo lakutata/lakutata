@@ -3,6 +3,7 @@ import {createHash, randomBytes} from 'node:crypto'
 import {argon2Function} from '../lib/server/Passwords.js'
 import {before, describe, it} from 'node:test'
 import {
+    afterBind,
     createDirectory,
     createHandlerBackend,
     createLDAPServer,
@@ -35,6 +36,8 @@ import {
     PagedResultsControl,
     PasswordPolicyRequestControl,
     PasswordSchemes,
+    plainMechanism,
+    type OperationContext,
     readSchema,
     type Schema,
     SortRequestControl,
@@ -1255,15 +1258,15 @@ describe('the server engine', () => {
             }
         }
         assert.deepEqual(wrong, [])
-        //Placed outside the plugin's interceptor: one calling next() and returning nothing fails the bind after the time of
-        //the bind is kept (the plugin saw the password checked); one answering success without next() keeps no time
+        //Placed outside the plugin's interceptor: one calling next() and returning nothing fails the bind, no time kept
+        //(the plugin keeps it once the bind succeeds); one answering success without next() keeps no time either
         const plugin: LastBindPlugin = new LastBindPlugin()
         const {server: outside, admin: keeper} = await directory({plugins: [plugin], interceptors: [{interceptor: {name: 'application', operations: ['bind'], around: async (_context: unknown, request: {dn?: DN}, next: () => Promise<unknown>) => {
             if (request.dn?.toString().startsWith('uid=user11,')) return {resultCode: 0}
             await next()
         }}, before: plugin.name} as never]})
         await assert.rejects(outside.connect().bind(TARGET, 'password10'), code(80))
-        assert.ok((await keeper.search(TARGET, {scope: 'base', attributes: ['authTimestamp']})).entries[0].first('authTimestamp'))
+        assert.equal((await keeper.search(TARGET, {scope: 'base', attributes: ['authTimestamp']})).entries[0].first('authTimestamp'), undefined)
         await assert.rejects(outside.connect().bind(`uid=user11,ou=people,${BASE}`, 'wrong'), code(80))
         assert.equal((await keeper.search(`uid=user11,ou=people,${BASE}`, {scope: 'base', attributes: ['authTimestamp']})).entries[0].first('authTimestamp'), undefined)
         //A plugin's authenticate() returning without verify(), or swallowing its rejection, or an outer one skipping an
@@ -1537,7 +1540,8 @@ describe('the server engine', () => {
         for (const [name, options] of refusals) {
             for (const sasl of [false, true]) {
                 const label: string = `${name}, ${sasl ? 'PLAIN' : 'simple'}`
-                const {server: engine, admin: owner} = await policed(options)
+                //(LastBindPlugin there too: the time of the bind is among the effects)
+                const {server: engine, admin: owner} = await policed({...options, plugins: [...(options as {plugins?: unknown[]}).plugins ?? [], new LastBindPlugin()]} as never)
                 const told: string[] = []
                 engine.events.on('bind', (event: {dn: string}) => told.push(event.dn))
                 const client: LDAPInProcessConnection = engine.connect()
@@ -1550,6 +1554,7 @@ describe('the server engine', () => {
                 if (searched !== 0) wrong.push(`${label}: the session held to change the password (${searched})`)
                 const after = await state(owner)
                 if (after.lastSuccess) wrong.push(`${label}: pwdLastSuccess written`)
+                if ((await owner.search(TARGET, {scope: 'base', attributes: ['authTimestamp']})).entries[0].first('authTimestamp')) wrong.push(`${label}: the time of the bind kept`)
                 if (after.failures !== 2) wrong.push(`${label}: ${after.failures} failures kept`)
                 //The throttle not told: one more failure locks the DN
                 await assert.rejects(engine.connect().bind(TARGET, 'wrong-2'), code(49))
@@ -1590,6 +1595,12 @@ describe('the server engine', () => {
             return Buffer.from('complete')
         }})
         await assert.rejects(throttling.connect().bind(TARGET, 'password10'), code(49))
+        //The time of the last bind along such an exchange: kept once it completes, none when its second step refuses
+        for (const [last, completes] of [['complete', true], ['refuse', false]] as [string, boolean][]) {
+            const {server: timed, admin: timer} = await directory({sasl: [checkThenAsk] as never, plugins: [new LastBindPlugin()]})
+            await timed.connect().saslBind('CHECK-THEN-ASK', Buffer.from(`${TARGET}\0password10`), {step: () => Buffer.from(last)}).catch(() => undefined)
+            assert.equal((await timer.search(TARGET, {scope: 'base', attributes: ['authTimestamp']})).entries[0].first('authTimestamp') !== undefined, completes, last)
+        }
         //What is written between the steps stays once the exchange completes: a failure meanwhile, a lock an
         //administrator set (the failure first: a locked account records none)
         const {server: locking, admin: locker} = await policed({sasl: [checkThenAsk] as never}, {pwdLockout: 'TRUE'})
@@ -1634,7 +1645,15 @@ describe('the server engine', () => {
                 return super.modify(...args)
             }
         }
-        const {server: broken} = await policed({backends: [new Failing(BASE)]})
+        //(a plugin adding a record before the rest of the bind: none made either)
+        const records: string[] = []
+        const recording = {name: 'recording', aroundRequest: async (context: OperationContext, request: {type: string}, next: () => Promise<unknown>) => {
+            if (request.type === 'bindRequest') await afterBind(context, (): void => {
+                records.push('made')
+            })
+            return next()
+        }}
+        const {server: broken, admin: brokenOwner} = await policed({backends: [new Failing(BASE)], plugins: [recording, new LastBindPlugin()] as never})
         const brokenBinds: string[] = []
         broken.events.on('bind', (event: {dn: string}) => brokenBinds.push(event.dn))
         const refused: LDAPInProcessConnection = broken.connect()
@@ -1643,6 +1662,8 @@ describe('the server engine', () => {
         failing = false
         assert.equal(await refused.whoAmI(), '')
         assert.deepEqual(brokenBinds, [])
+        assert.deepEqual(records, [])
+        assert.equal((await brokenOwner.search(TARGET, {scope: 'base', attributes: ['authTimestamp']})).entries[0].first('authTimestamp'), undefined)
         //Told at once where no bind is: the old password of a Password Modify; an administrator of the options
         const {server: changing} = await directory({bindThrottle: {maxFailures: 3, ipMaxFailures: 0, delay: 0}})
         const self: LDAPInProcessConnection = changing.connect()
@@ -1674,6 +1695,80 @@ describe('the server engine', () => {
         assert.equal((await spender.search(TARGET, {scope: 'base', attributes: ['pwdFailureTime']})).entries[0].get('pwdFailureTime').length, 1)
         await assert.rejects(spent.connect().bind(TARGET, 'password10'), code(49))
         assert.equal((await spender.search(TARGET, {scope: 'base', attributes: ['pwdFailureTime']})).entries[0].get('pwdFailureTime').length, 0)
+    })
+
+    it('applies what plugins add to a bind once it succeeds, in order, the bind event last', async () => {
+        const TARGET: string = `uid=user10,ou=people,${BASE}`
+        //A plugin adding a record before and after the rest of the bind; the bind events after them
+        const made = async (options: Partial<Parameters<typeof createLDAPServer>[0]> = {}, failing: boolean = false) => {
+            const log: string[] = []
+            const errors: unknown[] = []
+            const recording = {name: 'recording', aroundRequest: async (context: OperationContext, request: {type: string}, next: () => Promise<{resultCode: number}>) => {
+                if (request.type !== 'bindRequest') return next()
+                if (failing) await afterBind(context, (): void => {
+                    throw new Error('A record failing')
+                })
+                await afterBind(context, (): void => {
+                    log.push('before')
+                })
+                const outcome = await next()
+                if (outcome.resultCode === 0) await afterBind(context, (): void => {
+                    log.push('after')
+                })
+                return outcome
+            }}
+            const {server: engine} = await directory({...options, plugins: [recording, ...(options as {plugins?: unknown[]}).plugins ?? []] as never})
+            engine.events.on('bind', () => log.push('event'))
+            engine.events.on('error', (error: unknown) => errors.push(error))
+            return {engine, log, errors}
+        }
+        const stepping = {name: 'STEPPING', requiresTLS: false, start: async () => ({done: false, serverCredentials: Buffer.from('next')}), step: async (_context: unknown, credentials?: Buffer) => {
+            if (String(credentials) === 'refuse') throw new LDAPUnwillingToPerformException('Not now')
+            return {done: true, identity: DN.parse(TARGET)}
+        }}
+        //Once each on a simple bind, by PLAIN, along an exchange of two steps (added at both): the event after them all
+        for (const [name, bind, expected] of [
+            ['simple', (client: LDAPInProcessConnection) => client.bind(TARGET, 'password10'), ['before', 'after', 'event']],
+            ['PLAIN', (client: LDAPInProcessConnection) => client.saslBind('PLAIN', Buffer.from(`\0dn:${TARGET}\0password10`)), ['before', 'after', 'event']],
+            ['two steps', (client: LDAPInProcessConnection) => client.saslBind('STEPPING', Buffer.from('first'), {step: () => Buffer.from('second')}), ['before', 'before', 'after', 'event']]
+        ] as [string, (client: LDAPInProcessConnection) => Promise<unknown>, string[]][]) {
+            const {engine, log} = await made({sasl: [plainMechanism(), stepping] as never})
+            await bind(engine.connect())
+            assert.deepEqual(log, expected, name)
+        }
+        //None for a bind refused, an exchange refused at its second step, one given up for another bind
+        for (const [name, bind] of [
+            ['a wrong password', (client: LDAPInProcessConnection) => client.bind(TARGET, 'wrong').catch(() => undefined)],
+            ['an exchange refused', (client: LDAPInProcessConnection) => client.saslBind('STEPPING', Buffer.from('first'), {step: () => Buffer.from('refuse')}).catch(() => undefined)]
+        ] as [string, (client: LDAPInProcessConnection) => Promise<unknown>][]) {
+            const {engine, log} = await made({sasl: [plainMechanism(), stepping] as never})
+            await bind(engine.connect())
+            assert.deepEqual(log, [], name)
+        }
+        //An exchange given up after its first step, then a bind that succeeds: only that bind's records
+        const {engine: givenUp, log: givenUpLog} = await made({sasl: [plainMechanism(), stepping] as never})
+        const quitting: LDAPInProcessConnection = givenUp.connect()
+        await quitting.saslBind('STEPPING', Buffer.from('first'), {step: async () => {
+            throw new Error('Given up')
+        }}).catch(() => undefined)
+        await quitting.bind(TARGET, 'password10')
+        assert.deepEqual(givenUpLog, ['before', 'after', 'event'])
+        //A record failing: an error event, the bind done, the other records and the event still applied
+        const {engine: recordFailing, log: failingLog, errors} = await made({}, true)
+        const failed: LDAPInProcessConnection = recordFailing.connect()
+        await failed.bind(TARGET, 'password10')
+        assert.equal(await failed.whoAmI(), `dn:${TARGET}`)
+        assert.deepEqual(failingLog, ['before', 'after', 'event'])
+        assert.equal(errors.length, 1)
+        //A listener of the bind event failing: the bind done, one error event
+        const {engine: listened, errors: listenerErrors} = await made()
+        listened.events.on('bind', () => {
+            throw new Error('A listener failing')
+        })
+        const told: LDAPInProcessConnection = listened.connect()
+        await told.bind(TARGET, 'password10')
+        assert.equal(await told.whoAmI(), `dn:${TARGET}`)
+        assert.equal(listenerErrors.length, 1)
     })
 
     it('lets a password administrator change the passwords of the others, not those of the administrators', async () => {
