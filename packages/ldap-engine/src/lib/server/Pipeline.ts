@@ -471,7 +471,7 @@ export class Pipeline {
             const bare: string | undefined = /^\$(1|2[abxy]|5|6|7|y|gy|argon2(?:id|i|d))\$/.exec(password)?.[1]
             if (bare !== undefined) {
                 const scheme: string | undefined = /^(?:1|2[aby]|5|6)$/.test(bare) ? '{CRYPT}' : bare.startsWith('argon2') ? '{ARGON2}' : undefined
-                throw new LDAPUsageException(`The password of ${dn} in access.adminPasswords is a hash without its {SCHEME}: ${scheme ? `give it with ${scheme} before it` : 'no scheme of the server verifies it; register one that does, or give a password of a scheme the server has'}`)
+                throw new LDAPUsageException(`The password of ${dn} in access.adminPasswords is a hash without its {SCHEME}: ${scheme === '{ARGON2}' ? 'give it with {ARGON2} before it, where node:crypto has argon2' : scheme ? `give it with ${scheme} before it` : 'the server\'s own schemes do not verify it; register one that does, and give it with that scheme\'s {SCHEME}'}`)
             }
         }
         this.mounts = options.backends.map((backend: LDAPBackend): Mount => ({backend: backend, suffix: DN.parse(backend.suffix), chain: []}))

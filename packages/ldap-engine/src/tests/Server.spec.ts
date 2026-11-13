@@ -1435,7 +1435,10 @@ describe('the server engine', () => {
             assert.ok(message, value)
             assert.ok(!message.includes(value.slice(0, 3)), `${value}: ${message}`)
             if (scheme) assert.ok(message.includes(scheme), `${value}: ${message}`)
-            else assert.ok(!message.includes('{CRYPT}') && !message.includes('{ARGON2}') && /no scheme/.test(message), `${value}: ${message}`)
+            //(argon2 as far as node:crypto has it; for the others, the schemes the server comes with, not one an
+            //application registers)
+            if (scheme === '{ARGON2}') assert.ok(message.includes('node:crypto'), `${value}: ${message}`)
+            if (!scheme) assert.ok(!message.includes('{CRYPT}') && !message.includes('{ARGON2}') && /own schemes do not verify/.test(message), `${value}: ${message}`)
         }
         for (const value of ['{BCRYPT}$2b$10$abcdefghijklmnopqrstuuabcdefghijklmnopqrstuvwxyz01234', '{SSHA_512}abcd', '{}abcd']) assert.throws(() => createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ROOT], adminPasswords: {[ROOT]: value}}}), LDAPUsageException, value)
         //A scheme registered with the server's schemes is taken
