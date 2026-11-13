@@ -1275,6 +1275,32 @@ describe('the server engine', () => {
                 assert.equal(await client.whoAmI(), '')
             }
         }
+        //A plugin around the request answering a bind with success the server did not give: refused, the session left
+        //anonymous (one bound before too), no bind event; so too an interceptor throwing a result of success, and a
+        //plugin turning a step in progress into success
+        const binds: string[] = []
+        const answering = {name: 'answering', aroundRequest: async (_context: unknown, request: {type: string, name?: string}, next: () => Promise<{resultCode: number}>) => {
+            if (request.type === 'bindRequest' && request.name === TARGET) return {resultCode: 0}
+            const outcome = await next()
+            return request.type === 'bindRequest' && outcome.resultCode === 14 ? {resultCode: 0} : outcome
+        }}
+        const stepping = {name: 'STEPPING', requiresTLS: false, start: async () => ({done: false, serverCredentials: Buffer.from('next')}), step: async () => ({done: true, identity: DN.parse(TARGET)})}
+        const {server: overstepping} = await directory({plugins: [answering] as never, sasl: [stepping] as never})
+        overstepping.events.on('bind', (event: {dn: string}) => binds.push(event.dn))
+        const before: LDAPInProcessConnection = overstepping.connect()
+        await before.bind(`uid=user20,ou=people,${BASE}`, 'password20')
+        await assert.rejects(before.bind(TARGET, 'wrong'), code(80))
+        assert.equal(await before.whoAmI(), '')
+        await assert.rejects(overstepping.connect().saslBind('STEPPING', Buffer.from('first'), {step: () => Buffer.from('second')}), code(80))
+        //(bound as itself, the plugin letting it through)
+        await overstepping.connect().bind(`uid=user21,ou=people,${BASE}`, 'password21')
+        assert.deepEqual(binds, [`uid=user20,ou=people,${BASE}`, `uid=user21,ou=people,${BASE}`])
+        const {server: throwingSuccess} = await directory({interceptors: [{name: 'odd', operations: ['bind'], around: async () => {
+            throw new LDAPResultException(0, 'Odd')
+        }}] as never})
+        const odd: LDAPInProcessConnection = throwingSuccess.connect()
+        await assert.rejects(odd.bind(TARGET, 'wrong'), code(80))
+        assert.equal(await odd.whoAmI(), '')
         //A plugin calling verify() more than once: the last call counts (a retry after a refusal binds; a refusal of the
         //last call swallowed after one that returned does not)
         const flaky = (refusedCall: number) => {

@@ -620,12 +620,15 @@ export class Pipeline {
         //StartTLS over a network connection, and whether the connection agreed to it
         const startTLS: boolean = request.type === 'extendedRequest' && request.name === ExtendedOperation.startTLS && responder.startTLS !== undefined
         let connectionAgreed: boolean = false
+        //What the server itself answered a bind (or the refusal it was given): the plugins around it may refuse it, not
+        //answer a success or a step in progress the server did not
+        let served: ServerOutcome | undefined
         const dispatch = async (): Promise<ServerOutcome> => {
-            if (refusal) return refusal
+            if (refusal) return served = refusal
             switch (request.type) {
                 case 'bindRequest':
                     dn = request.name
-                    return this.bind(session, context, request)
+                    return served = await this.bind(session, context, request)
                 case 'searchRequest':
                     dn = request.baseObject
                     return this.search(context, request, responder)
@@ -666,6 +669,11 @@ export class Pipeline {
             outcome = await run()
         } catch (error) {
             outcome = this.outcomeOf(error, signal)
+        }
+        //A success or a step in progress the server did not answer (a plugin answering without next(), an interceptor
+        //throwing a result of success): the server's own refusal, or other
+        if (operation === 'bind' && (outcome.resultCode === ResultCode.success || outcome.resultCode === ResultCode.saslBindInProgress) && outcome.resultCode !== served?.resultCode) {
+            outcome = served && served.resultCode !== ResultCode.success && served.resultCode !== ResultCode.saslBindInProgress ? served : {resultCode: ResultCode.other, diagnosticMessage: 'A plugin answered the bind otherwise than the server did'}
         }
         //Applied when the bind succeeds, whatever refused it otherwise (an interceptor, a hook, a plugin around the
         //request) dropping them; kept along a SASL exchange in progress. One failing refuses the bind
