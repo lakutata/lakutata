@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/ldap",
-  "version": "3.3.0",
+  "version": "3.3.1",
   "description": "LDAP for lakutata applications: a server component (backends, interceptors, the schema, access control, StartTLS and LDAPS, listening on network interfaces) and a client component, on the engine @lakutata/ldap-engine, which it re-exports.",
   "keywords": [
     "lakutata",
@@ -78,7 +78,7 @@
     "package.json"
   ],
   "dependencies": {
-    "@lakutata/ldap-engine": "3.3.0"
+    "@lakutata/ldap-engine": "3.3.1"
   },
   "peerDependencies": {
     "@lakutata/core": "~3.3.0",
