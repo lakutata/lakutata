@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/ldap-engine",
-  "version": "3.2.2",
+  "version": "3.3.0",
   "description": "LDAP for Node.js in TypeScript without native code: the protocol (messages, controls, DNs, filters, schemas, LDIF), a client and a server engine, with no dependencies. The lakutata components are in @lakutata/ldap.",
   "keywords": [
     "lakutata",

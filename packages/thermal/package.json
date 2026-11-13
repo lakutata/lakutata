@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/thermal",
-  "version": "3.2.1",
+  "version": "3.3.0",
   "description": "Thermal printing for Node.js: receipts, labels and wristbands written in HTML and CSS, rendered by a native addon (litehtml, FreeType, plutovg, lunasvg) into the printer's 1-bit dot grid, the same picture as the preview, then encoded as ESC/POS, TSPL or ZPL commands.",
   "keywords": [
     "lakutata",
@@ -82,9 +82,9 @@
     "node-addon-api": "^8.9.2"
   },
   "peerDependencies": {
-    "@lakutata/core": "~3.2.0"
+    "@lakutata/core": "~3.3.0"
   },
   "devDependencies": {
-    "@lakutata/barcode": "~3.2.0"
+    "@lakutata/barcode": "~3.3.0"
   }
 }

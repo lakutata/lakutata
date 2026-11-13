@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/containerd",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "description": "The containerd component of the lakutata framework: images (pull, push, import, export, of any platform), containers and their processes, over the API of containerd, for the systems which run containerd without Docker.",
   "keywords": [
     "lakutata",
@@ -52,13 +52,13 @@
     "test:engines": "sh test-env/run.sh"
   },
   "dependencies": {
-    "@lakutata/grpc": "3.2.0",
+    "@lakutata/grpc": "3.3.0",
     "tar-stream": "3.2.2"
   },
   "peerDependencies": {
-    "@lakutata/core": "~3.2.0",
-    "@lakutata/logger": "~3.2.0",
-    "@lakutata/utils": "~3.2.0"
+    "@lakutata/core": "~3.3.0",
+    "@lakutata/logger": "~3.3.0",
+    "@lakutata/utils": "~3.3.0"
   },
   "engines": {
     "node": ">=18.10.0"

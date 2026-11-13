@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/barcode",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "description": "Barcodes and QR codes for lakutata: a component that generates them (PNG, SVG, pixels) and reads them from images, in a native addon built on zint and zxing-cpp; every format it writes, it reads back.",
   "keywords": [
     "lakutata",
@@ -83,6 +83,6 @@
     "node-addon-api": "^8.9.2"
   },
   "peerDependencies": {
-    "@lakutata/core": "~3.2.0"
+    "@lakutata/core": "~3.3.0"
   }
 }

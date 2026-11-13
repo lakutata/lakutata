@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/serial",
-  "version": "3.2.1",
+  "version": "3.3.0",
   "description": "Serial ports for Node.js: a port opened as a stream (its speed, data bits, parity, stop bits and flow control set), its modem lines, and the listing of the ports with their USB ids, by a small native addon (termios on Linux and macOS, the communications API on Windows).",
   "keywords": [
     "lakutata",
@@ -77,6 +77,6 @@
     "node-addon-api": "^8.9.2"
   },
   "peerDependencies": {
-    "@lakutata/core": "~3.2.0"
+    "@lakutata/core": "~3.3.0"
   }
 }

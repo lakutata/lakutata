@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/mongo-embedded",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "description": "An embedded MongoDB for Node.js: the collections of a database kept in a directory (or in memory) by SQLite in a native addon, queried and updated with the semantics of MongoDB (mingo), through the API of the client of MongoDB; the storage of the mongo-embedded databases of lakutata/orm.",
   "keywords": [
     "lakutata",

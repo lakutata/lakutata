@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/thermal-printer",
-  "version": "3.2.1",
+  "version": "3.3.0",
   "description": "Thermal printers for lakutata: a manager component that finds the printers (USB, print queues, serial and Bluetooth ports), opens them from definitions an application saves as JSON, and a printer object for each, which renders receipts, labels and wristbands written in HTML (by @lakutata/thermal), encodes them as ESC/POS, TSPL or ZPL and sends them in the order of the calls.",
   "keywords": [
     "cups",
@@ -79,12 +79,12 @@
     "package.json"
   ],
   "dependencies": {
-    "@lakutata/thermal": "3.2.1",
+    "@lakutata/thermal": "3.3.0",
     "node-addon-api": "^8.9.2"
   },
   "peerDependencies": {
-    "@lakutata/core": "~3.2.0",
-    "@lakutata/serial": "~3.2.1"
+    "@lakutata/core": "~3.3.0",
+    "@lakutata/serial": "~3.3.0"
   },
   "peerDependenciesMeta": {
     "@lakutata/serial": {
@@ -92,7 +92,7 @@
     }
   },
   "devDependencies": {
-    "@lakutata/barcode": "~3.2.0",
-    "@lakutata/serial": "~3.2.1"
+    "@lakutata/barcode": "~3.3.0",
+    "@lakutata/serial": "~3.3.0"
   }
 }
