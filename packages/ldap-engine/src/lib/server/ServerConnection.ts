@@ -267,7 +267,8 @@ export class ServerConnection {
             default: {
                 const limit: number = this.session.identity ? this.host.limits.outstanding : this.host.limits.anonymousOutstanding
                 const type: LDAPResponse['type'] | undefined = RESPONSE_OF[request.type]
-                if (this.running.size >= limit && type) {
+                //(those waiting for the bind in flight counted too)
+                if (this.running.size + this.waiting.size >= limit && type) {
                     this.send({messageId: message.messageId, protocolOp: {type: type, resultCode: ResultCode.busy, matchedDN: '', diagnosticMessage: `More than ${limit} requests outstanding`} as LDAPResponse})
                     return
                 }

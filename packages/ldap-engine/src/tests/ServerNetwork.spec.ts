@@ -290,6 +290,41 @@ describe('the server engine on the network', () => {
         assert.deepEqual([...new Set(answered)], [1, 3])
     })
 
+    it('counts the requests waiting for a bind in flight among those outstanding', async () => {
+        for (const [limit, sent] of [[undefined, 20], [5, 7]] as [number | undefined, number][]) {
+            let release: () => void = (): void => undefined
+            const released: Promise<void> = new Promise<void>((resolve: () => void): void => {
+                release = resolve
+            })
+            const {port} = await serve({access: {admins: [ADMIN], anonymousRead: true}, ...limit ? {limits: {anonymousOutstanding: limit}} : {}, interceptors: [{name: 'holding', operations: ['bind'], before: async (_context, request) => {
+                if (request.type === 'bind' && request.dn?.toString().startsWith('uid=user1,')) await released
+            }}]})
+            const socket: Socket = createConnection({port: port, host: '127.0.0.1'})
+            await once(socket, 'connect')
+            const reader: MessageReader = new MessageReader()
+            const results: Map<number, number> = new Map()
+            socket.on('data', (chunk: Buffer) => {
+                for (const item of reader.push(chunk)) {
+                    const op = item.message?.protocolOp as {type: string, resultCode?: number} | undefined
+                    if (item.message && op && op.type !== 'searchResEntry') results.set(item.message.messageId, op.resultCode ?? -1)
+                }
+            })
+            const settle = (): Promise<void> => new Promise<void>((resolve: () => void): void => void setTimeout(resolve, 200))
+            socket.write(encodeMessage({messageId: 1, protocolOp: {type: 'bindRequest', version: 3, name: `uid=user1,ou=people,${BASE}`, authentication: {type: 'simple', password: Buffer.from('password1')}}}))
+            await settle()
+            for (let id: number = 2; id < sent + 2; id++) socket.write(encodeMessage({messageId: id, protocolOp: {type: 'searchRequest', baseObject: `ou=people,${BASE}`, scope: 'one', derefAliases: 'never', sizeLimit: 0, timeLimit: 0, typesOnly: false, filter: Filter.parse('(objectClass=*)'), attributes: ['1.1']}}))
+            await settle()
+            release()
+            await settle()
+            socket.destroy()
+            //By default an ordinary burst waits and is answered whole; past the limit (the bind in flight one of those
+            //outstanding), the requests over it are busy
+            const busy: number = [...results.values()].filter((code: number): boolean => code === 51).length
+            assert.equal(results.size, sent + 1, `limit ${limit}`)
+            assert.equal(busy, limit ? sent - (limit - 1) : 0, `limit ${limit}`)
+        }
+    })
+
     it('keeps a request of a message ID used again apart from the one abandoned before it', async () => {
         //Two searches held until the test lets each go
         const holds: Map<string, {released: Promise<void>, release: () => void}> = new Map()
