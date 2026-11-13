@@ -506,8 +506,8 @@ schemes, `{CRYPT}` with MD5, SHA-256, SHA-512 and bcrypt, `{ARGON2}` where node:
 later, but not Electron) and the passwords in clear of an older directory, then hashes the password again in the scheme
 of the server (`rehashOnBind`). An administrator may write a hashed value as it is, to import accounts; with
 `rehashOnBind`, a value in another scheme than the server's is replaced at its first successful bind, the only time the
-password is known in clear. It is replaced only if the entry still holds that value, so a password changed while the
-bind runs is not overwritten. A backend with `transaction()` and `lock()`, such as the directory backend of
+password is known in clear. It is replaced only if the entry still holds that value; if the value is found changed or
+removed, nothing is written. A backend with `transaction()` and `lock()`, such as the directory backend of
 @lakutata/ldap, locks the entry while the value is checked and replaced; other backends read the value again just before
 the write. To keep an imported hash (one an application also checks), turn `rehashOnBind` off; an application may also
 register a scheme of its own with `PasswordSchemes.register()` (a native bcrypt, say) and give the server those schemes.

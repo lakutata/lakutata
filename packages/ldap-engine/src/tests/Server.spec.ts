@@ -1251,7 +1251,7 @@ describe('the server engine', () => {
         assert.equal((await keeper.search(`uid=user11,ou=people,${BASE}`, {scope: 'base', attributes: ['authTimestamp']})).entries[0].first('authTimestamp'), undefined)
         //A plugin's authenticate() returning without verify(), or swallowing its rejection, or an outer one skipping an
         //inner one that calls it: refused
-        const PLUGIN: RegExp = /authenticate\(\) returned without the password checked/
+        const PLUGIN: RegExp = /authenticate\(\) returned without its verify\(\) succeeding/
         for (const [name, plugins, password] of [
             ['returning without verify()', [{name: 'trusting', authenticate: async () => undefined}], 'password10'],
             ['swallowing the rejection of verify()', [{name: 'swallowing', authenticate: async (_context: unknown, _bind: unknown, verify: () => Promise<void>) => verify().catch(() => undefined)}], 'wrong'],
@@ -1265,6 +1265,40 @@ describe('the server engine', () => {
                 assert.match(answer.message, PLUGIN)
                 assert.equal(await client.whoAmI(), '')
             }
+        }
+        //An outer plugin catching what an inner hook threw once verify() had returned (the password policy refusing a
+        //locked account, its right password; a plugin refusing): refused, no time kept; one awaiting verify() and
+        //returning: bound, a wrong password refused for itself
+        const catching = {name: 'catching', authenticate: async (_context: unknown, _bind: unknown, verify: () => Promise<void>) => verify().catch(() => undefined)}
+        const GUARD: string = `cn=default,ou=policies,${BASE}`
+        const guardedBy = async (plugins: unknown[]): Promise<{server: LDAPServerEngine, admin: LDAPInProcessConnection}> => {
+            const made = await directory({schema: [...DEFAULTS, PPOLICY], passwordPolicy: {default: GUARD}, plugins: plugins as never})
+            await made.admin.add(`ou=policies,${BASE}`, {objectClass: 'organizationalUnit', ou: 'policies'})
+            await made.admin.add(GUARD, {objectClass: ['organizationalRole', 'pwdPolicy'], cn: 'default', pwdAttribute: 'userPassword', pwdLockout: 'TRUE'})
+            return made
+        }
+        const {server: guarded, admin: guard} = await guardedBy([catching, new LastBindPlugin()])
+        await guard.modify(TARGET, {operation: 'add', attribute: 'pwdAccountLockedTime', values: '000001010000Z'})
+        const {server: layered} = await directory({plugins: [catching, {name: 'refusing', authenticate: async (_context: unknown, _bind: unknown, verify: () => Promise<void>) => {
+            await verify()
+            throw new LDAPUnwillingToPerformException('Not now')
+        }}] as never})
+        for (const [name, engine] of [['the password policy refusing a locked account', guarded], ['an inner plugin refusing', layered]] as [string, LDAPServerEngine][]) {
+            for (const sasl of [false, true]) {
+                const client: LDAPInProcessConnection = engine.connect()
+                const answer: {code: number, message: string} = await answerOf(sasl ? client.saslBind('PLAIN', Buffer.from(`\0dn:${TARGET}\0password10`)) : client.bind(TARGET, 'password10'))
+                assert.equal(answer.code, 80, `${name}, ${sasl ? 'PLAIN' : 'simple'}: ${answer.message}`)
+                assert.match(answer.message, PLUGIN)
+                assert.equal(await client.whoAmI(), '')
+            }
+        }
+        assert.equal((await guard.search(TARGET, {scope: 'base', attributes: ['authTimestamp']})).entries[0].first('authTimestamp'), undefined)
+        const {server: awaited} = await guardedBy([{name: 'awaiting', authenticate: async (_context: unknown, _bind: unknown, verify: () => Promise<void>) => {
+            await verify()
+        }}])
+        for (const sasl of [false, true]) {
+            await (sasl ? awaited.connect().saslBind('PLAIN', Buffer.from(`\0dn:uid=user11,ou=people,${BASE}\0password11`)) : awaited.connect().bind(`uid=user11,ou=people,${BASE}`, 'password11'))
+            await assert.rejects(sasl ? awaited.connect().saslBind('PLAIN', Buffer.from(`\0dn:uid=user11,ou=people,${BASE}\0wrong`)) : awaited.connect().bind(`uid=user11,ou=people,${BASE}`, 'wrong'), code(49))
         }
         //An interceptor swallowing the refusal of the password policy (a locked account, its right password) or of the
         //bind throttle (the DN locked after its failures), and answering success: refused

@@ -362,7 +362,7 @@ await server.listen({port: 389})
 
 ## 12. 密码和密码策略
 
-服务器收到的每个密码都会被哈希成 `{PBKDF2-SHA512}`（OpenLDAP 的 pw-pbkdf2 模块使用的格式；`passwords: {iterations}` 调整迭代次数）。绑定时也能校验 OpenLDAP 的其他格式（`{SSHA}`、SHA-2 系列、使用 MD5、SHA-256、SHA-512 和 bcrypt 的 `{CRYPT}`，以及 node:crypto 支持 argon2 时的 `{ARGON2}`：Node.js 24.7 及以上，Electron 不支持），还能校验旧目录里的明文密码，校验通过后再用服务器的格式重新哈希（`rehashOnBind`）。管理员可以直接写入已经哈希过的值，用于导入账号；开启 `rehashOnBind` 时，格式与服务器不同的值会在第一次绑定成功时被替换，因为只有这时才拿得到明文密码。只有条目里还是这个值时才会替换，所以绑定期间改过的密码不会被覆盖。提供了 `transaction()` 和 `lock()` 的后端（比如 @lakutata/ldap 的目录后端）会先锁住条目，再判断和替换；其他后端在写入之前重新读一遍这个值。要保留导入的哈希（比如应用自己也要校验的那一份），就关掉 `rehashOnBind`；应用也可以用 `PasswordSchemes.register()` 注册自己的格式（比如原生的 bcrypt），再把这组格式交给服务器。其他用户写入的值，即使看起来像哈希，也按明文密码处理。修改操作删除以明文给出的密码时（修改密码时给出的旧密码），只在修改自己的条目时才和存储的密码比对；要改别人的密码，请用 replace。
+服务器收到的每个密码都会被哈希成 `{PBKDF2-SHA512}`（OpenLDAP 的 pw-pbkdf2 模块使用的格式；`passwords: {iterations}` 调整迭代次数）。绑定时也能校验 OpenLDAP 的其他格式（`{SSHA}`、SHA-2 系列、使用 MD5、SHA-256、SHA-512 和 bcrypt 的 `{CRYPT}`，以及 node:crypto 支持 argon2 时的 `{ARGON2}`：Node.js 24.7 及以上，Electron 不支持），还能校验旧目录里的明文密码，校验通过后再用服务器的格式重新哈希（`rehashOnBind`）。管理员可以直接写入已经哈希过的值，用于导入账号；开启 `rehashOnBind` 时，格式与服务器不同的值会在第一次绑定成功时被替换，因为只有这时才拿得到明文密码。只有条目里还是这个值时才会替换；发现这个值已经被改掉或删除时，什么都不写。提供了 `transaction()` 和 `lock()` 的后端（比如 @lakutata/ldap 的目录后端）会先锁住条目，再判断和替换；其他后端在写入之前重新读一遍这个值。要保留导入的哈希（比如应用自己也要校验的那一份），就关掉 `rehashOnBind`；应用也可以用 `PasswordSchemes.register()` 注册自己的格式（比如原生的 bcrypt），再把这组格式交给服务器。其他用户写入的值，即使看起来像哈希，也按明文密码处理。修改操作删除以明文给出的密码时（修改密码时给出的旧密码），只在修改自己的条目时才和存储的密码比对；要改别人的密码，请用 replace。
 
 `passwordPolicy` 实现 draft-behera 的密码策略，使用的属性和 OpenLDAP 的 ppolicy 一样：
 

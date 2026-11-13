@@ -664,18 +664,16 @@ export class Pipeline {
 
     /**
      * A bind with a password: its verification, within the password policy when there is one; invalidCredentials when
-     * it fails, other when a plugin's hook returned without the password checked (not calling verify, or swallowing its
-     * refusal)
+     * it fails, other when a plugin's hook returned without its verify having returned (not calling it, or catching
+     * what it threw: a wrong password, an inner hook's refusal)
      * @param session The session.
      * @param context The context of the bind.
      * @param dn The DN.
      * @param password The password.
      */
     public async authenticate(session: SessionState, context: OperationContext, dn: DN, password: Buffer): Promise<void> {
-        let passed: boolean = false
         const verify = async (): Promise<void> => {
             if (!await this.verifyPassword(session, context, dn, password)) fail(ResultCode.invalidCredentials, 'Invalid credentials')
-            passed = true
         }
         const mount: Mount | undefined = this.route(dn)
         //An administrator whose password the options give is not under the plugins of an entry (a password policy)
@@ -684,14 +682,21 @@ export class Pipeline {
         if (!hooks.length) return verify()
         //The plugins' hooks around the check, the first outermost, given the entry as it is
         const entry: DirectoryEntry | undefined = mount ? await mount.backend.get(this.context(session, 'search', [], context.signal, true), dn) : undefined
+        //Only a password checked binds, each hook's verify returned: a hook returning without (not calling it, or
+        //catching what it threw, the refusal of an inner hook among it) does not authenticate the bind in its place
         let run: () => Promise<void> = verify
         for (const plugin of [...hooks].reverse()) {
             const inner: () => Promise<void> = run
-            run = (): Promise<void> => plugin.authenticate!(context, {dn: dn, entry: entry}, inner)
+            run = async (): Promise<void> => {
+                let done: boolean = false
+                await plugin.authenticate!(context, {dn: dn, entry: entry}, async (): Promise<void> => {
+                    await inner()
+                    done = true
+                })
+                if (!done) fail(ResultCode.other, `A plugin's authenticate() returned without its verify() succeeding (${plugin.name})`)
+            }
         }
         await run()
-        //Only a password checked binds: a hook does not authenticate a bind in its place
-        if (!passed) fail(ResultCode.other, 'A plugin\'s authenticate() returned without the password checked')
     }
 
     /**
