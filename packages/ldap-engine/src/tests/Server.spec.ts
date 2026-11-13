@@ -1799,6 +1799,12 @@ describe('the server engine', () => {
         await engine.connect().bind(GONE, 'gone')
         assert.equal(backend.entries().some((entry) => entry.dn.toString() === GONE), false)
         assert.deepEqual(errors, [])
+        //Held under an option of userPassword: hashed again there
+        const TAGGED: string = `uid=tagged,${BASE}`
+        await owner.add(TAGGED, {objectClass: ['account', 'simpleSecurityObject'], uid: 'tagged', 'userPassword;x-legacy': ssha('tagged')})
+        await engine.connect().bind(TAGGED, 'tagged')
+        const tagged = backend.entries().find((entry) => entry.dn.toString() === TAGGED)!.attributes.filter((attribute) => attribute.type.toLowerCase().startsWith('userpassword'))
+        assert.deepEqual(tagged.map((attribute) => [attribute.type, attribute.values.length, attribute.values[0].toString().slice(0, 15)]), [['userPassword;x-legacy', 1, '{PBKDF2-SHA512}']])
         //A write failing: the bind done, the error an event, the value kept
         failing = true
         await engine.connect().bind(USER, 'third')

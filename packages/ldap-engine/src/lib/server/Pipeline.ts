@@ -1509,8 +1509,9 @@ export class Pipeline {
     protected async rehash(mount: Mount, context: WriteContext, dn: DN, matched: Buffer, rehashed: Buffer): Promise<void> {
         const backend: LDAPBackend = mount.backend
         const write = async (fresh: DirectoryEntry | undefined): Promise<void> => {
-            const attribute: PartialAttribute | undefined = fresh ? findAttribute(fresh, 'userPassword', this.schema) : undefined
-            if (!attribute?.values.some((value: Buffer): boolean => value.equals(matched))) return
+            //The userPassword holding it, under its options too (userPassword;x-legacy)
+            const attribute: PartialAttribute | undefined = fresh?.attributes.find((item: PartialAttribute): boolean => this.schema.primaryName(attributeTypeOf(item.type)).toLowerCase() === 'userpassword' && item.values.some((value: Buffer): boolean => value.equals(matched)))
+            if (!attribute) return
             await backend.modify!(context, dn, [{operation: 'delete', attribute: {type: attribute.type, values: [matched]}}, {operation: 'add', attribute: {type: attribute.type, values: [rehashed]}}])
         }
         if (backend.transaction && backend.lock) return backend.transaction(context, async (): Promise<void> => write(await backend.lock!(context, dn)))
