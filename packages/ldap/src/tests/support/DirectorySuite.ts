@@ -496,14 +496,17 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             assert.equal((await admin.search(people, {filter: '(email=user10@example.com)'})).entries.length, 1)
             await ldap.connect().bind(`uid=user1,${people}`, 'password1')
             assert.match((await admin.search(`uid=user1,${people}`, {scope: 'base', attributes: ['authTimestamp']})).entries[0].first('authTimestamp')!, /^\d{14}Z$/)
-            //A bind an interceptor answers without the password checked: no time kept
+            //A bind an interceptor answers without the password checked: no time kept; one it answers nothing: other, and
+            //no time kept either (the backend's lastBind outside it)
             const refusing: Container = new Container()
             try {
                 await refusing.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
-                await refusing.setNamed('ldap', LDAPServer, {port: false, schema: schema, backends: [{class: DirectoryBackend, suffix: BASE, database: 'database'}], access: {admins: [ADMIN]}, interceptors: [{interceptor: {name: 'refusing', operations: ['bind'], around: async () => ({resultCode: 53})}}]})
+                await refusing.setNamed('ldap', LDAPServer, {port: false, schema: schema, backends: [{class: DirectoryBackend, suffix: BASE, database: 'database'}], access: {admins: [ADMIN]}, interceptors: [{interceptor: {name: 'refusing', operations: ['bind'], around: async (_context: unknown, request: {dn?: {toString(): string}}) => request.dn?.toString().startsWith('uid=user3,') ? {resultCode: 53} : undefined} as never}]})
                 const server: LDAPServer = await refusing.get<LDAPServer>('ldap')
                 await assert.rejects(server.connect().bind(`uid=user3,${people}`, 'anything'), (error: unknown) => error instanceof LDAPResultException && error.code === 53)
                 assert.equal((await admin.search(`uid=user3,${people}`, {scope: 'base', attributes: ['authTimestamp']})).entries[0].first('authTimestamp'), undefined)
+                await assert.rejects(server.connect().bind(`uid=user4,${people}`, 'wrong'), (error: unknown) => error instanceof LDAPResultException && error.code === 80)
+                assert.equal((await admin.search(`uid=user4,${people}`, {scope: 'base', attributes: ['authTimestamp']})).entries[0].first('authTimestamp'), undefined)
             } finally {
                 await refusing.destroy()
             }
