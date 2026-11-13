@@ -1282,11 +1282,21 @@ describe('the server engine', () => {
         await boss.bind(BOSS, 'boss-secret')
         await boss.modify(`cn=by-root,${BASE}`, {operation: 'replace', attribute: 'description', values: 'not held back'})
         await assert.rejects(rooted.connect().bind(BOSS, 'entry-password'), code(49))
-        //A Password Modify changes the entry's userPassword, not the password of the options
-        await boss.passwordModify({newPassword: 'new-entry-password'})
+        //A Password Modify of a password the options give is refused, by the administrator itself (a new password, one
+        //generated, the old one given) or by another (the password is changed in the options); refused for access first
+        //to a session not allowed to change it, which does not learn the DN has one
+        await assert.rejects(boss.passwordModify({newPassword: 'new-entry-password'}), code(53))
+        await assert.rejects(boss.passwordModify({}), code(53))
+        await assert.rejects(boss.passwordModify({oldPassword: 'boss-secret', newPassword: 'new-entry-password'}), code(53))
+        await assert.rejects(owner.passwordModify({userIdentity: BOSS, newPassword: 'new-entry-password'}), code(53))
+        await assert.rejects(root.passwordModify({newPassword: 'no-entry-to-hold-it'}), code(53))
+        const user: LDAPInProcessConnection = rooted.connect()
+        await user.bind(`uid=user1,ou=people,${BASE}`, 'password1')
+        await assert.rejects(user.passwordModify({userIdentity: BOSS, newPassword: 'new-entry-password'}), code(50))
+        //A write of the entry's userPassword is taken, and does not change the password of the options
+        await owner.modify(BOSS, {operation: 'replace', attribute: 'userPassword', values: 'written-entry-password'})
         await rooted.connect().bind(BOSS, 'boss-secret')
-        await assert.rejects(rooted.connect().bind(BOSS, 'new-entry-password'), code(49))
-        await assert.rejects(root.passwordModify({newPassword: 'no-entry-to-hold-it'}), code(32))
+        await assert.rejects(rooted.connect().bind(BOSS, 'written-entry-password'), code(49))
         //The throttle still counts: locked after its failures, the right password too
         for (let index: number = 0; index < 3; index++) await assert.rejects(rooted.connect().bind(ROOT, `wrong-${index}`), code(49))
         await assert.rejects(rooted.connect().bind(ROOT, 'root-secret'), code(49))

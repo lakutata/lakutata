@@ -1490,7 +1490,8 @@ export class Pipeline {
 
     /**
      * The Password Modify operation (RFC 3062): a session changes its password (the old one checked when given), an
-     * administrator or a password administrator changes another's; without a new password, one is generated and returned
+     * administrator or a password administrator changes another's; without a new password, one is generated and returned.
+     * A password of `access.adminPasswords` is refused: it is changed in the options
      * @param context The context.
      * @param value The value of the request.
      */
@@ -1509,6 +1510,9 @@ export class Pipeline {
         //The controls of backends checked against the backend of the entry before anything is done with it
         this.checkMountControls(this.route(target), context.controls)
         if (!await this.access.allows({operation: 'passwordModify', session: context.session, identity: identity, dn: target})) fail(ResultCode.insufficientAccessRights, 'Insufficient access to change the password')
+        //A password the options give binds the DN, whatever its entry holds: it is changed in the options (checked after
+        //the access, so that a session not allowed to change it does not learn the DN has one)
+        if (this.access.adminPassword(target)) fail(ResultCode.unwillingToPerform, 'The password of this DN is given by the server\'s options (access.adminPasswords) and is changed there')
         if (request.oldPassword !== undefined && !await this.verifyPassword(context.session, context, target, request.oldPassword)) fail(ResultCode.invalidCredentials, 'The old password is not right')
         const generated: string | undefined = request.newPassword === undefined ? generatePassword() : undefined
         const password: Buffer = request.newPassword ?? Buffer.from(generated!, 'utf8')
