@@ -559,8 +559,10 @@ await server.listen({port: 389})
   password policy control get the warnings and the reasons; a locked account is answered as a wrong password, unless
   `revealLocked` is set. When an interceptor or a plugin refuses a bind after its password was checked, the bind does
   not count as successful: the recorded failures stay, pwdLastSuccess is not written, the bind throttle's count is not
-  reset and no warning is sent. Two things still happen: a grace bind already counted stays used, and the password is
-  still hashed again where `rehashOnBind` applies.
+  reset and no warning is sent. Some things still happen: a grace bind already counted stays used; the password is still
+  hashed again where `rehashOnBind` applies; and the time of the last bind is still kept when the refusal comes from
+  around `LastBindPlugin` or the directory backend's `lastBind`: a plugin's `aroundRequest`, an interceptor placed
+  before theirs, or a failure to write this state.
 - The policy is a plugin, the `PasswordPolicyPlugin` the option adds after the others, and it loads the schema ppolicy
   itself.
 
