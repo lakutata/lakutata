@@ -45,7 +45,8 @@ export interface AccessRequest {
 /**
  * Who may do what. By default: anonymous sessions read only the root DSE and the subschema; bound sessions read the
  * whole directory but userPassword (which nobody reads); the administrators write; a session changes its own password,
- * and the administrators and the password administrators change the others'.
+ * the administrators change the others', and the password administrators those of the others but the administrators
+ * and the other password administrators.
  */
 export interface AccessOptions {
     /**

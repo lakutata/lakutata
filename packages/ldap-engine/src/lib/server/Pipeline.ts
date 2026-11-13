@@ -1653,7 +1653,8 @@ export class Pipeline {
 
     /**
      * The Password Modify operation (RFC 3062): a session changes its password (the old one checked when given), an
-     * administrator or a password administrator changes another's; without a new password, one is generated and returned.
+     * administrator changes another's, a password administrator another's but an administrator's or another password
+     * administrator's; without a new password, one is generated and returned.
      * A password of `access.adminPasswords` is refused: it is changed in the options
      * @param context The context.
      * @param value The value of the request.

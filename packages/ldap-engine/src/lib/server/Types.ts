@@ -855,7 +855,8 @@ export interface LDAPPlugin {
     readonly rootDSEAttributes?: readonly PartialAttribute[]
     /**
      * Run around every request, before it goes to a backend: the binds, the searches the server answers itself (the
-     * root DSE, the subschema) and the extended operations included; in the order of the plugins, the first outermost
+     * root DSE, the subschema) and the extended operations included; in the order of the plugins, the first outermost.
+     * A bind it may refuse, but not answer with a success or a step in progress the server did not give
      * @param context The context of the operation.
      * @param request The request as it was sent.
      * @param next The handling of the request.
