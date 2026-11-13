@@ -204,6 +204,7 @@ export {
 export {readSchema} from '../lib/client/ReadSchema.js'
 export {readSchemaDirectory, readSchemaFile} from '../lib/schema/SchemaDirectory.js'
 export {type PasswordHashOptions, type PasswordScheme, PasswordSchemes} from '../lib/server/Passwords.js'
+export {onceBound} from '../lib/server/OnceBound.js'
 export {type AccessOptions, type AccessRequest} from '../lib/server/Access.js'
 export {createHandlerBackend, type HandlerBackendOptions, type HandlerEntry} from '../lib/server/HandlerBackend.js'
 export {LDAPInProcessConnection} from '../lib/server/InProcessConnection.js'
