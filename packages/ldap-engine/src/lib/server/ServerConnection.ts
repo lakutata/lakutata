@@ -314,7 +314,7 @@ export class ServerConnection {
             this.host.emit('error', error)
         } finally {
             this.closing.signal.removeEventListener('abort', abort)
-            this.running.delete(message.messageId)
+            if (this.running.get(message.messageId) === running) this.running.delete(message.messageId)
         }
     }
 

@@ -290,6 +290,46 @@ describe('the server engine on the network', () => {
         assert.deepEqual([...new Set(answered)], [1, 3])
     })
 
+    it('keeps a request of a message ID used again apart from the one abandoned before it', async () => {
+        //Two searches held until the test lets each go
+        const holds: Map<string, {released: Promise<void>, release: () => void}> = new Map()
+        for (const name of ['first', 'second']) {
+            let release: () => void = (): void => undefined
+            const released: Promise<void> = new Promise<void>((resolve: () => void): void => {
+                release = resolve
+            })
+            holds.set(name, {released: released, release: release})
+        }
+        const {port} = await serve({access: {admins: [ADMIN], anonymousRead: true}, interceptors: [{name: 'held', operations: ['search'], before: async (_context, request) => {
+            if (request.type === 'search' && request.filter.type === 'equality' && request.filter.attribute === 'description') await holds.get(String(request.filter.value))?.released
+        }}]})
+        const socket: Socket = createConnection({port: port, host: '127.0.0.1'})
+        await once(socket, 'connect')
+        const reader: MessageReader = new MessageReader()
+        const answered: number[] = []
+        socket.on('data', (chunk: Buffer) => {
+            for (const item of reader.push(chunk)) if (item.message) answered.push(item.message.messageId)
+        })
+        const settle = (): Promise<void> => new Promise<void>((resolve: () => void): void => void setTimeout(resolve, 150))
+        const held = (value: string) => encodeMessage({messageId: 7, protocolOp: {type: 'searchRequest', baseObject: `ou=people,${BASE}`, scope: 'one', derefAliases: 'never', sizeLimit: 0, timeLimit: 0, typesOnly: false, filter: Filter.parse(`(description=${value})`), attributes: ['1.1']}})
+        //A search held, abandoned by a bind; the ID used again for another, held too
+        socket.write(held('first'))
+        await settle()
+        socket.write(encodeMessage({messageId: 8, protocolOp: {type: 'bindRequest', version: 3, name: '', authentication: {type: 'simple', password: Buffer.alloc(0)}}}))
+        await settle()
+        socket.write(held('second'))
+        await settle()
+        //The first ends: the second is still the one of its ID, which an abandon then ends
+        holds.get('first')!.release()
+        await settle()
+        socket.write(encodeMessage({messageId: 9, protocolOp: {type: 'abandonRequest', messageId: 7}}))
+        await settle()
+        holds.get('second')!.release()
+        await settle()
+        socket.destroy()
+        assert.deepEqual(answered, [8])
+    })
+
     it('gives the plugins a request of its own for each bind it cannot decode', async () => {
         //A plugin changing the request of the first: the second as the server makes it
         const seen: string[] = []
