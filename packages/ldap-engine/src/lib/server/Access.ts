@@ -64,7 +64,7 @@ export interface AccessOptions {
     adminPasswords?: Record<string, string>
     /**
      * The DNs of the identities (the service accounts of Keycloak, Nextcloud…) that change the passwords of others,
-     * but not those of the administrators
+     * but not those of the administrators nor of the other password administrators
      */
     passwordAdmins?: string[]
     /**
@@ -146,9 +146,9 @@ export class AccessPolicy {
             case 'read':
                 return identity ? this.options.authenticatedRead !== false : this.options.anonymousRead === true
             case 'passwordModify':
-                //A password administrator changes the passwords of the others but those of the administrators: a password
-                //it set would let it bind as one
-                return identity !== undefined && (identity.equals(request.dn, this.schema) || (this.passwordAdmins.has(identity.key(this.schema)) && !this.isAdmin(request.dn)))
+                //A password administrator changes the passwords of the others but those of the administrators and of the
+                //other password administrators: a password it set would let it bind as one
+                return identity !== undefined && (identity.equals(request.dn, this.schema) || (this.passwordAdmins.has(identity.key(this.schema)) && !this.isAdmin(request.dn) && !this.passwordAdmins.has(request.dn.key(this.schema))))
             case 'modify':
                 //A session changes its own password with a modify too
                 return identity !== undefined && identity.equals(request.dn, this.schema) && request.attributes !== undefined && request.attributes.length > 0 && request.attributes.every((name: string): boolean => name.toLowerCase() === 'userpassword')

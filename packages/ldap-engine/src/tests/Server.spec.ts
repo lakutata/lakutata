@@ -1620,7 +1620,8 @@ describe('the server engine', () => {
         const HELPDESK: string = `uid=user20,ou=people,${BASE}`
         const USER: string = `uid=user21,ou=people,${BASE}`
         const OTHER: string = `uid=user22,ou=people,${BASE}`
-        const {server: engine, admin: owner} = await directory({access: {admins: [ADMIN, BOSS, CHIEF, ROOT], passwordAdmins: [HELPDESK], adminPasswords: {[ROOT]: 'root-secret'}}})
+        const DESK: string = `uid=user23,ou=people,${BASE}`
+        const {server: engine, admin: owner} = await directory({access: {admins: [ADMIN, BOSS, CHIEF, ROOT], passwordAdmins: [HELPDESK, DESK], adminPasswords: {[ROOT]: 'root-secret'}}})
         for (const dn of [BOSS, CHIEF]) await owner.add(dn, {objectClass: ['organizationalRole', 'simpleSecurityObject'], cn: dn.slice(3, dn.indexOf(',')), userPassword: `${dn.slice(3, dn.indexOf(','))}-password`})
         const bound = async (dn: string, password: string): Promise<LDAPInProcessConnection> => {
             const connection: LDAPInProcessConnection = engine.connect()
@@ -1634,13 +1635,13 @@ describe('the server engine', () => {
             {name: 'a user', dn: USER, connection: await bound(USER, 'password21')}
         ]
         const expected: Record<string, Record<string, [number, number | undefined]>> = {
-            'an administrator': {self: [0, 0], user: [0, 0], 'an administrator with an entry': [0, 0], 'an administrator of the options': [53, undefined]},
-            'a password administrator': {self: [0, 0], user: [0, 50], 'an administrator with an entry': [50, 50], 'an administrator of the options': [50, undefined]},
-            'a user': {self: [0, 0], user: [50, 50], 'an administrator with an entry': [50, 50], 'an administrator of the options': [50, undefined]}
+            'an administrator': {self: [0, 0], user: [0, 0], 'an administrator with an entry': [0, 0], 'an administrator of the options': [53, undefined], 'another password administrator': [0, 0]},
+            'a password administrator': {self: [0, 0], user: [0, 50], 'an administrator with an entry': [50, 50], 'an administrator of the options': [50, undefined], 'another password administrator': [50, 50]},
+            'a user': {self: [0, 0], user: [50, 50], 'an administrator with an entry': [50, 50], 'an administrator of the options': [50, undefined], 'another password administrator': [50, 50]}
         }
         const wrong: string[] = []
         for (const [index, actor] of actors.entries()) {
-            for (const [target, dn] of [['self', actor.dn], ['user', OTHER], ['an administrator with an entry', CHIEF], ['an administrator of the options', ROOT]] as [string, string][]) {
+            for (const [target, dn] of [['self', actor.dn], ['user', OTHER], ['an administrator with an entry', CHIEF], ['an administrator of the options', ROOT], ['another password administrator', DESK]] as [string, string][]) {
                 const [byPasswordModify, byModify] = expected[actor.name][target]
                 const answerOf = (operation: Promise<unknown>): Promise<number> => operation.then(() => 0, (error: unknown) => error instanceof LDAPResultException ? error.code : -1)
                 const answered: number = await answerOf(actor.connection.passwordModify(target === 'self' ? {newPassword: `set-by-${index}`} : {userIdentity: dn, newPassword: `set-by-${index}`}))
