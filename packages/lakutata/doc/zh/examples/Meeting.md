@@ -1,13 +1,13 @@
 # 视频会议
 
-这个示例构建一个视频会议：每个人在页面上填一个名字和一个房间，然后就能看到、听到其他人，还能在聊天里给他们发消息。它从 `web-react` 模板开始，给应用和页面都加上 `@lakutata/webrtc`，展示它的三个部分如何配合：信令让同一个房间的人互相联系上，媒体服务器转发他们的视频，浏览器客户端把页面接到这两者上。有了媒体服务器，无论房间里有多少人，每个人的摄像头画面都只发一份。
+本示例构建一个视频会议：每个人在页面上填写一个名称和一个房间后，即可看到、听到其他人，还能在聊天中向其他人发送消息。示例从 `web-react` 模板开始，为应用和页面都加上 `@lakutata/webrtc`，并展示该包的三个部分如何协同工作：信令使同一房间中的人互相建立联系，媒体服务器转发这些人的视频，浏览器客户端将页面连接到信令和媒体服务器。借助媒体服务器，无论房间中有多少人，每个人的摄像头画面都只发送一份。
 
-| 位置 | 提供什么 |
+| 位置 | 提供的内容 |
 |---|---|
 | `GET /` 以及其他页面 | 会议页面，即构建好的 `ui` 包 |
-| `/socket.io`，同一个端口 | 信令，走 Socket.IO |
+| `/socket.io`，同一个端口 | 信令，经由 Socket.IO |
 | UDP 的 40000 到 40999 端口 | 浏览器到媒体服务器的连接 |
-| `GET /health` | 告诉调用方进程是否还在响应（来自模板） |
+| `GET /health` | 报告进程是否在响应（模板自带） |
 
 ## 1. 创建项目
 
@@ -21,9 +21,9 @@ npm install socket.io-client --save-dev -w app
 npm install @lakutata/webrtc socket.io-client -w ui
 ```
 
-项目是一个工作区（见[项目结构](../ProjectStructure.md)）：`packages/app` 是应用，`packages/ui` 是 React 页面。这里删掉了模板中的示例控制器，也删掉了中间件 `Authenticate.ts`：参加会议的人给的是名字，不是令牌（在公网上要加些什么，见第 8 节）。
+项目是一个工作区（见[项目结构](../ProjectStructure.md)）：`packages/app` 是应用，`packages/ui` 是 React 页面。本例删除了模板中的示例控制器，也删除了中间件 `Authenticate.ts`，因为参加会议的人提供的是名称，而非令牌（在公网上需要添加哪些措施，见第 8 节）。
 
-应用装上 `@lakutata/webrtc`（信令和媒体服务器）和 `socket.io`（信令所走的 Socket.IO 服务端）；它的测试装上 `socket.io-client`，用来在 Node.js 里加入会议。页面装上 `@lakutata/webrtc`，只引用其中的浏览器入口 `@lakutata/webrtc/client`，以及 `socket.io-client`。
+应用安装 `@lakutata/webrtc`（信令和媒体服务器）和 `socket.io`（信令所使用的 Socket.IO 服务端）；应用的测试安装 `socket.io-client`，用于在 Node.js 中加入会议。页面安装 `@lakutata/webrtc` 和 `socket.io-client`，并且只引用前者的浏览器入口 `@lakutata/webrtc/client`。
 
 ## 2. 服务端
 
@@ -108,17 +108,17 @@ export function config(port: number = Number(process.env.PORT ?? 8080)): Applica
 }
 ```
 
-这是模板的 `Config.ts`，去掉示例控制器，换成三个组件：
+这是模板中的 `Config.ts`，其中用三个组件替换了示例控制器：
 
-- `signaling` 管理房间。每个人是某个房间的一个成员；成员的 id 是他的 Socket.IO 连接的 id，成员的 metadata 是他的页面加入时给出的内容：这里是 `{name}`。`authorize` 拒绝没有名字的成员，`maxPeers` 拒绝第 51 个成员。
-- `sfu` 是媒体服务器。它以自己的成员身份加入每个房间；页面看到它后就连接它，而不再互相连接，它把每个人的音频和视频转发给其他人，转发时不解码。它的连接使用 UDP 的 40000 到 40999 端口，每个人在本机的每个地址上各占一个端口，并以这些地址作为候选地址（`PUBLIC_ADDRESS` 再加一个）。
-- `SignalingController` 通过 Socket.IO 适配器处理信令的请求（`webrtc.join`、`webrtc.signal`……）。`socketIOServiceEntrypoint({server})` 把 Socket.IO 挂到 express 的 HTTP 服务器上，这个服务器由 `before` 给出：页面、它的信令和健康检查共用 8080 端口。
+- `signaling` 管理房间。每个人是某个房间中的一个成员；成员的 ID 是其 Socket.IO 连接的 ID，成员的 metadata 是其页面加入时提供的内容，此处为 `{name}`。`authorize` 拒绝没有名称的成员，`maxPeers` 拒绝第 51 个成员。
+- `sfu` 是媒体服务器。媒体服务器以独立成员的身份加入每个房间；页面发现该服务器后即与其连接，而不再互相连接。该服务器将每个人的音频和视频转发给其他人，转发时不解码。其连接使用 UDP 的 40000 到 40999 端口，每个人在本机的每个地址上各占一个端口，并以这些地址作为候选地址（`PUBLIC_ADDRESS` 会再添加一个）。
+- `SignalingController` 通过 Socket.IO 适配器处理信令请求（`webrtc.join`、`webrtc.signal`……）。`socketIOServiceEntrypoint({server})` 将 Socket.IO 挂载到 express 的 HTTP 服务器上，该服务器由 `before` 提供，因此页面、页面的信令和健康检查共用 8080 端口。
 
-应用先启动 `sfu`，它会把自己挂到 `signaling` 上，然后启动入口，开始监听。其余部分来自模板：`uiDirectory()` 和 `fallback` 提供构建好的页面，`jsonEnvelope` 包装动作的结果（[带界面的 Web 应用](WebApp.md)里有说明）。
+应用先启动 `sfu`，该组件会将自身挂载到 `signaling` 上；然后启动入口，入口开始监听。其余部分来自模板：`uiDirectory()` 和 `fallback` 提供构建好的页面，`jsonEnvelope` 包装动作的结果（[带界面的 Web 应用](WebApp.md)中有相关说明）。
 
 ## 3. 会议
 
-页面把它的 WebRTC 代码放在一个单独的模块里，这个模块不依赖 React。
+页面将其 WebRTC 代码放在一个单独的模块中，该模块不依赖 React。
 
 **`packages/ui/src/meeting.ts`**
 
@@ -220,11 +220,11 @@ export async function joinMeeting(name: string, roomName: string, events: Meetin
 }
 ```
 
-- `SignalingConnection` 接收页面的 Socket.IO 连接。`io()` 不带地址时连接页面所在的源；`transports: ['websocket']` 让它只用一条连接，在负载均衡后面也不需要会话保持。成员的 id 是这条连接的 `auth.id`。
-- `signaling.join()` 带着 metadata 里的名字加入房间，返回 `Room`。房间为其他每个人发出 `peer` 事件，先是已经在房间里的人，有人离开时发出 `peer-left`。
-- `room.publish()` 把摄像头和麦克风发给每个人，之后加入的人也会收到。这个房间有媒体服务器（`room.sfu` 是它的 id），所以每条轨道只发一份给服务器。
-- 每个 `Peer` 发出它那个人的轨道（`track`），以及那个人打开的通道（`datachannel`）。它的 `createDataChannel()` 打开一条到那个人的通道，经过媒体服务器，由服务器转发消息。没有媒体服务器时，这段代码会让页面之间直接连接，用法完全一样。
-- 媒体服务器所在的节点下线时（部署了多个实例时，见指南），每个人会换到另一个媒体服务器：房间发出 `peer-left`，再重新发出 `peer`，通道也会重新创建。
+- `SignalingConnection` 接收页面的 Socket.IO 连接。`io()` 不带地址时连接页面所在的源；`transports: ['websocket']` 使其只使用一条连接，因此在负载均衡器之后也无需会话保持。成员的 ID 是该连接的 `auth.id`。
+- `signaling.join()` 以 metadata 中的名称加入房间，并返回 `Room`。房间为其他每个人发出 `peer` 事件，首先是已在房间中的人；有人离开时，房间发出 `peer-left`。
+- `room.publish()` 将摄像头和麦克风发送给每个人，之后加入的人也会收到。该房间有媒体服务器（`room.sfu` 是其 ID），因此每条轨道只向服务器发送一份。
+- 每个 `Peer` 发出对应成员的轨道（`track`），以及该成员打开的通道（`datachannel`）。其 `createDataChannel()` 打开一条通往该成员的通道，通道经过媒体服务器，由服务器转发消息。没有媒体服务器时，这段代码会使页面之间直接连接，用法完全相同。
+- 媒体服务器所在的节点下线时（部署了多个实例时，见指南），每个人会切换到另一个媒体服务器：房间先发出 `peer-left`，再重新发出 `peer`，通道也会重新创建。
 
 ## 4. 页面
 
@@ -318,9 +318,9 @@ export function App() {
 }
 ```
 
-- 加入之前，页面先要填一个名字和一个房间。`joinMeeting()` 向浏览器申请摄像头和麦克风，浏览器会先征求用户同意；用户拒绝，或者服务端拒绝了这个名字，都会显示成错误。
-- 进入会议后，页面显示自己的摄像头（不放声音，否则会有回声）和其他每个人的摄像头，收到画面之前是黑的；下面是聊天记录和输入框。
-- 模板中渲染 `App` 的 `main.tsx` 不用改。
+- 加入之前，页面会要求填写名称和房间。`joinMeeting()` 向浏览器申请摄像头和麦克风，因此浏览器会先征求用户同意；用户拒绝或服务端拒绝该名称时，都会显示为错误。
+- 进入会议后，页面显示自身的摄像头画面（不播放声音，否则会产生回声）和其他每个人的摄像头画面，收到画面之前显示为黑色；下方是聊天记录和输入框。
+- 模板中渲染 `App` 的 `main.tsx` 无需修改。
 
 ## 5. 开发时的信令
 
@@ -341,7 +341,7 @@ export default defineConfig({
 })
 ```
 
-页面连接自己所在源上的 `/socket.io`。开发时这个源是 Vite：它的代理把 Socket.IO 的 WebSocket 转发给应用（`ws: true`）。页面没有 `/api` 下的 API，所以模板里 `/api` 的代理换成了这个。
+页面连接其所在源上的 `/socket.io`。开发时该源为 Vite，Vite 的代理将 Socket.IO 的 WebSocket 转发给应用（`ws: true`）。页面没有 `/api` 下的 API，因此模板中 `/api` 的代理替换成了上述代理。
 
 ## 6. 运行
 
@@ -349,11 +349,11 @@ export default defineConfig({
 npm run dev
 ```
 
-这会构建并在 8080 端口启动应用，由 Vite 在 http://localhost:5173 上提供页面。在两个窗口里打开它，填上两个名字和同一个房间，允许使用摄像头：每个窗口都会显示两路摄像头画面，在一个窗口里写的消息会出现在另一个窗口里。在另一台电脑上打开页面需要 HTTPS（见第 8 节）：浏览器只把摄像头给 `localhost` 和 HTTPS 页面。
+该命令会构建应用并在 8080 端口启动应用，由 Vite 在 http://localhost:5173 上提供页面。请在两个窗口中打开该页面，填写两个名称和同一个房间，并允许使用摄像头：每个窗口都会显示两路摄像头画面，在一个窗口中输入的消息会出现在另一个窗口中。在另一台电脑上打开页面需要 HTTPS（见第 8 节），因为浏览器只允许 `localhost` 和 HTTPS 页面使用摄像头。
 
 ## 7. 测试
 
-模板中的测试换成了针对会议的测试。它在自己的端口上启动应用，然后在 Node.js 里让两个成员加入同一个会议：`SignalingClient` 是 `@lakutata/webrtc` 给应用用的客户端，房间和 peer 的用法和页面一样。Node.js 没有摄像头，所以每个成员发送一条视频轨道，包里带着自己的名字，再检查自己收到了对方的名字：
+模板中的测试已替换为针对会议的测试。该测试在单独的端口上启动应用，然后在 Node.js 中让两个成员加入同一个会议：`SignalingClient` 是 `@lakutata/webrtc` 为应用提供的客户端，房间和 peer 的用法与页面相同。Node.js 没有摄像头，因此每个成员发送一条视频轨道，轨道的数据包中带有该成员的名称，然后检查是否收到了对方的名称：
 
 **`packages/app/src/tests/App.spec.ts`**
 
@@ -497,7 +497,7 @@ app │ ℹ pass 4
 ✔ test ran in app
 ```
 
-`npm test` 会先构建各个包，所以第二个测试运行时已经有构建好的页面。测试覆盖的是服务端和这个包的客户端，不包括 React 代码；`npm run typecheck -w ui` 检查页面的类型。
+`npm test` 会先构建各个包，因此第二个测试运行时，构建好的页面已经就绪。测试覆盖的是该包的服务端和客户端，不包括 React 代码；`npm run typecheck -w ui` 检查页面的类型。
 
 ## 8. 构建和部署
 
@@ -506,13 +506,13 @@ npm run build
 npm start
 ```
 
-现在由一个进程提供页面、信令和媒体服务器：页面在 http://localhost:8080，它的连接用 UDP 的 40000 到 40999 端口。部署时：
+现在，由一个进程提供页面、信令和媒体服务器：页面位于 http://localhost:8080，页面的连接使用 UDP 的 40000 到 40999 端口。部署时：
 
-- **HTTPS。** 浏览器只把摄像头和麦克风给 `localhost` 和 HTTPS 页面。适配器提供的是 HTTP：在应用前面放一个反向代理（nginx、Caddy），由它提供 HTTPS，并转发 Socket.IO 的 WebSocket（见 [HTTP](../HTTP.md)）。
-- **媒体服务器的端口。** 浏览器直接连接媒体服务器：在防火墙里放开 UDP 的 40000 到 40999 端口。如果在 NAT 后面，并且 NAT 按相同的端口号转发了这些端口，启动应用时把 `PUBLIC_ADDRESS` 设为公网地址。
-- **不放行 UDP 的网络。** 有些公司网络和移动网络需要 TURN 服务器：加上 `TURNServer` 组件，把它的名字告诉信令（见 [WebRTC](../WebRTC.md) 第 3 节和第 12 节）。
-- **谁能加入。** 能打开页面的人，可以用任何名字加入任何房间。在公网上，用入口的中间件认证用户（模板里的 `Authenticate.ts` 检查的是令牌），在 `authorize` 里决定谁能加入哪个房间，它也能获取请求的上下文。
-- **更大的会议。** 一个进程能转发几百路视频（数字见 WebRTC 指南）；媒体服务器的 `workers` 选项可以用上更多的核，多个实例还可以通过 `Cluster` 共同承载房间（见 [WebRTC](../WebRTC.md) 第 13 节）。
+- **HTTPS。** 浏览器只允许 `localhost` 和 HTTPS 页面使用摄像头和麦克风。适配器提供的是 HTTP，因此请在应用前部署一个反向代理（nginx、Caddy），由该代理提供 HTTPS，并转发 Socket.IO 的 WebSocket（见 [HTTP](../HTTP.md)）。
+- **媒体服务器的端口。** 浏览器直接连接媒体服务器，因此请在防火墙中开放 UDP 的 40000 到 40999 端口。如果应用位于 NAT 之后，并且 NAT 按相同的端口号转发这些端口，请在启动应用时将 `PUBLIC_ADDRESS` 设为公网地址。
+- **不放行 UDP 的网络。** 有些公司网络和移动网络需要 TURN 服务器：请添加 `TURNServer` 组件，并将其名称传给信令（见 [WebRTC](../WebRTC.md) 第 3 节和第 12 节）。
+- **谁能加入。** 能打开页面的人，可以使用任何名称加入任何房间。在公网上，请使用入口的中间件认证用户（模板中的 `Authenticate.ts` 检查的是令牌），并在 `authorize` 中决定谁能加入哪个房间，该函数也能获取请求的上下文。
+- **更大的会议。** 一个进程能够转发数百路视频（具体数字见 WebRTC 指南）；媒体服务器的 `workers` 选项可以利用更多的 CPU 核心，多个实例还可以通过 `Cluster` 共同承载房间（见 [WebRTC](../WebRTC.md) 第 13 节）。
 
 <!--
 check:

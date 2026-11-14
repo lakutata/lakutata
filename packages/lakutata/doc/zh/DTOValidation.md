@@ -40,10 +40,10 @@ class CustomerDTO extends DTO {
 
 校验规则由 `DTO` 的静态方法构建：`DTO.String()`、`DTO.Number()`、`DTO.BigInt()`、`DTO.Boolean()`、`DTO.Date()`、`DTO.Binary()`、`DTO.Symbol()`、`DTO.Object()`、`DTO.Array()`、`DTO.Alternatives()`、`DTO.Any()`、`DTO.Function()`、`DTO.AsyncFunction()`、`DTO.Class()`、`DTO.InstanceOf()`、`DTO.Cron()`、`DTO.Glob()`、`DTO.Ref()`、`DTO.Link()` 等。规则方法与 joi 相同（`.required()`、`.optional()`、`.default()`、`.valid()`、`.min()`、`.max()`、`.pattern()`、`.email()`、`.uri()` 等）。
 
-- **默认严格**：类型不对的值会被拒绝，而不是被转换（字符串 `'5'` 不是数字 5）。需要转换时调用 `.strict(false)`，例如 HTTP 的查询参数和路由参数，它们总是字符串。
+- **默认严格**：类型不符的值会被拒绝，而不会被转换（字符串 `'5'` 不是数字 5）。需要转换时请调用 `.strict(false)`，例如对始终为字符串的 HTTP 查询参数和路由参数。
 - **数值类型**：`DTO.Number()` 提供整数类型 `int8`、`uint8`、`int16`、`uint16`、`int32`、`uint32`、`int64` 和 `uint64`（64 位类型限于 JavaScript 的安全整数范围），以及浮点类型 `float`（32 位范围）和 `double`。
 - **校验选项**：默认在遇到第一个错误时停止（`abortEarly`），并移除未知字段（`stripUnknown`）。`MyDTO.options({...})` 返回使用其他选项的 DTO 校验规则。
-- **DTO 类作为校验规则**：`MyDTO.Schema()` 是它的对象校验规则，`MyDTO.required()` 和 `MyDTO.optional()` 是标记为必填或可选的同一规则。凡是需要校验规则的地方（`@Accept`、`@Return`、动作装饰器）都可以直接使用 DTO 类。
+- **DTO 类作为校验规则**：`MyDTO.Schema()` 是该 DTO 的对象校验规则，`MyDTO.required()` 和 `MyDTO.optional()` 是标记为必填或可选的同一规则。凡是需要校验规则的地方（`@Accept`、`@Return`、动作装饰器）都可以直接使用 DTO 类。
 
 ## 2. 校验
 
@@ -88,7 +88,7 @@ const port: number = DTO.validate(8080, DTO.Number().port().required())
 | `@Accept(...schemas)` | 方法 | 每次调用时按位置校验参数；失败时抛出 `InvalidMethodAcceptException` |
 | `@Return(schema)` | 方法 | 每次调用时校验返回值（异步方法会等待其结果）；失败时抛出 `InvalidMethodReturnException`；无论校验规则如何，方法返回 `undefined` 时也会抛出该异常 |
 
-`@Accept` 和 `@Return` 把校验后的值交给方法（或调用方）：默认值已填充，未知字段已移除。用 DTO 类校验参数或返回值时，得到的是普通对象，而不是该类的实例。缺少的参数会被接受，除非它的规则是必填的（`MyDTO.required()`）。
+`@Accept` 和 `@Return` 将校验后的值交给方法（或调用方）：默认值已填充，未知字段已移除。用 DTO 类校验参数或返回值时，得到的是普通对象，而不是该类的实例。缺少的参数会被接受，除非其规则为必填（`MyDTO.required()`）。
 
 ```typescript
 import {Component, DTO} from 'lakutata'
@@ -143,7 +143,7 @@ class Bank extends Component {
 
 ## 5. JSON Schema 与 OpenAPI
 
-DTO 和校验规则可以与 JSON Schema（draft 04、06、07、2019-09 和 2020-12）以及 OpenAPI 3.0/3.1 的 schema 对象互相转换，用于与前端共享校验规则、发布 API 文档、存储校验规则，或从 OpenAPI 文档生成 DTO。
+DTO 和校验规则可以与 JSON Schema（draft 04、06、07、2019-09 和 2020-12）以及 OpenAPI 3.0/3.1 的 schema 对象互相转换。这一转换可用于与前端共享校验规则、发布 API 文档、存储校验规则，或从 OpenAPI 文档生成 DTO。
 
 ### 5.1 导出
 
@@ -166,8 +166,8 @@ UserDTO.toOpenAPIJsonSchema()           //OpenAPI 3.1（默认），或 '3.0'
 toJsonSchema(DTO.String().email(), {target: 'openapi-3.0'})   //任意校验规则，或 DTO 类
 ```
 
-- 生成的 JSON Schema 描述的是校验规则在不做转换时接受的值，ajv（配合 ajv-formats）等校验器接受的也是这些值。JSON Schema 无法表达的内容（自定义规则、对其他值的引用、类型转换）会被省略，所以 JSON Schema 可能接受原规则拒绝的值，但不会拒绝原规则接受的值。
-- 未知字段遵循校验选项：在 Lakutata 的默认选项（`allowUnknown`、`stripUnknown`）下，对象接受未知字段；要按其他选项转换，通过 `preferences` 传入这些选项。
+- 生成的 JSON Schema 描述的是校验规则在不做转换时接受的值，ajv（配合 ajv-formats）等校验器接受的也是这些值。JSON Schema 无法表达的内容（自定义规则、对其他值的引用、类型转换）会被省略，因此 JSON Schema 可能接受原规则拒绝的值，但不会拒绝原规则接受的值。
+- 未知字段遵循校验选项：在 Lakutata 的默认选项（`allowUnknown`、`stripUnknown`）下，对象接受未知字段；如需按其他选项转换，请通过 `preferences` 传入这些选项。
 - 数值类型转换为整数边界（`int8` 到 `uint64`）和浮点范围；在 OpenAPI 中还会带上 `int32`、`int64`、`float` 和 `double` 格式。
 
 ### 5.2 导入
@@ -199,4 +199,4 @@ const {Pet, Person} = DTO.fromOpenAPI(openApiDocument)
 - 导入的校验规则按 JSON Schema 的语义校验：不转换值（除非传入 `convert: true`），未知字段遵循 `additionalProperties`，格式校验与 ajv-formats 一致，并会填充默认值。
 - 引用通过 JSON pointer、`$anchor` 和 `$id` 解析（其他文档通过 `schemas` 传入，OpenAPI 文档通过 `document` 传入）；支持递归引用。
 - 版本从 `$schema` 读取，或通过 `dialect` 指定（默认 2020-12）。
-- 把 Lakutata 的校验规则转换为 JSON Schema 会丢失信息（自定义规则、类型转换）：要原样存储并恢复校验规则，请保存它的 `describe()` 输出（不含函数时是一个 JSON 值），再用 `DTO.Build(description)` 重建。
+- 将 Lakutata 的校验规则转换为 JSON Schema 会丢失信息（自定义规则、类型转换）。如需原样存储并恢复校验规则，请保存其 `describe()` 输出（不含函数时为一个 JSON 值），再用 `DTO.Build(description)` 重建。

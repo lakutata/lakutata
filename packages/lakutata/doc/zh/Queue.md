@@ -1,10 +1,10 @@
 # Lakutata 消息队列
 
-**Queue 组件**（`lakutata/com/queue`，`@lakutata/queue` 包）把消息加入队列，用 `@QueueAction` 声明的控制器动作通过 `queueEntrypoint` 适配器处理这些消息，和其他传输方式一样使用输入 DTO、访问控制和中间件。动作正常返回时消息被确认；失败后重新投递，次数用完后进入死信队列；动作的返回值就是这条消息的结果。队列可以放在内存、Redis、NATS JetStream、RabbitMQ 或 Kafka 中，换驱动不需要改动作的代码。更多细节见 `@lakutata/queue` 的 README。
+**Queue 组件**（`lakutata/com/queue`，`@lakutata/queue` 包）将消息加入队列。以 `@QueueAction` 声明的控制器动作通过 `queueEntrypoint` 适配器处理这些消息，并与其他传输方式一样使用输入 DTO、访问控制和中间件。动作正常返回时消息被确认；失败后重新投递，次数用尽后进入死信队列；动作的返回值即为该消息的结果。队列可以存放在内存、Redis、NATS JetStream、RabbitMQ 或 Kafka 中，更换驱动无需修改动作的代码。更多细节见 `@lakutata/queue` 的 README。
 
 ## 1. 配置
 
-用 `buildQueueOptions` 在应用的 `components` 中声明 `Queue`（按惯例命名为 `queue`），把队列的适配器交给入口，并让入口在启动时创建（`bootstrap: ['entrypoint']`；否则它要到第一次被使用时才创建，动作不会开始消费）。不指定 `driver` 时，消息保存在进程的内存中。
+通过 `buildQueueOptions` 在应用的 `components` 中声明 `Queue`（按惯例命名为 `queue`），将队列的适配器交给入口，并让入口在启动时创建（`bootstrap: ['entrypoint']`；否则入口要到首次被使用时才创建，动作也不会开始消费）。未指定 `driver` 时，消息保存在进程的内存中。
 
 ```typescript
 import {Application} from 'lakutata'
@@ -35,20 +35,20 @@ Application.run(() => ({
 
 | 驱动 | 需要安装 | 服务端 | 说明 |
 |---|---|---|---|
-| `{type: 'memory'}`（默认） | | | 只在当前进程内有效：进程退出后消息丢失；用于开发、测试、桌面应用 |
-| `{type: 'redis', url}` | `bullmq`、`ioredis` | Redis 5.0 起（建议 6.2 起） | 基于 BullMQ：支持优先级、延迟、去重；请使用 `maxmemory-policy noeviction` |
+| `{type: 'memory'}`（默认） | | | 仅在当前进程内有效，进程退出后消息丢失；适用于开发、测试和桌面应用 |
+| `{type: 'redis', url}` | `bullmq`、`ioredis` | Redis 5.0 起（建议 6.2 起） | 基于 BullMQ，支持优先级、延迟和去重；请使用 `maxmemory-policy noeviction` |
 | `{type: 'nats', servers}` | `nats` | NATS 2.9.4 起，需开启 JetStream（`-js`） | stream 保留消息 `maxAge`（7 天）；2 分钟内去重；不支持优先级 |
 | `{type: 'rabbitmq', url}` | `amqplib` | RabbitMQ 3.6 起 | 优先级 0–10，支持延迟；需要 `results.store` |
 | `{type: 'kafka', brokers}` | `@platformatic/kafka`（Node.js 22.22 / 24.6 起） | Kafka 3.5 起 | 按键保序，`partitions`（默认 1）；需要 `results.store` |
-| `{type: 'custom', driver}` | | | 应用自己实现的 `QueueDriver` |
+| `{type: 'custom', driver}` | | | 应用自行实现的 `QueueDriver` |
 
-客户端都是可选的 peer 依赖，在组件启动时才加载：缺少客户端包时启动失败并抛出 `QueueDriverNotFoundException`，服务端版本太旧时抛出 `QueueDriverVersionException`，无法连接服务端时抛出连接错误。启动之后，驱动会自动重连。使用服务端的驱动还接受 `prefix`（默认 `lakutata`），作为它们在服务端创建的名称的前缀，用来隔开共用同一个服务端的应用。
+客户端均为可选的 peer 依赖，在组件创建时才加载。缺少客户端包时组件创建失败并抛出 `QueueDriverNotFoundException`，服务端版本过旧时抛出 `QueueDriverVersionException`，无法连接服务端时抛出连接错误。启动之后，驱动会自动重连。使用服务端的驱动还接受 `prefix`（默认 `lakutata`），作为驱动在服务端所创建名称的前缀，用于隔离共用同一个服务端的应用。
 
 组件的其他选项：
 
-- `defaults`：消费者的默认设置：`attempts`（3）、`backoff`（指数退避，从 1 秒到 1 分钟）、`concurrency`（1）、`timeout`（不限）、`group`（应用的 `appId`）。
-- `results`：`keep` 是结果保留多久（默认 1 天），`store` 是代替驱动保存结果的 `Cacher` 组件的名称。RabbitMQ 和 Kafka 自身不保存结果，需要指定一个各应用共用的存储（例如 Redis）。`false` 表示不保存结果。
-- `codec`：`'messagepack'`（默认，和 `@lakutata/nats` 相同）、`'json'`（方便其他语言的服务对接）或自定义的 `QueueCodec`。
+- `defaults`：消费者的默认设置，即 `attempts`（3）、`backoff`（指数退避，从 1 秒到 1 分钟）、`concurrency`（1）、`timeout`（不限）、`group`（应用的 `appId`）。
+- `results`：`keep` 为结果的保留时长（默认 1 天），`store` 为代替驱动保存结果的 `Cacher` 组件的名称。RabbitMQ 和 Kafka 自身无法保存结果，需要指定一个由各应用共用的存储（例如 Redis）。`false` 表示不保存结果。
+- `codec`：`'messagepack'`（默认，与 `@lakutata/nats` 相同）、`'json'`（便于与其他语言编写的服务对接）或自定义的 `QueueCodec`。
 - `requestTimeout`：`request()` 和 `result()` 的等待时间（30 秒）。
 
 ```typescript
@@ -76,14 +76,14 @@ Application.run(() => ({
 @QueueAction(queue, dto?, options?)
 ```
 
-被装饰的方法处理一个队列的消息：输入就是消息，经过 DTO 校验；`this.context` 是 `QueueContext`。方法的返回值就是这条消息的结果。同一个方法还可以同时带有其他传输方式的装饰器（HTTP 路由、服务动作等）。选项包括所有动作通用的选项（`name`、`acl`、`rule`、`middlewares` 等），以及：
+被装饰的方法处理一个队列的消息。输入即为消息，并经过 DTO 校验；`this.context` 是 `QueueContext`。方法的返回值即为该消息的结果。同一个方法还可以同时带有其他传输方式的装饰器（HTTP 路由、服务动作等）。选项包括所有动作通用的选项（`name`、`acl`、`rule`、`middlewares` 等），以及：
 
-- `group`：消费这个队列的组（默认是队列的 `defaults.group`，否则是应用的 `appId`）；
+- `group`：消费该队列的组（默认为队列的 `defaults.group`，否则为应用的 `appId`）；
 - `concurrency`：一个实例同时处理的消息数；
-- `attempts`、`backoff`：消息进入死信队列之前的投递次数，以及两次投递之间的等待；
-- `timeout`：处理的时间上限（到时中止，然后重试）；
+- `attempts`、`backoff`：消息进入死信队列之前的投递次数，以及两次投递之间的等待时间；
+- `timeout`：处理的时间上限（到时中止，随后重试）；
 - `ordered`：同一个 `key` 的消息按顺序逐条处理（内存和 Kafka 驱动）；
-- `output`：把返回值作为一条新消息发到这个队列（返回值须为对象；返回 `undefined` 时不发送）。
+- `output`：接收返回值的队列名称，返回值将作为一条新消息发送到该队列（返回值须为对象；返回 `undefined` 时不发送）。
 
 ```typescript
 import {DTO} from 'lakutata'
@@ -120,11 +120,11 @@ class ImageController extends Controller {
 }
 ```
 
-上下文中包含 `queue`、`jobId`、`group`、`attempt`（首次投递为 1）、允许的 `attempts`、应用的 `headers` 和 `publishedAt`；它的 `type` 是 `'QUEUE'`，供多种传输方式共用的中间件和访问规则区分。
+上下文中包含 `queue`、`jobId`、`group`、`attempt`（首次投递为 1）、允许的 `attempts`、应用的 `headers` 和 `publishedAt`；上下文的 `type` 为 `'QUEUE'`，供多种传输方式共用的中间件和访问规则区分传输方式。
 
-`queueEntrypoint(componentName, {name, middlewares, onError})` 在应用启动时检查各动作的选项并登记它们的组，应用启动完成后开始消费。每次处理失败（无论是否重试）都会调用 `onError(error, action, context)`；默认把失败写入应用的日志。
+`queueEntrypoint(componentName, {name, middlewares, onError})` 在应用启动时检查各动作的选项并登记其组，应用启动完成后开始消费。每次处理失败（无论是否重试）都会调用 `onError(error, action, context)`；默认将失败写入应用的日志。
 
-不使用控制器时，可以用 `queue.consume(name, processor, options)` 以函数 `(input, context, signal) => result` 处理队列，它返回一个可以 `stop()` 的订阅：
+不使用控制器时，可以通过 `queue.consume(name, processor, options)` 以函数 `(input, context, signal) => result` 处理队列，该方法返回一个可以 `stop()` 的订阅：
 
 ```typescript
 import type {Queue, QueueJobContext} from 'lakutata/com/queue'
@@ -168,18 +168,18 @@ class Images extends Component {
 }
 ```
 
-消息的选项：`jobId`（默认随机 UUID）、`dedupe`、`delay`、`priority`（越大越先）、`key`（保序的键）、`attempts` 和 `backoff`（代替消费者的设置）、`headers`（前缀 `x-lkt-` 保留给框架）。驱动不支持的选项会抛出 `QueueCapabilityException`；`queue.capabilities` 给出驱动支持的能力。
+消息的选项：`jobId`（默认随机 UUID）、`dedupe`、`delay`、`priority`（值越大越优先）、`key`（保序的键）、`attempts` 和 `backoff`（取代消费者的设置）、`headers`（前缀 `x-lkt-` 保留给框架）。使用驱动不支持的选项会抛出 `QueueCapabilityException`；`queue.capabilities` 给出驱动支持的能力。
 
-`request()` 以动作的返回值完成；消息失败时以 `QueueJobFailedException` 拒绝；超时（`QueueRequestTimeoutException`）时消息仍留在队列中，之后还能读取它的结果。`result()` 和 `job.result()` 会等到消息处理完（`wait: false` 只读取当前已保存的结果）；没有在时间内处理完时抛出 `QueueResultNotFoundException`，结果已不再保留时抛出 `QueueResultExpiredException`。有多个组消费同一个队列时，`request()` 和 `result()` 要用 `group` 指明要哪个组的结果（否则抛出 `QueueAmbiguousGroupException`）。
+`request()` 以动作的返回值完成；消息失败时以 `QueueJobFailedException` 拒绝；超时（`QueueRequestTimeoutException`）时消息仍保留在队列中，之后仍可读取其结果。`result()` 和 `job.result()` 会等待消息处理完毕（`wait: false` 只读取当前已保存的结果）；未在时限内处理完毕时抛出 `QueueResultNotFoundException`，结果已不再保留时抛出 `QueueResultExpiredException`。有多个组消费同一个队列时，`request()` 和 `result()` 需通过 `group` 指明要获取哪个组的结果（否则抛出 `QueueAmbiguousGroupException`）。
 
 ## 4. 投递
 
-- **至少一次。** 动作正常返回时消息被确认。抛出错误时，等待 `backoff` 后重新投递，最多 `attempts` 次，之后作为 `QueueDeadLetter`（`{queue, jobId, group, input, error, attempts, failedAt}`）进入 `<队列名>.dead`，它和普通队列一样。一条消息可能被处理两次（进程崩溃、停机），动作应当是幂等的。
-- **重试无法解决的不重试。** 输入不合法（`InvalidValueException`）、没有访问权限、动作不存在、返回值校验失败（`@Return`）、消息或结果无法编码：消息直接进入死信队列。动作抛出 `QueueDiscardException` 时丢弃这条消息：确认它，不进死信，也不保存结果。
-- **处理时限。** 处理超过 `timeout` 时以 `QueueProcessingTimeoutException` 失败并重试：它的 signal 被中止，之后的返回值被丢弃。投递有租约的驱动（NATS）会在处理期间自动续租。
-- **停机。** 应用停止时，消费者停止取新消息，正在处理的消息有入口的 `shutdownTimeout` 时间完成；届时仍未完成的消息以后重新投递，既不确认也不进死信。
-- **组。** 同一个组的多个实例分摊消息；不同的组各收一份。动作的组默认是所在应用的 `appId`：两个应用消费同一个队列时会各收一份，除非它们指定相同的 `group`。组在登记之后才开始接收消息（应用启动时登记其动作的组，`consume()` 和 `queue.prepare(name, {group})` 也会登记）：使用服务端的驱动时，队列在任何组登记之前收到的消息不会被投递；内存驱动则把这些消息留给第一个登记的组，每个队列最多保留 `backlog` 条（默认为 `{type: 'memory', backlog: 1000}`），超出时丢弃最早的消息。所以没有人消费的死信队列（`<queue>.dead`）只在内存中保留最近的 1000 条消息。组登记后一直保存在服务端，所以即使组的所有实例都没有运行，发给它的消息也会保留。
-- **消息内容。** 消息是一个对象，也就是动作的输入。使用默认编解码时，`Date` 会变成 ISO 字符串（输入 DTO 可以把它转回 `Date`；返回值仍是字符串），`bigint` 会被拒绝。
+- **至少一次。** 动作正常返回时消息被确认。抛出错误时，等待 `backoff` 后重新投递，最多 `attempts` 次，之后作为 `QueueDeadLetter`（`{queue, jobId, group, input, error, attempts, failedAt}`）进入 `<队列名>.dead`，该队列与普通队列相同。一条消息可能被处理两次（进程崩溃、停机），因此动作应当是幂等的。
+- **重试无法解决的不重试。** 对于输入不合法（`InvalidValueException`）、没有访问权限、动作不存在、返回值校验失败（`@Return`）、消息或结果无法编码的情况，消息直接进入死信队列。动作抛出 `QueueDiscardException` 时丢弃该消息，即确认消息，但不进入死信队列，也不保存结果。
+- **处理时限。** 处理超过 `timeout` 时以 `QueueProcessingTimeoutException` 失败并重试，此时该次处理的 signal 被中止，之后的返回值被丢弃。投递有租约的驱动（NATS）会在处理期间自动续租。
+- **停机。** 应用停止时，消费者停止获取新消息，正在处理的消息可在入口的 `shutdownTimeout` 内完成；届时仍未完成的消息稍后重新投递，既不确认，也不进入死信队列。
+- **组。** 同一个组的多个实例分摊消息，不同的组各自收到一份。动作的组默认为所在应用的 `appId`，因此两个应用消费同一个队列时会各自收到一份，除非二者指定相同的 `group`。组在登记之后才开始接收消息（应用启动时登记其动作的组，`consume()` 和 `queue.prepare(name, {group})` 也会登记）。使用服务端的驱动时，队列在任何组登记之前收到的消息不会被投递；内存驱动则将这些消息留给第一个登记的组，每个队列最多保留 `backlog` 条（默认为 `{type: 'memory', backlog: 1000}`），超出时丢弃最早的消息。因此，无人消费的死信队列（`<queue>.dead`）只在内存中保留最近的 1000 条消息。组登记后始终保存在服务端，因此即使组的所有实例都未运行，发给该组的消息也会保留。
+- **消息内容。** 消息是一个对象，即动作的输入。使用默认编解码时，`Date` 会变为 ISO 字符串（输入 DTO 可以将其转换回 `Date`；返回值中仍为字符串），`bigint` 会被拒绝。
 
 ## 5. 各驱动的比较
 
@@ -191,24 +191,24 @@ class Images extends Component {
 | 按 `key` 保序 | ✓ | — | — | — | ✓（分区） |
 | 结果 | ✓ | ✓ | ✓ | `results.store` | `results.store` |
 | `request()` | 回复通道 | 回复通道 | 回复通道 | 回复通道 | 读取结果 |
-| 重试 | 延迟重投 | 延迟重投 | 延迟重投 | 经延迟队列发送副本 | 原地等待，占住分区 |
+| 重试 | 延迟重投 | 延迟重投 | 延迟重投 | 经延迟队列发送副本 | 原地等待，占用分区 |
 | 停机时放弃计为一次尝试 | 否 | 是 | 是 | 否 | 否 |
 | 重启后消息仍在 | 否 | 是 | 是 | 是 | 是 |
 
-在 Kafka 上，同一个分区的消息按顺序逐条处理：`concurrency` 表示一个实例同时处理几个分区；一条消息的尝试次数由正在处理它的实例计数。RabbitMQ 无法列出一个队列有哪些组：组件把它们记在 `results.store` 中，各应用必须共用这个存储，`request()` 和 `result()` 才能在不指定组时找到组。
+在 Kafka 上，同一个分区的消息按顺序逐条处理，`concurrency` 表示一个实例同时处理的分区数；一条消息的尝试次数由正在处理该消息的实例计数。RabbitMQ 无法列出一个队列的组，因此组件将这些组记录在 `results.store` 中。各应用必须共用该存储，`request()` 和 `result()` 才能在不指定组时找到组。
 
 ## 6. 异常
 
-| 异常 | 什么时候 |
+| 异常 | 抛出时机 |
 |---|---|
 | `QueueInvalidMessageException`（400） | 消息不是对象、队列名为空、消息头使用了 `x-lkt-`、值无法编码 |
-| `QueueCapabilityException` | 驱动不支持的选项（`priority`、`dedupe`、`delay`、`ordered`），没有保存结果 |
-| `QueueRequestTimeoutException`（504） | `request()` 没有在时间内得到结果 |
-| `QueueResultNotFoundException`（404） | `result()` 时消息还没处理完，或编号不存在 |
-| `QueueResultExpiredException`（410） | `result()` 时结果已不再保留 |
-| `QueueAmbiguousGroupException`（400） | 有多个组消费队列时，`request()` 或 `result()` 没有指定 `group` |
-| `QueueJobFailedException` | `request()` 或 `result()` 的消息处理失败（带有它的 `error` 和 `attempts`） |
-| `QueueProcessingTimeoutException`（504） | 处理超过 `timeout` 而失败（会重试） |
-| `QueueDiscardException` | 由动作抛出，表示丢弃这条消息 |
-| `QueueDriverNotFoundException` | 驱动的客户端包没有安装 |
+| `QueueCapabilityException` | 使用了驱动不支持的选项（`priority`、`dedupe`、`delay`、`ordered`），或没有保存结果 |
+| `QueueRequestTimeoutException`（504） | `request()` 未在时限内得到结果 |
+| `QueueResultNotFoundException`（404） | 调用 `result()` 时消息尚未处理完毕，或编号不存在 |
+| `QueueResultExpiredException`（410） | 调用 `result()` 时结果已不再保留 |
+| `QueueAmbiguousGroupException`（400） | 有多个组消费队列时，`request()` 或 `result()` 未指定 `group` |
+| `QueueJobFailedException` | `request()` 或 `result()` 的消息处理失败（带有消息的 `error` 和 `attempts`） |
+| `QueueProcessingTimeoutException`（504） | 处理超过 `timeout` 而失败（将会重试） |
+| `QueueDiscardException` | 由动作抛出，表示丢弃该消息 |
+| `QueueDriverNotFoundException` | 驱动的客户端包未安装 |
 | `QueueDriverVersionException` | 服务端版本低于驱动支持的最低版本 |

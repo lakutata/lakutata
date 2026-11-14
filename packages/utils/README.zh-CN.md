@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-Lakutata 框架的工具集。`Time` 是带 IANA 时区的日期时间，提供类似 moment 的 API（格式化、跨越夏令时切换的日历运算、比较）。辅助函数由框架及其应用共用，涵盖字符串、对象、数组和集合、哈希和编码、UUID、IP 地址、glob 和统计。它们是普通的函数和类，可以在任何地方使用，无论是否在应用中。`lakutata` 包通过 `lakutata/utils` 重新导出它们，`lakutata` 本身也导出 `Time`。
+Lakutata 框架的工具集。`Time` 是带 IANA 时区的日期时间，提供类似 moment 的 API（格式化、跨越夏令时切换的日历运算、比较）。辅助函数由框架及其应用共用，涵盖字符串、对象、数组和集合、哈希和编码、UUID、IP 地址、glob 和统计。这些辅助函数是普通的函数和类，无论是否在应用中，都可以在任何地方使用。`lakutata` 包通过 `lakutata/utils` 重新导出这些工具，`lakutata` 本身也导出 `Time`。
 
 ## 安装
 
@@ -10,13 +10,13 @@ Lakutata 框架的工具集。`Time` 是带 IANA 时区的日期时间，提供�
 npm install lakutata
 ```
 
-它没有可选依赖：一切都基于 Node.js（`>=18.10.0`）及其 `Intl` 时区数据实现。
+本包没有可选依赖，所有功能都基于 Node.js（`>=18.10.0`）及其 `Intl` 时区数据实现。
 
 ## 用法
 
 ### 在应用中使用辅助函数
 
-在需要的地方直接导入辅助函数即可，不需要注册。
+在需要的地方直接导入辅助函数即可，无需注册。
 
 ```typescript
 import {Application, Component, Time} from 'lakutata'
@@ -114,7 +114,7 @@ console.log(Statistics.median(latencies), Statistics.quantile(latencies, 0.9))
 
 ### 时间（Time）
 
-`Time` 是某个时区中的一个时刻：`new Time()` 是默认时区（`TZ` 环境变量，否则为系统时区）的当前时间，`timezone(name)` 返回同一时刻在另一个时区的时间。`Time` 的方法从不修改实例本身：设置方法和运算都返回新的 `Time`。
+`Time` 是某个时区中的一个时刻：`new Time()` 为默认时区（`TZ` 环境变量，否则为系统时区）的当前时间，`timezone(name)` 返回同一时刻在另一个时区的时间。`Time` 的方法从不修改实例本身，设置方法和运算都返回新的 `Time`。
 
 #### 时区
 
@@ -135,7 +135,7 @@ console.log(Time.timezones().includes('Asia/Kolkata'))
 //true
 ```
 
-不带偏移的字符串和本地时间字段数组，构造函数按默认时区读取，比较方法和 `diff()` 则按实例的时区读取（`paris.isSame('2024-03-09', 'day')` 比较的是巴黎的这一天）。运行时不认识的时区，`timezone()` 会抛出 `RangeError`；`timezone('')` 返回默认时区的时间。从 `Date` 继承的方法（`getHours()`、`setHours()`……）使用进程的时区，而且其中的设置方法会修改实例本身：请改用 `Time` 的方法。
+对于不带偏移的字符串和本地时间字段数组，构造函数按默认时区读取，比较方法和 `diff()` 则按实例的时区读取（`paris.isSame('2024-03-09', 'day')` 比较的是巴黎的这一天）。对于运行时无法识别的时区，`timezone()` 会抛出 `RangeError`；`timezone('')` 返回默认时区的时间。从 `Date` 继承的方法（`getHours()`、`setHours()`……）使用进程的时区，且其中的设置方法会修改实例本身，因此请改用 `Time` 的方法。
 
 #### 格式
 
@@ -179,14 +179,14 @@ console.log(start.isBetween('2024-03-01', '2024-03-31', null, '[]'), Time.max(st
 //true 2024-03-09T08:00:00-05:00
 ```
 
-- `add()` 和 `subtract()` 对年、季度、月、周、日按本地时间移动（小数会四舍五入：`1.5` 天就是 2 天），对时、分、秒、毫秒按时刻移动。
-- 夏令时切换时跳过的本地时间（时钟从 02:00 跳到 03:00 时的 02:30），会向后顺延跳过的时长（变成 03:30），无论它是从哪个时间算出来的。出现两次的时间（时钟往回拨时），尽量保持计算起点的偏移，否则取较早的那一个。
+- `add()` 和 `subtract()` 对年、季度、月、周、日按本地时间移动（小数会四舍五入，例如 `1.5` 天即 2 天），对时、分、秒、毫秒按时刻移动。
+- 夏令时切换时跳过的本地时间（时钟从 02:00 跳到 03:00 时的 02:30），会向后顺延跳过的时长（变为 03:30），无论该时间是从哪个时间算出的。出现两次的时间（时钟回拨时）尽量保持计算起点的偏移，否则取较早的一个。
 - `diff()` 计算 `this - other`，结果向零截断，第三个参数为 `true` 时不截断；月按日历月计算，天按本地时间的天数计算。
-- 无效的时间（数组中的字段超出范围）不会抛出异常：它的 `format()` 返回 `'Invalid date'`，`Time.max()` 和 `Time.min()` 会忽略它。
+- 无效的时间（数组中的字段超出范围）不会抛出异常，其 `format()` 返回 `'Invalid date'`，`Time.max()` 和 `Time.min()` 会忽略该时间。
 
 ## API
 
-以下全部由 `lakutata/utils` 和 `@lakutata/utils` 导出，`Time` 也由 `lakutata` 导出。类型声明中的每一项都附有说明和示例。
+以下各项均由 `lakutata/utils` 和 `@lakutata/utils` 导出，`Time` 也由 `lakutata` 导出。类型声明中的每一项都附有说明和示例。
 
 ### 时间（Time）
 
@@ -201,8 +201,8 @@ console.log(start.isBetween('2024-03-01', '2024-03-31', null, '[]'), Time.max(st
 
 | 导出 | 说明 |
 |---|---|
-| `camelCase` | 把任意命名风格的字符串转为 camelCase |
-| `noCase`、`NoCaseOptions`、`SplitOptions` | 把任意命名风格的字符串转为以空格分隔的小写单词 |
+| `camelCase` | 将任意命名风格的字符串转为 camelCase |
+| `noCase`、`NoCaseOptions`、`SplitOptions` | 将任意命名风格的字符串转为以空格分隔的小写单词 |
 | `templating`、`TemplatingOptions`、`MissingValueError` | 填充模板中的 `{key}` 和 `{{key}}`（会做 HTML 转义）占位符 |
 | `randomString` | 指定长度的随机字符串，字符取自预设或自定义的字符集 |
 | `nonceString` | 由 32 个字母和数字组成的随机字符串 |
@@ -211,7 +211,7 @@ console.log(start.isBetween('2024-03-01', '2024-03-31', null, '[]'), Time.max(st
 
 | 导出 | 说明 |
 |---|---|
-| `As` | 把值转换为某个类型，仅供类型检查 |
+| `As` | 将值转换为某个类型，仅供类型检查 |
 | `cloneDeep` | 深拷贝一个值，保留类、集合和循环引用 |
 | `ObjectPath` | 按路径（`'a.b[0].c'`）读取、设置和检查嵌套属性；拒绝经过原型的路径 |
 | `getObjectPropertyPaths` | 列出对象中叶子值的路径 |
@@ -220,10 +220,10 @@ console.log(start.isBetween('2024-03-01', '2024-03-31', null, '[]'), Time.max(st
 | `objectHash`、`ObjectHashOptions` | 按内容计算值的哈希，与键的顺序无关 |
 | `sortKeys`、`SortKeysOptions` | 复制一个普通对象，并按比较函数给键排序 |
 | `sortObject`、`SortObjectOptions` | 复制一个普通对象，并按字母顺序排列键 |
-| `objectToMap` | 把对象转为由它的属性组成的 Map |
+| `objectToMap` | 将对象转为由其属性组成的 Map |
 | `objectConstructor` | 对象的类 |
 | `objectPrototype` | 类的原型 |
-| `objectParentConstructor`、`objectParentConstructors` | 类的父类，以及它的所有祖先 |
+| `objectParentConstructor`、`objectParentConstructors` | 类的父类，以及其所有祖先 |
 | `isSubclassOf` | 一个类是否继承自另一个类 |
 
 ### 数组和集合
@@ -232,7 +232,7 @@ console.log(start.isBetween('2024-03-01', '2024-03-31', null, '[]'), Time.max(st
 |---|---|
 | `sortArray`、`SortArrayOptions` | 原地排序数组，按元素本身或其属性排序 |
 | `uniqueArray` | 去除数组中的重复元素 |
-| `mergeArray`、`mergeSet`、`mergeMap` | 把两个数组、集合或 Map 合并为新的一个 |
+| `mergeArray`、`mergeSet`、`mergeMap` | 将两个数组、集合或 Map 合并为一个新实例 |
 | `arrayToSet`、`setToArray` | 数组和集合之间的转换 |
 | `convertArrayLikeToIterable`、`convertArrayLikeToStream` | 以迭代或流的方式读取字符串、Buffer 或类型化数组中的元素 |
 | `Statistics`、`LinearRegression` | 数值的均值、分位数、偏差、回归、分布和随机抽样 |
@@ -243,13 +243,13 @@ console.log(start.isBetween('2024-03-01', '2024-03-31', null, '[]'), Time.max(st
 |---|---|
 | `delay` | 等待指定的毫秒数 |
 | `gracefulExit` | 执行完清理函数后退出进程 |
-| `DevNull` | 接受任意参数并忽略它们 |
-| `isPromise`、`isPromiseLike` | 值是否是真正的 Promise，或者任意 thenable |
-| `isAbortError` | 错误是否是中止错误：名为 `AbortError`（`AbortController.abort()`、`fetch`），或者错误码为 `ABORT_ERR`（Node.js） |
+| `DevNull` | 接受任意参数并忽略这些参数 |
+| `isPromise`、`isPromiseLike` | 值是否为真正的 Promise，或任意 thenable |
+| `isAbortError` | 错误是否为中止错误：名为 `AbortError`（`AbortController.abort()`、`fetch`），或者错误码为 `ABORT_ERR`（Node.js） |
 | `pathExists` | 文件或目录是否存在 |
 | `isPath` | 字符串是否具有文件系统路径的形式 |
 | `Glob`、`GlobSync`、`GlobOptions` | 列出匹配 glob 模式的文件 |
-| `isGlobString` | 字符串是否是 glob 模式 |
+| `isGlobString` | 字符串是否为 glob 模式 |
 
 ### 编码、哈希和标识符
 
@@ -258,7 +258,7 @@ console.log(start.isBetween('2024-03-01', '2024-03-31', null, '[]'), Time.max(st
 | `md5`、`sha1`、`sha256` | 字符串的摘要，返回 `Buffer` |
 | `MessagePack` | 在值与 MessagePack 字节或字符串之间序列化和反序列化（`Map` 解码为对象，`Set` 解码为数组） |
 | `UUID`、`UUIDTypes`、`UUIDVersion1Options`、`UUIDVersion4Options`、`UUIDVersion6Options` | 生成（v1、v3、v4、v5、v6）、校验、解析和格式化 UUID |
-| `URLBuilder`、`URLAttributes` | 把任意协议的 URL 解析为各个属性，或由属性构建 URL |
+| `URLBuilder`、`URLAttributes` | 将任意协议的 URL 解析为各个属性，或由属性构建 URL |
 | `hexToUnsigned`、`unsignedToHex` | 十六进制与无符号整数互转 |
 | `hexToSigned`、`signedToHex` | 十六进制与有符号整数（补码）互转 |
 | `hexToIEEE754`、`ieee754ToHex` | 十六进制与 IEEE 754 浮点数互转 |
@@ -268,28 +268,28 @@ console.log(start.isBetween('2024-03-01', '2024-03-31', null, '[]'), Time.max(st
 
 | 导出 | 说明 |
 |---|---|
-| `isSymbol` | 值是否是 symbol |
-| `isNativeFunction` | 函数是否是原生实现的 |
+| `isSymbol` | 值是否为 symbol |
+| `isNativeFunction` | 函数是否为原生实现 |
 | `isHTML` | 字符串看起来是否像 HTML |
-| `isXML` | 字符串是否是格式良好的 XML 文档 |
+| `isXML` | 字符串是否为格式良好的 XML 文档 |
 
 ## 错误
 
-这些工具抛出标准的 JavaScript 错误，另外还有一个自己的错误类；类型判断函数（`is*`）返回 `false`，而不是抛出异常。
+这些工具抛出标准的 JavaScript 错误，此外还有一个自定义的错误类；类型判断函数（`is*`）返回 `false`，而不是抛出异常。
 
-| 错误 | 什么时候抛出 |
+| 错误 | 抛出时机 |
 |---|---|
-| `RangeError` | `new Time()`（以及 `Time` 的比较方法）收到的字符串不是日期；`Time` 实例的 `timezone()` 收到未知时区；`randomString()` 的长度为负数或小数，或者字符集为空；`signedToHex()`/`unsignedToHex()` 收到的数不是整数，或者超出位宽；`hexToSigned()`/`hexToUnsigned()` 的值超过 `Number.MAX_SAFE_INTEGER`；`hexToIEEE754()` 收到的十六进制位数不是 8 或 16；`UUID.v1()`/`UUID.v3()`/`UUID.v4()`/`UUID.v5()`/`UUID.v6()` 收到的缓冲区太小（这时不会写入任何内容）；`MessagePack.encode()` 收到超出 64 位范围的 `bigint`；`MessagePack.decode()` 收到空的或被截断的字节 |
-| `SyntaxError` | `hexToSigned()`、`hexToUnsigned()`、`hexToIEEE754()` 收到不是十六进制数字的字符，或者一个数字都没有 |
+| `RangeError` | `new Time()`（以及 `Time` 的比较方法）收到的字符串不是日期；`Time` 实例的 `timezone()` 收到未知时区；`randomString()` 的长度为负数或小数，或者字符集为空；`signedToHex()`/`unsignedToHex()` 收到的数不是整数，或者超出位宽；`hexToSigned()`/`hexToUnsigned()` 的值超过 `Number.MAX_SAFE_INTEGER`；`hexToIEEE754()` 收到的十六进制位数不是 8 或 16；`UUID.v1()`/`UUID.v3()`/`UUID.v4()`/`UUID.v5()`/`UUID.v6()` 收到的缓冲区过小（此时不会写入任何内容）；`MessagePack.encode()` 收到超出 64 位范围的 `bigint`；`MessagePack.decode()` 收到空的或被截断的字节 |
+| `SyntaxError` | `hexToSigned()`、`hexToUnsigned()`、`hexToIEEE754()` 收到不是十六进制数字的字符，或者不含任何数字 |
 | `TypeError` | `UUID.parse()`、`UUID.version()`、`UUID.v3()`/`UUID.v5()` 收到无效的 UUID；`sortKeys()`/`sortObject()` 收到的值既不是普通对象也不是数组；`sortArray()` 按属性排序时，有元素为 `null` 或 `undefined`；`ObjectPath.set()` 的路径经过 `null` 值，或者经过 `__proto__`、`constructor` 或 `prototype`；`templating()` 的模板不是字符串 |
-| `MissingValueError` | `templating()` 的某个占位符没有值，并且没有设置 `ignoreMissing` |
-| `Error` | `objectHash()` 收到 `undefined`、未知的算法或编码，或者在没有设置 `ignoreUnknown` 时收到不支持的类型（`Promise`）；`MessagePack.encode()` 收到函数、symbol、既不是字符串也不是数字的 `Map` 键，或者嵌套超过 100 层；`Statistics` 的方法收到空数组或太短的数组 |
+| `MissingValueError` | `templating()` 的某个占位符没有值，且未设置 `ignoreMissing` |
+| `Error` | `objectHash()` 收到 `undefined`、未知的算法或编码，或者在没有设置 `ignoreUnknown` 时收到不支持的类型（`Promise`）；`MessagePack.encode()` 收到函数、symbol、既不是字符串也不是数字的 `Map` 键，或者嵌套超过 100 层；`Statistics` 的方法收到空数组或过短的数组 |
 
-每个辅助函数的类型声明都列出了它会抛出的错误。
+每个辅助函数的类型声明都列出了该函数会抛出的错误。
 
 ## 另见
 
 - 网站上的指南：[时间（Time）](https://lakutata.com/zh/guide/Time)、[辅助函数](https://lakutata.com/zh/guide/HelperFunctions)。
 - `lakutata` 包中的 `doc/zh/HelperFunctions.md` 和 `doc/zh/Time.md`：辅助函数和 `Time` 的指南。
-- `@lakutata/core`（`lakutata`）：`Application`、组件和依赖注入；它重新导出了 `Time`。
-- `@lakutata/security`（`lakutata/security`）：密码、签名和加密；要把哈希当作秘密使用时，请用它。
+- `@lakutata/core`（`lakutata`）：`Application`、组件和依赖注入；该包重新导出了 `Time`。
+- `@lakutata/security`（`lakutata/security`）：密码、签名和加密；需要将哈希用作秘密时，请使用该包。

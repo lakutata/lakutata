@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-Lakutata 框架的缓存组件：一个键值缓存，其中的条目会过期（TTL 以毫秒为单位）。它提供 cache-aside 方式的 `wrap()` 方法（可以在后台刷新值），还会发出事件。条目保存在一个或多个存储中：内存、JSON 文件、Redis、Memcache、MongoDB、SQLite、PostgreSQL 或 MySQL。多个存储组成分层，最快的在最前面。`lakutata` 包把它重新导出为 `lakutata/com/cacher`。
+Lakutata 框架的缓存组件，是一个条目会过期的键值缓存（TTL 以毫秒为单位）。该组件提供 cache-aside 方式的 `wrap()` 方法（可以在后台刷新值），并会发出事件。条目保存在一个或多个存储中：内存、JSON 文件、Redis、Memcache、MongoDB、SQLite、PostgreSQL 或 MySQL。多个存储组成分层，最快的存储位于最前面。`lakutata` 包将本包重新导出为 `lakutata/com/cacher`。
 
 ## 安装
 
@@ -10,11 +10,11 @@ Lakutata 框架的缓存组件：一个键值缓存，其中的条目会过期�
 npm install lakutata
 ```
 
-内存存储和文件存储不需要再安装其他包。其他存储所需的包都是可选的 peer 依赖：用到哪个存储，就安装哪个存储的包。缺少存储的包时，创建缓存会失败，抛出 `CacheDriverNotFoundException`。
+内存存储和文件存储无需再安装其他包。其他存储所需的包都是可选的 peer 依赖，使用哪个存储，就安装该存储的包。缺少存储的包时，创建缓存会失败，并抛出 `CacheDriverNotFoundException`。
 
 | 存储 | `type` | 需要安装 |
 |---|---|---|
-| 内存（没有设置 `stores` 时的默认存储） | `'memory'` | 无 |
+| 内存（未设置 `stores` 时的默认存储） | `'memory'` | 无 |
 | JSON 文件 | `'file'` | 无 |
 | Redis 或 Valkey（`clear()` 需要 Redis 6+） | `'redis'` | `redis`（4 或 5） |
 | Memcache | `'memcache'` | `memjs` |
@@ -27,7 +27,7 @@ npm install lakutata
 
 ### 在应用中使用缓存
 
-用 `buildCacherOptions` 注册 `Cacher` 组件，然后用 `getObject()` 或 `@Inject` 获取它。没有 `stores` 时，缓存保存在内存中。
+使用 `buildCacherOptions` 注册 `Cacher` 组件，然后通过 `getObject()` 或 `@Inject` 获取该组件。未设置 `stores` 时，缓存保存在内存中。
 
 ```typescript
 import {Application} from 'lakutata'
@@ -59,7 +59,7 @@ Application
 
 ### 用 `wrap()` 实现 cache-aside
 
-`wrap()` 返回缓存的值；没有缓存的值时，先计算出值并缓存起来，再返回。对同一个键的并发调用共用一次计算。设置了刷新阈值时，快要过期的值会立即返回，同时在后台重新计算。
+`wrap()` 返回缓存的值；没有缓存的值时，先计算并缓存该值，再将其返回。对同一个键的并发调用共用一次计算。设置了刷新阈值时，即将过期的值会立即返回，同时在后台重新计算。
 
 ```typescript
 import {Component} from 'lakutata'
@@ -108,11 +108,11 @@ Application.run(() => ({
 }))
 ```
 
-- 读取时，从第一个有这个条目的存储中返回它。只有 `wrap()` 会把在较低层存储中找到的条目复制到上面各层的存储。
-- 读取失败算作未命中，错误作为 `'error'` 事件发出。写入或删除失败时，调用也会失败，除非设置了 `nonBlocking: true`（此时调用不等待存储就返回）。
-- 某个存储无法连接时，创建缓存会失败（设置了 `throwOnConnectError: false` 的 Redis 存储则会在后台继续尝试连接）。只有缓存在应用启动过程中创建时，应用才会启动失败：缓存列在 `bootstrap` 中，或者被注入到列在其中的对象里。否则，失败的是创建它的那次 `getObject()` 调用或注入。
-- 内存存储保存值的引用。其他存储以 JSON 保存值：`Buffer` 读回来仍是 `Buffer`，但 `Date` 读回来是它的 ISO 字符串，类的实例读回来是普通对象。
-- `namespace` 用来区分共用同一个后端的应用：此时 `clear()` 只删除这个命名空间中的条目（Memcache 例外，它的 `clear()` 会清空整个服务器）。
+- 读取时，从第一个包含该条目的存储中返回该条目。只有 `wrap()` 会将在较低层存储中找到的条目复制到其上各层的存储。
+- 读取失败视为未命中，错误作为 `'error'` 事件发出。写入或删除失败时，调用也会失败，除非设置了 `nonBlocking: true`（此时调用不等待存储即返回）。
+- 某个存储无法连接时，创建缓存会失败（设置了 `throwOnConnectError: false` 的 Redis 存储则会在后台继续尝试连接）。只有缓存在应用启动过程中创建时（即缓存列在 `bootstrap` 中，或被注入到列在其中的对象中），应用才会启动失败。否则，失败的是创建该缓存的那次 `getObject()` 调用或注入。
+- 内存存储保存值的引用。其他存储以 JSON 保存值：`Buffer` 读回后仍是 `Buffer`，但 `Date` 读回后是其 ISO 字符串，类的实例读回后是普通对象。
+- `namespace` 用于区分共用同一个后端的应用，此时 `clear()` 只删除该命名空间中的条目（Memcache 例外，其 `clear()` 会清空整个服务器）。
 
 ### 事件
 
@@ -141,24 +141,24 @@ cache.on('error', (error: Error): void => console.error('Cache store error', err
 | `CacheStoreOptions` | 单个存储的选项，以 `type` 区分 |
 | `MemoryCacheOptions`、`FileCacheOptions`、`RedisCacheOptions`、`MemcacheCacheOptions`、`MongoCacheOptions`、`SqliteCacheOptions`、`PostgresCacheOptions`、`MysqlCacheOptions` | 各个存储的选项 |
 | `WrapOptions` | 一次 `wrap()` 调用的 TTL 和刷新阈值 |
-| `MultipleSetInput` | 传给 `multipleSet()` 的一个条目 |
+| `MultipleSetInput` | 传入 `multipleSet()` 的一个条目 |
 | `OnSetEventData`、`OnDeleteEventData`、`OnRefreshEventData` | `set`、`del` 和 `refresh` 事件的数据 |
-| `CacheDriverNotFoundException` | 存储的驱动包没有安装 |
+| `CacheDriverNotFoundException` | 存储的驱动包未安装 |
 
-以上全部由 `lakutata/com/cacher` 和 `@lakutata/cache` 导出。类型声明中的每一项都附有说明和示例。
+以上各项均由 `lakutata/com/cacher` 和 `@lakutata/cache` 导出。类型声明中的每一项都附有说明和示例。
 
 ## 错误
 
-| 异常 | 什么时候抛出 |
+| 异常 | 抛出时机 |
 |---|---|
-| `CacheDriverNotFoundException`（`E_CACHE_DRIVER_NOT_FOUND`） | 创建缓存时，某个存储的驱动包（`redis`、`memjs`、`mongodb`、`better-sqlite3`、`pg`、`mysql2`）没有安装 |
-| `InvalidObjectOptionsException`（来自 `lakutata`） | 缓存的某个选项的值不合法；应用启动失败 |
+| `CacheDriverNotFoundException`（`E_CACHE_DRIVER_NOT_FOUND`） | 创建缓存时，某个存储的驱动包（`redis`、`memjs`、`mongodb`、`better-sqlite3`、`pg`、`mysql2`）未安装 |
+| `InvalidObjectOptionsException`（来自 `lakutata`） | 缓存某个选项的值无效；应用启动失败 |
 
-存储出错（连接被拒绝、查询失败）时，报告的是各自驱动的错误。连接失败会让缓存创建失败，写入或删除失败会让调用失败（除非设置了 `nonBlocking`），读取失败则作为 `'error'` 事件发出。
+存储出错（连接被拒绝、查询失败）时，报告的是各驱动自身的错误。连接失败会导致缓存创建失败，写入或删除失败会导致调用失败（除非设置了 `nonBlocking`），读取失败则作为 `'error'` 事件发出。
 
 ## 另见
 
 - 网站上的指南：[缓存](https://lakutata.com/zh/guide/Cache)。
 - `lakutata` 包中的 `doc/zh/Cache.md`：缓存指南。
 - `@lakutata/core`（`lakutata`）：组件、`Application` 和依赖注入（见 `lakutata` 包中的 `doc/zh/Objects.md` 和 `doc/zh/Injection.md`）。
-- `@lakutata/mutex`（`lakutata/com/mutex`）：锁，用来让缓存的值同一时间只在一个实例中计算。
+- `@lakutata/mutex`（`lakutata/com/mutex`）：锁，用于使缓存的值在同一时间只在一个实例中计算。

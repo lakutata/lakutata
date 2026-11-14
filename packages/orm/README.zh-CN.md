@@ -2,9 +2,9 @@
 
 [English](README.md) | 中文
 
-Lakutata 框架的 ORM，基于 [TypeORM](https://typeorm.io) 1 构建。它提供 `Database` 组件（整个应用共享的连接）、`Database` 提供者（有自己的连接）、实体的装饰器、TypeORM 的 API（仓储、查询操作符、查询构造器、迁移），以及应用的迁移命令（`MIGRATION_GENERATE`、`MIGRATION_RUN`、`MIGRATION_REVERT`、`MIGRATION_SHOW`）。
+Lakutata 框架的 ORM，基于 [TypeORM](https://typeorm.io) 1 构建。本包提供 `Database` 组件（整个应用共享的连接）、`Database` 提供者（拥有独立的连接）、实体的装饰器、TypeORM 的 API（仓储、查询操作符、查询构造器、迁移），以及应用的迁移命令（`MIGRATION_GENERATE`、`MIGRATION_RUN`、`MIGRATION_REVERT`、`MIGRATION_SHOW`）。
 
-`lakutata` 包重新导出了它：`lakutata/com/database`（组件）、`lakutata/provider/database`（提供者）、`lakutata/decorator/orm`（实体的装饰器）和 `lakutata/orm`（TypeORM 的 API）。
+`lakutata` 包将本包重新导出为 `lakutata/com/database`（组件）、`lakutata/provider/database`（提供者）、`lakutata/decorator/orm`（实体的装饰器）和 `lakutata/orm`（TypeORM 的 API）。
 
 ## 安装
 
@@ -13,7 +13,7 @@ npm install lakutata pg        # 框架，以及 PostgreSQL 驱动
 npm install @lakutata/orm      # 或者只装 ORM，配合 @lakutata/core 使用
 ```
 
-TypeORM 1.1.2（MIT）的源码包含在这个包中（见 `THIRD_PARTY_NOTICES.md`），所以不会安装 `typeorm` 包；基于 `typeorm` 包的库（它的 NestJS 模块、命名策略库等）也不会使用这份副本。数据库驱动不是这个包的依赖：请按连接选项的 `type` 安装对应的驱动。
+TypeORM 1.1.2（MIT）的源码包含在本包中（见 `THIRD_PARTY_NOTICES.md`），因此不会安装 `typeorm` 包；基于 `typeorm` 包的库（TypeORM 的 NestJS 模块、命名策略库等）也不会使用这份副本。数据库驱动不是本包的依赖，请按连接选项的 `type` 安装对应的驱动。
 
 | 数据库 | `type` | 需要安装 |
 |---|---|---|
@@ -28,19 +28,19 @@ TypeORM 1.1.2（MIT）的源码包含在这个包中（见 `THIRD_PARTY_NOTICES.
 | SAP HANA | `sap` | `@sap/hana-client` |
 | Google Cloud Spanner | `spanner` | `@google-cloud/spanner`（8） |
 
-`sqljs` 驱动把整个数据库放在内存中。设置了 `location` 选项时，它在连接时从这个文件加载数据库；设置了 `autoSave: true` 时，每次变化后写回文件；调用它的实体管理器（`SqljsEntityManager`）的 `saveDatabase()` 时也会写回；`exportDatabase()` 以 `Uint8Array` 返回数据库。
+`sqljs` 驱动将整个数据库放在内存中。设置了 `location` 选项时，该驱动在连接时从该文件加载数据库；设置了 `autoSave: true` 时，每次变化后写回文件；调用其实体管理器（`SqljsEntityManager`）的 `saveDatabase()` 时也会写回；`exportDatabase()` 以 `Uint8Array` 返回数据库。
 
-`mongo-embedded` 是 Lakutata 添加的：它让 TypeORM 对 MongoDB 的支持（带 `@ObjectIdColumn` 的实体、查询选项中的 MongoDB 操作符、`MongoRepository`）运行在进程内的数据库上，也就是 `@lakutata/mongo-embedded` 包。它用原生插件里的 SQLite 保存文档，行为与以单成员副本集运行的 MongoDB 8.0 相同（事务、变更流、全文索引和地理空间索引、排序规则）。它的插件在安装时编译，需要 Python 3 和支持 C++17 的编译器。`database` 选项是它的目录（默认 `':memory:'`）；其他选项有 `sync`、`syncInterval`、`cacheSize`、`mmapSize`、`oplogSize`、`writeConcern` 和 `transactionLifetimeLimitSeconds`。`transaction()` 在数据库的事务中执行它的函数。和 `mongodb` 类型一样，不支持 TypeORM 的关系和查询构造器，迁移需要手写（通过 `queryRunner.manager`，它是一个 `MongoEntityManager`）。`import {ObjectId} from 'lakutata/orm'` 给出实体 id 的类，也是 `@ObjectIdColumn()` 属性的类型。详见指南[嵌入式 MongoDB](https://lakutata.com/zh/guide/MongoEmbedded)。
+`mongo-embedded` 由 Lakutata 添加，使 TypeORM 对 MongoDB 的支持（带 `@ObjectIdColumn` 的实体、查询选项中的 MongoDB 操作符、`MongoRepository`）运行在进程内的数据库上，即 `@lakutata/mongo-embedded` 包。该数据库用原生插件中的 SQLite 保存文档，行为与以单成员副本集运行的 MongoDB 8.0 相同（事务、变更流、全文索引和地理空间索引、排序规则）。其插件在安装时编译，需要 Python 3 和支持 C++17 的编译器。`database` 选项为数据库的目录（默认 `':memory:'`）；其他选项有 `sync`、`syncInterval`、`cacheSize`、`mmapSize`、`oplogSize`、`writeConcern` 和 `transactionLifetimeLimitSeconds`。`transaction()` 在数据库的事务中执行所给的函数。与 `mongodb` 类型相同，不支持 TypeORM 的关系和查询构造器，迁移需要手写（通过 `queryRunner.manager`，即一个 `MongoEntityManager`）。`import {ObjectId} from 'lakutata/orm'` 给出实体 ID 的类，该类也是 `@ObjectIdColumn()` 属性的类型。详见指南[嵌入式 MongoDB](https://lakutata.com/zh/guide/MongoEmbedded)。
 
-存在 Redis 中的查询结果缓存（`cache: {type: 'redis'}` 或 `'ioredis'`）需要安装 `redis` 或 `ioredis` 包。
+保存在 Redis 中的查询结果缓存（`cache: {type: 'redis'}` 或 `'ioredis'`）需要安装 `redis` 或 `ioredis` 包。
 
-实体依赖装饰器及其元数据：应用所用的 TypeScript 选项（`"extends": "lakutata/tsconfig.json"`）开启了 `experimentalDecorators` 和 `emitDecoratorMetadata`。
+实体依赖装饰器及其元数据，为此，应用所用的 TypeScript 选项（`"extends": "lakutata/tsconfig.json"`）开启了 `experimentalDecorators` 和 `emitDecoratorMetadata`。
 
 ## 用法
 
 ### 在应用中使用数据库
 
-`buildDatabaseOptions` 用 TypeORM 的连接选项（`DataSourceOptions`，原样交给 TypeORM）注册一个 `Database` 组件。组件在创建时连接数据库，列在 `bootstrap` 里时，它在应用启动过程中创建；应用停止时，它会断开连接。连接失败会中止应用的启动。
+`buildDatabaseOptions` 以 TypeORM 的连接选项（`DataSourceOptions`，原样交给 TypeORM）注册一个 `Database` 组件。组件在创建时连接数据库；列在 `bootstrap` 中时，组件在应用启动过程中创建；应用停止时，组件会断开连接。连接失败会中止应用的启动。
 
 ```typescript
 import {Application, Component} from 'lakutata'
@@ -102,25 +102,25 @@ Application
 
 常用的连接选项（各驱动的选项见 TypeORM 的文档）：
 
-| 选项 | 作用 |
+| 选项 | 含义 |
 |---|---|
 | `type` | 驱动：`'postgres'`、`'mysql'`、`'better-sqlite3'`…… |
 | `url` 或 `host`、`port`、`username`、`password`、`database` | 服务器和数据库 |
 | `schema` | 表所在的 PostgreSQL schema（默认取服务器的 `search_path`，通常是 `public`） |
 | `entities` | 实体类、`EntitySchema`，或者编译后文件的 glob（`'build/entities/*.js'`） |
-| `synchronize` | 每次连接时按实体更新表结构（默认 `false`）：只用于开发 |
+| `synchronize` | 每次连接时按实体更新表结构（默认 `false`），仅用于开发 |
 | `migrations`、`migrationsTableName`、`migrationsRun`、`migrationsTransactionMode` | 迁移、记录迁移的表（默认 `migrations`）、是否在每次连接时执行迁移（默认 `false`）、迁移的事务（默认 `'all'`） |
-| `logging`、`logger` | TypeORM 记录什么（`true`、`['error', 'schema']`……），以及记录到哪里 |
-| `poolSize`、`extra` | 连接池的大小；传给驱动的选项（`pg` 用 `extra: {max: 20}`） |
+| `logging`、`logger` | TypeORM 记录的内容（`true`、`['error', 'schema']`……），以及记录的位置 |
+| `poolSize`、`extra` | 连接池的大小；传给驱动的选项（`pg` 使用 `extra: {max: 20}`） |
 | `subscribers`、`namingStrategy`、`cache` | 实体订阅者、表和列的命名方式、查询结果的缓存 |
 
-框架改变了一个选项的默认值：`invalidWhereValuesBehavior` 默认为 `{null: 'ignore', undefined: 'ignore'}`，即 TypeORM 0.3 的行为（TypeORM 1 默认抛出错误）。where 条件中值为 `null` 或 `undefined` 的属性会从条件中去掉。你给出的每个键会替换它的默认值（`invalidWhereValuesBehavior: {undefined: 'throw'}` 遇到 `undefined` 值时抛出错误）。在默认设置下，`findOneBy({id: undefined})` 会查到第一行，所以用请求中的值查询之前，要先检查它们。
+框架改变了一个选项的默认值：`invalidWhereValuesBehavior` 默认为 `{null: 'ignore', undefined: 'ignore'}`，即 TypeORM 0.3 的行为（TypeORM 1 默认抛出错误）。where 条件中值为 `null` 或 `undefined` 的属性会从条件中去掉。所给出的每个键会替换该键的默认值（`invalidWhereValuesBehavior: {undefined: 'throw'}` 遇到 `undefined` 值时抛出错误）。在默认设置下，`findOneBy({id: undefined})` 会查到表中的第一行，因此使用请求中的值查询之前，应先检查这些值。
 
-如果用 TypeORM 0.3 创建的数据库中，表名或列名含有非 ASCII 字符，TypeORM 1 给它们的索引和约束起的名字会不同，生成的迁移就会重命名它们。`lakutata/orm` 中的 `NamingStrategyV03`（`namingStrategy: new NamingStrategyV03()`）可以保持 TypeORM 0.3 的命名。
+如果在用 TypeORM 0.3 创建的数据库中，表名或列名包含非 ASCII 字符，TypeORM 1 为其索引和约束生成的名称会有所不同，因此生成的迁移会重命名这些索引和约束。`lakutata/orm` 中的 `NamingStrategyV03`（`namingStrategy: new NamingStrategyV03()`）可以保持 TypeORM 0.3 的命名。
 
 ### 实体
 
-`lakutata/decorator/orm` 中的装饰器就是 TypeORM 的装饰器：`@Entity`、`@ViewEntity`，列（`@Column`、`@PrimaryColumn`、`@PrimaryGeneratedColumn`、`@CreateDateColumn`、`@UpdateDateColumn`、`@DeleteDateColumn`、`@VersionColumn`、`@VirtualColumn`、`@ViewColumn`、`@ObjectIdColumn`、`@Generated`），关系（`@OneToOne`、`@OneToMany`、`@ManyToOne`、`@ManyToMany`、`@JoinColumn`、`@JoinTable`、`@RelationId`），约束（`@Index`、`@Unique`、`@Check`、`@Exclusion`），树（`@Tree`、`@TreeParent`、`@TreeChildren`、`@TreeLevelColumn`），继承（`@TableInheritance`、`@ChildEntity`），实体监听器（`@BeforeInsert`、`@AfterLoad`……），以及 `@EventSubscriber`。
+`lakutata/decorator/orm` 中的装饰器即 TypeORM 的装饰器：`@Entity`、`@ViewEntity`，列（`@Column`、`@PrimaryColumn`、`@PrimaryGeneratedColumn`、`@CreateDateColumn`、`@UpdateDateColumn`、`@DeleteDateColumn`、`@VersionColumn`、`@VirtualColumn`、`@ViewColumn`、`@ObjectIdColumn`、`@Generated`），关系（`@OneToOne`、`@OneToMany`、`@ManyToOne`、`@ManyToMany`、`@JoinColumn`、`@JoinTable`、`@RelationId`），约束（`@Index`、`@Unique`、`@Check`、`@Exclusion`），树（`@Tree`、`@TreeParent`、`@TreeChildren`、`@TreeLevelColumn`），继承（`@TableInheritance`、`@ChildEntity`），实体监听器（`@BeforeInsert`、`@AfterLoad`……），以及 `@EventSubscriber`。
 
 ```typescript
 import {
@@ -189,7 +189,7 @@ export class OrderLine {
 
 ### 查询
 
-`lakutata/orm` 导出 TypeORM 的 API：仓储、查询操作符（`In`、`ILike`、`Between`、`MoreThan`、`IsNull`、`Not`、`Raw`、`ArrayContains`、`JsonContains`……）、查询构造器、实体管理器和错误。查询选项使用对象：`relations: {author: true}`、`select: {id: true, title: true}`（TypeORM 1 去掉了名称数组的写法）。
+`lakutata/orm` 导出 TypeORM 的 API：仓储、查询操作符（`In`、`ILike`、`Between`、`MoreThan`、`IsNull`、`Not`、`Raw`、`ArrayContains`、`JsonContains`……）、查询构造器、实体管理器和错误。查询选项使用对象形式，例如 `relations: {author: true}`、`select: {id: true, title: true}`（TypeORM 1 移除了名称数组的写法）。
 
 ```typescript
 import {Component} from 'lakutata'
@@ -253,7 +253,7 @@ class Orders extends Component {
 
 ### 事务
 
-`transaction()` 在事务中执行一个函数：函数成功（resolve）时提交，失败（reject）时回滚，并重新抛出错误。事务中的操作要通过传给函数的实体管理器执行；通过 `db.manager` 或 `db.getRepository()` 执行的操作不在事务中。用查询运行器（query runner）可以手动控制事务。
+`transaction()` 在事务中执行一个函数：函数成功（resolve）时提交，失败（reject）时回滚并重新抛出其错误。事务中的每个操作都必须通过传给函数的实体管理器执行；通过 `db.manager` 或 `db.getRepository()` 执行的操作不在事务中。使用查询运行器（query runner）可以手动控制事务。
 
 ```typescript
 import {Component} from 'lakutata'
@@ -306,7 +306,7 @@ class Bank extends Component {
 
 ### Database 提供者
 
-`lakutata/provider/database` 中的提供者与组件的 API 相同，但它的生命周期是 `@Transient`：每次解析（`@Inject`、`getObject()`）都会创建一个新实例，打开自己的连接池；实例随创建它的对象或容器一起销毁时，连接池也会关闭。它适合短时的任务（一个作业、一个脚本、一个租户的数据库），而应用处理请求时共用组件。它的 `entities` 选项会加到连接选项的实体中。
+`lakutata/provider/database` 中的提供者与组件的 API 相同，但其生命周期类型为 `@Transient`：每次解析（`@Inject`、`getObject()`）都会创建一个新实例，并打开独立的连接池；该实例随创建它的对象或容器一起销毁时，连接池也随之关闭。提供者适合短时任务（一个作业、一个脚本、一个租户的数据库），而应用处理请求时共用组件。提供者的 `entities` 选项会加入连接选项的实体中。
 
 ```typescript
 import {Application} from 'lakutata'
@@ -342,7 +342,7 @@ Application
 
 ### 多个数据库
 
-每个数据库都是一个有自己名字的组件，按这个名字注入。迁移命令作用于所有数据库，或者 `MIGRATION_DATABASE` 指定的那一个。
+每个数据库都是一个具有独立名称的组件，按该名称注入。迁移命令作用于所有数据库，或 `MIGRATION_DATABASE` 指定的数据库。
 
 ```text
 components: {
@@ -353,7 +353,7 @@ components: {
 
 ### 迁移
 
-迁移是实现了 `MigrationInterface` 的类：`up()` 变更表结构，`down()` 撤销这个变更。连接选项 `migrations` 列出迁移（迁移类，或者编译后文件的 glob），`migrations` 表记录已经执行的迁移。
+迁移是实现了 `MigrationInterface` 的类：`up()` 变更表结构，`down()` 撤销该变更。连接选项 `migrations` 列出迁移（迁移类，或编译后文件的 glob），`migrations` 表记录已执行的迁移。
 
 ```typescript
 import {type MigrationInterface, type QueryRunner} from 'lakutata/orm'
@@ -373,19 +373,19 @@ export class Migrations1760000000000 implements MigrationInterface {
 
 迁移可以在数据库连接时执行（设置 `migrationsRun: true`），可以通过 `Database` 组件或提供者的 `runMigrations()` 和 `undoLastMigration()` 执行，也可以通过应用的命令执行。
 
-这些命令是由应用自己读取的环境变量；`lakutata migration`（来自 `@lakutata/cli`）会带着它们启动应用。带着其中某个变量启动时，应用读取自己的选项，然后不执行 `bootstrap` 和 `onLaunched` 回调，而是对选项中的每个 `Database` 组件和提供者执行命令，最后退出。每个数据库连接时，`synchronize`、`migrationsRun` 和 `dropSchema` 都被强制设为 `false`。变量名不区分大小写，开关变量的值为 `1`、`true` 或 `yes` 时生效。
+这些命令是由应用自身读取的环境变量；`lakutata migration`（来自 `@lakutata/cli`）会带着这些变量启动应用。设置了其中某个变量启动时，应用读取自身的选项，然后不执行 `bootstrap` 和 `onLaunched` 回调，而是对选项中的每个 `Database` 组件和提供者执行命令，最后退出。每个数据库连接时，`synchronize`、`migrationsRun` 和 `dropSchema` 都被强制设为 `false`。变量名不区分大小写，开关变量仅在值为 `1`、`true` 或 `yes` 时生效。
 
 | 变量 | 命令 |
 |---|---|
-| `MIGRATION_GENERATE=<directory>` | 比较实体与数据库的表结构，把差异的 SQL 写成一个迁移：`<directory>/<timestamp>-<database name>.ts`（目录相对于工作目录，需要时会创建），类名为 `<Directory><timestamp>`（`src/migrations` 得到 `Migrations1760000000000`）；项目依赖 `@lakutata/orm` 时，迁移从它导入类型，否则从 `lakutata/orm` 导入 |
+| `MIGRATION_GENERATE=<directory>` | 比较实体与数据库的表结构，将差异的 SQL 写为一个迁移：`<directory>/<timestamp>-<database name>.ts`（目录相对于工作目录，需要时会创建），类名为 `<Directory><timestamp>`（`src/migrations` 得到 `Migrations1760000000000`）；项目依赖 `@lakutata/orm` 时，迁移从该包导入类型，否则从 `lakutata/orm` 导入 |
 | `MIGRATION_RUN=1` | 执行待执行的迁移，执行时逐个输出 |
 | `MIGRATION_REVERT=1` | 撤销最后执行的迁移（应用有多个数据库时需要 `MIGRATION_DATABASE`） |
 | `MIGRATION_SHOW=1` | 输出每个迁移，已执行的标为 `[X]`，待执行的标为 `[ ]`，并输出待执行的数量 |
-| `MIGRATION_DATABASE=<name>` | 命令针对的数据库：它的组件或提供者的名字（默认所有数据库） |
+| `MIGRATION_DATABASE=<name>` | 命令作用的数据库，即其组件或提供者的名称（默认为所有数据库） |
 | `MIGRATION_TRANSACTION=all\|each\|none` | `MIGRATION_RUN` 和 `MIGRATION_REVERT` 使用的事务（默认取数据库的 `migrationsTransactionMode` 选项，没有时为 `all`） |
-| `MIGRATION_FAKE=1` | 只把迁移记录为已执行（或已撤销），不真正执行 |
+| `MIGRATION_FAKE=1` | 仅将迁移记录为已执行（或已撤销），而不实际执行 |
 
-同时设置了多个变量时，只执行一个命令，优先级依次是 `MIGRATION_GENERATE`、`MIGRATION_RUN`、`MIGRATION_REVERT` 和 `MIGRATION_SHOW`。
+同时设置了多个变量时，只执行一个命令，优先级依次为 `MIGRATION_GENERATE`、`MIGRATION_RUN`、`MIGRATION_REVERT` 和 `MIGRATION_SHOW`。
 
 ```shell
 # 用编译后的应用生成迁移（数据库必须能连上，并且已经执行了已有的迁移）
@@ -396,9 +396,9 @@ MIGRATION_RUN=1 node build/App.js
 MIGRATION_REVERT=1 MIGRATION_DATABASE=db node build/App.js
 ```
 
-生成的文件遵循 TypeORM 的代码风格（双引号、分号）：请格式化它，或者让 linter 跳过迁移文件。命令完成后，进程以退出码 0 退出；失败时以退出码 1 退出，失败的情况包括：无效的 `MIGRATION_TRANSACTION`、未知的 `MIGRATION_DATABASE`、没有数据库（`MIGRATION_GENERATE` 除外，这时以 0 退出）、有多个数据库时使用 `MIGRATION_REVERT` 却没有指定 `MIGRATION_DATABASE`、无法连接数据库，或者迁移失败（之后的数据库会被跳过）。`MIGRATION_GENERATE` 在所有数据库中都没有发现变化时，以 0 退出。
+生成的文件遵循 TypeORM 的代码风格（双引号、分号），请格式化该文件，或让 linter 跳过迁移文件。命令完成后，进程以退出码 0 退出；失败时以退出码 1 退出，失败的情况包括：无效的 `MIGRATION_TRANSACTION`、未知的 `MIGRATION_DATABASE`、没有数据库（`MIGRATION_GENERATE` 除外，这时以 0 退出）、有多个数据库时使用 `MIGRATION_REVERT` 却没有指定 `MIGRATION_DATABASE`、无法连接数据库，或者迁移失败（之后的数据库会被跳过）。`MIGRATION_GENERATE` 在所有数据库中都没有发现变化时，以 0 退出。
 
-数据库的实体就是它连接选项中的实体；对于 `Database` 提供者，还要加上它 `entities` 选项中的实体。
+数据库的实体即其连接选项中的实体；对于 `Database` 提供者，还要加上其 `entities` 选项中的实体。
 
 ## API
 
@@ -411,20 +411,20 @@ MIGRATION_REVERT=1 MIGRATION_DATABASE=db node build/App.js
 | `Repository`、`EntityManager`、`QueryRunner`、`SelectQueryBuilder`、`DataSource`、`BaseEntity`…… | `lakutata/orm` | TypeORM 的类和类型 |
 | `In`、`ILike`、`Between`、`MoreThan`、`IsNull`、`Not`、`Raw`…… | `lakutata/orm` | TypeORM 的查询操作符 |
 | `MigrationInterface`、`Migration`、`MigrationExecutor` | `lakutata/orm` | 迁移 |
-| `DataSourceOptions`、`PostgresDataSourceOptions`、`MysqlDataSourceOptions`…… | `lakutata/orm` | 各驱动的连接选项（它们在 TypeORM 0.3 中的名字 `PostgresConnectionOptions` 等已弃用） |
+| `DataSourceOptions`、`PostgresDataSourceOptions`、`MysqlDataSourceOptions`…… | `lakutata/orm` | 各驱动的连接选项（这些选项在 TypeORM 0.3 中的名称 `PostgresConnectionOptions` 等已弃用） |
 | `QueryFailedError`、`EntityNotFoundError`、`TypeORMError`…… | `lakutata/orm` | TypeORM 的错误 |
 
 Lakutata 的声明在类型声明中附有说明和示例；TypeORM 的声明见 [TypeORM](https://typeorm.io) 的文档。
 
 ## 错误
 
-这个包抛出驱动的错误和 TypeORM 的错误，后者由 `lakutata/orm` 导出：
+本包抛出驱动的错误和 TypeORM 的错误，后者由 `lakutata/orm` 导出：
 
-| 错误 | 什么时候抛出 |
+| 错误 | 抛出时机 |
 |---|---|
-| 驱动的错误（`pg` 的 `DatabaseError`、`ECONNREFUSED`……） | `Database` 组件或提供者无法连接：它的创建会失败（reject），组件列在 `bootstrap` 中时，应用启动失败 |
-| `QueryFailedError` | 数据库拒绝了查询（违反约束、语法错误）；它的 `driverError` 是驱动的错误（PostgreSQL 违反唯一约束时 `code` 为 `23505`） |
-| `EntityNotFoundError` | `findOneOrFail()`、`findOneByOrFail()` 没有找到实体 |
+| 驱动的错误（`pg` 的 `DatabaseError`、`ECONNREFUSED`……） | `Database` 组件或提供者无法连接，其创建会失败（reject）；组件列在 `bootstrap` 中时，应用启动失败 |
+| `QueryFailedError` | 数据库拒绝了查询（违反约束、语法错误）；其 `driverError` 是驱动的错误（PostgreSQL 违反唯一约束时 `code` 为 `23505`） |
+| `EntityNotFoundError` | `findOneOrFail()`、`findOneByOrFail()` 未找到实体 |
 | `EntityMetadataNotFoundError` | 实体不在连接的 `entities` 中 |
 | `OptimisticLockVersionMismatchError` | 使用 `lock: {mode: 'optimistic', version}` 查询时，读到了另一个版本 |
 | `CannotExecuteNotConnectedError` | 在已关闭的连接上执行 `synchronize()` 或迁移 |

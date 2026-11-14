@@ -1,24 +1,24 @@
 # Lakutata 条形码
 
-`@lakutata/barcode` 包生成条形码和二维码，也能从图片里识别它们：商品标签、物流面单、票券、印成二维码的链接，可以从上传的照片或摄像头的画面里识别出来。它不属于 `lakutata`，需要单独安装。它的特点是：
+`@lakutata/barcode` 包用于生成条形码和二维码，也能从图片中识别它们，例如从上传的照片或摄像头画面中识别商品标签、物流面单、票券以及印成二维码的链接。本包不属于 `lakutata`，需要单独安装。其主要特点如下：
 
-- **能生成的都能识别回来**：32 种一维码和二维码，从 EAN-13、UPC、Code 128、GS1 DataBar 到 QR 码、Data Matrix、PDF417、Aztec 和 MaxiCode。只有一边支持的码制（邮政码、汉信码、DotCode 等）没有提供。
-- **生成**为 PNG、SVG 或像素，尺寸、颜色、旋转方向和纠错等级都可以指定。
-- **识别** PNG、JPEG、GIF、BMP、WebP、TGA 图片或像素；图片里的每个条码都会识别出来，并给出位置。
-- **一个组件** `Barcode`，不用注册就能注入，使用默认选项；在配置里用名字注册的组件，可以有自己的默认选项、时限和并发数。每次调用都可以设置时限，也可以取消。
-- **原生插件**：基于 [zint](https://zint.org.uk) 和 [zxing-cpp](https://github.com/zxing-cpp/zxing-cpp)，在 Linux、macOS 和 Windows 上安装这个包时编译，在 Android、iOS 和鸿蒙的手机应用里由 `lakutata mobile stage` 编译；也能在 Bun 和 Electron 的主进程里运行。生成和识别都在原生插件自己的线程里执行，不占用 JavaScript 线程。
+- **能生成的都能识别回来**：支持 32 种一维码和二维码，从 EAN-13、UPC、Code 128、GS1 DataBar 到 QR 码、Data Matrix、PDF417、Aztec 和 MaxiCode。只有一方支持的码制（邮政码、汉信码、DotCode 等）未提供。
+- **生成**结果可以是 PNG、SVG 或像素，尺寸、颜色、旋转方向和纠错等级均可指定。
+- **识别** PNG、JPEG、GIF、BMP、WebP、TGA 图片或像素；图片中的每个条码都会被识别，并给出其位置。
+- **一个组件** `Barcode`，无需注册即可注入，使用默认选项；在配置中以名称注册的组件可以拥有自身的默认选项、时限和并发数。每次调用都可以设置时限，也可以取消。
+- **原生插件**：基于 [zint](https://zint.org.uk) 和 [zxing-cpp](https://github.com/zxing-cpp/zxing-cpp)。在 Linux、macOS 和 Windows 上，插件在安装本包时编译；在 Android、iOS 和鸿蒙的手机应用中，插件由 `lakutata mobile stage` 编译。插件也可以在 Bun 和 Electron 主进程中运行。生成和识别都在原生插件自身的线程中执行，不占用 JavaScript 线程。
 
-`@lakutata/barcode` 的 README 介绍了每个选项；这篇指南按用途逐一说明这个包能做什么，每种用途都给出一个例子。
+`@lakutata/barcode` 的 README 介绍了每个选项；本指南按用途逐一说明本包的功能，并为每种用途提供一个示例。
 
 ```bash
 npm install @lakutata/barcode
 ```
 
-原生插件在安装这个包时编译，所以机器上要有 Python 3 和支持 C++20 的编译器（macOS 上是 Xcode 的命令行工具，Linux 上是 `build-essential` 或 `build-base`，Windows 上是 Visual Studio 生成工具）。包管理器必须运行这个包的安装脚本：npm 会运行它，可能会提示这个脚本“not yet covered by allowScripts”（运行 `npm install-scripts approve @lakutata/barcode` 记录你允许它运行）；Bun 和 pnpm 只为被告知可以信任的包运行安装脚本（Bun 在 package.json 的 `trustedDependencies` 里设置，pnpm 用 `pnpm approve-builds`）。组件需要 `@lakutata/core`，这是一个 peer 依赖，安装 `lakutata` 时会一起装上。
+原生插件在安装本包时编译，因此机器上需要安装 Python 3 和支持 C++20 的编译器（macOS 上为 Xcode 命令行工具，Linux 上为 `build-essential` 或 `build-base`，Windows 上为 Visual Studio 生成工具）。包管理器必须运行本包的安装脚本。npm 会运行该脚本，并可能提示该脚本“not yet covered by allowScripts”（运行 `npm install-scripts approve @lakutata/barcode` 可记录允许其运行）；Bun 和 pnpm 只为明确信任的包运行安装脚本（Bun 在 package.json 的 `trustedDependencies` 中设置，pnpm 使用 `pnpm approve-builds`）。组件需要 `@lakutata/core`，这是一个 peer 依赖，安装 `lakutata` 时会一并安装。
 
 ## 1. 生成条码
 
-`generate(format, content, options)` 的内容可以是文本（按 UTF-8 编码），也可以是字节（`Uint8Array`）；默认返回 PNG：
+`generate(format, content, options)` 接受的内容可以是文本（按 UTF-8 编码），也可以是字节（`Uint8Array`），默认返回 PNG：
 
 ```typescript
 import {Container} from 'lakutata'
@@ -36,26 +36,26 @@ console.log(pixels.width, pixels.height, pixels.channels)    //264 116 1
 await container.destroy()
 ```
 
-- 二维码的尺寸（版本）和内容的编码方式按内容自动选择：选能装下内容的最小尺寸，除非用 `version` 指定。
-- 像素在黑白时是灰度（每像素 1 字节），有颜色时是 RGB（3 字节），有透明时是 RGBA（4 字节），可以直接交给 canvas、图像库或打印机驱动。
-- 内容无法用这种码制编码时（比如 EAN-13 里有字母，或者超出指定版本的容量），会抛出 `BarcodeContentException`，附带 zint 给出的原因。
+- 二维码的尺寸（版本）和内容的编码方式根据内容自动选择，即选用能容纳内容的最小尺寸，除非通过 `version` 指定。
+- 像素在黑白时为灰度（每像素 1 字节），有颜色时为 RGB（3 字节），有透明度时为 RGBA（4 字节），可以直接交给 canvas、图像库或打印机驱动使用。
+- 内容无法用该码制编码时（例如 EAN-13 中含有字母，或内容超出指定版本的容量），会抛出 `BarcodeContentException`，并附带 zint 给出的原因。
 
-在应用里，组件是注入的，不用从容器里取；要用自己的选项，就在配置里用一个名字注册组件，再按这个名字注入（第 5 节）。
+在应用中，组件通过注入获得，无需从容器中获取；如需使用自定义选项，请在配置中以某个名称注册组件，再按该名称注入（第 5 节）。
 
 ## 2. 尺寸、颜色和打印
 
-`scale` 是模块的大小，模块就是最窄的条，或二维码的一个小方块：在 PNG 和像素中是像素数，在 SVG 中是单位数。它是整数，所以 PNG 里的条边缘始终清晰。打印时，按模块的毫米数算出 scale：`scale = 毫米数 × dpi / 25.4`，再取整。EAN-13 的标准模块宽度是 0.33 毫米，允许按 80% 到 200% 缩放：在 203 dpi 的热敏标签打印机上，scale 为 3 时模块是 0.375 毫米（114%）；在 300 dpi 上，scale 为 4 时是 0.34 毫米。SVG 可以按任意尺寸打印，它的 scale 只决定单位。
+`scale` 是模块的大小（模块即最窄的条，或二维码中的一个小方块），在 PNG 和像素中以像素计，在 SVG 中以单位计。该值为整数，因此 PNG 中条的边缘始终清晰。打印时，请根据模块的毫米数计算 scale：`scale = 毫米数 × dpi / 25.4`，再取整。EAN-13 的标准模块宽度为 0.33 毫米，允许按 80% 到 200% 缩放。例如，在 203 dpi 的热敏标签打印机上，scale 为 3 时模块宽度为 0.375 毫米（114%）；在 300 dpi 下，scale 为 4 时为 0.34 毫米。SVG 可以按任意尺寸打印，其 scale 只决定单位。
 
-- `height` 是一维码条的高度，单位是模块，所以会随 scale 一起缩放。
-- `showText` 在一维码的条下方显示内容；PNG 和像素输出要求 scale 至少为 2（字体每个模块需要 2 个像素）。
-- `quietZone` 默认留出码制标准规定的空白；扫描器靠这些空白找到条码，所以不留空白的标签，要在条码周围留出空位。
-- `foreground` 和 `background` 写作 `#RRGGBB` 或 `#RRGGBBAA`。请保持浅底深条：这个包也能识别深底浅条（`tryInvert`），但很多扫描器不能。透明背景在识别时按白色处理。
-- `rotate` 把条码顺时针旋转 90、180 或 270 度，用于横着打印的标签。
-- `errorCorrection` 让二维码部分损坏或被遮住时仍能识别：QR 码从 `'L'`（约 7%）到 `'H'`（约 30%）。等级越高，同样的内容生成的码越大。
+- `height` 是一维码条的高度，以模块为单位，因此会随 scale 一起缩放。
+- `showText` 在一维码的条下方显示内容；对于 PNG 和像素输出，要求 scale 至少为 2（字体在每个模块中需要 2 个像素）。
+- `quietZone` 默认留出码制标准规定的空白；扫描器依靠这些空白找到条码，因此不留空白的标签必须在条码周围留出空位。
+- `foreground` 和 `background` 采用 `#RRGGBB` 或 `#RRGGBBAA` 格式。请保持浅底深条，因为本包虽然也能识别深底浅条（`tryInvert`），但许多扫描器无法识别。透明背景在识别时按白色处理。
+- `rotate` 将条码顺时针旋转 90、180 或 270 度，适用于横向打印的标签。
+- `errorCorrection` 使二维码在部分损坏或被遮挡时仍能被识别，QR 码的等级从 `'L'`（约 7%）到 `'H'`（约 30%）。等级越高，相同内容生成的码越大。
 
 ## 3. EAN、UPC 和 GS1
 
-零售码制会计算校验位，给出的校验位也会被验证：
+零售码制会计算校验位，并验证传入的校验位：
 
 ```typescript
 import {Container} from 'lakutata'
@@ -81,15 +81,15 @@ console.log(label.text, label.gs1, label.symbologyIdentifier)   //(01)0950600013
 await container.destroy()
 ```
 
-- **UPC。** UPC-A 就是以 0 开头的 EAN-13，会被识别为 13 位的 `EAN13`：`01234567890` 识别出 `0012345678905`。`formats` 里有 `UPCA` 而没有 `EAN13` 时，格式是 `UPCA`，数字还是这 13 位。ISBN 也会被识别为 `EAN13`。
-- **附加码。** 2 位或 5 位的附加码（期号、价格）放在 `addOn` 里，和文本分开。用 `addOn: 'require'` 时，只保留带附加码的条码。
-- **GS1。** 应用标识符可以写在方括号或圆括号里；加上 `gs1: true` 时，Code 128 就成了 GS1-128，QR 码、Data Matrix 和 Aztec 也可以装 GS1 数据。DataBar Expanded 两种码制的内容总是 GS1 数据；其他 DataBar 码制装的是 GTIN，带不带校验位都可以。识别时，数据以圆括号形式给出，`gs1` 为 `true`。
+- **UPC。** UPC-A 即以 0 开头的 EAN-13，会被识别为 13 位的 `EAN13`，例如 `01234567890` 的识别结果为 `0012345678905`。`formats` 中包含 `UPCA` 而不包含 `EAN13` 时，格式为 `UPCA`，数字仍为这 13 位。ISBN 同样会被识别为 `EAN13`。
+- **附加码。** 2 位或 5 位的附加码（期号、价格）位于 `addOn` 中，与文本分开。使用 `addOn: 'require'` 时，识别结果只保留带附加码的条码。
+- **GS1。** 应用标识符可以写在方括号或圆括号中；设置 `gs1: true` 时，Code 128 即成为 GS1-128，QR 码、Data Matrix 和 Aztec 也可以承载 GS1 数据。两种 DataBar Expanded 码制的内容始终是 GS1 数据；其他 DataBar 码制承载的是 GTIN，可以带校验位，也可以不带。识别时，数据以圆括号形式返回，且 `gs1` 为 `true`。
 
-每种码制会被识别成什么、识别出的文本是什么样子，见这个包的 README。
+每种码制识别后对应的格式以及识别返回的文本，见本包的 README。
 
 ## 4. 识别图片
 
-`read(image, options)` 接受图片文件（它的字节，`Buffer` 或 `Uint8Array`）或像素，返回找到的所有条码；没有条码时返回空数组：
+`read(image, options)` 接受图片文件（文件的字节，即 `Buffer` 或 `Uint8Array`）或像素，返回找到的所有条码；没有条码时返回空数组：
 
 ```typescript
 import {readFileSync} from 'node:fs'
@@ -115,15 +115,15 @@ console.log(results.map((result: BarcodeResult): string => result.text))   //[ '
 await container.destroy()
 ```
 
-- **识别得更快。** `formats` 把查找范围限制在预期的码制上：在 1920×1080 的画面里识别一个 QR 码，查找所有码制约 8 毫秒，只查找 QR 码约 1.4 毫秒（第 7 节）。`pure: true` 用于图片里只有一个摆正的条码、周围没有其他内容的情况，例如 `generate()` 生成的图片。
-- **难识别的图片。** `tryHarder`、`tryRotate`、`tryInvert` 和 `tryDownscale` 默认都打开：它们会再去找很小的、旋转了的、深底浅色的和大图里的条码。已知图片容易识别时，关掉它们会更快。
-- **无法识别的情况。** 模块宽度小于约 2 像素的条码、模糊或反光的照片、被图片边缘截断的条码。这时识别出的条码会变少或者没有；只有图片无法解码时才会抛出异常（`BarcodeImageException`）。
-- **大图片**：超过 5000 万像素的图片在解码像素之前就会被拒绝，所以上传的文件不会让进程分配几个 GB 的内存。
-- **字节。** `bytes` 是编码在码里的原始内容；`text` 是它的可读形式（带校验位，GS1 用圆括号），`symbologyIdentifier` 说明如何解读这些字节（`]Q1` 是 QR 码，`]C1` 是 GS1-128 等）。
+- **加快识别。** `formats` 将查找范围限制在预期的码制上。例如，在 1920×1080 的画面中识别一个 QR 码，查找所有码制约需 8 毫秒，只查找 QR 码约需 1.4 毫秒（第 7 节）。`pure: true` 适用于图片中只有一个端正放置的条码、且周围没有其他内容的情况，例如 `generate()` 生成的图片。
+- **难以识别的图片。** `tryHarder`、`tryRotate`、`tryInvert` 和 `tryDownscale` 默认均已开启，会进一步查找尺寸很小、发生旋转、深底浅色以及位于大图中的条码。如果已知图片容易识别，关闭这些选项可以加快识别。
+- **无法识别的情况。** 包括模块宽度小于约 2 像素的条码、模糊或反光的照片，以及被图片边缘截断的条码。此时识别出的条码会减少甚至没有；只有图片无法解码时才会抛出异常（`BarcodeImageException`）。
+- **大图片**：超过 5000 万像素的图片在解码像素之前即被拒绝，因此上传的文件不会导致进程分配数 GB 的内存。
+- **字节。** `bytes` 是码中编码的原始内容；`text` 是其可读形式（带校验位，GS1 使用圆括号），`symbologyIdentifier` 说明如何解读这些字节（`]Q1` 表示 QR 码，`]C1` 表示 GS1-128 等）。
 
 ## 5. 在应用中使用
 
-组件不用注册就能注入（`@Inject(Barcode)`），使用默认选项。要用自己的选项时，在配置的 `components` 里给组件起一个名字，用 `buildBarcodeOptions()` 注册它，设置 `generate()` 和 `read()` 的默认选项、时限和并发数；一个应用可以用不同的名字注册多个，各用各的选项。下面的仓库应用注册了两个：`labels` 打印标签，`scanner` 识别照片：
+组件无需注册即可注入（`@Inject(Barcode)`），并使用默认选项。如需使用自定义选项，请在配置的 `components` 中为组件指定一个名称，并通过 `buildBarcodeOptions()` 注册，同时设置 `generate()` 和 `read()` 的默认选项、时限和并发数。一个应用可以用不同的名称注册多个组件，每个组件使用各自的选项。下面的仓库应用注册了两个组件，`labels` 用于打印标签，`scanner` 用于识别照片：
 
 ```typescript
 import {Application, Component} from 'lakutata'
@@ -167,10 +167,10 @@ Application
     })
 ```
 
-- `buildBarcodeOptions()` 用你选定的名字声明组件；其他对象按这个名字注入它（`@Inject('labels')`），或者用 `getObject('labels')` 获取。
-- 注册的组件只能按名字注入。`@Inject(Barcode)` 得到的是另一个组件：它是自动加载的，使用默认选项，配置里的选项对它不起作用。
+- `buildBarcodeOptions()` 以自行选定的名称声明组件；其他对象按该名称注入组件（`@Inject('labels')`），或者通过 `getObject('labels')` 获取。
+- 注册的组件只能按名称注入。`@Inject(Barcode)` 得到的是另一个组件，该组件自动加载并使用默认选项，配置中的选项对其不起作用。
 
-下面的控制器把商品标签作为 PNG 返回，并识别上传图片里的条码：
+下面的控制器将商品标签作为 PNG 返回，并识别上传图片中的条码：
 
 ```typescript
 import express, {type Express, type Request} from 'express'
@@ -237,14 +237,14 @@ $ curl -s --data-binary @label.png -H 'Content-Type: image/png' localhost:8080/s
 [{"format":"EAN13","text":"5901234123457"}]
 ```
 
-- 调用时传入的选项覆盖组件的默认选项：`this.labels.generate('QRCode', url, {scale: 6})` 的其他选项仍用默认值。
-- 参数会先经过校验：未知的码制、不是 `#RRGGBB` 格式的颜色，在调用原生插件之前就会被拒绝，抛出 `InvalidMethodAcceptException`。
-- 一个组件可以同时为所有控制器服务：各次调用互不影响，只受 `concurrency` 的限制。
-- 在 React Native 的手机应用（手机模板）里，组件同样在应用的 Node.js 中运行：`lakutata mobile stage` 会从源码为 Android（用 NDK）、iOS（用 Xcode）和鸿蒙（用 DevEco Studio）编译原生插件。
+- 调用时传入的选项会覆盖组件的默认选项，例如 `this.labels.generate('QRCode', url, {scale: 6})` 的其他选项仍使用默认值。
+- 参数会先经过校验。未知的码制，以及不符合 `#RRGGBB` 格式的颜色，会在调用原生插件之前被拒绝，并抛出 `InvalidMethodAcceptException`。
+- 一个组件可以同时服务于所有控制器，各次调用互不影响，仅受 `concurrency` 的限制。
+- 在 React Native 手机应用（手机模板）中，组件同样在应用的 Node.js 中运行。`lakutata mobile stage` 会从源码为 Android（使用 NDK）、iOS（使用 Xcode）和鸿蒙（使用 DevEco Studio）编译原生插件。
 
 ## 6. 时限、取消和并发
 
-每次调用都可以传入 `signal`（`AbortSignal`）和以毫秒为单位的 `timeout`，时限从调用时开始计算；没有传 `timeout` 的调用使用组件的 `timeout`。
+每次调用都可以传入 `signal`（`AbortSignal`）和以毫秒为单位的 `timeout`，时限从调用时开始计算；未传入 `timeout` 的调用使用组件的 `timeout`。
 
 ```typescript
 import {readFileSync} from 'node:fs'
@@ -267,47 +267,47 @@ await reading.catch((error: Error) => console.log(error.constructor.name))   //B
 await container.destroy()
 ```
 
-- 还没开始执行的操作会直接放弃。已经开始执行的操作无法中途停止，因为 zint 和 zxing-cpp 没有可以中断的地方：它的 Promise 会立即被拒绝（`BarcodeTimeoutException`、`BarcodeCancelledException`），结果在执行结束后丢弃。这些操作都很快（第 7 节）；时限是为大照片和恶意上传准备的。
-- `concurrency` 限制一个组件同时执行的操作数，其余的排队等待，排队期间时限照样计算。不设置时，操作在原生插件的线程里排队。
-- 原生插件有 `LAKUTATA_BARCODE_THREADS` 个线程，默认是处理器数减一，所有组件共用；它不使用 libuv 的线程池，所以不会拖慢文件和 DNS 操作。
-- 应用停止时，组件会等待正在执行的操作，最多 `drainTimeout` 毫秒（默认 10000）；还在排队的操作以 `BarcodeCancelledException` 拒绝，之后的调用也一样。
+- 尚未开始执行的操作会被直接放弃。已经开始执行的操作无法中途停止，因为 zint 和 zxing-cpp 没有可供中断的位置；此类操作的 Promise 会立即被拒绝（`BarcodeTimeoutException`、`BarcodeCancelledException`），其结果在执行结束后被丢弃。这些操作的耗时都很短（第 7 节），时限用于应对大照片和恶意上传。
+- `concurrency` 限制一个组件同时执行的操作数，其余操作排队等待，排队期间时限仍然计算。未设置时，操作在原生插件的线程中排队。
+- 原生插件使用 `LAKUTATA_BARCODE_THREADS` 个线程（默认为处理器数减一），由所有组件共用；原生插件不使用 libuv 线程池，因此不会拖慢文件和 DNS 操作。
+- 应用停止时，组件会等待正在执行的操作，最长 `drainTimeout` 毫秒（默认 10000）；仍在排队的操作以 `BarcodeCancelledException` 被拒绝，此后的调用同样如此。
 
 ## 7. 速度
 
-在 Apple M4 上测得（Node.js 24，除特别说明外每次只执行一个调用）：
+以下数据在 Apple M4 上测得（Node.js 24，除特别说明外每次只执行一个调用）：
 
 | 操作 | 耗时 |
 |---|---|
 | 一个网址的 QR 码，PNG（148×148） | 0.19 毫秒 |
 | 同一个 QR 码，像素 / SVG | 0.08 毫秒 / 0.17 毫秒 |
 | EAN-13 / Code 128，PNG，带文字 | 0.62 毫秒 / 1.6 毫秒 |
-| 识别这个 QR 码的 PNG，所有码制 / `formats: ['QRCode']` | 0.33 毫秒 / 0.11 毫秒 |
-| 识别它的像素，`formats: ['QRCode']`，`pure: true` | 0.06 毫秒 |
-| 在 1920×1080 的画面里识别一个 QR 码，所有码制 / `formats: ['QRCode']` | 7.8 毫秒 / 1.4 毫秒 |
+| 识别该 QR 码的 PNG，所有码制 / `formats: ['QRCode']` | 0.33 毫秒 / 0.11 毫秒 |
+| 识别其像素，`formats: ['QRCode']`，`pure: true` | 0.06 毫秒 |
+| 在 1920×1080 的画面中识别一个 QR 码，所有码制 / `formats: ['QRCode']` | 7.8 毫秒 / 1.4 毫秒 |
 | 同时生成 / 同时识别 1000 个 QR 码 PNG（9 个线程） | 63 毫秒 / 33 毫秒 |
 
-手机拍的照片比这些 `generate()` 生成的图片识别得慢：照片里的条码更小、有旋转、有模糊，`try…` 选项要做更多的工作。
+手机拍摄的照片的识别速度低于上述由 `generate()` 生成的图片，因为照片中的条码更小，并且存在旋转和模糊，`try…` 选项需要做更多的工作。
 
 ## 8. 验证方式，以及不支持的情况
 
-测试为每种码制生成条码，再从它的 PNG 和像素识别回来，内容有随机的（多种文字的文本，以及字节）；测试检查每个选项的效果，识别 7 种文件格式的图片，并识别 240 张损坏的图片，结果只能是识别出条码或者抛出 `BarcodeImageException`。测试在 macOS（arm64：Node.js 24 和 18.10、Bun 1.4）、Linux（arm64：Debian 12 上的 Node.js 22，Alpine 上的 Node.js 24）和 Windows 11（arm64：Node.js 24）上运行；这个包也能在 Electron 44 的主进程里运行，也能在 Android、iOS 和鸿蒙的手机应用里运行：在三个模拟器上，每种码制和 7 种文件格式都能识别回来。
+测试为每种码制生成条码，再从其 PNG 和像素识别回来，内容随机生成（多种文字的文本以及字节）。测试还检查每个选项的效果，识别 7 种文件格式的图片，并识别 240 张损坏的图片，结果只能是识别出条码或抛出 `BarcodeImageException`。测试在 macOS arm64（Node.js 24 和 18.10、Bun 1.4）、Linux arm64（Debian 12 上的 Node.js 22，Alpine 上的 Node.js 24）和 Windows 11 arm64（Node.js 24）上运行。本包也能在 Electron 44 的主进程中运行，并能在 Android、iOS 和鸿蒙的手机应用中运行；在这三个平台的模拟器上，每种码制和 7 种文件格式都能识别回来。
 
-它不支持的情况，有的是有意为之，有的是还没做：
+本包不支持的情况如下，其中有些是有意为之，有些则尚未实现：
 
-- zxing-cpp 无法识别的码制不提供生成：四态邮政码、汉信码、DotCode、Code One、Grid Matrix、Codablock-F、Code 16K、Code 49 以及 zint 的其他堆叠码制。Telepen Numeric 也没有提供，因为识别时除非只查找它，否则会把它当成 Telepen。
-- 分成多个码的内容（结构化追加）逐个识别：`structuredAppend` 给出每个码的位置，内容的拼接由应用完成。
-- 像素只支持灰度、RGB 和 RGBA；BGR 和 BGRA（某些摄像头接口）需要应用自己转换。GIF 只识别第一帧。
-- 输出只有 PNG、SVG 和像素，不提供 EPS、EMF 和 PDF。
+- zxing-cpp 无法识别的码制不提供生成功能，包括：四态邮政码、汉信码、DotCode、Code One、Grid Matrix、Codablock-F、Code 16K、Code 49 以及 zint 的其他堆叠码制。Telepen Numeric 同样未提供，因为除非识别时只查找该码制，否则会将其识别为 Telepen。
+- 分布在多个码中的内容（结构化追加）会逐个识别；`structuredAppend` 给出每个码的位置，内容的拼接由应用完成。
+- 像素只支持灰度、RGB 和 RGBA；BGR 和 BGRA（某些摄像头接口）需要由应用自行转换。GIF 只识别第一帧。
+- 输出格式仅限 PNG、SVG 和像素，不提供 EPS、EMF 和 PDF。
 
 ## 9. 异常
 
-所有异常都继承 `BarcodeException`，它继承 `lakutata` 的 `Exception`。
+所有异常都继承自 `BarcodeException`，后者继承自 `lakutata` 的 `Exception`。
 
-| 异常 | `errno` | 什么时候 |
+| 异常 | `errno` | 抛出时机 |
 |---|---|---|
-| `BarcodeContentException` | `E_BARCODE_CONTENT` | 内容无法用这种码制编码，附带 zint 给出的原因 |
-| `BarcodeOptionException` | `E_BARCODE_OPTION` | 码制不支持这个选项（如给 Code 128 指定 `errorCorrection`），或者值超出范围（`version: 41`） |
+| `BarcodeContentException` | `E_BARCODE_CONTENT` | 内容无法用该码制编码，并附带 zint 给出的原因 |
+| `BarcodeOptionException` | `E_BARCODE_OPTION` | 码制不支持该选项（例如为 Code 128 指定 `errorCorrection`），或值超出范围（`version: 41`） |
 | `BarcodeImageException` | `E_BARCODE_IMAGE` | 图片无法解码，或者超过 5000 万像素；像素的字节数不等于 `width × height × channels` |
 | `BarcodeTimeoutException` | `E_BARCODE_TIMEOUT` | 操作超过时限 |
-| `BarcodeCancelledException` | `E_BARCODE_CANCELLED` | 操作的 signal 被中止，或者调用了已经销毁的组件 |
+| `BarcodeCancelledException` | `E_BARCODE_CANCELLED` | 操作的 signal 被中止，或调用了已销毁的组件 |
 | `BarcodeException` | `E_BARCODE` | 原生插件的内部错误 |

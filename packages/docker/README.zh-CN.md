@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-Lakutata 框架的 Docker 组件。它通过 Docker Engine API 操作 Docker 守护进程，不需要 Docker CLI：拉取、构建（使用 BuildKit）、导入、导出、打标签和推送镜像，创建、运行和管理容器（exec、交互式 TTY、日志、统计、commit、导出文件），以及管理网络。它可以连接本地套接字，也可以通过 HTTP、HTTPS 或 SSH 连接远程守护进程。`lakutata` 包通过 `lakutata/com/docker` 重新导出它。
+Lakutata 框架的 Docker 组件，通过 Docker Engine API 操作 Docker 守护进程，无需 Docker CLI。该组件可以拉取、构建（使用 BuildKit）、导入、导出、标记和推送镜像，可以创建、运行和管理容器（exec、交互式 TTY、日志、统计信息、commit、导出文件），还可以管理网络。组件既可以连接本地套接字，也可以通过 HTTP、HTTPS 或 SSH 连接远程守护进程。`lakutata` 包通过 `lakutata/com/docker` 重新导出本包。
 
 ## 安装
 
@@ -10,15 +10,15 @@ Lakutata 框架的 Docker 组件。它通过 Docker Engine API 操作 Docker 守
 npm install lakutata
 ```
 
-组件需要应用能访问到的 Docker 守护进程（Docker Engine 或 Docker Desktop，Engine API 1.41 或更高版本），本机不需要安装 Docker CLI。SSH 连接使用可选的 peer 依赖 `ssh2`，并且需要远程主机上有 Docker CLI：
+该组件要求应用能够访问 Docker 守护进程（Docker Engine 或 Docker Desktop，Engine API 1.41 或更高版本），本机无需安装 Docker CLI。SSH 连接使用可选的 peer 依赖 `ssh2`，并且需要远程主机上安装 Docker CLI：
 
 ```shell
 npm install ssh2
 ```
 
-| 连接方式 | 选项 | 需要 |
+| 连接方式 | 选项 | 要求 |
 |---|---|---|
-| 环境中配置的 Docker（默认） | 无：读取 `DOCKER_HOST`、`DOCKER_TLS_VERIFY`、`DOCKER_CERT_PATH`、`DOCKER_CLIENT_TIMEOUT`，否则使用本地套接字 | 无 |
+| 环境中配置的 Docker（默认） | 无：读取 `DOCKER_HOST`、`DOCKER_TLS_VERIFY`、`DOCKER_CERT_PATH`、`DOCKER_CLIENT_TIMEOUT`；未设置时使用本地套接字 | 无 |
 | Unix 套接字 / Windows 命名管道 | `socketPath`（`buildDockerSocketConnectionOptions`） | 套接字的访问权限（`docker` 组） |
 | TCP，普通 HTTP | `host`、`port`（`buildDockerHttpConnectionOptions`） | 在 TCP 上监听的守护进程（`-H tcp://0.0.0.0:2375`） |
 | TCP，HTTPS | `host`、`port`，以及 PEM 内容形式的 `ca`、`cert`、`key`（`buildDockerHttpsConnectionOptions`） | 启用了 TLS 的守护进程（`--tlsverify`） |
@@ -28,7 +28,7 @@ npm install ssh2
 
 ### 在应用中使用组件
 
-在应用的 `components` 中注册 `Docker`，然后通过 `getObject()` 或 `@Inject` 获取它。组件创建时会 ping 守护进程，并协商 API 版本：无法连接守护进程时，组件创建失败，抛出 `DockerConnectionException`。如果组件是在应用启动过程中创建的（列在 `bootstrap` 里，或者注入到了这样的对象中），应用的启动也会随之失败。
+在应用的 `components` 中注册 `Docker`，然后通过 `getObject()` 或 `@Inject` 获取该组件。组件在创建时会 ping 守护进程并协商 API 版本。如果无法连接守护进程，组件创建失败并抛出 `DockerConnectionException`。如果组件是在应用启动过程中创建的（列在 `bootstrap` 中，或者注入到了此类对象中），应用的启动也会随之失败。
 
 ```typescript
 import {Application} from 'lakutata'
@@ -100,9 +100,9 @@ Application.run(() => ({
 }))
 ```
 
-- 没有 `socketPath` 或 `host` 时，组件连接环境中配置的 Docker，给出的其他选项（`timeout`、`headers`、`version`……）覆盖环境中的设置。
-- `ca`、`cert` 和 `key` 都给出时，`protocol` 默认为 `'https'`，否则默认为 `'http'`。
-- `timeout`（毫秒）是请求最多可以空闲多久；空闲同样久的流（比如持续跟踪的日志）也会被关闭。
+- 未设置 `socketPath` 或 `host` 时，组件连接环境中配置的 Docker，所给出的其他选项（`timeout`、`headers`、`version`……）覆盖环境中的设置。
+- `ca`、`cert` 和 `key` 均已给出时，`protocol` 默认为 `'https'`，否则默认为 `'http'`。
+- `timeout`（毫秒）指定请求的最长空闲时间；空闲同样时长的流（例如持续跟踪的日志）也会被关闭。
 
 ### 镜像
 
@@ -143,9 +143,9 @@ await app.remove()
 await docker.prune({containers: false, images: true, networks: false, volumes: false})
 ```
 
-- `getImage()` 按守护进程的规则解析名称：完整或短 ID、`alpine`（即 `alpine:latest`）、`docker.io/library/alpine:3.20`，或者摘要。`pullImage()` 也用同样的方式查找拉取到的镜像。
+- `getImage()` 按守护进程的规则解析名称，可接受完整或短 ID、`alpine`（即 `alpine:latest`）、`docker.io/library/alpine:3.20` 以及摘要。`pullImage()` 也以同样的方式查找拉取到的镜像。
 - `listImages()` 会读取每个镜像的详细信息，每个镜像发送一次请求。
-- 不带选项的 `prune()` 清理已停止的容器和悬空镜像；未使用的网络和匿名卷只在指定时清理（`networks: true`、`volumes: true`）。
+- 不带选项调用时，`prune()` 清理已停止的容器和悬空镜像；未使用的网络和匿名卷仅在显式指定时清理（`networks: true`、`volumes: true`）。
 - 拉取、构建、推送和 `loginRepository()` 会完整发送镜像仓库的凭据（`auth`），包括其中的令牌（`identityToken`、`registryToken`）。
 
 ### 容器
@@ -210,14 +210,14 @@ await web.remove({force: true})
 console.log((await docker.listContainers()).map((container: DockerContainer): string => `${container.name}: ${container.state.status}`))
 ```
 
-- `DockerContainer` 是一个快照：它自己的操作会刷新它；其他地方做的修改，需要重新获取才能看到（`docker.getContainer(id)`，也接受名称或短 ID）。如果容器的镜像已经被强制删除，读取这个容器时就没有镜像信息，它的 `image` 为 `undefined`。
-- 启动正在运行的容器，或者停止已停止的容器，都什么也不做，与 Docker CLI 一样。
-- `exec()` 运行时没有 TTY，也没有 stdin；无论退出码是多少，它都返回 `{exitCode, stdout, stderr}`（与 containerd 组件相同）。数组形式的命令原样执行；字符串是命令行，由 `/bin/sh -c` 执行。
-- `createTTY()` 默认运行 `/bin/sh`；它的 `cmd` 与 `exec()` 的规则相同。写入失败时，由应用的 `log` 组件记录；没有这个组件时，输出到控制台。
-- `kill()` 默认发送 `SIGKILL`，也可以指定信号（`'SIGHUP'`、`15`）。
-- `update()` 在线修改内存限制、CPU 和重启策略，名称则通过重命名容器来修改。修改其他设置时，会按容器的完整配置重建容器（命令、挂载、网络，匿名卷也会重新挂载）。新容器先用临时名称创建，创建完成后（如果旧容器在运行，还要等新容器启动）才取代旧容器，所以中途失败时旧容器保持原样。容器的 ID 会变，卷以外的文件不会保留。
+- `DockerContainer` 是一个快照。通过该对象执行的操作会刷新其内容；通过其他途径所做的修改，需要重新获取对象后才能看到（`docker.getContainer(id)`，也接受名称或短 ID）。如果容器的镜像已被强制删除，读取该容器时没有镜像信息，其 `image` 为 `undefined`。
+- 启动正在运行的容器或停止已停止的容器时，不执行任何操作，与 Docker CLI 的行为一致。
+- `exec()` 运行时不分配 TTY，也不提供 stdin；无论退出码是多少，该方法都返回 `{exitCode, stdout, stderr}`（与 containerd 组件相同）。数组形式的命令按原样执行；字符串形式的命令视为命令行，由 `/bin/sh -c` 执行。
+- `createTTY()` 默认运行 `/bin/sh`，其 `cmd` 与 `exec()` 的规则相同。写入失败时，由应用的 `log` 组件记录；没有该组件时，输出到控制台。
+- `kill()` 默认发送 `SIGKILL`，也可以发送指定的信号（`'SIGHUP'`、`15`）。
+- `update()` 在线修改内存限制、CPU 和重启策略，名称则通过重命名容器来修改。修改其他设置时，会按容器的完整配置重建容器（命令、挂载、网络，匿名卷也会重新挂载）。新容器先以临时名称创建，创建完成后（如果旧容器正在运行，还需等待新容器启动）才取代旧容器，因此中途失败时旧容器保持原样。容器的 ID 会改变，卷以外的文件不会保留。
 - 容器从未启动过时，`state.startedAt` 为 `null`；从未退出过时，`state.finishedAt` 为 `null`。
-- 不提供的功能：附加到主进程、向容器中复制文件、管理卷（`prune()` 的清理除外），以及守护进程的事件。
+- 不提供以下功能：附加到主进程、向容器中复制文件、管理卷（`prune()` 的清理除外），以及守护进程事件。
 
 ### 网络
 
@@ -249,7 +249,7 @@ await docker.removeNetwork(network.id)
 |---|---|
 | `Docker` | 组件：`pullImage`、`buildImage`、`importImage`、`getImage`、`listImages`、`createContainer`、`getContainer`、`listContainers`、`createNetwork`、`getNetwork`、`listNetworks`、`removeNetwork`、`prune`、`loginRepository`、`checkRepositoryAuth`；连接选项 |
 | `DockerImage` | 一个镜像：`id`、`repoTags`、`platform`、`size`、`config`；`tag()`、`export()`、`push()`、`remove()`、`run()` |
-| `DockerContainer` | 一个容器：它的设置和 `state`；`start()`、`stop()`、`restart()`、`pause()`、`unpause()`、`kill()`、`remove()`、`update()`、`commit()`、`exec()`、`createTTY()`、`logs()`、`stats()`、`exportDirectory()` |
+| `DockerContainer` | 一个容器：容器的设置和 `state`；`start()`、`stop()`、`restart()`、`pause()`、`unpause()`、`kill()`、`remove()`、`update()`、`commit()`、`exec()`、`createTTY()`、`logs()`、`stats()`、`exportDirectory()` |
 | `DockerContainerTTY` | 带 TTY 的交互式命令：`raw`、`readable`、`writable`、`onData()`、`write()`、`resize()` |
 | `buildDockerConnectionOptions`、`buildDockerSocketConnectionOptions`、`buildDockerHttpConnectionOptions`、`buildDockerHttpsConnectionOptions`、`buildDockerSSHConnectionOptions` | 为每种连接方式构建组件选项 |
 | `IDockerConnectionOptions`、`IDockerSocketConnectionOptions`、`IDockerHttpConnectionOptions`、`IDockerHttpsConnectionOptions`、`IDockerSSHConnectionOptions`、`IDockerKeyObject` | 连接选项 |
@@ -258,25 +258,25 @@ await docker.removeNetwork(network.id)
 | `NetworkCreateOptions`、`DockerPruneOptions`、`DockerAuthOptions` | 创建网络和 `prune()` 的选项，以及镜像仓库的凭据 |
 | `ContainerState`、`ContainerPort`、`ContainerBind`、`ContainerDevice`、`ContainerNetwork`、`ContainerCapability`、`ContainerRestartPolicy`、`ContainerStats`、`ContainerConfig`、`ContainerExecResult` | 容器相关的类型，以及 `exec()` 的结果 |
 | `ImageConfig`、`ImageExposePort`、`RepositoryTag`、`NetworkInfo`、`DockerOutputCallback` | 镜像、网络和进度消息的类型 |
-| `parseRepositoryTag`、`parseEnvToRecord` | 把镜像引用拆成仓库和标签；把 `NAME=value` 形式的条目转成键值对象 |
+| `parseRepositoryTag`、`parseEnvToRecord` | 将镜像引用拆分为仓库和标签；将 `NAME=value` 形式的条目转换为键值对象 |
 | `DockerConnectionException`、`DockerContainerNotFoundException`、`DockerImageNotFoundException`、`DockerImagePullException`、`DockerImageBuildException`、`DockerImageImportException`、`DockerImagePushException`、`DockerImageRepoTagNotFoundException`、`DockerNetworkNotFoundException`、`DockerRequestException` | 异常 |
 
-以上全部由 `lakutata/com/docker` 和 `@lakutata/docker` 导出。类型声明中的每一项都附有说明和示例。
+以上各项均由 `lakutata/com/docker` 和 `@lakutata/docker` 导出。类型声明中的每一项都附有说明和示例。
 
 ## 错误
 
-| 异常 | 什么时候 |
+| 异常 | 抛出时机 |
 |---|---|
-| `DockerConnectionException`（`E_DOCKER_CONNECTION`） | 组件创建时：守护进程无法访问或没有应答，TLS 握手失败，或者没有安装 `ssh2` 却使用 SSH |
-| `DockerContainerNotFoundException`（`E_DOCKER_CONTAINER_NOT_FOUND`） | `getContainer()` 未找到这个 ID、短 ID 或名称的容器；对已删除的容器执行操作 |
-| `DockerImageNotFoundException`（`E_DOCKER_IMAGE_NOT_FOUND`） | `getImage()` 未找到这个 ID 或名称的镜像；`createContainer()`（或 `update()` 重建容器时）使用的镜像不存在；对已删除的镜像执行操作 |
+| `DockerConnectionException`（`E_DOCKER_CONNECTION`） | 组件创建时：守护进程无法访问或未应答，TLS 握手失败，或者未安装 `ssh2` 却使用 SSH |
+| `DockerContainerNotFoundException`（`E_DOCKER_CONTAINER_NOT_FOUND`） | `getContainer()` 未找到具有该 ID、短 ID 或名称的容器；对已删除的容器执行操作 |
+| `DockerImageNotFoundException`（`E_DOCKER_IMAGE_NOT_FOUND`） | `getImage()` 未找到具有该 ID 或名称的镜像；`createContainer()`（或 `update()` 重建容器时）使用的镜像不存在；对已删除的镜像执行操作 |
 | `DockerImagePullException`（`E_DOCKER_IMAGE_PULL`） | `pullImage()` 失败，或者组件在拉取过程中被销毁 |
 | `DockerImageBuildException`（`E_DOCKER_IMAGE_BUILD`） | `buildImage()` 失败：某个步骤失败、缺少文件、基础镜像无法拉取，或者组件在构建过程中被销毁 |
 | `DockerImageImportException`（`E_DOCKER_IMAGE_IMPORT`） | `importImage()`：守护进程拒绝归档文件，或者加载完成后未找到加载出的镜像 |
 | `DockerImagePushException`（`E_DOCKER_IMAGE_PUSH`） | `push()`：镜像仓库拒绝推送 |
 | `DockerImageRepoTagNotFoundException`（`E_DOCKER_IMAGE_REPO_TAG_NOT_FOUND`） | `export()` 指定了镜像没有的标签，并且 `createRepoTagIfNotExists: false` |
 | `DockerNetworkNotFoundException`（`E_DOCKER_NETWORK_NOT_FOUND`） | `getNetwork()` 或 `removeNetwork()` 给出的 ID、短 ID 或名称没有匹配的网络；创建或重建容器时指定的网络不存在 |
-| `DockerRequestException`（`E_DOCKER_REQUEST`） | 守护进程拒绝了请求，而上面的异常都不适用：它的 `statusCode` 是 HTTP 状态码（名称已被占用或容器没有运行时为 409，`loginRepository()` 的凭据被拒绝时为 401，设置不合法时为 400，守护进程自身出错时为 500），消息来自守护进程 |
+| `DockerRequestException`（`E_DOCKER_REQUEST`） | 守护进程拒绝了请求，且以上异常均不适用；该异常的 `statusCode` 为 HTTP 状态码（名称已被占用或容器未运行时为 409，`loginRepository()` 的凭据被拒绝时为 401，设置不合法时为 400，守护进程自身出错时为 500），消息来自守护进程 |
 | `InvalidMethodAcceptException`（来自 `lakutata`） | 调用的选项不合法 |
 | Node.js 的错误 | 组件创建之后守护进程无法访问（`ECONNREFUSED`……）；`importImage()` 的 `source` 文件无法读取（`ENOENT`……） |
 
@@ -286,6 +286,6 @@ await docker.removeNetwork(network.id)
 
 - 网站上的指南：[Docker 集成](https://lakutata.com/zh/guide/DockerIntegration)。
 - `lakutata` 包中的 `doc/zh/DockerIntegration.md`：Docker 集成指南。
-- `@lakutata/containerd`（`lakutata/com/containerd`）：同样的 API，基于 containerd，不需要 Docker 守护进程。
+- `@lakutata/containerd`（`lakutata/com/containerd`）：API 相同，基于 containerd，无需 Docker 守护进程。
 - `@lakutata/core`（`lakutata`）：组件、`Application` 和依赖注入。
-- `npm run test:docker`（在本包中运行）用本机的 Docker 测试这个组件。
+- `npm run test:docker`（在本包中运行）使用本机的 Docker 测试该组件。

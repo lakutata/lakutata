@@ -1,6 +1,6 @@
 # 手机应用
 
-这个示例构建一个可以在 Android、iOS 和鸿蒙上运行的记账本：用户记下每一笔支出，并查看每个月以及每个分类的合计。它从 `mobile-react` 模板开始，展示用 Lakutata 开发的手机应用的两部分：一是 Node.js 端，它是一个 Lakutata 应用，运行在手机应用内嵌的 Node.js 中，把支出保存在应用数据目录下的 SQLite 数据库里，并用迁移让数据库保持最新；二是 React Native 用户界面，它在三个系统上完全相同，通过原生模块调用 Node.js 端的动作，并接收 Node.js 端推送的事件。示例还展示了 Node.js 端的测试，测试在电脑上运行，不需要设备。
+本示例构建一个可以在 Android、iOS 和鸿蒙上运行的记账本：用户记录每一笔支出，并查看每个月以及每个分类的合计。示例从 `mobile-react` 模板开始，展示用 Lakutata 开发的手机应用的两部分。一是 Node.js 端，即运行在手机应用内嵌的 Node.js 中的一个 Lakutata 应用，负责将支出保存在应用数据目录下的 SQLite 数据库中，并通过迁移使数据库保持最新。二是 React Native 用户界面，该界面在三个系统上完全相同，通过原生模块调用 Node.js 端的动作，并接收 Node.js 端推送的事件。示例还展示了 Node.js 端的测试，这些测试在电脑上运行，无需设备。
 
 | 消息 | 作用 |
 |---|---|
@@ -8,7 +8,7 @@
 | `{cmd: 'expenses.month', month: '2026-11'}` | 返回 2026 年 11 月的支出、总额和每个分类的合计 |
 | `{cmd: 'expenses.delete', id: 1}` | 删除一笔支出 |
 
-添加或删除支出时，Node.js 端会向用户界面推送 `expenses.changed` 事件，参数是对应的月份。
+添加或删除支出时，Node.js 端会向用户界面推送 `expenses.changed` 事件，参数为对应的月份。
 
 ## 1. 创建项目
 
@@ -19,7 +19,7 @@ npm install better-sqlite3 -w app
 rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/GreetDTO.ts
 ```
 
-项目的根目录就是 React Native 应用，包含原生项目 `android`、`ios` 和 `harmony`；应用的各部分是工作区中的包（见[项目结构](../ProjectStructure.md)）：`packages/app` 是 Node.js 端，`packages/ui` 是用户界面，`packages/ipc` 负责把两者连起来。项目的 README 列出了每个系统在电脑上需要的工具：带 NDK 的 Android SDK、Xcode、DevEco Studio。Node.js 端通过这里安装的 `better-sqlite3` 使用 SQLite：它是一个 C++ 插件，`lakutata mobile stage` 会用这些工具为每个系统从源码编译它（见[数据库驱动](../DatabaseDrivers.md)的“手机应用”一节）。这里删掉了模板中的示例控制器。
+项目的根目录即为 React Native 应用，其中包含原生项目 `android`、`ios` 和 `harmony`；应用的各部分是工作区中的包（见[项目结构](../ProjectStructure.md)）：`packages/app` 是 Node.js 端，`packages/ui` 是用户界面，`packages/ipc` 负责连接两者。项目的 README 列出了每个系统在电脑上所需的工具：带 NDK 的 Android SDK、Xcode、DevEco Studio。Node.js 端通过此处安装的 `better-sqlite3` 使用 SQLite。该包是一个 C++ 插件，`lakutata mobile stage` 会使用上述工具为每个系统从源码编译该插件（见[数据库驱动](../DatabaseDrivers.md)的“手机应用”一节）。本例删除了模板中的示例控制器。
 
 ## 2. 实体
 
@@ -54,7 +54,7 @@ export class Expense {
 }
 ```
 
-实体是一个类，它的装饰器描述对应的表（见[实体、查询与事务](../Entities.md)）。金额是以分为单位的整数：12.50 就是 1250，合计时相加的是整数，没有小数的舍入误差。日期是 `YYYY-MM-DD` 格式的文本，所以一个月的支出就是日期以 `2026-11-` 开头的那些。
+实体是一个类，其装饰器描述对应的表（见[实体、查询与事务](../Entities.md)）。金额是以分为单位的整数：12.50 即 1250，合计时相加的是整数，因此不存在小数的舍入误差。日期是 `YYYY-MM-DD` 格式的文本，因此一个月的支出即日期以 `2026-11-` 开头的支出。
 
 ## 3. 迁移
 
@@ -88,13 +88,13 @@ export class Migrations1793722916138 implements MigrationInterface {
 }
 ```
 
-数据库在每个用户的设备上，应用更新时必须把它更新到最新：表结构的变化通过迁移完成，绝不能用 `synchronize`，因为它可能连同数据一起删掉某一列（见[迁移](../Migrations.md)）。这个迁移是应用根据实体自己生成的，用的是 `lakutata migration` 命令（见[迁移](../Migrations.md)第 2 节），在电脑上运行，电脑上的数据库是 `packages/app/data/expenses.sqlite`：
+数据库位于每个用户的设备上，应用更新时必须将其更新到最新。表结构的变化通过迁移完成，绝不能使用 `synchronize`，因为该选项可能连同数据一起删除某一列（见[迁移](../Migrations.md)）。该迁移由应用根据实体自行生成，使用的是 `lakutata migration` 命令（见[迁移](../Migrations.md)第 2 节），该命令在电脑上运行，电脑上的数据库为 `packages/app/data/expenses.sqlite`：
 
 ```bash
 npx lakutata migration generate --package app
 ```
 
-你生成的迁移文件名中的时间戳会不一样：在选项中按那个名称导入它（见第 7 节）。实体有变化时，先用 `npx lakutata migration run --package app` 把电脑上的数据库更新到最新，因为这个命令是拿实体和数据库中的表作比较；然后生成下一个迁移，并在选项中把它列在这一个之后。
+实际生成的迁移文件名中的时间戳会与此不同，请在选项中按实际的名称导入该迁移（见第 7 节）。实体有变化时，请先用 `npx lakutata migration run --package app` 将电脑上的数据库更新到最新，因为生成迁移的命令（`migration generate`）会比较实体与数据库中的表；然后生成下一个迁移，并在选项中将其列在本迁移之后。
 
 ## 4. 输入
 
@@ -140,7 +140,7 @@ export class MonthDTO extends DTO {
 }
 ```
 
-每个动作运行前都先用 DTO 校验输入（见 [DTO 与数据校验](../DTOValidation.md)）。消息是 JSON，值会保留原来的类型：`amount` 必须是整数，`12.5` 会被拒绝，报错 `"amount" must be an integer`。日期是设备上的日期，由用户界面给出：今天是哪一天，不由 Node.js 端替用户决定。
+每个动作在运行前都会使用 DTO 校验输入（见 [DTO 与数据校验](../DTOValidation.md)）。消息是 JSON，值会保留原来的类型：`amount` 必须是整数，`12.5` 会被拒绝，并报错 `"amount" must be an integer`。日期是设备上的日期，由用户界面给出，Node.js 端不代替用户决定当天的日期。
 
 ## 5. 异常
 
@@ -157,7 +157,7 @@ export class ExpenseNotFoundException extends Exception {
 }
 ```
 
-异常带有 `errno`，用户界面根据这个代码判断错误（见[异常](../Exceptions.md)）。用户界面收到的错误和抛出时一样，带有全部属性：`ipc.invoke()` 返回的 Promise 会以这个错误拒绝。
+异常带有 `errno`，用户界面根据该代码判断错误（见[异常](../Exceptions.md)）。用户界面收到的错误与抛出时相同，带有全部属性：`ipc.invoke()` 返回的 Promise 会以该错误拒绝。
 
 ## 6. 控制器
 
@@ -227,8 +227,8 @@ export class ExpenseController extends Controller {
 }
 ```
 
-- 每个 `@ServiceAction` 由一条消息调用（见[服务调用](../ServiceCalls.md)第 2 节）：用户界面用 `ipc.invoke({cmd: 'expenses.month', month: '2026-11'})` 发送消息，经由原生模块及其套接字到达 Node.js。
-- `this.entrypoint.broadcast()` 向所有客户端推送 `expenses.changed`：包括用户界面，以及开发时的工具（见第 10 节）。参数是有变化的月份，所以正在显示其他月份的用户界面不用重新加载。
+- 每个 `@ServiceAction` 由一条消息调用（见[服务调用](../ServiceCalls.md)第 2 节）：用户界面使用 `ipc.invoke({cmd: 'expenses.month', month: '2026-11'})` 发送消息，消息经由原生模块及其套接字到达 Node.js。
+- `this.entrypoint.broadcast()` 向所有客户端推送 `expenses.changed`：用户界面，以及开发时的工具（见第 10 节）。参数是有变化的月份，因此正在显示其他月份的用户界面无需重新加载。
 - `Like` 来自 `lakutata/orm`，即 TypeORM 的 API（见[数据库](../Database.md)）。
 
 ## 7. 应用的选项
@@ -293,8 +293,8 @@ export function config(options: ConfigOptions = {}): ApplicationOptions {
 }
 ```
 
-- 数据库是应用数据目录中的一个文件 `@data/expenses.sqlite`，数据库连接时会解析这个别名。模板的 `App.ts` 为每个系统声明别名 `@data`：Android 上是应用的 `files` 目录，iOS 上是 `Library/Application Support`，鸿蒙上是 `/data/storage/el2/base/files`，在电脑上是 `packages/app/data`。系统会一直保留这个目录，直到应用被卸载；`os.tmpdir()` 则是应用的缓存目录，系统可能清空它。
-- 迁移以类的形式列出。在设备上，Node.js 端是一个单文件包（由 `lakutata mobile stage` 生成），里面没有 `build/migrations/*.js` 这类通配路径能找到的编译文件。`migrationsRun: true` 会在连接时执行设备上的数据库还没执行过的迁移，所以应用更新后第一次启动时，数据库就会更新到最新。
+- 数据库是应用数据目录中的一个文件 `@data/expenses.sqlite`，数据库连接时会解析该别名。模板的 `App.ts` 为每个系统声明别名 `@data`：在 Android 上为应用的 `files` 目录，在 iOS 上为 `Library/Application Support`，在鸿蒙上为 `/data/storage/el2/base/files`，在电脑上为 `packages/app/data`。系统会将该目录保留到应用被卸载为止；`os.tmpdir()` 则是应用的缓存目录，系统可能会清空该目录。
+- 迁移以类的形式列出。在设备上，Node.js 端是一个单文件包（由 `lakutata mobile stage` 生成），其中没有 `build/migrations/*.js` 这类通配路径能够找到的编译文件。`migrationsRun: true` 会在连接时执行设备上的数据库尚未执行过的迁移，因此应用更新后首次启动时，数据库就会更新到最新。
 - `bootstrap` 先连接数据库并执行迁移，再提供动作。
 
 ## 8. 用户界面
@@ -452,11 +452,11 @@ const styles = StyleSheet.create({
 })
 ```
 
-- 和模板一样，界面在设备的安全区域内：`useSafeAreaInsets()` 给出状态栏、摄像头和底部手势条占用的空间。
-- `ipc` 来自模板的 `ipc` 包：`ipc.invoke()` 调用动作，返回它的 `payload`，或者以它的错误拒绝；`ipc.on()` 监听事件，并返回移除监听器的函数。
-- 收到 `expenses.changed` 时，如果变化的正是当前显示的月份，就重新加载这个月。
-- `keyboardShouldPersistTaps="handled"` 让键盘显示时也能点到按钮：默认情况下，这次点击只会收起键盘，输入的支出不会被添加。
-- Node.js 结束时（未捕获的异常、`process.exit()`），手机应用会继续运行：`ipc` 发出 `exit`，`ipc.restart()` 重新启动 Node.js，和模板中一样。
+- 与模板相同，界面位于设备的安全区域内：`useSafeAreaInsets()` 返回状态栏、摄像头和底部手势条所占用的空间。
+- `ipc` 来自模板的 `ipc` 包：`ipc.invoke()` 调用动作，返回动作的 `payload`，或者以动作的错误拒绝；`ipc.on()` 监听事件，并返回移除监听器的函数。
+- 收到 `expenses.changed` 时，如果发生变化的正是当前显示的月份，就重新加载该月份。
+- `keyboardShouldPersistTaps="handled"` 使键盘显示时也能点击按钮。默认情况下，此时的点击只会收起键盘，输入的支出不会被添加。
+- Node.js 结束时（未捕获的异常、`process.exit()`），手机应用会继续运行：`ipc` 发出 `exit`，`ipc.restart()` 重新启动 Node.js，与模板中相同。
 
 ## 9. 运行
 
@@ -467,13 +467,13 @@ npm start
 npm run android     # 或：npm run ios、npm run harmony
 ```
 
-`npm run android` 会构建各个包，生成应用的 Node.js 项目（`lakutata mobile stage`：Node.js 端的单文件包，以及为 Android 各架构编译的 `better-sqlite3`），构建调试版应用，安装并启动它。第一次运行时，它会下载这个系统的 libnode。用户界面来自 Metro，修改后立即生效；修改 `packages/app` 后，用 `npm run deploy:android`（或 `deploy:ios`、`deploy:harmony`）把它放进已安装的应用，不需要重新安装。
+`npm run android` 会构建各个包，生成应用的 Node.js 项目（`lakutata mobile stage`：Node.js 端的单文件包，以及为 Android 各架构编译的 `better-sqlite3`），然后构建调试版应用，并安装和启动该应用。首次运行时，此命令会下载对应系统的 libnode。用户界面来自 Metro，修改后立即生效；修改 `packages/app` 后，用 `npm run deploy:android`（或 `deploy:ios`、`deploy:harmony`）将改动放入已安装的应用，无需重新安装。
 
-添加一笔支出，关闭应用（在 Android 上，从最近使用的应用中把它划掉），再重新打开：这个月仍然列出了那笔支出，它是从数据目录中的数据库读出来的。按住一笔支出可以删除它。
+添加一笔支出，关闭应用（在 Android 上，从最近使用的应用中将其划掉），然后重新打开应用：该月份仍然列出那笔支出，这笔支出是从数据目录中的数据库读取的。长按一笔支出即可将其删除。
 
 ## 10. 在电脑上试用
 
-`npm run dev -w app` 在电脑上运行 Node.js 端，数据库放在 `packages/app/data` 中，并通过 HTTP 在 9000 端口（`DEV_PORT`）提供动作，供 curl 或 Postman 等工具使用：`POST /` 发送消息，`GET /events` 接收某个客户端的事件（见[服务调用](../ServiceCalls.md)第 4 节）。
+`npm run dev -w app` 在电脑上运行 Node.js 端，数据库位于 `packages/app/data` 中，并通过 HTTP 在 9000 端口（`DEV_PORT`）提供动作，供 curl 或 Postman 等工具使用。`POST /` 发送消息，`GET /events` 接收某个客户端的事件（见[服务调用](../ServiceCalls.md)第 4 节）。
 
 ```bash
 npm run dev -w app
@@ -503,7 +503,7 @@ curl -X POST localhost:9000/ -H 'Content-Type: application/json' -d '{"cmd": "ex
 # {"success":false,"error":{…,"message":"The expense 7 does not exist","errMsg":"The expense 7 does not exist","err":"ExpenseNotFoundException","errno":"E_EXPENSE_NOT_FOUND"},"payload":null}
 ```
 
-错误带有异常的全部属性，包括调用栈（这里省略了）。
+错误带有异常的全部属性，包括调用栈（此处已省略）。
 
 ## 11. 测试
 
@@ -641,7 +641,7 @@ describe('expenses', (): void => {
 })
 ```
 
-测试用 Node.js 运行 Node.js 端，方式和原生模块在设备上运行它一样：一个套接字代替原生模块的套接字，测试往里写消息（每条一行 JSON：`invoke`、`subscribe`），并读取响应和事件。`@data` 是一个临时目录，像 `App.ts` 那样声明。
+测试使用 Node.js 运行 Node.js 端，方式与原生模块在设备上运行 Node.js 端相同：一个套接字代替原生模块的套接字，测试向该套接字写入消息（`invoke`、`subscribe`，每条消息为一行 JSON），并读取响应和事件。`@data` 是一个临时目录，其声明方式与 `App.ts` 相同。
 
 ```bash
 npm test
@@ -657,11 +657,11 @@ app │ ℹ pass 5
 ✔ test ran in app
 ```
 
-测试使用的是为电脑上的 Node.js 安装的 `better-sqlite3`；每个系统用的版本由 `lakutata mobile stage` 编译。
+测试使用的是为电脑上的 Node.js 安装的 `better-sqlite3`；每个系统所用的版本由 `lakutata mobile stage` 编译。
 
 ## 12. 发布
 
-三个系统的发布版由各自的原生项目构建：它们把用户界面打包进应用，而不是从 Metro 加载，并且要为各自的应用商店签名。项目 README 的“The packaging”一节给出了构建命令；先用 `npm run stage:android`（或 `stage:ios`、`stage:harmony`）生成 Node.js 项目。调试版和发布版中的 Node.js 端完全相同，数据目录和迁移也一样：在旧版本上安装更新会保留数据库，更新后第一次启动时执行新的迁移。
+三个系统的发布版由各自的原生项目构建：发布版将用户界面打包进应用，而不是从 Metro 加载，签名也按各自的应用商店进行。项目 README 的“The packaging”一节列出了构建命令；请先用 `npm run stage:android`（或 `stage:ios`、`stage:harmony`）生成 Node.js 项目。调试版和发布版中的 Node.js 端完全相同，数据目录和迁移也相同：在旧版本上安装更新会保留数据库，更新后首次启动时会执行新的迁移。
 
 <!--
 check:

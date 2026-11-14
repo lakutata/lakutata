@@ -1,17 +1,17 @@
 # Lakutata Containerd 集成
 
-**containerd 组件**（`lakutata/com/containerd`，`@lakutata/containerd` 包）通过 [containerd](https://containerd.io) 的 gRPC API 管理一个 containerd 命名空间中的镜像、容器、CNI 网络和命名卷，不需要 Docker，也不需要 nerdctl。它面向只运行 containerd 的 Linux 机器，例如嵌入式设备：组件直接与 containerd 的套接字通信（gRPC 客户端用 TypeScript 编写，没有原生插件），并自己完成 nerdctl 在 containerd 之上所做的工作（从镜像仓库拉取、解包镜像层、生成容器的 OCI 规范、容器日志）。它的 API 沿用 Docker 组件的 API（[Docker 集成](DockerIntegration.md)）。全部选项见 `@lakutata/containerd` 的 README。
+**containerd 组件**（`lakutata/com/containerd`，`@lakutata/containerd` 包）通过 [containerd](https://containerd.io) 的 gRPC API 管理一个 containerd 命名空间中的镜像、容器、CNI 网络和命名卷，无需 Docker，也无需 nerdctl。该组件面向只运行 containerd 的 Linux 机器，例如嵌入式设备。组件直接与 containerd 的套接字通信，其 gRPC 客户端以 TypeScript 编写，不含原生插件。nerdctl 在 containerd 之上所做的工作（从镜像仓库拉取、解包镜像层、生成容器的 OCI 规范、处理容器日志）也由组件自行完成。该组件的 API 沿用 Docker 组件的 API（[Docker 集成](DockerIntegration.md)）。全部选项见 `@lakutata/containerd` 的 README。
 
-它创建的容器与 nerdctl 创建的容器相同：带有 nerdctl 的标签（`nerdctl/name`、`nerdctl/hostname` 等），因此 `nerdctl ps` 和 `ctr containers ls` 都能列出它们。
+该组件创建的容器与 nerdctl 创建的容器相同，带有 nerdctl 的标签（`nerdctl/name`、`nerdctl/hostname` 等），因此 `nerdctl ps` 和 `ctr containers ls` 都能列出这些容器。
 
 ## 1. 环境要求
 
-| 功能 | 需要 |
+| 功能 | 要求 |
 |---|---|
-| 全部功能 | Linux，带 runc 的 containerd 1.6 或更高版本，Node.js `>=18.10.0`；应用以 root 运行，或属于拥有 containerd 套接字的用户组 |
+| 全部功能 | Linux，带 runc 的 containerd 1.6 或更高版本，Node.js `>=18.10.0`；应用以 root 身份运行，或属于拥有 containerd 套接字的用户组 |
 | CNI 网络（包括默认的 `bridge`）、端口发布 | CNI 插件（`bridge`、`portmap`、`host-local` 等，位于 `/opt/cni/bin`、`/usr/lib/cni` 或 `/usr/libexec/cni`，即 `cniPath` 选项）以及 iptables |
-| 带 `stdin` 的 `exec()`、分开的 `stdout`/`stderr`、终端 | 主机上的 `mkfifo`（没有时，`exec()` 把两种输出都放在 `stdout` 中） |
-| 构建 | BuildKit 守护进程（`buildkitd`），本地或远程 |
+| 带 `stdin` 的 `exec()`、各自独立的 `stdout`/`stderr`、终端 | 主机上的 `mkfifo`（若不存在，`exec()` 会将两种输出都放入 `stdout`） |
+| 构建 | BuildKit 守护进程（`buildkitd`），本地或远程均可 |
 | 其他架构的容器 | 在 `binfmt_misc` 中注册的 QEMU（或 Rosetta）模拟器 |
 
 ## 2. 配置
@@ -56,14 +56,14 @@ Application
     })
 ```
 
-组件在创建时连接 containerd：`socketPath` 上没有 containerd 时，组件创建失败，抛出 `ContainerdConnectionException`；组件列在 `bootstrap` 里时，应用因此启动失败。命名空间不存在时会被创建。每个组件只在一个命名空间中工作；要管理多个命名空间，就为每个命名空间声明一个组件。
+组件在创建时连接 containerd。如果 `socketPath` 上没有 containerd，组件创建失败并抛出 `ContainerdConnectionException`；如果组件列在 `bootstrap` 中，应用随之启动失败。命名空间不存在时会被创建。每个组件只在一个命名空间中工作；如需管理多个命名空间，请为每个命名空间声明一个组件。
 
 ### 与 Docker 组件的不同
 
-- `createContainer()` 在选项中接收镜像，并且从不自动拉取：请先拉取。
-- 容器的输出由 containerd 的 shim 写入日志文件，重启策略由 containerd 的重启监视器执行：应用停止期间两者照常工作。日志没有时间戳。
-- 没有 `loginRepository()`：凭据通过 `registryAuths` 选项或每次调用的 `auth` 给出。
-- `importImage()` 返回归档中的所有镜像，`prune()` 返回它删除的内容。
+- `createContainer()` 在选项中接收镜像，并且从不自动拉取，因此请先拉取镜像。
+- 容器的输出由 containerd 的 shim 写入日志文件，重启策略由 containerd 的重启监视器执行，因此在应用停止期间，两者仍然正常工作。日志没有时间戳。
+- 不提供 `loginRepository()`；凭据通过 `registryAuths` 选项或每次调用的 `auth` 提供。
+- `importImage()` 返回归档中的所有镜像，`prune()` 返回其删除的内容。
 
 ## 3. 镜像
 
@@ -100,7 +100,7 @@ async function images(containerd: Containerd): Promise<void> {
 }
 ```
 
-镜像名称按 Docker 的规则规范化（`alpine` 即 `docker.io/library/alpine:latest`）。只要有镜像或容器在使用，containerd 就会保留镜像的内容。
+镜像名称按 Docker 的规则规范化（`alpine` 即 `docker.io/library/alpine:latest`）。只要镜像的内容仍被某个镜像或容器使用，containerd 就会保留这些内容。
 
 ## 4. 容器
 
@@ -172,15 +172,15 @@ async function containers(containerd: Containerd): Promise<void> {
 }
 ```
 
-- `devices` 在容器中创建主机的设备（单个设备，或某个目录下的所有设备，如 `/dev/snd`）。对于之后才插入的设备，绑定挂载它们所在的目录，并用 `deviceCgroupRules` 允许它们的设备号，与 Docker 的 `--device-cgroup-rule` 相同：`binds: [{hostPath: '/dev', containerPath: '/dev'}], deviceCgroupRules: ['c 188:* rwm']`。
-- 在 cgroup v2 上，容器有自己的 cgroup 命名空间（`cgroupns: 'host'` 则共享主机的）。
-- 容器的系统调用像 nerdctl 一样由 seccomp 过滤：使用 containerd 的默认配置，并放行容器 `capabilities` 所允许的系统调用（`capabilities: ['SYS_ADMIN']` 允许 `mount`、`unshare` 等）。`seccompProfile: 'unconfined'` 关闭过滤，给出文件路径则使用该 OCI 配置；特权容器不受限制。
+- `devices` 在容器中创建主机的设备（单个设备，或某个目录下的所有设备，例如 `/dev/snd`）。对于之后才插入的设备，请绑定挂载其所在的目录，并通过 `deviceCgroupRules` 允许这些设备的设备号，作用与 Docker 的 `--device-cgroup-rule` 相同，例如：`binds: [{hostPath: '/dev', containerPath: '/dev'}], deviceCgroupRules: ['c 188:* rwm']`。
+- 在 cgroup v2 上，容器拥有独立的 cgroup 命名空间（设置 `cgroupns: 'host'` 时则共享主机的 cgroup 命名空间）。
+- 与 nerdctl 相同，容器的系统调用由 seccomp 过滤。过滤使用 containerd 的默认配置，并放行容器的 `capabilities` 所允许的系统调用（`capabilities: ['SYS_ADMIN']` 允许 `mount`、`unshare` 等）。`seccompProfile: 'unconfined'` 关闭过滤；指定文件路径时，使用该文件中的 OCI 配置。特权容器不受限制。
 - `privileged`、`capabilities` / `capabilitiesDrop`、`readonlyRootfs`、`pidMode: 'host'`、`ipcMode: 'host'`、`sysctls`、`extraHosts`、`dns`、`shmSize`、`pidsLimit`、`cpuSet`、`cpuShares`、`memorySwap`、`OOMKillDisable` 与 Docker 的同名选项作用相同。
-- `update()` 修改资源和重启策略以外的设置时，只对组件创建的容器有效（组件把它们的设置保存在 `dataRoot` 中）。
+- `update()` 修改资源和重启策略以外的设置时，仅对组件创建的容器有效（组件将这些容器的设置保存在 `dataRoot` 中）。
 
 ### 卷
 
-命名卷是 `dataRoot` 下的目录，在容器挂载时或通过 `createVolume()` 创建：
+命名卷是 `dataRoot` 下的目录，在容器挂载时创建，也可以通过 `createVolume()` 创建：
 
 ```typescript
 import {type Containerd} from 'lakutata/com/containerd'
@@ -198,7 +198,7 @@ async function volumes(containerd: Containerd): Promise<void> {
 
 ## 5. 网络
 
-容器默认加入 CNI 网络 `bridge`（nerdctl 的默认网络，`nerdctl0`，`10.4.0.0/24`，在第一个容器需要时创建），端口发布在这个网络上。`network: 'host'` 让容器使用主机的网络，`network: 'none'` 只保留回环接口，`networks` 列出容器加入的 CNI 网络：`bridge` 以及创建的网络（bridge、macvlan 或 ipvlan，支持 IPv4 和 IPv6 子网）。网络配置就是 nerdctl 的配置（`/etc/cni/net.d/nerdctl-<name>.conflist`），nerdctl 和组件可以共用。需要安装 CNI 插件和 iptables（见环境要求）。
+容器默认加入 CNI 网络 `bridge`（nerdctl 的默认网络，`nerdctl0`，`10.4.0.0/24`，在首个容器需要时创建），端口发布在该网络上。`network: 'host'` 使容器使用主机网络，`network: 'none'` 只保留回环接口；`networks` 列出容器加入的 CNI 网络，可以是 `bridge`，也可以是已创建的网络（bridge、macvlan 或 ipvlan，支持 IPv4 和 IPv6 子网）。网络配置即 nerdctl 的配置（`/etc/cni/net.d/nerdctl-<name>.conflist`），因此 nerdctl 和组件可以共用。使用前需要安装 CNI 插件和 iptables（见环境要求）。
 
 ```typescript
 import {type Containerd, type ContainerdContainer, type ContainerdNetworkInfo} from 'lakutata/com/containerd'
@@ -227,11 +227,11 @@ async function networks(containerd: Containerd): Promise<void> {
 }
 ```
 
-容器的网络像 nerdctl 一样由它的 runc 钩子配置：在创建任务时添加，在停止时删除；containerd 按重启策略重启容器时（例如重启机器后，应用不在运行）也是如此。容器的地址在每次启动时分配，并写入它的 `/etc/hosts`。
+与 nerdctl 相同，容器的网络由其 runc 钩子配置：网络在创建任务时添加，在容器停止时删除；containerd 按重启策略重启容器时（例如机器重启后应用未在运行）也是如此。容器的地址在每次启动时分配，并写入容器的 `/etc/hosts`。
 
 ## 6. 构建
 
-镜像由 [BuildKit](https://github.com/moby/buildkit) 构建：本机的 `buildkitd`（它的套接字，默认 `buildkitAddress: 'unix:///run/buildkit/buildkitd.sock'`，使用 containerd 或 runc worker），或者远程的 BuildKit（`buildkitAddress: 'tcp://builder:1234'`，配合 `buildkitTLS: {ca, cert, key}`）。组件像 `docker buildx` 一样，通过 BuildKit 的会话发送构建上下文（排除 `.dockerignore` 中的文件）和 Dockerfile，并把构建好的镜像导入 containerd：
+镜像由 [BuildKit](https://github.com/moby/buildkit) 构建。BuildKit 可以是本机的 `buildkitd`（通过其套接字连接，默认为 `buildkitAddress: 'unix:///run/buildkit/buildkitd.sock'`，使用 containerd 或 runc worker），也可以是远程的 BuildKit（`buildkitAddress: 'tcp://builder:1234'`，配合 `buildkitTLS: {ca, cert, key}`）。与 `docker buildx` 相同，组件通过 BuildKit 会话发送构建上下文（排除 `.dockerignore` 中的文件）和 Dockerfile，并将构建好的镜像导入 containerd：
 
 ```typescript
 import {type Containerd, type ContainerdImage} from 'lakutata/com/containerd'
@@ -260,7 +260,7 @@ BuildKit 使用组件的镜像仓库凭据（或 `auth`）拉取基础镜像。
 
 ## 7. 平台与事件
 
-`containerd.supportedPlatforms()` 返回本机可以运行的平台：本机平台，以及在 `binfmt_misc` 中注册的模拟器（QEMU、Rosetta）对应的平台。注册了模拟器后，就能运行其他平台的容器：先拉取该平台的镜像，再 `createContainer({image: 'alpine:3.20', platform: 'linux/amd64', cmd: ['uname', '-m']})`。
+`containerd.supportedPlatforms()` 返回本机可以运行的平台，即本机平台，以及在 `binfmt_misc` 中注册的模拟器（QEMU、Rosetta）所对应的平台。注册模拟器后，即可运行其他平台的容器：先拉取该平台的镜像，再调用 `createContainer({image: 'alpine:3.20', platform: 'linux/amd64', cmd: ['uname', '-m']})`。
 
 `containerd.events(signal)` 以流的形式返回命名空间中 containerd 的事件：
 
@@ -280,7 +280,7 @@ async function watch(containerd: Containerd): Promise<void> {
 
 ## 8. 异常
 
-`ContainerdConnectionException`、`ContainerdImageNotFoundException`、`ContainerdImagePullException`、`ContainerdImagePushException`、`ContainerdImageImportException`、`ContainerdImageExportException`、`ContainerdImageBuildException`（BuildKit 不可达或构建失败）、`ContainerdPlatformException`（镜像没有该平台的清单）、`ContainerdContainerNotFoundException`、`ContainerdContainerNameConflictException`、`ContainerdContainerStateException`（正在运行、未运行、已暂停）、`ContainerdPathNotFoundException`、`ContainerdNetworkNotFoundException`、`ContainerdNetworkConflictException`（网络已存在、子网与其他网络重叠，或有容器在使用）、`ContainerdVolumeNotFoundException`、`ContainerdVolumeInUseException`。它们都由 `lakutata/com/containerd` 导出。
+`ContainerdConnectionException`、`ContainerdImageNotFoundException`、`ContainerdImagePullException`、`ContainerdImagePushException`、`ContainerdImageImportException`、`ContainerdImageExportException`、`ContainerdImageBuildException`（无法连接 BuildKit 或构建失败）、`ContainerdPlatformException`（镜像没有该平台的清单）、`ContainerdContainerNotFoundException`、`ContainerdContainerNameConflictException`、`ContainerdContainerStateException`（正在运行、未运行、已暂停）、`ContainerdPathNotFoundException`、`ContainerdNetworkNotFoundException`、`ContainerdNetworkConflictException`（网络已存在、子网与其他网络重叠，或有容器正在使用该网络）、`ContainerdVolumeNotFoundException`、`ContainerdVolumeInUseException`。以上异常均由 `lakutata/com/containerd` 导出。
 
 ## 9. 当前版本的限制
 

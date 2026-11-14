@@ -1,6 +1,6 @@
 # 服务之间的调用
 
-这个示例构建两个服务，其中一个调用另一个。`inventory`（库存服务）保存产品的库存，并通过服务动作提供给其他服务；`orders`（订单服务）有一个用来下单的 HTTP API，它通过代理在库存服务中为订单预留库存。两个服务都从 `service` 模板开始。示例展示了服务动作及其模式、HTTP 服务传输方式和调用它的代理、两个服务共用的令牌、库存服务拒绝订单时错误如何传到客户端，以及每个服务各自的测试。
+本示例构建两个服务，其中一个服务调用另一个服务。`inventory`（库存服务）保存产品的库存，并通过服务动作将库存提供给其他服务；`orders`（订单服务）有一个用于下单的 HTTP API，并通过代理在库存服务中为订单预留库存。两个服务都从 `service` 模板开始。示例展示了服务动作及其模式、HTTP 服务传输方式和调用该传输方式的代理、两个服务共用的令牌、库存服务拒绝订单时错误如何传到客户端，以及每个服务各自的测试。
 
 | 服务 | 调用 | 作用 |
 |---|---|---|
@@ -17,7 +17,7 @@ rm inventory/packages/app/src/controllers/ExampleController.ts inventory/package
 rm orders/packages/app/src/controllers/ExampleController.ts orders/packages/app/src/dtos/GreetDTO.ts
 ```
 
-两个项目并排放在一起，每个都是一个工作区，服务在 `packages/app` 中（见[项目结构](../ProjectStructure.md)）；下面的路径都以所属项目的名字开头。两个项目不共享代码：动作的模式和消息的结构就是它们之间的约定。这里不需要安装任何包：HTTP 服务传输方式和它的代理都是 `lakutata` 自带的。
+两个项目并排放置，每个项目都是一个工作区，服务位于 `packages/app` 中（见[项目结构](../ProjectStructure.md)）；下面的路径均以所属项目的名称开头。两个项目不共享代码，动作的模式和消息的结构即为两者之间的约定。本例无需安装任何包，因为 HTTP 服务传输方式及其代理都是 `lakutata` 自带的。
 
 ## 2. 库存
 
@@ -45,7 +45,7 @@ export class OutOfStockException extends Exception {
 }
 ```
 
-每个异常都有自己的 `errno` 和状态码（见[异常](../Exceptions.md)）。异常的消息在抛出时给出。
+每个异常都有各自的 `errno` 和状态码（见[异常](../Exceptions.md)）。异常的消息在抛出时给出。
 
 **`inventory/packages/app/src/components/Stock.ts`**
 
@@ -116,10 +116,10 @@ export class Stock extends Component {
 }
 ```
 
-- 库存是一个组件（见[对象与生命周期](../Objects.md)）：整个服务只有一个实例，而控制器只存在于一个请求之内。库存保存在内存中，初始数量来自它的 `products` 选项（一个 `@Configurable` 属性），在 `init()` 中复制过来。
-- `reserve()` 在修改库存之前先检查每一项：订单要么整个预留成功，要么什么都不预留。
-- 订单的 id 保证同一个订单只预留一次：同一个调用再发一次（比如在超时之后），得到的结果相同，也不会多预留库存。
-- `OutOfStockException` 的消息由随它传入的值生成：`desk: 5 asked, 2 in stock`。
+- 库存是一个组件（见[对象与生命周期](../Objects.md)）：整个服务只有一个实例，而控制器只存在于一个请求之内。库存保存在内存中，初始数量来自组件的 `products` 选项（一个 `@Configurable` 属性），由 `init()` 复制。
+- `reserve()` 在修改库存之前先检查每一项，因此订单要么整体预留成功，要么完全不预留。
+- 订单的 ID 保证同一个订单只预留一次：同一个调用再次发送时（例如在超时之后），得到的结果相同，也不会多预留库存。
+- `OutOfStockException` 的消息由随该异常传入的值生成：`desk: 5 asked, 2 in stock`。
 
 ## 3. 服务动作
 
@@ -157,7 +157,7 @@ export class ReserveDTO extends DTO {
 }
 ```
 
-DTO 校验动作输入的方式和 HTTP 中一样（见 [DTO 与数据校验](../DTOValidation.md)）。消息是 JSON，其中的值保留各自的类型，所以不需要 `.strict(false)`。`.unique('product')` 会拒绝同一种产品出现两次的订单。
+DTO 校验动作输入的方式与 HTTP 中相同（见 [DTO 与数据校验](../DTOValidation.md)）。消息是 JSON，其中的值保留各自的类型，因此无需 `.strict(false)`。`.unique('product')` 会拒绝同一种产品出现两次的订单。
 
 **`inventory/packages/app/src/controllers/StockController.ts`**
 
@@ -197,9 +197,9 @@ export class StockController extends Controller {
 }
 ```
 
-- `@ServiceAction(pattern, DTO)` 为动作指定模式（见[服务调用](../ServiceCalls.md)）。消息包含模式中的全部键，并且各键的值都相同时，就与这个模式匹配；消息中其余的键就是动作的输入。
-- `@Prefix({pattern: {resource: 'stock'}})` 把 `resource: 'stock'` 合并到控制器所有动作的模式中（见[控制器与动作](../Controllers.md)）：动作 `get` 处理消息 `{"resource": "stock", "act": "get", "product": "lamp"}`，它的输入是 `{"product": "lamp"}`。
-- 动作返回的值就是响应的 `payload`，抛出的异常就是响应的 `error`。
+- `@ServiceAction(pattern, DTO)` 为动作指定模式（见[服务调用](../ServiceCalls.md)）。当消息包含模式中的全部键、各键的值也都相同时，消息即与该模式匹配；消息中其余的键即为动作的输入。
+- `@Prefix({pattern: {resource: 'stock'}})` 将 `resource: 'stock'` 合并到控制器所有动作的模式中（见[控制器与动作](../Controllers.md)）：动作 `get` 处理消息 `{"resource": "stock", "act": "get", "product": "lamp"}`，其输入为 `{"product": "lamp"}`。
+- 动作的返回值即为响应的 `payload`，抛出的异常即为响应的 `error`。
 
 ## 4. 调用方的令牌
 
@@ -230,7 +230,7 @@ export async function authenticate(invocation: ActionInvocation, next: Next): Pr
 }
 ```
 
-模板中的中间件检查的是 HTTP 请求，这里改为检查服务调用。`httpRequestOfContext()` 给出承载调用的 HTTP 请求及其请求头。环境中有 `API_TOKEN` 时，不带 `Authorization: Bearer <API_TOKEN>` 的调用在校验输入之前就会被拒绝，错误为 `E_UNAUTHORIZED`（见[中间件与访问控制](../Middlewares.md)）。调用库存服务的服务会获得这个令牌。如果要让每个调用方只能调用一部分动作，可以给每个调用方各自的令牌，再加一条检查动作分组的访问规则（见[中间件与访问控制](../Middlewares.md)第 4 节）。
+模板中的中间件检查的是 HTTP 请求，本例改为检查服务调用。`httpRequestOfContext()` 返回承载调用的 HTTP 请求及其请求头。环境中有 `API_TOKEN` 时，未携带 `Authorization: Bearer <API_TOKEN>` 的调用在校验输入之前就会被拒绝，错误为 `E_UNAUTHORIZED`（见[中间件与访问控制](../Middlewares.md)）。调用库存服务的服务会获得该令牌。如果要让每个调用方只能调用部分动作，可以为每个调用方分配各自的令牌，再添加一条检查动作分组的访问规则（见[中间件与访问控制](../Middlewares.md)第 4 节）。
 
 ## 5. 库存服务的选项
 
@@ -273,8 +273,8 @@ export function config(port: number = Number(process.env.PORT ?? 8080), serviceP
 
 入口有两个适配器（见[入口](../Entrypoint.md)）：
 
-- `http`：一个 Express 服务器，监听 `PORT`，留着它是为了模板中的健康检查（`GET /health`，`Dockerfile` 中的 `HEALTHCHECK` 会用到它）；
-- `service`：`httpServiceEntrypoint()`，即 HTTP 服务传输方式，监听 `SERVICE_PORT`（默认 3000）。它有自己的服务器。一次调用就是以 JSON 格式 `POST` 一条消息，响应的状态码总是 200，内容是 `{success, error, payload}`。它的 `middlewares` 只对服务调用执行，所以健康检查不需要令牌。
+- `http`：一个 Express 服务器，监听 `PORT`，保留该服务器是为了模板中的健康检查（`GET /health`，`Dockerfile` 中的 `HEALTHCHECK` 会用到该检查）；
+- `service`：`httpServiceEntrypoint()`，即 HTTP 服务适配器，监听 `SERVICE_PORT`（默认 3000）。该适配器使用单独的服务器。一次调用即以 JSON 格式 `POST` 一条消息，响应的状态码始终为 200，内容为 `{success, error, payload}`。该适配器的 `middlewares` 只对服务调用执行，因此健康检查无需令牌。
 
 `stock` 组件启动时有 10 盏台灯和 3 张书桌。
 
@@ -333,13 +333,13 @@ export class Inventory extends Component {
 }
 ```
 
-订单服务通过 `HTTPServiceProxy`（见[服务调用](../ServiceCalls.md)第 4 节）调用库存服务，它在选项中注册为 `inventoryService` 组件（第 8 节）。代理负责发送消息、读取响应。`Inventory` 是订单服务在代理之上的一个组件，它决定库存服务的各种错误对订单意味着什么。
+订单服务通过 `HTTPServiceProxy`（见[服务调用](../ServiceCalls.md)第 4 节）调用库存服务，该代理在选项中注册为 `inventoryService` 组件（第 8 节）。代理负责发送消息和读取响应。`Inventory` 是订单服务中位于代理之上的一个组件，负责决定库存服务的各种错误对订单意味着什么。
 
-- `invoke()` 接收消息和等待响应的最长时间，这里是 5 秒。代理默认等待 10 分钟，订单不该等待如此之久，所以这里给调用设定了自己的时限。
-- 订单被拒绝时，错误会一路传回客户端：代理抛出一个 `ServiceInvokeException`，它带有库存服务错误的各项属性，包括 `errno`、`errMsg` 和 `statusCode`。`Inventory` 把它原样抛出，订单服务的 HTTP 适配器就用这个状态码和这个 `errno` 响应，所以客户端收到的就是库存服务的 409 `E_OUT_OF_STOCK`。
-- 库存服务的其他错误不是客户端的问题。令牌被拒绝、库存服务看不懂收到的消息，或者根本没有响应（代理抛出的 `ServiceUnavailableException`），都属于订单服务自己的故障：订单服务以 503 `E_INVENTORY_UNAVAILABLE` 响应。
-- `Inventory` 通过 `errno` 识别拒绝，因为异常的类不会随调用传回来（见[异常](../Exceptions.md)第 5 节）。
-- `reserve()` 给调用起了名字、加上了类型，控制器就不用自己拼消息了。
+- `invoke()` 接收消息和等待响应的最长时间，此处为 5 秒。代理默认等待 10 分钟，而订单不应等待如此之久，因此本例为调用单独设定了时限。
+- 订单被拒绝时，错误会逐层传回客户端：代理抛出一个 `ServiceInvokeException`，该异常带有库存服务错误的各项属性，包括 `errno`、`errMsg` 和 `statusCode`。`Inventory` 将这一异常原样抛出，订单服务的 HTTP 适配器即以相同的状态码和 `errno` 响应，因此客户端收到的就是库存服务的 409 `E_OUT_OF_STOCK`。
+- 库存服务的其他错误并非客户端的问题。令牌被拒绝、库存服务无法理解收到的消息，或者根本没有响应（代理抛出的 `ServiceUnavailableException`），都属于订单服务自身的故障，订单服务以 503 `E_INVENTORY_UNAVAILABLE` 响应。
+- `Inventory` 通过 `errno` 识别拒绝，因为异常的类不会随调用传回（见[异常](../Exceptions.md)第 5 节）。
+- `reserve()` 将调用封装为带类型的具名方法，因此控制器无需自行拼装消息。
 
 ## 7. 订单
 
@@ -369,7 +369,7 @@ export class PlaceOrderDTO extends DTO {
 }
 ```
 
-订单各项的结构和库存服务要求的一样。订单服务在调用之前先校验它们，不合法的订单不会到达库存服务。
+订单各项的结构与库存服务所要求的相同。订单服务在调用之前先校验这些条目，因此不合法的订单不会到达库存服务。
 
 **`orders/packages/app/src/controllers/OrderController.ts`**
 
@@ -406,9 +406,9 @@ export class OrderController extends Controller {
 }
 ```
 
-- 控制器注入 `inventory` 组件（`@Inject('inventory')`），像调用其他组件一样调用它。
-- 订单在调用之前就有了 id：即使这个调用再发一次，库存服务也只会为订单预留一次。
-- 调用的错误就是请求的错误，控制器不需要 `try`。
+- 控制器注入 `inventory` 组件（`@Inject('inventory')`），并像调用其他组件一样调用该组件。
+- 订单在调用之前就已获得 ID，因此即使该调用再次发送，库存服务也只会为订单预留一次。
+- 调用的错误即为请求的错误，因此控制器无需 `try`。
 
 ## 8. 订单服务的选项
 
@@ -459,25 +459,25 @@ export function config(port: number = Number(process.env.PORT ?? 8080), inventor
 
 这是模板中的 `Config.ts`，改动如下：
 
-- 新增 `inventoryService` 组件，也就是代理，带有库存服务的地址（`INVENTORY_URL`，默认为 `http://localhost:3000`），调用时在 `Authorization` 请求头中带上令牌（`INVENTORY_TOKEN`，即库存服务的 `API_TOKEN`）；
+- 新增 `inventoryService` 组件，即代理，其中包含库存服务的地址（`INVENTORY_URL`，默认为 `http://localhost:3000`），并在调用时在 `Authorization` 请求头中携带令牌（`INVENTORY_TOKEN`，即库存服务的 `API_TOKEN`）；
 - 新增 `inventory` 组件，由控制器注入；
 - 用 `OrderController` 替换示例控制器；
 - `jsonEnvelope()` 不再设置 `errorStatus`：错误保留各自的状态码（400、409、503）；
-- 请求体最多 1 MB（模板允许 100 MB），对订单来说足够了；
-- `bootstrap: ['inventoryService', 'entrypoint']`：代理在启动时创建，所以 `INVENTORY_URL` 无效时，服务会立即停止，并给出 `The option "url" of "inventoryService" (HTTPServiceProxy) is invalid`。
+- 请求体上限为 1 MB（模板允许 100 MB），对订单而言已经足够；
+- `bootstrap: ['inventoryService', 'entrypoint']`：代理在启动时、HTTP 服务器开始监听之前创建。应用在启动时会检查每个已声明对象的选项，因此 `INVENTORY_URL` 无效时，启动会立即失败，并给出 `The option "url" of "inventoryService" (HTTPServiceProxy) is invalid`。
 
-模板中的中间件 `Authenticate.ts` 保留不变：订单服务设置了自己的 `API_TOKEN` 时，它的客户端必须带上这个令牌。
+模板中的中间件 `Authenticate.ts` 保持不变：订单服务设置了自身的 `API_TOKEN` 时，其客户端必须携带该令牌。
 
 ## 9. 运行
 
-启动库存服务，把它的 HTTP 服务器放到 8081，让订单服务继续使用 8080：
+启动库存服务，并将其 HTTP 服务器置于 8081 端口，以便订单服务继续使用 8080 端口：
 
 ```bash
 cd inventory
 PORT=8081 API_TOKEN=inventory-secret npm run dev
 ```
 
-然后在另一个终端中启动订单服务，带上库存服务的令牌：
+然后在另一个终端中启动订单服务，并传入库存服务的令牌：
 
 ```bash
 cd orders
@@ -509,7 +509,7 @@ curl localhost:3000 -H 'Content-Type: application/json' -d '{"resource": "stock"
 # {"success":false,"error":{…,"statusCode":401,"message":"The caller is not authenticated","errMsg":"The caller is not authenticated","err":"UnauthorizedException","errno":"E_UNAUTHORIZED"},"payload":null}
 ```
 
-错误带有异常的全部属性，这里省略了其中的 `stack`、`appId` 和 `appName`。停止库存服务（Ctrl+C），再下一个订单：
+错误带有异常的全部属性，此处省略了其中的 `stack`、`appId` 和 `appName`。停止库存服务（Ctrl+C），然后再下一个订单：
 
 ```bash
 curl -i -X POST localhost:8080/orders -H 'Content-Type: application/json' -d '{"items": [{"product": "lamp", "quantity": 1}]}'
@@ -519,7 +519,7 @@ curl -i -X POST localhost:8080/orders -H 'Content-Type: application/json' -d '{"
 
 ## 10. 测试
 
-每个服务都有自己的测试，它们替换了模板中的测试。库存服务的测试启动服务，发送它的动作的消息，并读取响应的封套：
+每个服务都有各自的测试，这些测试替换了模板中的测试。库存服务的测试启动该服务，向其动作发送消息，并读取响应的封套：
 
 **`inventory/packages/app/src/tests/App.spec.ts`**
 
@@ -601,7 +601,7 @@ describe('inventory', (): void => {
 })
 ```
 
-订单服务的测试不需要库存服务，而是在同一个进程中启动一个库存服务的替身：一个运行在自己容器中的入口（见[对象与生命周期](../Objects.md)第 5 节），它的动作和库存服务的动作模式相同。一个进程只运行一个应用，这里是订单服务，所以替身不是应用。替身像库存服务一样检查令牌，最后两个测试先更换它的令牌，再停止它：
+订单服务的测试无需库存服务，而是在同一个进程中启动一个库存服务的替身，即一个运行在独立容器中的入口（见[对象与生命周期](../Objects.md)第 5 节），其动作与库存服务的动作模式相同。一个进程只运行一个应用，此处为订单服务，因此替身不是应用。替身像库存服务一样检查令牌，最后两个测试先更换替身的令牌，再停止替身：
 
 **`orders/packages/app/src/tests/App.spec.ts`**
 
@@ -759,7 +759,7 @@ app │ ℹ pass 5
 
 ## 11. 在生产环境中
 
-- 在每个项目中运行 `npm run docker:build`，用模板中的 `Dockerfile` 构建镜像。在镜像中，库存服务在 `PORT`（8080）上提供健康检查，在 `SERVICE_PORT`（3000）上接收调用。在容器网络中，订单服务通过 `INVENTORY_URL=http://inventory:3000` 访问库存服务；对外只公开订单服务的端口。
-- 两个服务的令牌应来自同一份机密配置：库存服务的 `API_TOKEN`，以及订单服务的 `INVENTORY_TOKEN`。只有一方换了新令牌时，订单服务会以 503 响应。
-- 库存保存在内存中，订单则根本没有保存：请把它们存到数据库中（见[带数据库的 REST API](RestAPI.md)）。那时把订单的 id 作为预留记录的唯一键，就能保证一个订单不会被预留两次。
-- 其他传输方式也能提供同样的动作：Socket.IO、JSON-RPC（见[服务调用](../ServiceCalls.md)）、NATS（见 [NATS](../NATS.md)）或 gRPC（见 [gRPC](../GRPC.md)），每种都是 `service` 选项中的一个适配器。NATS 和 gRPC 的代理有同样的 `invoke()`，也抛出同样的 `ServiceInvokeException`：只需换用它们的构建函数注册 `inventoryService`，并改掉 `Inventory.ts` 中代理的类型，其余不变。
+- 在每个项目中运行 `npm run docker:build`，使用模板中的 `Dockerfile` 构建镜像。在镜像中，库存服务在 `PORT`（8080）上提供健康检查，在 `SERVICE_PORT`（3000）上接收调用。在容器网络中，订单服务通过 `INVENTORY_URL=http://inventory:3000` 访问库存服务；请只对外公开订单服务的端口。
+- 两个服务的令牌应来自同一份机密配置：库存服务的 `API_TOKEN`，以及订单服务的 `INVENTORY_TOKEN`。仅有一方更换了令牌时，订单服务会以 503 响应。
+- 库存保存在内存中，订单则完全没有保存，请将它们存储到数据库中（见[带数据库的 REST API](RestAPI.md)）。届时将订单的 ID 作为预留记录的唯一键，即可保证一个订单不会被预留两次。
+- 其他传输方式也能提供同样的动作：Socket.IO、JSON-RPC（见[服务调用](../ServiceCalls.md)）、NATS（见 [NATS](../NATS.md)）或 gRPC（见 [gRPC](../GRPC.md)），每种传输方式都通过 `service` 选项中的一个适配器提供。NATS 和 gRPC 的代理具有同样的 `invoke()`，也抛出同样的 `ServiceInvokeException`，因此只需改用这些代理的构建函数注册 `inventoryService`，并修改 `Inventory.ts` 中代理的类型，`Inventory.ts` 的其余部分保持不变。

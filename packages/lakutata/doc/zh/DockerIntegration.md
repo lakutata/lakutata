@@ -1,22 +1,22 @@
 # Lakutata Docker 集成
 
-**Docker 组件**（`lakutata/com/docker`，`@lakutata/docker` 包）通过 Docker Engine API 操作 Docker 守护进程，不需要 Docker CLI：拉取、构建（使用 BuildKit）、导入、导出、打标签和推送镜像，创建、运行和管理容器（exec、交互式 TTY、日志、统计、commit、导出文件），以及管理网络。它可以连接本地套接字，也可以通过 HTTP、HTTPS 或 SSH 连接远程守护进程。全部选项见 `@lakutata/docker` 的 README 和 `lakutata/com/docker` 的类型声明。
+**Docker 组件**（`lakutata/com/docker`，`@lakutata/docker` 包）通过 Docker Engine API 操作 Docker 守护进程，无需 Docker CLI。该组件可以拉取、构建（使用 BuildKit）、导入、导出、标记和推送镜像，可以创建、运行和管理容器（exec、交互式 TTY、日志、统计信息、commit、导出文件），还可以管理网络。组件既可以连接本地套接字，也可以通过 HTTP、HTTPS 或 SSH 连接远程守护进程。全部选项见 `@lakutata/docker` 的 README 和 `lakutata/com/docker` 的类型声明。
 
-这个组件没有预置：需要在应用的 `components` 中声明。只运行 containerd、没有 Docker 的机器（嵌入式 Linux 设备）见 [Containerd 集成](ContainerdIntegration.md)。
+该组件没有预置，需要在应用的 `components` 中声明。对于只运行 containerd、没有 Docker 的机器（嵌入式 Linux 设备），请参阅 [Containerd 集成](ContainerdIntegration.md)。
 
 ## 1. 环境要求与连接
 
-组件需要应用能访问到的 Docker 守护进程（Docker Engine 或 Docker Desktop，Engine API 1.41 或更高版本）。SSH 连接需要可选的 peer 依赖 `ssh2`（`npm install ssh2`），以及远程主机上的 Docker CLI。
+该组件要求应用能够访问 Docker 守护进程（Docker Engine 或 Docker Desktop，Engine API 1.41 或更高版本）。SSH 连接需要可选的 peer 依赖 `ssh2`（`npm install ssh2`），以及远程主机上的 Docker CLI。
 
 | 连接方式 | 选项 |
 |---|---|
-| 环境中的 Docker（默认） | 无：读取 `DOCKER_HOST`、`DOCKER_TLS_VERIFY`、`DOCKER_CERT_PATH`、`DOCKER_CLIENT_TIMEOUT`，否则使用本地套接字 |
+| 环境中的 Docker（默认） | 无：读取 `DOCKER_HOST`、`DOCKER_TLS_VERIFY`、`DOCKER_CERT_PATH`、`DOCKER_CLIENT_TIMEOUT`；未设置时使用本地套接字 |
 | Unix 套接字 / Windows 命名管道 | `socketPath`（`buildDockerSocketConnectionOptions`） |
 | TCP，HTTP | `host`、`port`（`buildDockerHttpConnectionOptions`） |
 | TCP，HTTPS | `host`、`port`，以及 PEM 内容形式的 `ca`、`cert`、`key`（`buildDockerHttpsConnectionOptions`） |
 | SSH | `host`、`port`、`username`、`sshAuthAgent`（`buildDockerSSHConnectionOptions`） |
 
-组件创建时会 ping 守护进程，并协商 API 版本：无法连接守护进程时，组件创建失败，抛出 `DockerConnectionException`；组件列在 `bootstrap` 里时，应用因此启动失败。`timeout`（毫秒）是请求最多可以空闲多久。
+组件在创建时会 ping 守护进程并协商 API 版本。如果无法连接守护进程，组件创建失败并抛出 `DockerConnectionException`；如果组件列在 `bootstrap` 中，应用随之启动失败。`timeout`（毫秒）指定请求的最长空闲时间。
 
 ```typescript
 import {readFileSync} from 'node:fs'
@@ -121,8 +121,8 @@ async function images(docker: Docker): Promise<void> {
 }
 ```
 
-- `getImage()` 按守护进程的规则解析名称：完整或短 ID、`alpine`（即 `alpine:latest`）、摘要。
-- 不带选项的 `prune()` 清理已停止的容器和悬空镜像；未使用的网络和匿名卷只在指定时清理（`networks: true`、`volumes: true`）。
+- `getImage()` 按守护进程的规则解析名称，可接受完整或短 ID、`alpine`（即 `alpine:latest`）以及摘要。
+- 不带选项调用时，`prune()` 清理已停止的容器和悬空镜像；未使用的网络和匿名卷仅在显式指定时清理（`networks: true`、`volumes: true`）。
 
 ## 4. 容器
 
@@ -174,12 +174,12 @@ async function containers(docker: Docker): Promise<void> {
 }
 ```
 
-- `DockerContainer` 是一个快照：它自己的操作会刷新它；其他地方做的修改需要重新获取才能看到（`docker.getContainer(id)`，也接受名称或短 ID）。
-- 启动正在运行的容器，或者停止已停止的容器，都不会做任何事，与 Docker CLI 相同。
-- `exec()` 运行时没有 TTY，也没有 stdin。数组形式的命令原样执行；字符串是命令行，由 `/bin/sh -c` 执行。
-- `kill()` 默认发送 `SIGKILL`，也可以指定信号。
-- `commit()` 用容器生成镜像，`exportDirectory()` 把容器中的目录写成 tar 归档。
-- 不提供的功能：附加到主进程、向容器中复制文件、管理卷（`prune()` 的清理除外），以及守护进程的事件。
+- `DockerContainer` 是一个快照。通过该对象执行的操作会刷新其内容；通过其他途径所做的修改，需要重新获取对象后才能看到（`docker.getContainer(id)`，也接受名称或短 ID）。
+- 启动正在运行的容器或停止已停止的容器时，不执行任何操作，与 Docker CLI 的行为一致。
+- `exec()` 运行时不分配 TTY，也不提供 stdin。数组形式的命令按原样执行；字符串形式的命令视为命令行，由 `/bin/sh -c` 执行。
+- `kill()` 默认发送 `SIGKILL`，也可以发送指定的信号。
+- `commit()` 根据容器创建镜像；`exportDirectory()` 将容器中的某个目录写为 tar 归档。
+- 不提供以下功能：附加到主进程、向容器中复制文件、管理卷（`prune()` 的清理除外），以及守护进程事件。
 
 ## 5. 网络
 
@@ -202,4 +202,4 @@ async function networks(docker: Docker): Promise<void> {
 
 ## 6. 错误
 
-组件的异常由 `lakutata/com/docker` 导出：`DockerConnectionException`（组件创建时无法连接守护进程）、`DockerContainerNotFoundException`、`DockerImageNotFoundException`、`DockerNetworkNotFoundException`、`DockerImagePullException`、`DockerImageBuildException`、`DockerImageImportException`、`DockerImagePushException`、`DockerImageRepoTagNotFoundException`，以及 `DockerRequestException`（守护进程拒绝请求；其 `statusCode` 为 HTTP 状态码，名称已被占用时为 409）。选项不合法时抛出 `InvalidMethodAcceptException`。组件被销毁时，正在进行的拉取和构建会被中止。
+组件的异常由 `lakutata/com/docker` 导出：`DockerConnectionException`（组件创建时无法连接守护进程）、`DockerContainerNotFoundException`、`DockerImageNotFoundException`、`DockerNetworkNotFoundException`、`DockerImagePullException`、`DockerImageBuildException`、`DockerImageImportException`、`DockerImagePushException`、`DockerImageRepoTagNotFoundException`，以及 `DockerRequestException`（守护进程拒绝请求时抛出，其 `statusCode` 为 HTTP 状态码，名称已被占用时为 409）。选项无效时抛出 `InvalidMethodAcceptException`。组件销毁时，正在进行的拉取和构建将被中止。

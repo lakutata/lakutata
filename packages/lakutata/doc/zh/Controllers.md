@@ -1,6 +1,6 @@
 # Lakutata 控制器与动作
 
-控制器是一个类，它的方法用来响应请求。这些方法叫做**动作**：装饰器给动作一个地址（HTTP 路由、命令、服务模式、定时计划、消息队列），请求到达这个地址时，`entrypoint` 组件就调用它。同一个方法可以有多个地址：同一段代码可以同时通过 HTTP、命令行和服务传输方式响应请求，校验、中间件和访问控制都相同。
+控制器是一个类，其方法用于响应请求，这些方法称为**动作**。装饰器为动作指定地址（HTTP 路由、命令、服务模式、定时计划、消息队列），请求到达该地址时，由 `entrypoint` 组件调用动作。同一个方法可以拥有多个地址，因此同一段代码可以同时通过 HTTP、命令行和服务传输方式响应请求，并使用相同的校验、中间件和访问控制。
 
 ## 1. 一个控制器
 
@@ -72,25 +72,25 @@ $ node dist/index.js order 42
 ```
 
 - 控制器继承 `lakutata/com/entrypoint` 中的 `Controller`。
-- 控制器列在 `buildEntrypoints` 的 `controllers` 选项里，和各传输方式的适配器放在一起（见[入口](Entrypoint.md)）。入口必须列在 `bootstrap` 里，否则它不会被启动。
-- 没有对应的适配器时，传输方式的装饰器不起作用：上面如果没有 `cli`，`@CLIAction` 就会被忽略。
+- 控制器列在 `buildEntrypoints` 的 `controllers` 选项中，与各传输方式的适配器并列（见[入口](Entrypoint.md)）。入口必须列在 `bootstrap` 中，否则入口不会被创建。
+- 没有对应的适配器时，传输方式的装饰器不起作用。例如在上例中，若没有 `cli`，`@CLIAction` 将被忽略。
 
 ## 2. 请求的处理过程
 
-1. 适配器收到请求，按地址查找动作。未找到时，传输方式会回复“未找到”（HTTP 是 404）。
-2. 为这个请求创建一个新的作用域。
+1. 适配器收到请求后，按地址查找动作。未找到时，传输方式返回“未找到”（HTTP 为 404）。
+2. 为该请求创建新的作用域。
 3. 执行中间件（见[中间件与访问控制](Middlewares.md)）。
-4. 在这个作用域里创建控制器的一个新实例。
+4. 在该作用域中创建控制器的新实例。
 5. 动作的 DTO 校验输入（第 4 节）。
 6. 访问控制检查请求（见[中间件与访问控制](Middlewares.md)）。
-7. 用输入调用方法，方法的返回值就是响应（第 5 节）。
-8. 销毁作用域，以及在其中创建的对象。
+7. 以输入调用方法，方法的返回值即为响应（第 5 节）。
+8. 销毁作用域及其中创建的对象。
 
-所以，一个控制器只存活一个请求的时间。它注入的 `@Scoped` 提供者（提供者默认就是这种）在一个请求里只创建一次，由参与这个请求的所有对象共享；组件则由整个应用共享。
+因此，一个控制器仅在一个请求期间存活。其注入的 `@Scoped` 提供者（提供者默认即为此生命周期类型）在一个请求中只创建一次，由参与该请求的所有对象共享；组件则由整个应用共享。
 
-在方法里，有两个属性描述当前请求：
+在方法中，以下两个属性描述当前请求：
 
-- `this.context` 是请求的上下文。它的 `type` 表示传输方式，它的类提供该传输方式的细节：
+- `this.context` 是请求的上下文。其 `type` 表示传输方式，上下文的类则提供该传输方式的细节：
 
   | 类 | `type` | 特有的属性 |
   |---|---|---|
@@ -100,8 +100,8 @@ $ node dist/index.js order 42
   | `ScheduleContext` | `'SCHEDULE'` | `schedule`、`scheduledAt`、`run` |
   | `QueueContext`（`lakutata/com/queue`） | `'QUEUE'` | 见[消息队列](Queue.md) |
 
-  所有上下文都有 `data`（输入到达时的样子，尚未校验）和 `locale`（使用 I18n 中间件时，请求的语言）。
-- `this.signal` 是一个 `AbortSignal`（它的类型允许 `undefined`，所以要写成 `this.signal?.`）。请求被中止时它会触发：客户端离开、gRPC 调用的截止时间已过，或者应用正在停止而 `shutdownTimeout` 已用完。触发之后，动作的结果会被丢弃；耗时长的动作应该检查它并提前结束。
+  所有上下文都具有 `data`（到达时的原始输入，尚未校验）和 `locale`（使用 I18n 中间件时，为请求的语言）。
+- `this.signal` 是一个 `AbortSignal`（其类型允许 `undefined`，因此需写作 `this.signal?.`）。请求被中止时，该信号随之触发：客户端关闭了连接或取消了调用、gRPC 调用的截止时间已过，或者应用正在停止且 `shutdownTimeout` 已耗尽。信号触发之后，动作的结果将被丢弃；耗时较长的动作应检查该信号并提前结束。
 
 ## 3. 动作装饰器
 
@@ -114,18 +114,18 @@ $ node dist/index.js order 42
 | `@QueueAction(queue)`（`lakutata/com/queue`） | 消息队列 | [消息队列](Queue.md) |
 | `@MCPTool(name)`（`@lakutata/mcp`）、`@DBusMethod(...)`（`@lakutata/dbus`） | MCP 工具、D-Bus 方法 | [MCP](MCP.md)、[D-Bus](DBus.md) |
 
-除非表中注明了其他子路径，前五行的装饰器都来自 `lakutata/decorator/ctrl`。它们依次接受地址、输入的 DTO 类和动作选项，DTO 和选项都可以省略。`@Schedule` 是例外：它不接受 DTO，因为定时任务没有输入。
+除非表中注明了其他子路径，前五行的装饰器均来自 `lakutata/decorator/ctrl`。这些装饰器依次接受地址、输入的 DTO 类和动作选项，其中 DTO 和选项都可以省略。`@Schedule` 是例外，它不接受 DTO，因为定时任务没有输入。
 
 动作选项：
 
 | 选项 | 默认值 | 含义 |
 |---|---|---|
-| `name` | `'控制器类名:方法名'` | 动作名，在同一传输方式中必须唯一 |
-| `description` | | 说明：命令的帮助、动作列表中的描述 |
-| `middlewares` | | 这个动作的中间件（见[中间件与访问控制](Middlewares.md)） |
-| `acl` | `false` | 用入口的访问规则检查请求 |
-| `rule` | | 这个动作自己的访问规则：`(context, input) => Promise<boolean>` |
-| `groups` | | 动作所属的分组，访问规则和动作列表会用到（见[入口](Entrypoint.md)） |
+| `name` | `'控制器类名:方法名'` | 动作的名称，在同一传输方式中必须唯一 |
+| `description` | | 说明文字，用于命令的帮助和动作列表中的描述 |
+| `middlewares` | | 该动作的中间件（见[中间件与访问控制](Middlewares.md)） |
+| `acl` | `false` | 使用入口的访问规则检查请求 |
+| `rule` | | 该动作自身的访问规则：`(context, input) => Promise<boolean>` |
+| `groups` | | 动作所属的分组，供访问规则和动作列表使用（见[入口](Entrypoint.md)） |
 
 ## 4. 输入
 
@@ -133,42 +133,42 @@ $ node dist/index.js order 42
 
 | 传输方式 | 输入 |
 |---|---|
-| HTTP | 查询参数和请求体，路由参数覆盖在上面 |
+| HTTP | 查询参数和请求体，路由参数覆盖其上 |
 | 命令行 | 参数和选项 |
-| 服务 | 消息，去掉模式中的键 |
+| 服务 | 消息（去除模式中的键） |
 | 定时任务 | 无 |
 | 消息队列 | 消息 |
 
-然后由动作的 DTO 校验：
+随后由动作的 DTO 校验输入：
 
-- 查询参数和路由参数的值都是文本：要求数字或布尔值的规则需要 `.strict(false)`，才能转换 `'42'` 或 `'true'`。命令行则会自行把参数和选项转换成对应属性的类型（见[命令行](CLI.md)）；
-- 补上默认值，去掉 DTO 没有声明的键（上例中的 `extra`）；
-- 输入不合法时，请求以 `InvalidValueException` 结束，HTTP 返回状态码 400。消息指出第一个不合法的值：`"product" is required`。使用 I18n 中间件时，消息是请求的语言。
+- 查询参数和路由参数的值均为文本，因此要求数字或布尔值的规则需要 `.strict(false)` 才能转换 `'42'` 或 `'true'`。命令行则会自行将参数和选项转换为对应属性的类型（见[命令行](CLI.md)）；
+- 补全默认值，并去除 DTO 未声明的键（如上例中的 `extra`）；
+- 输入不合法时，请求以 `InvalidValueException` 结束，HTTP 返回状态码 400。消息指出第一个不合法的值，例如 `"product" is required`。使用 I18n 中间件时，消息使用请求的语言。
 
-方法收到的是校验后的输入，一个普通对象的副本：它不是 DTO 类的实例，DTO 类只为它提供类型。没有 DTO 的动作收到的是原样的输入，所有键都保留。
+方法收到的是校验后的输入，即一个普通对象的副本，而非 DTO 类的实例；DTO 类仅为该输入提供类型。未声明 DTO 的动作收到原样的输入，所有键均保留。
 
 ## 5. 结果
 
-方法的返回值由传输方式发送回去：
+方法的返回值由传输方式发回：
 
 | 传输方式 | 返回值 | `undefined` | 抛出的错误 |
 |---|---|---|---|
-| HTTP | JSON | 状态码 204 | 它的 `statusCode`（默认 500）和 `{errno, errMsg}` |
-| 命令行 | 写到 stdout：文本原样输出，其他值输出为 JSON | 不输出 | stderr 上的 `error: <消息>`，退出码 1 |
-| 服务 | `{success: true, error: null, payload}` | 没有 `payload` | `{success: false, error, payload: null}`，错误带着它的全部属性 |
-| 定时任务 | 忽略 | | 交给 `onError`，或者写入日志 |
+| HTTP | JSON | 状态码 204 | 错误的 `statusCode`（默认 500）和 `{errno, errMsg}` |
+| 命令行 | 写入 stdout，文本原样输出，其他值输出为 JSON | 不输出 | stderr 上的 `error: <消息>`，退出码 1 |
+| 服务 | `{success: true, error: null, payload}` | 不含 `payload` | `{success: false, error, payload: null}`，错误包含其全部属性 |
+| 定时任务 | 忽略 | | 交由 `onError` 处理，或写入日志 |
 
-`lakutata/com/entrypoint` 中的 `Result` 可以更细地控制响应：
+`lakutata/com/entrypoint` 中的 `Result` 可以更精细地控制响应：
 
-- `Result.status(status, data, headers)`：带着数据指定 HTTP 状态码和响应头；
-- `Result.file(path)`（也可以是 `Buffer` 或流，选项有 `{filename, contentType, etag, headers}`）：一个文件，给出 `filename` 时作为下载；
-- `Result.events(producer)`：在 HTTP 上是 Server-Sent Events，在命令行上输出每个事件的数据。生产函数 `(send, signal) => …` 在请求的作用域销毁之后才运行，所以它应该使用组件，而不是请求作用域内的提供者。
+- `Result.status(status, data, headers)`：在返回数据的同时指定 HTTP 状态码和响应头；
+- `Result.file(path)`（参数也可以是 `Buffer` 或流，选项为 `{filename, contentType, etag, headers}`）：返回一个文件，指定 `filename` 时作为下载文件；
+- `Result.events(producer)`：在 HTTP 上为 Server-Sent Events，在命令行上则输出每个事件的数据。生产函数 `(send, signal) => …` 在请求的作用域销毁之后才运行，因此应使用组件，而不是请求作用域内的提供者。
 
-服务传输方式不能发送文件或事件：这样的结果会让请求失败。
+服务传输方式无法发送文件或事件，此类结果会导致请求失败。
 
 ## 6. 前缀
 
-在控制器上加 `@Prefix`，可以给它所有动作的地址加上前缀：
+在控制器上添加 `@Prefix`，可以为该控制器所有动作的地址加上前缀：
 
 ```typescript
 import {DTO} from 'lakutata'
@@ -193,13 +193,13 @@ class UserController extends Controller {
 }
 ```
 
-- `route` 加在 HTTP 路由前面，`command` 加在命令前面（用冒号连接），`pattern` 合并进服务模式。同一个键在前缀和动作里取值不同会报错（`InvalidPrefixException`）。
+- `route` 加在 HTTP 路由之前，`command` 加在命令之前（以冒号连接），`pattern` 合并到服务模式中。同一个键在前缀和动作中取值不同时会报错（`InvalidPrefixException`）。
 - 定时任务没有前缀。
-- 控制器使用离它最近的、声明了前缀的类的前缀：先看自己，没有再看父类。
+- 控制器的前缀取自最近一个声明了前缀的类，即先查找控制器自身，若未声明，再查找父类。
 
 ## 7. 继承
 
-控制器会继承父类的动作，所以通用的动作可以在基类里只写一次。注册的子类会在自己的前缀下提供这些动作：
+控制器会继承父类的动作，因此通用的动作只需在基类中编写一次。注册的子类会在自身的前缀下提供这些动作：
 
 ```typescript
 import {Controller} from 'lakutata/com/entrypoint'
@@ -223,6 +223,6 @@ class V2Controller extends HealthController {
 }
 ```
 
-- 只注册子类（`controllers: [V1Controller, V2Controller]`）。如果父类和子类一起注册，而某个动作的地址相同，它们会冲突：后注册的生效。
-- 子类可以重写继承来的方法：动作保持原来的地址，执行新的代码。在重写的方法上再加装饰器，会增加一个地址，继承来的地址仍然保留。
+- 只注册子类（`controllers: [V1Controller, V2Controller]`）。如果父类和子类一同注册，且某个动作的地址相同，二者会发生冲突，后注册的生效。
+- 子类可以重写继承的方法，此时动作保持原来的地址，执行新的代码。在重写的方法上再添加装饰器会增加一个地址，继承的地址仍然保留。
 - 基类可以是抽象类。

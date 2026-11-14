@@ -1,6 +1,6 @@
 # Lakutata 时间（Time）
 
-`Time` 是带时区的 `Date`，提供类似 moment 的 API。它由 `lakutata`（以及 `@lakutata/utils`）导出，没有任何依赖：时区数据来自运行时（`Intl`），所以时区规则取决于 Node.js 的版本。
+`Time` 是带时区的 `Date`，提供类似 moment 的 API。它由 `lakutata`（以及 `@lakutata/utils`）导出，没有任何依赖。时区数据来自运行时（`Intl`），因此时区规则取决于 Node.js 的版本。
 
 ```typescript
 import {Time} from 'lakutata'
@@ -15,14 +15,14 @@ time.isBetween('2024-01-01', '2024-12-31', 'day', '[]')  // true
 
 ## 取值
 
-- `Time` 就是 `Date`：凡是接受 `Date` 的地方都可以使用它（`DTO.Date()`、ORM 字段、`JSON.stringify`）。
-- 返回 `Time` 的方法都返回新实例：`add`、`subtract`、`startOf`、`endOf`、`set`、各设置方法（`hours(5)`、`month(0)` 等）、`timezone(zone)`、`clone()`，调用它们的实例不会改变。从 `Date` 继承的方法（`getHours()`、`setHours()` 等）按进程的时区而不是实例的时区读取和修改时间，而且设置方法会修改实例本身：请使用 `Time` 的方法。
-- 构造参数可以是 `Time`（连同它的时区）、`Date`、毫秒时间戳、日期字符串（纯数字字符串视为时间戳；无效字符串抛出 `RangeError`），或默认时区的本地时间字段 `[年, 月, 日, 时, 分, 秒, 毫秒]`。不传参数（或传 `null`）表示当前时间。不带偏移的字符串按默认时区读取。
-- 无效的时间（数组中的字段超出范围）不会抛出异常：它的 `format()` 返回 `'Invalid date'`。
+- `Time` 是一种 `Date`：凡是接受 `Date` 的地方都可以使用它（`DTO.Date()`、ORM 字段、`JSON.stringify`）。
+- 返回 `Time` 的方法都返回新实例：`add`、`subtract`、`startOf`、`endOf`、`set`、各设置方法（`hours(5)`、`month(0)` 等）、`timezone(zone)`、`clone()`，调用这些方法的实例本身不会改变。从 `Date` 继承的方法（`getHours()`、`setHours()` 等）按进程的时区而非实例的时区读取和修改时间，且其中的设置方法会修改实例本身，因此请使用 `Time` 的方法。
+- 构造参数可以是 `Time`（连同其时区）、`Date`、毫秒时间戳、日期字符串（纯数字字符串视为时间戳；无效字符串抛出 `RangeError`），或默认时区的本地时间字段 `[年, 月, 日, 时, 分, 秒, 毫秒]`。不传参数（或传 `null`）表示当前时间。不带偏移的字符串按默认时区读取。
+- 无效的时间（数组中的字段超出范围）不会抛出异常，其 `format()` 返回 `'Invalid date'`。
 
 ## 时区
 
-- `timezone()` 返回时区，`timezone(zone)` 返回同一时刻在另一个时区的新实例；`Time.timezones()` 按 IANA 现行名称列出支持的时区，包括 `UTC` 和固定偏移时区 `Etc/GMT-14`…`Etc/GMT+12`。旧名称和别名（`Asia/Calcutta`、`US/Eastern`）可以使用，但不在列表中（2.x 的列表来自 moment-timezone，包含它们）。未知时区抛出 `RangeError`。
+- `timezone()` 返回时区，`timezone(zone)` 返回同一时刻在另一个时区的新实例；`Time.timezones()` 按 IANA 现行名称列出支持的时区，包括 `UTC` 和固定偏移时区 `Etc/GMT-14`…`Etc/GMT+12`。旧名称和别名（`Asia/Calcutta`、`US/Eastern`）可以使用，但不在列表中（2.x 的列表来自 moment-timezone，其中包含这些名称）。未知时区抛出 `RangeError`。
 - `utcOffset()` 返回时区的偏移分钟数（UTC+8 为 480）；`getTimezoneOffset()` 与 `Date` 一致（UTC+8 为 -480）。
 - 取值、设置、日历运算（按天、月等加减）和 `format` 都按该时区的本地时间计算。按天加减时，跨越夏令时切换仍保持本地时间不变；不存在的本地时间会顺延。
 

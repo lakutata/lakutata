@@ -1,13 +1,13 @@
 # 带数据库的 REST API
 
-这个示例构建一个管理任务列表的服务：通过 HTTP API 创建任务、分页列出任务、把任务标为已完成以及删除任务，数据保存在 SQLite 数据库中。它从 `service` 模板开始，展示 Lakutata 服务中最常用的部分：实体及其迁移、校验输入的 DTO、带 HTTP 状态码的异常、控制器，以及测试。
+本示例构建一个管理任务列表的服务，通过 HTTP API 创建任务、分页列出任务、将任务标记为已完成以及删除任务，数据保存在 SQLite 数据库中。示例从 `service` 模板开始，展示 Lakutata 服务中最常用的部分：实体及其迁移、校验输入的 DTO、带 HTTP 状态码的异常、控制器以及测试。
 
 | 方法 | 路由 | 作用 |
 |---|---|---|
-| `GET` | `/tasks?done=false&limit=10&offset=0` | 分页列出任务，可以只列已完成或未完成的 |
-| `GET` | `/tasks/:id` | 取一个任务 |
+| `GET` | `/tasks?done=false&limit=10&offset=0` | 分页列出任务，可以只列出已完成或未完成的任务 |
+| `GET` | `/tasks/:id` | 获取一个任务 |
 | `POST` | `/tasks` | 创建任务：`{"title": "Write the report"}` |
-| `PATCH` | `/tasks/:id` | 修改标题，或标为已完成：`{"done": true}` |
+| `PATCH` | `/tasks/:id` | 修改标题，或标记为已完成：`{"done": true}` |
 | `DELETE` | `/tasks/:id` | 删除任务 |
 
 ## 1. 创建项目
@@ -20,7 +20,7 @@ rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/Greet
 echo '*.sqlite' >> .gitignore
 ```
 
-项目是一个工作区，服务在 `packages/app` 中（见[项目结构](../ProjectStructure.md)）。服务通过 `better-sqlite3` 驱动使用 SQLite，所以要安装这个驱动；[数据库驱动](../DatabaseDrivers.md)中的其他数据库用法相同，只是驱动和选项不同。这里还删掉了模板中的示例控制器，并让 git 忽略数据库文件。
+项目是一个工作区，服务位于 `packages/app` 中（见[项目结构](../ProjectStructure.md)）。服务通过 `better-sqlite3` 驱动使用 SQLite，因此需要安装该驱动；[数据库驱动](../DatabaseDrivers.md)中的其他数据库用法相同，只是驱动和选项不同。此外，本例删除了模板中的示例控制器，并让 git 忽略数据库文件。
 
 ## 2. 实体
 
@@ -48,7 +48,7 @@ export class Task {
 }
 ```
 
-实体是一个类，它的装饰器（来自 `lakutata/decorator/orm`）描述对应的表：`tasks` 表有一个由数据库生成的 id、一个标题、是否已完成，以及创建时间（见[实体、查询与事务](../Entities.md)）。
+实体是一个类，其装饰器（来自 `lakutata/decorator/orm`）描述对应的表：`tasks` 表中有一个由数据库生成的 ID、一个标题、是否已完成以及创建时间（见[实体、查询与事务](../Entities.md)）。
 
 ## 3. 输入
 
@@ -95,12 +95,12 @@ export class TaskSearchDTO extends PaginationSearchDTO {
 }
 ```
 
-每个动作在运行前都会用 DTO 校验输入，不合法的输入会得到 400 错误（见 [DTO 与数据校验](../DTOValidation.md)）：
+每个动作在运行前都会使用 DTO 校验输入，并以 400 错误拒绝不合法的输入（见 [DTO 与数据校验](../DTOValidation.md)）：
 
 - HTTP 动作的输入由路由参数、请求体和查询字符串合并而成；
-- 路由参数和查询字符串都是文本：`.strict(false)` 把 `'1'` 转换为数字 1，把 `'false'` 转换为布尔值，否则这些规则会拒绝文本；
-- 只有加上 `.strict(false)`，`.trim()` 才会去掉标题首尾的空格；严格模式下的规则会直接拒绝这样的标题；
-- `TaskSearchDTO` 继承自 `PaginationSearchDTO`（来自 `lakutata/dtos`），用它的 `limit`（默认 10）和 `offset`（默认 0）选择一页。
+- 路由参数和查询字符串都是文本。`.strict(false)` 将 `'1'` 转换为数字 1，将 `'false'` 转换为布尔值，否则这些规则会拒绝这些文本；
+- 只有加上 `.strict(false)`，`.trim()` 才会去除标题首尾的空格；严格模式下的规则会直接拒绝这样的标题；
+- `TaskSearchDTO` 继承自 `PaginationSearchDTO`（来自 `lakutata/dtos`），使用其 `limit`（默认 10）和 `offset`（默认 0）选择一页。
 
 ## 4. 异常
 
@@ -119,7 +119,7 @@ export class TaskNotFoundException extends Exception {
 }
 ```
 
-异常有一个 `errno`，客户端用它判断是哪种错误；还有回复这个错误时使用的 HTTP 状态码（见[异常](../Exceptions.md)）。异常的消息在抛出时给出。
+异常带有一个 `errno`，客户端据此判断错误的类型；异常还带有响应该错误时使用的 HTTP 状态码（见[异常](../Exceptions.md)）。异常的消息在抛出时给出。
 
 ## 5. 控制器
 
@@ -220,10 +220,10 @@ export class TaskController extends Controller {
 }
 ```
 
-- `@Prefix({route: '/tasks'})` 把控制器的路由放在 `/tasks` 之下；每个动作有自己的 HTTP 方法、路由和 DTO（见 [HTTP](../HTTP.md)）。
-- `@Inject('database')` 把服务的 `database` 组件交给控制器：这是一个 TypeORM 连接，通过它的仓储读写实体（见[数据库](../Database.md)）。
-- `paginator()`（来自 `lakutata/dtos`）构建一页结果：其中的条目，以及 `meta`，包括条目数、总数、limit 和 offset。
-- 动作返回的值就是结果；抛出的异常就是这个请求的错误。
+- `@Prefix({route: '/tasks'})` 将控制器的路由置于 `/tasks` 之下；每个动作有各自的 HTTP 方法、路由和 DTO（见 [HTTP](../HTTP.md)）。
+- `@Inject('database')` 将服务的 `database` 组件注入控制器。该组件是一个 TypeORM 连接，通过其仓储读写实体（见[数据库](../Database.md)）。
+- `paginator()`（来自 `lakutata/dtos`）构建一页结果：其中的条目，以及由条目数、总数、limit 和 offset 组成的 `meta`。
+- 动作的返回值即为结果，抛出的异常即为该请求的错误。
 
 ## 6. 服务的选项
 
@@ -281,13 +281,13 @@ export function config(port: number = Number(process.env.PORT ?? 8080), database
 
 这是模板中的 `Config.ts`，改动如下：
 
-- 新增 `database` 组件：SQLite 数据库文件（服务运行目录下的 `tasks.sqlite`，或者环境变量 `DATABASE` 指定的文件）、它的实体，以及连接时运行的迁移；
+- 新增 `database` 组件：SQLite 数据库文件（服务运行目录下的 `tasks.sqlite`，或环境变量 `DATABASE` 指定的文件）、其实体，以及连接时运行的迁移；
 - 用 `TaskController` 替换示例控制器；
-- `jsonEnvelope()` 不再设置 `errorStatus`：结果和错误都是 `{errno, errMsg, data}`，错误保留各自的状态码（400、401、404），这是 REST 客户端所期望的；
-- 请求体最多 1 MB（模板允许 100 MB），对任务来说足够了；
-- `bootstrap: ['database', 'entrypoint']`：先连接数据库并运行迁移，再让 HTTP 服务器开始监听。
+- `jsonEnvelope()` 不再设置 `errorStatus`：结果和错误均为 `{errno, errMsg, data}`，错误保留各自的状态码（400、401、404），这正是 REST 客户端所期望的；
+- 请求体上限为 1 MB（模板允许 100 MB），对任务而言已经足够；
+- `bootstrap: ['database', 'entrypoint']`：先连接数据库并运行迁移，然后 HTTP 服务器才开始监听。
 
-模板中的中间件 `Authenticate.ts` 保留不变：设置了环境变量 `API_TOKEN` 时，请求必须带上 `Authorization: Bearer <API_TOKEN>`。
+模板中的中间件 `Authenticate.ts` 保持不变：设置了环境变量 `API_TOKEN` 时，请求必须携带 `Authorization: Bearer <API_TOKEN>`。
 
 ## 7. 迁移
 
@@ -301,7 +301,7 @@ npm run migration:generate
 ✔ Migrations generated: packages/app/src/migrations/1792247417843-database.ts
 ```
 
-这个命令会构建并启动服务，把实体和数据库对比，然后写出迁移（文件名中带有生成的时间）：
+该命令会构建并启动服务，将实体与数据库对比，然后写出迁移（文件名中带有生成时间）：
 
 ```typescript
 import { MigrationInterface, QueryRunner } from "lakutata/orm";
@@ -329,7 +329,7 @@ export class Migrations1792247417843 implements MigrationInterface {
 }
 ```
 
-迁移和服务一起编译。服务连接的数据库还没运行过这个迁移时，就会运行它。实体改动后，用同样的方法生成下一个迁移（见[迁移](../Migrations.md)）。
+迁移与服务一同编译。服务连接到尚未运行过该迁移的数据库时，该迁移就会运行。实体改动后，请用同样的方法生成下一个迁移（见[迁移](../Migrations.md)）。
 
 ## 8. 运行
 
@@ -360,7 +360,7 @@ curl -i -X POST localhost:8080/tasks -H 'Content-Type: application/json' -d '{"t
 
 ## 9. 测试
 
-模板中的测试换成了针对任务的测试。它用内存中的数据库启动服务（启动时运行迁移），然后调用各个路由：
+模板中的测试已替换为针对任务的测试。该测试使用内存中的数据库启动服务（启动时运行迁移），然后调用各个路由：
 
 **`packages/app/src/tests/App.spec.ts`**
 
@@ -453,6 +453,6 @@ app │ ℹ pass 4
 
 ## 10. 在生产环境中
 
-- `npm start` 运行构建好的服务（`NODE_ENV=production` 决定它的模式），`npm run docker:build` 用模板中的 `Dockerfile` 构建镜像。请把 `DATABASE` 指向卷上的路径，这样容器重建后任务数据仍然保留。
-- 模板的 `installer` 功能（`lakutata create --with installer`）可以制作安装包，让服务随系统启动（见[安装包](../Installers.md)）。
-- 换用其他数据库，就是换一个驱动和 `buildDatabaseOptions()` 的选项；迁移要针对那个数据库生成。
+- `npm start` 运行构建好的服务（其模式由 `NODE_ENV=production` 决定），`npm run docker:build` 使用模板中的 `Dockerfile` 构建镜像。请将 `DATABASE` 指向卷上的路径，以便容器重建后任务数据仍然保留。
+- 模板的 `installer` 功能（`lakutata create --with installer`）可以制作安装包，使服务随系统启动（见[安装包](../Installers.md)）。
+- 换用其他数据库，即更换驱动和 `buildDatabaseOptions()` 的选项；请针对该数据库生成迁移。

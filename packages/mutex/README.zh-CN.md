@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-Lakutata 框架的锁组件：具名的锁，同一时间只让一个持有者执行某项工作。按所用的驱动（内存、锁文件、Redis、PostgreSQL 或 MySQL），锁可以由一个进程内的各组件共享，由一台机器上的各进程共享，或者由应用的所有实例共享。持有锁要凭一个令牌，持有期间锁会不断续期；持有者无法再保住锁时，锁就丢失了，锁的 `AbortSignal` 会被中止。这个包还为控制器动作提供 `@Synchronized`，并为 `exclusive` 定时任务提供锁。`lakutata` 包把它重新导出为 `lakutata/com/mutex`。
+Lakutata 框架的锁组件，提供具名的锁，同一时间只允许一个持有者执行某项工作。根据所用的驱动（内存、锁文件、Redis、PostgreSQL 或 MySQL），锁可以由一个进程内的各组件共享，由一台机器上的各进程共享，或者由应用的所有实例共享。持有锁需要凭借一个令牌，持有期间锁会不断续期；持有者无法再保持锁时，锁即丢失，锁的 `AbortSignal` 会被中止。本包还为控制器动作提供 `@Synchronized`，并为 `exclusive` 定时任务提供锁。`lakutata` 包将本包重新导出为 `lakutata/com/mutex`。
 
 ## 安装
 
@@ -10,7 +10,7 @@ Lakutata 框架的锁组件：具名的锁，同一时间只让一个持有者�
 npm install lakutata
 ```
 
-内存驱动和文件驱动不需要再安装其他包。其他驱动所需的包都是可选的 peer 依赖：用哪个驱动，就安装哪个驱动的包。缺少驱动的包时，第一次获取锁会失败，抛出 `MutexDriverNotFoundException`。
+内存驱动和文件驱动无需安装其他包。其他驱动所需的包均为可选的 peer 依赖，请安装所用驱动的包。缺少驱动的包时，第一次获取锁会失败，并抛出 `MutexDriverNotFoundException`。
 
 | 驱动 | `type` | 共享范围 | 需要安装 | 过期 / 续期 | 防护令牌 |
 |---|---|---|---|---|---|
@@ -18,7 +18,7 @@ npm install lakutata
 | 锁文件 | `'file'` | 一台机器上的各进程 | 无 | 是；已退出的进程持有的锁会被立即接管 | 否 |
 | Redis 4+（或 Valkey） | `'redis'` | 连接到同一服务器或集群的所有实例 | `redis`（4.6 或 5） | 是 | 是 |
 | PostgreSQL，`mode: 'advisory'`（默认） | `'postgres'` | 连接到同一数据库的所有实例 | `pg`（8） | 否：连接关闭时释放 | 否 |
-| PostgreSQL，`mode: 'table'` | `'postgres'` | 连接到同一数据库的所有实例，通过连接池代理连接的也可以 | `pg`（8） | 是 | 是 |
+| PostgreSQL，`mode: 'table'` | `'postgres'` | 连接到同一数据库的所有实例，包括通过连接池代理连接的实例 | `pg`（8） | 是 | 是 |
 | MySQL / MariaDB，`mode: 'advisory'`（默认） | `'mysql'` | 连接到同一服务器的所有实例（集群的各节点之间不共享） | `mysql2`（3） | 否：连接关闭时释放 | 否 |
 | MySQL / MariaDB，`mode: 'table'` | `'mysql'` | 连接到同一数据库的所有实例，包括集群 | `mysql2`（3） | 是 | 是 |
 
@@ -26,7 +26,7 @@ npm install lakutata
 
 ### 在应用中使用组件
 
-在应用的 `components` 中以 `mutex` 为名注册 `Mutex`（`@Synchronized` 和 `exclusive` 定时任务默认使用这个名称），然后用 `getObject()` 或 `@Inject` 获取它。不指定 `driver` 时，锁保存在内存中。
+在应用的 `components` 中以 `mutex` 为名注册 `Mutex`（`@Synchronized` 和 `exclusive` 定时任务默认使用该名称），然后通过 `getObject()` 或 `@Inject` 获取该组件。不指定 `driver` 时，锁保存在内存中。
 
 ```typescript
 import {Application} from 'lakutata'
@@ -77,17 +77,17 @@ Application
     })
 ```
 
-- **持有者**：获取锁时使用一个随机令牌，只有持有者能释放或续期它。一把锁只会释放一次：之后再调用 `release()` 会返回 `false`。
-- **过期**：锁会过期的驱动按 `ttl`（毫秒）持有锁，组件每过三分之一的时间续期一次，所以崩溃的持有者最多再占用一个 `ttl`。PostgreSQL 和 MySQL 的咨询锁不会过期：组件的连接关闭时，数据库会释放它们。
-- **锁丢失**：以下情况锁会丢失：续期时发现锁已过期或已被其他持有者拿走；续期一直失败（无法连接存储），直到锁过期；持有咨询锁的连接关闭。此时 `lock.held` 变为 `false`，`lock.signal` 以 `MutexLostException` 中止。受保护的工作不会被打断，所以它应当关注这个信号。
-- **防护令牌**：`lock.fence` 随每次获取递增（内存、Redis 和 `table` 模式）。把它和锁保护的数据存在一起，数据存储就能拒绝旧持有者的写入。
-- **不可重入**：获取组件已持有的锁时，和其他持有者一样要等待它被释放。
+- **持有者**：获取锁时使用一个随机令牌；只有持有者能够释放或续期该锁。一把锁只会释放一次，之后再调用 `release()` 会返回 `false`。
+- **过期**：锁会过期的驱动按 `ttl`（毫秒）持有锁，组件每经过该时长的三分之一续期一次，因此崩溃的持有者最多再占用锁一个 `ttl`。PostgreSQL 和 MySQL 的咨询锁不会过期，而是在组件的连接关闭时由数据库释放。
+- **锁丢失**：以下情况下锁会丢失：续期时发现锁已过期或已被其他持有者取走；续期持续失败（无法连接存储）直至锁过期；持有咨询锁的连接关闭。此时 `lock.held` 变为 `false`，`lock.signal` 以 `MutexLostException` 中止。受保护的工作不会被打断，因此它应当关注该信号。
+- **防护令牌**：`lock.fence` 随每次获取递增（内存、Redis 和 `table` 模式）。将该令牌与锁保护的数据存储在一起，数据存储即可拒绝旧持有者的写入。
+- **不可重入**：获取组件已持有的锁时，与其他持有者一样需要等待该锁被释放。
 - **连接**：驱动在第一次获取锁时才连接，而不是在组件创建时。锁的存储出错时，调用以 `MutexDriverException` 失败。无法连接 Redis 服务器时，调用会失败：第一次连接在 5 秒后放弃，客户端重连期间的调用会立即失败。
-- **生命周期**：组件被销毁时（应用停止时），会释放它持有的锁并关闭驱动。
+- **生命周期**：组件在销毁时（例如应用停止时）释放其持有的锁并关闭驱动。
 
 ### 同步的控制器动作
 
-`@Synchronized` 让控制器动作在锁的保护下执行。锁在输入校验和访问控制通过之后获取，动作结束后释放。需要同一把锁的请求，无论来自哪个实例、通过哪种传输方式，都逐个执行；其他请求并行执行。请求被中止时（客户端已离开）不再等待；没有及时获得锁的请求以 `MutexTimeoutException`（HTTP 409）失败。
+`@Synchronized` 使控制器动作在锁的保护下执行。锁在输入校验和访问控制通过之后获取，在动作结束后释放。需要同一把锁的请求，无论来自哪个实例、通过哪种传输方式，都逐个执行；其他请求并行执行。请求被中止时（客户端已离开），不再继续等待；未能及时获得锁的请求以 `MutexTimeoutException`（HTTP 409）失败。
 
 ```typescript
 import {Controller} from 'lakutata/com/entrypoint'
@@ -118,7 +118,7 @@ class OrderController extends Controller {
 
 ### 独占的定时任务
 
-声明为 `exclusive` 的定时动作（使用 `lakutata/decorator/ctrl` 的 `@Schedule`），同一时间只在应用的一个实例中执行。每次执行都尝试从 `mutex` 组件（或者 `exclusive: {mutex, key}` 指定的组件和键）获取锁 `schedule:<key>`（键默认为动作的名字），没有获得锁的实例跳过这次执行。按间隔执行的任务对齐到间隔的整数倍（每 5 分钟就是 :00、:05、:10……），这样所有实例安排的时间都相同。执行结束后，锁会一直保留到计划时间之后半个周期（最多 30 秒），这样时钟稍慢的实例也会跳过这次执行。未找到锁组件时，这个动作不会执行，错误会写入日志。
+声明为 `exclusive` 的定时动作（使用 `lakutata/decorator/ctrl` 的 `@Schedule`）同一时间只在应用的一个实例中执行。每次执行时，各实例尝试从 `mutex` 组件（或者 `exclusive: {mutex, key}` 指定的组件和键）获取锁 `schedule:<key>`（键默认为动作的名称），未获得锁的实例跳过本次执行。按间隔执行的任务对齐到间隔的整数倍（每 5 分钟即为 :00、:05、:10……），因此所有实例计划的执行时间相同。执行结束后，锁会保留到计划时间之后的半个周期（最多 30 秒），这样时钟稍慢的实例也会跳过本次执行。未找到锁组件时，该动作不会执行，错误会写入日志。
 
 ```typescript
 import {Application} from 'lakutata'
@@ -162,7 +162,7 @@ Application.run(() => ({
 | `MutexAcquireOptions` | 一次获取的 `ttl`、`timeout` 和用于中止的 `signal` |
 | `MutexDriverOptions` | `driver` 选项：下面某个驱动的选项，以 `type` 区分 |
 | `MemoryMutexOptions`、`FileMutexOptions`、`RedisMutexOptions`、`PostgresMutexOptions`、`MysqlMutexOptions` | 各个驱动的选项 |
-| `Synchronized` | 方法装饰器，让控制器动作在锁的保护下执行 |
+| `Synchronized` | 方法装饰器，使控制器动作在锁的保护下执行 |
 | `SynchronizedOptions` | `@Synchronized` 的锁组件、`timeout`、`wait` 和 `ttl` |
 | `lockNameOf` | 根据模板（`'order:{id}'`）和输入生成锁名 |
 | `MutexDriver`、`DriverLock` | 驱动的基类，以及驱动授予的锁 |
@@ -170,17 +170,17 @@ Application.run(() => ({
 | `RedisMutexConnection`、`PostgresMutexConnection`、`MysqlMutexConnection` | 传给驱动构造函数的连接 |
 | `MutexTimeoutException`、`MutexLostException`、`MutexDriverException`、`MutexDriverNotFoundException` | 异常 |
 
-以上全部由 `lakutata/com/mutex` 和 `@lakutata/mutex` 导出。类型声明中的每一项都附有说明和示例。
+以上各项均由 `lakutata/com/mutex` 和 `@lakutata/mutex` 导出。类型声明中的每一项都附有说明和示例。
 
 ## 错误
 
-| 异常 | 什么时候 |
+| 异常 | 抛出时机 |
 |---|---|
-| `MutexTimeoutException`（`E_MUTEX_TIMEOUT`，HTTP 409） | `acquire()` 或 `synchronized()` 在超时前没有获得锁；`@Synchronized` 动作的锁被其他请求持有 |
-| `MutexLostException`（`E_MUTEX_LOST`） | 不会被抛出：锁丢失时作为 `lock.signal` 的中止原因 |
+| `MutexTimeoutException`（`E_MUTEX_TIMEOUT`，HTTP 409） | `acquire()` 或 `synchronized()` 在超时前未获得锁；`@Synchronized` 动作的锁被其他请求持有 |
+| `MutexLostException`（`E_MUTEX_LOST`） | 不会被抛出，而是在锁丢失时作为 `lock.signal` 的中止原因 |
 | `MutexDriverException`（`E_MUTEX_DRIVER`） | 调用期间锁的存储出错（无法连接、查询失败、文件错误） |
-| `MutexDriverNotFoundException`（`E_MUTEX_DRIVER_NOT_FOUND`） | 第一次获取锁时，驱动所需的包（`redis`、`pg`、`mysql2`）没有安装 |
-| `InvalidObjectOptionsException`（来自 `lakutata`） | 组件的某个选项的值不合法；应用启动失败 |
+| `MutexDriverNotFoundException`（`E_MUTEX_DRIVER_NOT_FOUND`） | 第一次获取锁时，驱动所需的包（`redis`、`pg`、`mysql2`）尚未安装 |
+| `InvalidObjectOptionsException`（来自 `lakutata`） | 组件某个选项的值无效；应用启动失败 |
 | `TypeError` | 锁名为空；`@Synchronized` 模板中的字段在输入中不存在 |
 
 ## 另见
@@ -189,4 +189,4 @@ Application.run(() => ({
 - `lakutata` 包中的 `doc/zh/Mutex.md`：锁的指南。
 - `@lakutata/entrypoint`（`lakutata/com/entrypoint`）：控制器、`@Schedule` 和定时任务适配器。
 - `@lakutata/core`（`lakutata`）：组件、`Application` 和依赖注入。
-- 在这个包中运行 `npm run test:stores`，会在 Docker 中针对 Redis、PostgreSQL 和 MySQL 测试各个驱动。
+- 在本包中运行 `npm run test:stores`，会在 Docker 中针对 Redis、PostgreSQL 和 MySQL 测试各个驱动。

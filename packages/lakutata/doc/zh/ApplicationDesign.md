@@ -36,15 +36,15 @@
 ## 3. 为对象选择类
 
 1. 为请求提供服务：使用 `Controller`。
-2. 在应用的整个生命周期内保存状态或资源，或者其他对象需要监听它的事件：使用 `Component`。
+2. 在应用的整个生命周期内保存状态或资源，或其他对象需要监听其事件：使用 `Component`。
 3. 状态属于一次请求或另一个作用域：使用 `Provider`。
-4. 每个使用它的对象都需要各自的实例：使用继承 `BaseObject` 的类，它是瞬态的。
+4. 每个使用者都需要各自的实例：使用继承 `BaseObject` 的类，该类为瞬态。
 5. 将多个对象组织在一起，使应用的其他部分只通过一个对象访问它们：使用 `Module`。
 6. 不需要容器参与：在 `lib/` 中编写普通的函数或类。
 
 ## 4. 示例：订单服务
 
-下面的服务通过 HTTP 创建和查询订单。它以 `default` 模板为基础，增加了一个管理订单的组件；为保持简短，订单保存在内存中，[带数据库的 REST API](examples/RestAPI.md) 示例则把数据保存在数据库中。
+下文示例中的服务通过 HTTP 创建和查询订单。它以 `default` 模板为基础，增加了一个管理订单的组件；为保持简短，订单保存在内存中，[带数据库的 REST API](examples/RestAPI.md) 示例则将数据保存在数据库中。
 
 ```
 src/
@@ -124,7 +124,7 @@ export class Orders extends Component {
 }
 ```
 
-`src/controllers/OrderController.ts` 把请求转换为对组件的调用：
+`src/controllers/OrderController.ts` 将请求转换为对组件的调用：
 
 ```typescript
 import {Controller} from 'lakutata/com/entrypoint'
@@ -198,11 +198,11 @@ HTTP/1.1 400 Bad Request
 应用的配置按一个方向传递：
 
 1. **环境**提供在不同部署之间变化的值：`PORT`、数据库地址、令牌。
-2. **`config()`** 以带默认值的参数读取这些值（`port = Number(process.env.PORT ?? 8080)`），并返回应用的选项。由于它是一个函数，测试可以用自己的取值调用它：端口、内存数据库、临时目录。
+2. **`config()`** 以带默认值的参数读取这些值（`port = Number(process.env.PORT ?? 8080)`），并返回应用的选项。由于它是一个函数，测试可以用其所需的取值调用它：端口、内存数据库、临时目录。
 3. **这些选项中的声明**为每个对象提供其选项：`{class: Orders}`，或 `{class: Mailer, host: 'smtp.example.com'}`。
 4. **每个对象的 `@Configurable` 属性**接收这些选项，并在应用启动时由各自的校验规则校验（[依赖注入](Injection.md)第 2 节）。
 
-在 `config()` 中读取环境变量，测试就可以通过参数传入自己的取值，模板对端口的处理正是如此（[项目结构](ProjectStructure.md)第 1 节）。运行模式（`development` 或 `production`）来自 `MODE` 或 `NODE_ENV` 环境变量（[应用](Application.md)第 4 节）。
+在 `config()` 中读取环境变量，测试即可通过参数传入所需的取值，模板对端口的处理正是如此（[项目结构](ProjectStructure.md)第 1 节）。运行模式（`development` 或 `production`）来自 `MODE` 或 `NODE_ENV` 环境变量（[应用](Application.md)第 4 节）。
 
 ## 6. 创建顺序与 bootstrap
 
@@ -210,7 +210,7 @@ HTTP/1.1 400 Bad Request
 
 - 动作在第一个请求到来之前就需要的对象，应排在入口之前；入口负责启动服务器和其他适配器。REST API 示例使用 `bootstrap: ['database', 'entrypoint']`，先连接并迁移数据库；
 - 依赖动作的对象应排在入口之后：在桌面应用示例中，窗口加载用户界面之前，动作已经可以调用（`['entrypoint', 'notes', 'window']`）；
-- 只为请求提供服务的组件（例如上面的 `orders`）不需要列入：第一个请求会创建它；
+- 只为请求提供服务的组件（例如上文的 `orders`）不需要列入：第一个请求会创建它；
 - 独立工作的组件（轮询器、窗口、托盘图标）应列入，因为没有其他对象会创建它。
 
 无论是否列入 `bootstrap`，应用都会在启动时检查所有已声明对象的选项。
@@ -219,7 +219,7 @@ HTTP/1.1 400 Bad Request
 
 模板的测试在编译后的文件上用 `node --test` 运行（`npm test`）。
 
-**整个应用。** 测试用 `config()` 和自己的端口启动应用，等待启动完成后发送请求，最后销毁应用：
+**整个应用。** 测试用 `config()` 和专用的端口启动应用，等待启动完成后发送请求，最后销毁应用：
 
 ```typescript
 import {after, before, describe, it} from 'node:test'
@@ -281,7 +281,7 @@ describe('Orders component', (): void => {
 })
 ```
 
-**替换依赖。** 测试可以从已启动的应用中获取组件（`app.getObject('orders')`），并用 `t.mock.method()` 替换它的某个方法，[后台任务](examples/BackgroundJobs.md)示例就是这样做的。应用所调用的服务可以用在测试进程中、在一个 `Container` 里启动的替身代替，参见[服务之间的调用](examples/ServiceCalls.md)示例。模块内部的对象可以通过模块声明中的选项替换（[模块](Modules.md)第 4 节）。
+**替换依赖。** 测试可以从已启动的应用中获取组件（`app.getObject('orders')`），并用 `t.mock.method()` 替换其某个方法，[后台任务](examples/BackgroundJobs.md)示例即采用这种做法。应用所调用的服务可以替换为替身，替身在测试进程中的一个 `Container` 内启动，参见[服务之间的调用](examples/ServiceCalls.md)示例。模块内部的对象可以通过模块声明中的选项替换（[模块](Modules.md)第 4 节）。
 
 ## 8. 应用的扩展
 

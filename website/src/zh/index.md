@@ -22,11 +22,11 @@ hero:
 
 features:
   - title: 依赖注入
-    details: 容器负责创建组件、提供者、模块和控制器，管理它们的生命周期并校验选项。对象可以异步构造，在被使用之前先完成连接或加载。
+    details: 容器负责创建组件、提供者、模块和控制器，按生命周期类型管理其实例，并校验其选项。构造过程是异步的，因此对象可以在被使用之前完成连接或加载。
   - title: 一个控制器，所有传输方式
-    details: 同一个方法可以同时暴露为 HTTP 路由、CLI 命令、服务调用（Socket.IO、JSON-RPC、gRPC、NATS、Electron IPC、NW.js、React Native）、定时任务和队列消费者。无论走哪种方式，输入校验、访问控制和中间件都一样。
+    details: 同一个方法可以同时暴露为 HTTP 路由、CLI 命令、服务调用（Socket.IO、JSON-RPC、gRPC、NATS、Electron IPC、NW.js、React Native）、定时任务和队列消费者。无论采用哪种传输方式，输入校验、访问控制和中间件的工作方式都相同。
   - title: 处处校验
-    details: DTO 校验选项、输入和返回值，可以转换为 JSON Schema，并给出带类型的错误。
+    details: DTO 校验选项、输入和返回值，可转换为 JSON Schema，并产生带类型的错误。
   - title: 开箱即用
     details: 数据库（TypeORM）、缓存、锁、消息队列（Redis、NATS、RabbitMQ、Kafka）、多语言、日志、Docker 和 containerd、哈希与加密。
   - title: 从第一行代码到安装包
@@ -41,7 +41,7 @@ features:
 npx @lakutata/cli create --name my-app
 ```
 
-或者在已有项目中加入框架：
+也可以在已有项目中加入框架：
 
 ```shell
 npm install lakutata express

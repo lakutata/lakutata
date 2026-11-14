@@ -14,7 +14,7 @@
 
 </div>
 
-Lakutata 让 Web 服务、命令行工具、桌面（Electron、NW.js）应用和嵌入式设备共用同一套编程模型。应用是一棵由容器创建的对象树（组件、提供者、控制器）；DTO 校验对象的选项和动作的输入；各种传输方式把控制器暴露出去：HTTP（Express、Fastify）、命令行（Commander）、服务调用（HTTP、Socket.IO、JSON-RPC 2.0、gRPC、NATS、Electron IPC、NW.js、React Native）、MCP、D-Bus、定时任务和消息队列。同一个控制器方法可以同时通过其中几种方式调用。
+Lakutata 为 Web 服务、命令行工具、桌面（Electron、NW.js）应用和嵌入式设备提供同一套编程模型。在这一模型中，应用是一棵由容器创建的对象树（组件、提供者、控制器）；DTO 校验对象的选项和动作的输入；各种传输方式则对外提供控制器：HTTP（Express、Fastify）、命令行（Commander）、服务调用（HTTP、Socket.IO、JSON-RPC 2.0、gRPC、NATS、Electron IPC、NW.js、React Native）、MCP、D-Bus、定时任务和消息队列。同一个控制器方法可以同时通过其中几种传输方式调用。
 
 ## 快速开始
 
@@ -26,7 +26,7 @@ npm run dev
 curl 'http://localhost:8080/example?name=you'     # {"message":"Hello, you!"}
 ```
 
-Lakutata 需要 Node.js 18.10 或更高版本（`>=18.10.0`）。`lakutata create` 的模板可以生成 Web 服务、命令行工具、带 React、Vue、Next.js 或 Nuxt 界面的 HTTP API，或者基于 Electron 或 NW.js 的桌面应用。手写的应用是这样的：
+Lakutata 需要 Node.js 18.10 或更高版本（`>=18.10.0`）。`lakutata create` 的模板可以生成 Web 服务、命令行工具、带 React、Vue、Next.js 或 Nuxt 界面的 HTTP API，或基于 Electron 或 NW.js 的桌面应用。手动编写的应用如下：
 
 ```typescript
 import {Application, DTO} from 'lakutata'
@@ -64,9 +64,9 @@ Application.run(() => ({
 
 ## 包
 
-`lakutata` 就是框架本身：它通过子路径（`lakutata/com/database`、`lakutata/adapter/express` 等）重新导出下表中的大部分包，所以应用通常只需要安装它，再加上用到的驱动和适配器。
+`lakutata` 即框架本身，通过子路径（`lakutata/com/database`、`lakutata/adapter/express` 等）重新导出下表中的大部分包，因此应用通常只需安装该包，以及所用的驱动和适配器。
 
-| 包 | 提供什么 | 包含在 `lakutata` 中 |
+| 包 | 内容 | 包含在 `lakutata` 中 |
 |---|---|---|
 | [`lakutata`](packages/lakutata) | 框架本身，预置 `log` 和 `entrypoint` 组件 | |
 | [`@lakutata/core`](packages/core) | 应用、对象、依赖注入、DTO 校验 | 是 |
@@ -87,26 +87,26 @@ Application.run(() => ({
 | [`@lakutata/dbus`](packages/dbus) | D-Bus 服务和客户端 | 否 |
 | [`@lakutata/mcp`](packages/mcp) | 模型上下文协议（MCP）的工具、资源和提示词 | 否 |
 | [`@lakutata/webrtc`](packages/webrtc) | 用 TypeScript 实现的 WebRTC：信令、TURN 服务器、媒体服务器（SFU）、WHIP 和 WHEP、对等连接、通过数据通道调用的服务动作、浏览器客户端 | 否 |
-| [`@lakutata/ffi`](packages/ffi) | 动态库调用：用头文件里的 C 声明描述，调用 `.so`、`.dylib`、`.dll` 文件中的 C 函数 | 否 |
-| [`@lakutata/math`](packages/math) | 数学计算：符号计算（解方程、求导、积分、极限、化简）和数值计算（矩阵、统计、任意精度的十进制数），由原生插件完成 | 否 |
-| [`@lakutata/barcode`](packages/barcode) | 条形码和二维码：生成（PNG、SVG、像素）和从图片识别 32 种码制，由原生插件完成 | 否 |
-| [`@lakutata/netif`](packages/netif) | 网口：服务器和 UDP 套接字按网口监听，无论网口的地址如何变化；列出本机的网口和它们的变化，由原生插件完成 | 否 |
-| [`@lakutata/mongo-embedded`](packages/mongo-embedded) | 嵌入式 MongoDB，`lakutata/orm` 中 `mongo-embedded` 类型的数据库：在 SQLite 上实现 MongoDB 8.0 的语义，由原生插件完成 | 否 |
-| [`@lakutata/thermal`](packages/thermal) | 用 HTML 和 CSS 编排的小票、标签和腕带，渲染成热敏打印机的点阵，编码成 ESC/POS、TSPL 或 ZPL，由原生插件完成 | 否 |
-| [`@lakutata/thermal-printer`](packages/thermal-printer) | 热敏打印机：管理器组件负责找到打印机、按保存的定义打开它们，经网口、打印队列、USB、串口或蓝牙打印 | 否 |
-| [`@lakutata/serial`](packages/serial) | 把串口和经典蓝牙设备作为流打开，信号线和串口列表，由原生插件完成 | 否 |
-| [`@lakutata/ldap`](packages/ldap) | LDAP：用目录验证用户登录的客户端组件、服务器组件，以及存在应用数据库里的目录后端 | 否 |
+| [`@lakutata/ffi`](packages/ffi) | 动态库调用：用头文件中的 C 声明描述，调用 `.so`、`.dylib`、`.dll` 文件中的 C 函数 | 否 |
+| [`@lakutata/math`](packages/math) | 数学计算：符号计算（解方程、求导、积分、极限、化简）和数值计算（矩阵、统计、任意精度的十进制数），由原生插件实现 | 否 |
+| [`@lakutata/barcode`](packages/barcode) | 条形码和二维码：生成（PNG、SVG、像素）和从图片中识别 32 种码制，由原生插件实现 | 否 |
+| [`@lakutata/netif`](packages/netif) | 网口：服务器和 UDP 套接字按网口监听，无论网口的地址如何变化；列出本机的网口及其变化，由原生插件实现 | 否 |
+| [`@lakutata/mongo-embedded`](packages/mongo-embedded) | 嵌入式 MongoDB，`lakutata/orm` 中 `mongo-embedded` 类型的数据库：在 SQLite 上实现 MongoDB 8.0 的语义，由原生插件实现 | 否 |
+| [`@lakutata/thermal`](packages/thermal) | 用 HTML 和 CSS 编排的小票、标签和腕带，渲染为热敏打印机的点阵，编码为 ESC/POS、TSPL 或 ZPL，由原生插件实现 | 否 |
+| [`@lakutata/thermal-printer`](packages/thermal-printer) | 热敏打印机：管理器组件负责查找打印机，按保存的定义打开打印机，并经网口、打印队列、USB、串口或蓝牙打印 | 否 |
+| [`@lakutata/serial`](packages/serial) | 将串口和经典蓝牙设备作为流打开，提供信号线和串口列表，由原生插件实现 | 否 |
+| [`@lakutata/ldap`](packages/ldap) | LDAP：用目录验证用户登录的客户端组件、服务器组件，以及存储在应用数据库中的目录后端 | 否 |
 | [`@lakutata/ldap-engine`](packages/ldap-engine) | 不依赖应用的 LDAP：协议、客户端，以及由后端存放条目的服务器 | 否 |
 | [`@lakutata/cli`](packages/cli) | `lakutata` 命令：项目、工作区、迁移、打包 | 否 |
 | [`@lakutata/builder`](packages/builder) | 单文件包、可执行文件和安装包，由 `lakutata package` 使用 | 否 |
 
-`lakutata create` 用的模板是各个 `@lakutata/template-*` 包，由 `@lakutata/templates` 列出。
+`lakutata create` 使用的模板是各个 `@lakutata/template-*` 包，由 `@lakutata/templates` 列出。
 
 ## 文档
 
-- [lakutata.com](https://lakutata.com/zh/)：中英文指南、示例和 API 参考。指南和示例的源文件在 [`packages/lakutata/doc`](packages/lakutata/doc)（`en`、`zh` 及其中的 `examples`），API 参考来自各个包的类型声明。
-- 每个包都有自己的 README，说明它的选项、API 和错误。
-- [`plugins/lakutata`](plugins/lakutata)：框架的 Agent Skill（智能体技能），供 AI 编程助手使用。任何助手：`npx skills add lakutata/lakutata`；Claude Code：`/plugin install lakutata --marketplace lakutata/lakutata`；其他助手的安装方法和技能的工作方式见[它的页面](https://lakutata.com/zh/skill/)。
+- [lakutata.com](https://lakutata.com/zh/)：中英文指南、示例和 API 参考。指南和示例的源文件位于 [`packages/lakutata/doc`](packages/lakutata/doc)（`en`、`zh` 及其中的 `examples`），API 参考来自各个包的类型声明。
+- 每个包都有各自的 README，说明该包的选项、API 和错误。
+- [`plugins/lakutata`](plugins/lakutata)：框架的 Agent Skill（智能体技能），供 AI 编程助手使用。任何助手均可通过 `npx skills add lakutata/lakutata` 安装，Claude Code 通过 `/plugin install lakutata --marketplace lakutata/lakutata` 安装；其他助手的安装方法和技能的工作方式见[技能页面](https://lakutata.com/zh/skill/)。
 
 ## 开发
 
@@ -119,11 +119,11 @@ npm run lint         # ESLint，以及公共 API 文档的检查
 cd website && npm ci && npm run dev    # 网站（需要先构建各个包）
 ```
 
-仓库里有各个包和模板（`packages/`）、网站（`website/`），以及构建和文档检查用的脚本（`scripts/`）。命名规则和公共 API 的文档写法见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+仓库中包含各个包和模板（`packages/`）、网站（`website/`），以及用于构建和文档检查的脚本（`scripts/`）。命名规则和公共 API 的文档写法见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## Lakutata 2.x
 
-Lakutata 3 把框架和它的各个包都放进了这个仓库。`lakutata` 的 2.x 版本在这里有标签（`2.0.x`）。`@lakutata/cli`、`@lakutata/dbus` 和 `@lakutata/nats` 的 2.x 版本来自 [lakutata-packages](https://github.com/lakutata/lakutata-packages)，2.x 的模板来自各个 `lakutata-template-*` 仓库。把 2.x 项目升级到 3.x，见[从 Lakutata 2.x 升级](https://lakutata.com/zh/guide/UpgradingFrom2)；Lakutata 1.x 的项目（1.x 版本的 `@lakutata/core` 以及 `@lakutata-module/*`、`@lakutata-component/*` 包）请看[从 Lakutata 1.x 升级](https://lakutata.com/zh/guide/UpgradingFrom1)。
+Lakutata 3 将框架及其各个包都纳入了本仓库。`lakutata` 的 2.x 版本在本仓库中有标签（`2.0.x`）。`@lakutata/cli`、`@lakutata/dbus` 和 `@lakutata/nats` 的 2.x 版本来自 [lakutata-packages](https://github.com/lakutata/lakutata-packages)，2.x 的模板来自各个 `lakutata-template-*` 仓库。将 2.x 项目升级到 3.x 的方法见[从 Lakutata 2.x 升级](https://lakutata.com/zh/guide/UpgradingFrom2)；Lakutata 1.x 的项目（1.x 版本的 `@lakutata/core` 以及 `@lakutata-module/*`、`@lakutata-component/*` 包）请参阅[从 Lakutata 1.x 升级](https://lakutata.com/zh/guide/UpgradingFrom1)。
 
 ## 许可证
 

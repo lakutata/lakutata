@@ -2,9 +2,9 @@
 
 [English](README.md) | 中文
 
-Lakutata 框架的核心：IoC 容器和依赖注入，对象模型（`BaseObject`、`Component`、`Provider`、`Application`）及其异步的创建与销毁，以及 `@Configurable`、`@Expect`、`@Accept` 和 `@Return` 装饰器所用的数据校验（`DTO`，一个 API 和 joi 一样的校验引擎）。
+Lakutata 框架的核心：IoC 容器和依赖注入，对象模型（`BaseObject`、`Component`、`Provider`、`Application`）及其异步的创建与销毁，以及 `@Configurable`、`@Expect`、`@Accept` 和 `@Return` 装饰器所用的数据校验（`DTO`，一个 API 与 joi 相同的校验引擎）。
 
-大多数应用安装的是 `lakutata` 包：它重新导出这个包（`lakutata`、`lakutata/decorator/di`、`lakutata/decorator/dto`、`lakutata/decorator/asst`、`lakutata/dtos`），并预置 `log` 和 `entrypoint` 组件。对于库，或者这两个组件都不需要的应用，只用 `@lakutata/core` 就够了（此时日志输出到控制台）。
+大多数应用安装的是 `lakutata` 包，该包重新导出本包（`lakutata`、`lakutata/decorator/di`、`lakutata/decorator/dto`、`lakutata/decorator/asst`、`lakutata/dtos`），并预置 `log` 和 `entrypoint` 组件。对于库，或者这两个组件都不需要的应用，仅使用 `@lakutata/core` 即可（此时日志输出到控制台）。
 
 ## 安装
 
@@ -13,7 +13,7 @@ npm install lakutata          # 框架
 npm install @lakutata/core    # 或者只安装核心
 ```
 
-这个包需要 Node.js 18.10 或更高版本（`>=18.10.0`）。项目使用 ES 模块（`"type": "module"`）；包里也带有 CommonJS 构建。装饰器需要以下 TypeScript 选项：
+本包需要 Node.js 18.10 或更高版本（`>=18.10.0`）。项目使用 ES 模块（`"type": "module"`）；包中也带有 CommonJS 构建。装饰器需要以下 TypeScript 选项：
 
 ```json
 {
@@ -30,7 +30,7 @@ npm install @lakutata/core    # 或者只安装核心
 
 ### 一个应用
 
-应用是一棵由它的容器创建的对象树。`Application.run()` 校验应用的选项，注册它的组件和提供者，创建 `bootstrap` 中列出的对象，然后调用 `onLaunched`。
+应用是一棵由其容器创建的对象树。`Application.run()` 校验应用的选项，注册应用的组件和提供者，创建 `bootstrap` 中列出的对象，然后调用 `onLaunched`。
 
 ```typescript
 import {Application, Component, DTO, type ILogger} from 'lakutata'
@@ -86,11 +86,11 @@ Application
 
 ### 依赖注入
 
-`@Inject()` 注入以属性名注册的对象，`@Inject('name')` 注入以另一个名称注册的对象，`@Inject(SomeClass)` 注入一个类的实例（类标记了 `@Autoload()` 时会自动注册）。注入的对象在 `init()` 执行之前就已设置好。
+`@Inject()` 注入以属性名注册的对象，`@Inject('name')` 注入以另一个名称注册的对象，`@Inject(SomeClass)` 注入一个类的实例（类标记了 `@Autoload()` 时会自动注册）。注入的对象在 `init()` 执行之前即已设置完毕。
 
 ### 校验
 
-`DTO` 的子类用 `@Expect(schema)` 声明它的字段。校验规则由 `DTO` 的静态方法构建（`DTO.String()`、`DTO.Number()`、`DTO.Object()`、`DTO.Array()`、`DTO.Alternatives()`……），API 与 joi 相同：
+`DTO` 的子类使用 `@Expect(schema)` 声明其字段。校验规则由 `DTO` 的静态方法构建（`DTO.String()`、`DTO.Number()`、`DTO.Object()`、`DTO.Array()`、`DTO.Alternatives()`……），API 与 joi 相同：
 
 ```typescript
 import {DTO} from 'lakutata'
@@ -151,26 +151,26 @@ await container.destroy()
 | `Container` | `lakutata` | IoC 容器：`set`、`get`、`getShared`、`register`、`createScope`、`destroy` |
 | `DTO` | `lakutata` | 带校验的数据类，以及构建校验规则的方法 |
 | `Exception` | `lakutata` | 框架中各种异常的基类（`errno`、`statusCode`） |
-| `isPackaged`、`resourcesPath` | `lakutata` | 应用是否以打包形式运行，以及它的资源目录 |
+| `isPackaged`、`resourcesPath` | `lakutata` | 应用是否以打包形式运行，以及应用的资源目录 |
 | `registerValidationMessages`、`runInValidationLanguage`…… | `lakutata` | 校验消息的语言 |
-| `Inject`、`Configurable`、`Autoload`、`Singleton`、`Scoped`、`Transient`、`Lifetime` | `lakutata/decorator/di` | 依赖注入与生命周期 |
+| `Inject`、`Configurable`、`Autoload`、`Singleton`、`Scoped`、`Transient`、`Lifetime` | `lakutata/decorator/di` | 依赖注入与生命周期类型 |
 | `Expect`、`Accept`、`Return`、`IndexSignature` | `lakutata/decorator/dto` | DTO 字段，以及方法参数和返回值的校验 |
 | `Before`、`After` | `lakutata/decorator/asst` | 在方法之前和之后执行的函数 |
 | `PaginationSearchDTO`、`PaginationResultDTO`、`paginator`、`FlexibleDTO`、`toJsonSchema`、`fromJsonSchema` | `lakutata/dtos` | 分页、接受任意字段的 DTO、JSON Schema 转换 |
 | `ConsoleLogger`、`ILogger` | `@lakutata/core/com/logger` | 日志记录器接口及其控制台实现 |
-| `IInterfaceListening`、`IInterfaceListener`、`IInterfaceListenOptions`、`IListeningAddress`、`NetworkInterfaceSelector` | `lakutata` | 按网口监听的接口：入口的 `interface` 选项通过它监听，`@lakutata/netif` 实现了它（只有类型） |
+| `IInterfaceListening`、`IInterfaceListener`、`IInterfaceListenOptions`、`IListeningAddress`、`NetworkInterfaceSelector` | `lakutata` | 按网口监听的接口：适配器的 `interface` 选项通过该接口监听，`@lakutata/netif` 实现了该接口（仅包含类型） |
 
 类型声明中的每一项都附有说明和示例。
 
 ## 错误
 
-| 异常 | 什么时候抛出 |
+| 异常 | 抛出时机 |
 |---|---|
-| `InvalidValueException` | 值不符合它的校验规则（`DTO.validate`、`@Configurable`、`@Expect`） |
+| `InvalidValueException` | 值不符合其校验规则（`DTO.validate`、`@Configurable`、`@Expect`） |
 | `InvalidMethodAcceptException`、`InvalidMethodReturnException` | 方法的参数（`@Accept`）或返回值（`@Return`）不合法 |
 | `DependencyInjectionException` | 要注入的对象无法解析 |
 | `InvalidObjectOptionsException`、`InvalidObjectTypeException` | 所声明对象的选项或类不合法 |
-| `LifetimeLockedException` | 类的生命周期锁定之后又被修改 |
+| `LifetimeLockedException` | 类的生命周期类型在锁定后又被修改 |
 | `ObjectDestroyedException` | 使用了已销毁的对象 |
 | `AliasExistsException`、`AliasNotFoundException`、`InvalidAliasNameException` | 路径别名重复声明、不存在或不合法 |
 | `MethodNotFoundException` | 按名称调用的方法不存在 |
@@ -179,5 +179,5 @@ await container.destroy()
 
 - 网站上的指南：[对象与生命周期](https://lakutata.com/zh/guide/Objects)、[依赖注入](https://lakutata.com/zh/guide/Injection)、[DTO 与数据校验](https://lakutata.com/zh/guide/DTOValidation)。
 - `lakutata` 包中的指南 `doc/zh/Application.md`、`doc/zh/Objects.md`、`doc/zh/Injection.md`、`doc/zh/DTOValidation.md` 和 `doc/zh/Decorator.md`。
-- `@lakutata/entrypoint`：控制器，以及它们的 HTTP、命令行和服务调用传输方式。
+- `@lakutata/entrypoint`：控制器，以及控制器的 HTTP、命令行和服务调用传输方式。
 - `@lakutata/logger`：`lakutata` 预置为 `log` 的日志记录器（与 pino 兼容的 JSON 行）。

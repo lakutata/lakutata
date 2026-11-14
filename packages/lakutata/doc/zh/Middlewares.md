@@ -1,10 +1,10 @@
 # Lakutata 中间件与访问控制
 
-中间件在动作前后运行：它在动作之前看到每个请求，在动作之后看到结果。访问控制决定一个请求能否到达它的动作。两者对所有传输方式都以同样的方式工作。
+中间件在动作前后运行，在动作之前接收每个请求，在动作之后获得结果。访问控制决定请求能否到达对应的动作。两者在所有传输方式中的工作方式相同。
 
 ## 1. 中间件
 
-中间件是一个函数 `(invocation, next) => Promise<unknown>`。它调用 `next()` 让请求继续，并返回请求的结果：
+中间件是一个函数 `(invocation, next) => Promise<unknown>`，它调用 `next()` 使请求继续，并返回请求的结果：
 
 ```typescript
 import {type ActionInvocation, Controller, type Next} from 'lakutata/com/entrypoint'
@@ -28,7 +28,7 @@ class HealthController extends Controller {
 }
 ```
 
-中间件也可以是一个继承 `Middleware` 并实现 `handle(invocation, next)` 的类。这个类在每个请求的作用域里创建，所以可以注入其他对象：
+中间件也可以是继承 `Middleware` 并实现 `handle(invocation, next)` 的类。该类在每个请求的作用域中创建，因此可以注入其他对象：
 
 ```typescript
 import {Component} from 'lakutata'
@@ -61,31 +61,31 @@ export class Timing extends Middleware {
 
 | 属性 | 含义 |
 |---|---|
-| `context` | 请求的上下文（动作中的 `this.context`）。它的 `data`（校验之前的输入）可以修改 |
+| `context` | 请求的上下文（动作中的 `this.context`）。其 `data`（校验之前的输入）可以修改 |
 | `action` | 动作：`name`、`description`、`groups` 和地址（`route`、`command`、`pattern`） |
-| `container` | 请求作用域的容器，用来获取这个请求的对象 |
+| `container` | 请求作用域的容器，用于获取该请求的对象 |
 | `signal` | 请求的 `AbortSignal` |
 
-- 不调用 `next()` 直接返回的中间件，会自己回复这个请求：动作不会执行。缓存就可以这样实现。
-- 抛出错误的中间件会让请求失败，效果与动作抛出错误相同。
-- `next()` 只能调用一次：第二次调用会抛出 `MiddlewareNextCalledException`。
-- 中间件对所有传输方式都会执行，包括定时任务。可以用 `invocation.context.type` 区分它们。
+- 不调用 `next()` 而直接返回的中间件会自行答复该请求，动作不会执行。缓存即可通过这种方式实现。
+- 抛出错误的中间件会导致请求失败，效果与动作抛出错误相同。
+- `next()` 只能调用一次，第二次调用会抛出 `MiddlewareNextCalledException`。
+- 中间件对所有传输方式都会执行，包括定时任务。可以通过 `invocation.context.type` 区分传输方式。
 
 ## 2. 在哪里声明
 
 | 位置 | 作用于 |
 |---|---|
 | `buildEntrypoints({middlewares})` | 所有动作 |
-| 适配器的 `middlewares` 选项 | 通过这个适配器到达的动作 |
-| 控制器类上的 `@UseMiddlewares(...)` | 这个类及其子类的动作 |
-| 动作选项 `middlewares` | 这个动作 |
-| 方法上的 `@UseMiddlewares(...)` | 这个方法 |
+| 适配器的 `middlewares` 选项 | 通过该适配器到达的动作 |
+| 控制器类上的 `@UseMiddlewares(...)` | 该类及其子类的动作 |
+| 动作选项 `middlewares` | 该动作 |
+| 方法上的 `@UseMiddlewares(...)` | 该方法 |
 
-它们按照表中的顺序执行，从第一行（最外层）到最后一行：入口、适配器、控制器类、动作选项、方法。在控制器上，父类的中间件先于子类的执行。最后一个中间件之后，依次是输入校验、访问控制和动作本身。
+这些中间件按表中的顺序执行，从第一行（最外层）到最后一行依次为：入口、适配器、控制器类、动作选项、方法。在控制器上，父类的中间件先于子类的中间件执行。最后一个中间件之后，依次执行输入校验、访问控制和动作本身。
 
 ## 3. 向动作传递数据
 
-中间件常常会得到动作需要的数据，比如发送请求的用户。不要把它放进输入：DTO 在中间件之后才校验输入，还会去掉没有声明的键。应该改用请求的提供者：`@Scoped` 提供者在每个请求中只有一个实例，中间件给它赋值，动作注入的就是同一个实例。
+中间件常常会获得动作所需的数据，例如发送请求的用户。不要将这些数据放入输入，因为 DTO 在中间件之后才校验输入，并且会去除未声明的键。应改用请求的提供者。`@Scoped` 提供者在每个请求中只有一个实例，中间件为其赋值后，动作注入的正是同一个实例。
 
 ```typescript
 import {Exception, Provider} from 'lakutata'
@@ -141,7 +141,7 @@ $ curl localhost:8080/me
 
 ## 4. 访问控制
 
-声明了 `acl: true` 的动作，会由入口的访问规则检查。访问规则是继承 `AccessControlRule` 的类，列在 `buildEntrypoints({rules})` 中：
+声明了 `acl: true` 的动作由入口的访问规则检查。访问规则是继承 `AccessControlRule` 的类，列在 `buildEntrypoints({rules})` 中：
 
 ```typescript
 import {Provider} from 'lakutata'
@@ -188,11 +188,11 @@ export class StatsController extends Controller {
 //buildEntrypoints({controllers: [StatsController], rules: [AdminRule], httpActionGroups: {admin: 'Administration'}})
 ```
 
-- 访问规则在每个请求的作用域里创建，所以可以注入这个请求的对象，比如中间件赋值过的 `CurrentUser`。
-- 在规则里，`this.context` 是请求的上下文，`this.input` 是校验后的输入，`this.targetAction` 是目标动作（它的 `name`、`groups`），`this.actions` 是该传输方式的全部动作。
-- `supportContextTypes` 列出规则要检查的传输方式，其他传输方式会跳过这条规则。
-- 先按 `rules` 选项的顺序执行各条规则，再执行动作的 `rule` 选项。第一个返回 `false` 的规则会以 `AccessDeniedException` 拒绝请求（errno 为 `E_ACCESS_DENY`，HTTP 上是状态码 403）；抛出错误的规则会以它自己的错误拒绝请求（比如 401）。
-- 动作的 `rule` 选项可以单独使用：没有 `acl` 时，只检查这一条规则。
-- 既没有 `acl` 也没有 `rule` 的动作不做检查。`acl: true` 的动作只要没有规则拒绝就允许访问。
+- 访问规则在每个请求的作用域中创建，因此可以注入该请求的对象，例如由中间件赋值的 `CurrentUser`。
+- 在规则中，`this.context` 是请求的上下文，`this.input` 是校验后的输入，`this.targetAction` 是目标动作（包括其 `name`、`groups`），`this.actions` 是该传输方式的全部动作。
+- `supportContextTypes` 列出规则要检查的传输方式，其他传输方式将跳过该规则。
+- 先按 `rules` 选项的顺序执行各条规则，再执行动作的 `rule` 选项。第一个返回 `false` 的规则以 `AccessDeniedException` 拒绝请求（errno 为 `E_ACCESS_DENY`，HTTP 上为状态码 403）；抛出错误的规则则以其自身的错误拒绝请求（例如 401）。
+- 动作的 `rule` 选项可以单独使用，没有 `acl` 时只检查这一条规则。
+- 既没有 `acl` 也没有 `rule` 的动作不受检查。对于 `acl: true` 的动作，只要没有规则拒绝，便允许访问。
 
-访问控制在中间件和输入校验之后、动作之前执行。要改变整个应用的判断方式，见[入口](Entrypoint.md)第 7 节。
+访问控制在中间件和输入校验之后、动作之前执行。如需改变整个应用的判断方式，见[入口](Entrypoint.md)第 7 节。

@@ -1,6 +1,6 @@
 # Lakutata 辅助函数
 
-`lakutata/utils`（`@lakutata/utils` 包）导出框架及其应用共用的辅助工具：字符串、对象、数组和集合、哈希和编码、UUID、IP 地址、glob、统计，以及 `Time`（见[时间（Time）](Time.md)）。它们是没有依赖的普通函数和类：在需要的地方直接导入即可，无论是否在应用中，都不需要注册。更多细节以及各函数抛出的错误见 `@lakutata/utils` 的 README 和各函数的类型声明。
+`lakutata/utils`（`@lakutata/utils` 包）导出框架及其应用共用的辅助工具：字符串、对象、数组和集合、哈希和编码、UUID、IP 地址、glob、统计，以及 `Time`（见[时间（Time）](Time.md)）。这些工具是没有依赖的普通函数和类，在需要的地方直接导入即可；无论是否在应用中，都无需注册。更多细节以及各函数抛出的错误见 `@lakutata/utils` 的 README 和各函数的类型声明。
 
 ```typescript
 import {Application, Component, Time} from 'lakutata'
@@ -37,8 +37,8 @@ Application
 
 | 函数 | 作用 |
 |---|---|
-| `camelCase(text)` | 把任意命名风格的字符串转为 camelCase |
-| `noCase(text, options?)` | 把任意命名风格的字符串转为以空格分隔的小写单词 |
+| `camelCase(text)` | 将任意命名风格的字符串转为 camelCase |
+| `noCase(text, options?)` | 将任意命名风格的字符串转为以空格分隔的小写单词 |
 | `templating(template, data, options?)` | 填充 `{key}` 占位符，`{{key}}` 占位符会做 HTML 转义；缺少值时抛出 `MissingValueError`，除非设置 `ignoreMissing` |
 | `randomString(length?, charset?)` | 随机字符串，字符集可以是具名字符集（`'alphanumeric'`、`'alphabetic'`、`'numeric'`、`'hex'`、`'binary'`、`'octal'`）或自定义字符集 |
 | `nonceString()` | 由 32 个字母和数字组成的随机字符串 |
@@ -54,7 +54,7 @@ Application
 | `sortKeys(object, options?)` | 返回按比较函数排序键的普通对象副本（`deep`、`compare`） |
 | `sortObject(object, options?)` | 返回按字母顺序排序键的普通对象副本（`deep`、`order: 'asc' \| 'desc'`） |
 | `uniqueArray(array)` | 去除重复元素后的数组 |
-| `mergeArray`、`mergeSet`、`mergeMap` | 把两个数组、集合或 Map 合并为新的一个 |
+| `mergeArray`、`mergeSet`、`mergeMap` | 将两个数组、集合或 Map 合并为一个新实例 |
 | `arrayToSet`、`setToArray`、`objectToMap` | 集合类型之间的转换 |
 | `getObjectPropertyPaths`、`getObjectNestingDepth`、`isEmptyObject` | 对象叶子值的路径、嵌套深度、是否没有自有属性 |
 | `objectConstructor`、`objectPrototype`、`objectParentConstructor(s)`、`isSubclassOf` | 类及其祖先 |
@@ -92,7 +92,7 @@ console.log(uniqueArray([3, 1, 3, 2]), Object.keys(sortObject({b: 1, a: 2})))
 | `md5(text)`、`sha1(text)`、`sha256(text)` | 字符串的摘要，返回 `Buffer`（用于校验和；密码和秘密请见[安全](Security.md)） |
 | `MessagePack` | 在值与 MessagePack 字节或字符串之间序列化和反序列化 |
 | `UUID` | 生成（`v1`、`v3`、`v4`、`v5`、`v6`）、校验、解析和格式化 UUID |
-| `URLBuilder` | 把任意协议的 URL 解析为各个属性，或由属性构建 URL |
+| `URLBuilder` | 将任意协议的 URL 解析为各个属性，或由属性构建 URL |
 | `hexToUnsigned`、`unsignedToHex(value, bits = 32)` | 十六进制与无符号整数（8 到 128 位）互转 |
 | `hexToSigned`、`signedToHex(value, bits = 32)` | 十六进制与有符号整数（补码）互转 |
 | `hexToIEEE754`、`ieee754ToHex` | 十六进制与 IEEE 754 浮点数互转 |
@@ -118,7 +118,7 @@ console.log(UUID.validate(UUID.v4()))
 |---|---|
 | `delay(ms)` | 等待指定的毫秒数 |
 | `gracefulExit` | 执行完清理函数后退出进程 |
-| `pathExists(path)`、`isPath(text)` | 文件或目录是否存在；字符串看起来是否像路径 |
+| `pathExists(path)`、`isPath(text)` | 文件或目录是否存在；字符串是否具有路径的形式 |
 | `Glob(patterns, options?)`、`GlobSync`、`isGlobString` | 匹配 glob 模式的文件；字符串是否是 glob 模式 |
 | `isPromise`、`isPromiseLike`、`isAbortError` | 值是否是 Promise 或 thenable；错误是否是 Node.js 的中止错误 |
 | `isSymbol`、`isNativeFunction`、`isHTML`、`isXML` | 类型判断 |

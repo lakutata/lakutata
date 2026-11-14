@@ -1,6 +1,6 @@
 # Lakutata 数据库驱动
 
-数据库的 `type` 选项决定使用哪个驱动。安装 `lakutata` 时不会安装驱动包：根据你的数据库，另外安装对应的驱动。
+数据库的 `type` 选项决定所使用的驱动。安装 `lakutata` 时不会安装驱动包，请根据所用的数据库另行安装对应的驱动。
 
 | 数据库 | `type` | 需要安装 |
 |---|---|---|
@@ -21,14 +21,14 @@
 npm install lakutata pg
 ```
 
-没有 `sqlite` 这个类型：SQLite 文件使用 `better-sqlite3`；在无法运行原生插件的环境中使用 `sqljs`。TypeORM 还有面向移动平台 JavaScript 环境的驱动（`capacitor`、`cordova`、`expo`、`nativescript`、`react-native`），Lakutata 不使用它们。`mobile-react` 模板的手机应用把 Lakutata 应用运行在 Node.js 中，使用本页的驱动（见[手机应用](#手机应用)）。
+没有名为 `sqlite` 的类型。SQLite 文件使用 `better-sqlite3`；在无法运行原生插件的环境中使用 `sqljs`。TypeORM 还提供面向移动平台 JavaScript 环境的驱动（`capacitor`、`cordova`、`expo`、`nativescript`、`react-native`），Lakutata 不使用这些驱动。`mobile-react` 模板的手机应用在 Node.js 中运行 Lakutata 应用，使用的是本页介绍的驱动（见[手机应用](#手机应用)）。
 
 ## 所有驱动通用的规则
 
-- 连接选项会原样交给 TypeORM，TypeORM 不会检查它们：缺少主机或密码时，由驱动在连接数据库时报错。
-- `extra` 会传给驱动的客户端（连接池、连接），放在其他选项之后：用它设置 TypeORM 没有提供选项的配置。
-- `driver` 直接给出驱动模块本身（`driver: require('pg')`），不由 Lakutata 去加载驱动包。
-- 下面的每个示例都声明一个 `Database` 组件。`Database` 提供者的选项相同（见[数据库](Database.md)）。
+- 连接选项会原样传给 TypeORM，TypeORM 不检查这些选项；缺少主机或密码时，由驱动在连接数据库时报错。
+- `extra` 会传给驱动的客户端（连接池、连接），位于其他选项之后，可用于设置 TypeORM 未提供选项的配置。
+- `driver` 直接给出驱动模块本身（`driver: require('pg')`），此时 Lakutata 不再加载驱动包。
+- 以下每个示例都声明一个 `Database` 组件。`Database` 提供者的选项与之相同（见[数据库](Database.md)）。
 
 ## PostgreSQL
 
@@ -49,20 +49,20 @@ export const db = buildDatabaseOptions({
 
 | 选项 | 默认值 | 含义 |
 |---|---|---|
-| `url` | | 连接 URL，代替下面这些选项 |
+| `url` | | 连接 URL，用于代替下列选项 |
 | `host`、`port`、`username`、`password`、`database` | | 服务器和数据库；`password` 可以是函数（同步或异步），用于读取会轮换的密钥 |
 | `ssl` | | `true`，或 Node.js 的 TLS 选项（`{ca, rejectUnauthorized}`） |
 | `schema` | 服务器的 `search_path`（通常是 `public`） | 表所在的 schema |
-| `poolSize` | 10（`pg` 的默认值） | 连接池的连接数 |
+| `poolSize` | 10（`pg` 的默认值） | 连接池的最大连接数 |
 | `connectTimeoutMS` | 不限 | 连接的超时时间 |
-| `applicationName` | | 在服务器活动列表中显示的名字 |
+| `applicationName` | | 在服务器活动列表中显示的名称 |
 | `uuidExtension` | `'uuid-ossp'` | UUID 列使用的扩展：`'uuid-ossp'` 或 `'pgcrypto'` |
 | `replication` | | `{master, slaves}`：读操作发往副本 |
 
-- **`bigint` 和 `numeric` 列以字符串返回**，以保持精度（`'9007199254740993'`、`'12.50'`）。如果数字就够用，可以用列的 `transformer` 转换。`parseInt8: true` 会让 `bigint` 列返回数字，但它修改的是 `pg` 在整个进程中的设置。
-- 安装了 `pg-native` 时会使用 `pg` 的原生客户端。流式查询（查询构造器的 `stream()`）需要 `pg-query-stream`。
+- **`bigint` 和 `numeric` 列以字符串返回**，以保持精度（`'9007199254740993'`、`'12.50'`）。如果数字类型已能满足需要，可以通过列的 `transformer` 转换。`parseInt8: true` 会让 `bigint` 列返回数字，但该选项修改的是 `pg` 在整个进程范围内的设置。
+- 安装 `pg-native` 后，将使用 `pg` 的原生客户端。流式查询（查询构造器的 `stream()`）需要 `pg-query-stream`。
 
-**CockroachDB** 使用同一个驱动，`type: 'cockroachdb'`，连接选项相同。必须给出它的 `timeTravelQueries` 选项（读操作是否使用 follower reads）；因冲突失败的事务会重试 5 次（`maxTransactionRetries`）。
+**CockroachDB** 使用同一个驱动（`type: 'cockroachdb'`），连接选项相同。必须指定其 `timeTravelQueries` 选项（读操作是否使用 follower reads）；因冲突而失败的事务会重试 5 次（`maxTransactionRetries`）。
 
 ## MySQL 与 MariaDB
 
@@ -84,19 +84,19 @@ export const db = buildDatabaseOptions({
 | 选项 | 默认值 | 含义 |
 |---|---|---|
 | `url`、`host`、`port`、`username`、`password` | | 服务器 |
-| `database` | | 数据库。必填，除非每个实体都指定了自己的数据库 |
-| `socketPath` | | 用 unix socket 代替主机和端口 |
-| `ssl` | | TLS 选项，或 TLS 配置文件的名字 |
-| `charset` | `'UTF8_GENERAL_CI'` | 字符集和排序规则：要支持完整的 Unicode（包括 emoji），用 `'utf8mb4'` |
-| `timezone` | `'local'` | 日期如何读写：`'local'`、`'Z'` 或偏移量（`'+08:00'`） |
-| `poolSize` | 10（`mysql2` 的默认值） | 连接池的连接数 |
+| `database` | | 数据库。必填，除非每个实体都指定了各自的数据库 |
+| `socketPath` | | 使用 Unix socket 代替主机和端口 |
+| `ssl` | | TLS 选项，或 TLS 配置文件的名称 |
+| `charset` | `'UTF8_GENERAL_CI'` | 字符集和排序规则；如需支持完整的 Unicode（包括 emoji），请使用 `'utf8mb4'` |
+| `timezone` | `'local'` | 日期的读写方式：`'local'`、`'Z'` 或偏移量（`'+08:00'`） |
+| `poolSize` | 10（`mysql2` 的默认值） | 连接池的最大连接数 |
 | `connectTimeout`、`acquireTimeout` | `10000` | 连接的超时时间，以及从连接池获取连接的超时时间 |
 | `replication` | | `{master, slaves}`：读操作发往副本 |
 
-- MariaDB 使用 `type: 'mariadb'`，选项相同。MariaDB 从 10.7 开始支持 `uuid` 列类型。
+- MariaDB 使用 `type: 'mariadb'`，选项相同。MariaDB 自 10.7 起支持 `uuid` 列类型。
 - **`bigint` 和 `decimal` 列以字符串返回**，与 PostgreSQL 相同。
-- 一张表最多有一个自增列。在 TypeORM 的表结构同步中，MySQL 不支持 check 约束。
-- 只支持 `mysql2`，不支持旧的 `mysql` 包。
+- 一张表最多只能有一个自增列。在 TypeORM 的表结构同步中，MySQL 不支持 check 约束。
+- 仅支持 `mysql2`，不支持旧的 `mysql` 包。
 
 ## SQLite：better-sqlite3
 
@@ -116,20 +116,20 @@ export const db = buildDatabaseOptions({
 |---|---|---|
 | `database` | 必填 | 数据库文件，或 `':memory:'` |
 | `enableWAL` | `false` | 预写日志（WAL）：读操作不再等待写操作 |
-| `timeout` | `5000` | 语句等待被其他连接锁住的数据库的时间，单位毫秒 |
+| `timeout` | `5000` | 数据库被其他连接锁定时，语句的等待时间，单位毫秒 |
 | `readonly`、`fileMustExist` | `false` | 以只读方式打开文件；文件不存在时报错 |
 | `key` | | 加密密钥，用于带 SQLCipher 的 SQLite |
-| `prepareDatabase` | | `(db) => …`，连接打开后用 better-sqlite3 的连接调用它：设置 pragma、注册函数 |
-| `nativeBinding` | | 编译好的模块 `better_sqlite3.node` 的路径 |
+| `prepareDatabase` | | `(db) => …`，连接打开后以 better-sqlite3 的连接为参数调用，可用于设置 pragma、注册函数 |
+| `nativeBinding` | | 已编译模块 `better_sqlite3.node` 的路径 |
 
-- 外键约束是生效的（`PRAGMA foreign_keys = ON`）。只有一个连接：不支持 `poolSize`。
-- **`bigint` 列以数字返回**：超过 2^53 的值会丢失精度。这类值请存在文本列中。
-- `better-sqlite3` 是原生插件，针对某个 Node.js 版本编译。Electron 应用需要针对它的 Electron 版本的构建（`electron-rebuild`，或 better-sqlite3 为 Electron 提供的预编译文件）；NW.js 应用会用 NW.js 的头文件重新构建它（需要 0.111.3 及以后的版本：更早的版本请使用 `sqljs`）；Bun 无法加载它（在 Bun 上使用 `sqljs`）。
-- 用 Node.js 24.19 及以后版本的头文件从源码编译时，垃圾回收器释放它的对象会让进程中止（`RemoveEnvironmentCleanupHook` 中的 `Assertion failed: (env) != nullptr`，见 [nodejs/node#65446](https://github.com/nodejs/node/issues/65446)），所有基于 `node::ObjectWrap` 的插件都是这样。它的预编译文件是用更早的头文件编译的，不受影响；`lakutata mobile stage` 为手机系统编译插件时，去掉了 `node::ObjectWrap` 中引起这个问题的清理钩子。
+- 外键约束处于启用状态（`PRAGMA foreign_keys = ON`）。驱动只使用一个连接，因此不支持 `poolSize`。
+- **`bigint` 列以数字返回**，超过 2^53 的值会丢失精度。这类值请保存在文本列中。
+- `better-sqlite3` 是原生插件，针对特定的 Node.js 版本编译。Electron 应用需要针对所用 Electron 版本的构建（`electron-rebuild`，或 better-sqlite3 为 Electron 提供的预编译文件）。NW.js 应用会用 NW.js 的头文件重新构建该插件（需要 0.111.3 及以后的版本，更早的版本请使用 `sqljs`）。Bun 无法加载该插件（在 Bun 上请使用 `sqljs`）。
+- 使用 Node.js 24.19 及以后版本的头文件从源码编译时，垃圾回收器释放该插件的对象会导致进程中止（`RemoveEnvironmentCleanupHook` 中的 `Assertion failed: (env) != nullptr`，见 [nodejs/node#65446](https://github.com/nodejs/node/issues/65446)）。所有基于 `node::ObjectWrap` 的插件都存在这一问题。better-sqlite3 的预编译文件使用更早的头文件编译，因此不受影响；`lakutata mobile stage` 为手机系统编译插件时，会去除 `node::ObjectWrap` 中引发该问题的清理钩子。
 
 ## SQLite：sql.js
 
-`sql.js` 是编译成 WebAssembly 的 SQLite：没有原生插件，所以在 Node.js、Bun、Electron 和浏览器中的表现都一样。整个数据库保存在内存中，发生变化时写入文件。
+`sql.js` 是编译为 WebAssembly 的 SQLite，不含原生插件，因此在 Node.js、Bun、Electron 和浏览器中的表现相同。整个数据库保存在内存中，发生变化时写入文件。
 
 ```typescript
 import {buildDatabaseOptions} from 'lakutata/com/database'
@@ -145,17 +145,17 @@ export const db = buildDatabaseOptions({
 
 | 选项 | 默认值 | 含义 |
 |---|---|---|
-| `location` | | 加载和保存的文件（在浏览器中是 `localStorage` 的键） |
+| `location` | | 加载和保存的文件（在浏览器中为 `localStorage` 的键） |
 | `autoSave` | `false` | 每次变化后保存。需要 `location` 或 `autoSaveCallback` |
-| `autoSaveCallback` | | `(data: Uint8Array) => …`，代替写入 `location` |
-| `database` | | 要加载的数据库内容（`Uint8Array`），代替 `location` |
+| `autoSaveCallback` | | `(data: Uint8Array) => …`，用于代替写入 `location` |
+| `database` | | 待加载的数据库内容（`Uint8Array`），用于代替 `location` |
 | `useLocalForage` | `false` | 在浏览器中保存到 IndexedDB（通过 `localforage`），而不是 `localStorage` |
-| `sqlJsConfig` | | sql.js 初始化的选项（用 `locateFile` 指定它的 `.wasm` 文件） |
-| `driver` | | 代替 `sql.js` 包自带版本使用的 sql.js 版本：它的 asm.js 版本（`sql.js/dist/sql-asm.js`）不需要 WebAssembly |
+| `sqlJsConfig` | | sql.js 的初始化选项（用 `locateFile` 指定其 `.wasm` 文件） |
+| `driver` | | 代替 `sql.js` 包自带版本的 sql.js 版本；sql.js 的 asm.js 版本（`sql.js/dist/sql-asm.js`）不需要 WebAssembly |
 
-- 没有 `autoSave` 时，在调用实体管理器（`SqljsEntityManager`）的 `saveDatabase()` 之前，什么都不会写到磁盘。有 `autoSave` 时，事务中的变化在事务提交后保存。
-- 每次保存都会写入整个文件：sql.js 适合小型数据库。
-- 与 better-sqlite3 相同，外键约束生效，`bigint` 列以数字返回。
+- 未设置 `autoSave` 时，在调用实体管理器（`SqljsEntityManager`）的 `saveDatabase()` 之前，不会向磁盘写入任何内容。设置 `autoSave` 时，事务中的变化在事务提交后保存。
+- 每次保存都会写入整个文件，因此 sql.js 适合小型数据库。
+- 与 better-sqlite3 相同，外键约束处于启用状态，`bigint` 列以数字返回。
 
 ## Microsoft SQL Server
 
@@ -180,16 +180,16 @@ export const db = buildDatabaseOptions({
 | 选项 | 默认值 | 含义 |
 |---|---|---|
 | `url`、`host`、`port`、`username`、`password`、`database` | | 服务器和数据库 |
-| `authentication` | | 用户名密码以外的认证方式：`{type: 'ntlm', ...}`、`{type: 'azure-active-directory-default', ...}`…… |
+| `authentication` | | 用户名和密码以外的认证方式：`{type: 'ntlm', ...}`、`{type: 'azure-active-directory-default', ...}`…… |
 | `schema` | 用户的默认 schema | 表所在的 schema |
 | `options.encrypt` | `true` | 加密连接 |
-| `options.trustServerCertificate` | `false` | 接受不是由受信任机构签发的证书 |
+| `options.trustServerCertificate` | `false` | 接受非受信任机构签发的证书 |
 | `options.instanceName` | | 命名实例 |
 | `pool` | | 连接池：`max`、`min`、`idleTimeoutMillis`（默认 30000）……（不支持 `poolSize`） |
 | `connectionTimeout`、`requestTimeout` | `15000` | 连接的超时时间，以及查询的超时时间 |
 
-- 由于 `encrypt` 默认开启，使用自签名证书的服务器（本地服务器、容器）会拒绝连接，除非 `trustServerCertificate` 为 `true`。
-- 事务不能嵌套。
+- 由于 `encrypt` 默认开启，连接使用自签名证书的服务器（本地服务器、容器）时，驱动会拒绝该证书，导致连接失败，除非将 `trustServerCertificate` 设为 `true`。
+- 不支持嵌套事务。
 
 ## Oracle
 
@@ -211,13 +211,13 @@ export const db = buildDatabaseOptions({
 |---|---|---|
 | `host`、`port`、`username`、`password` | | 服务器 |
 | `serviceName` 或 `sid` | | 数据库服务 |
-| `connectString` | 由上面的选项生成 | 连接字符串（`'localhost:1521/FREEPDB1'`、TNS 条目），代替上面的选项 |
+| `connectString` | 由上述选项生成 | 连接字符串（`'localhost:1521/FREEPDB1'`、TNS 条目），用于代替上述选项 |
 | `thickMode` | `false` | `oracledb` 的 thick 模式（使用 Oracle Client 库）：`true`，或 `{libDir, configDir}` |
 | `useUTC` | `false` | 以 UTC 读写日期 |
-| `poolSize` | | 连接池的连接数 |
+| `poolSize` | | 连接池的最大连接数 |
 
-- `oracledb` 6 及以后的版本默认运行在 thin 模式下，不需要 Oracle Client。需要 thick 模式的功能时再设置 `thickMode`。
-- 表在用户自己的 schema 中。`useUTC` 会设置整个进程所有会话的时区（环境变量 `ORA_SDTZ`）。
+- `oracledb` 6 及以后的版本默认运行在 thin 模式下，不需要 Oracle Client。仅在需要 thick 模式的功能时设置 `thickMode`。
+- 表位于用户自身的 schema 中。`useUTC` 会设置整个进程中所有会话的时区（环境变量 `ORA_SDTZ`）。
 
 ## MongoDB
 
@@ -245,40 +245,40 @@ export const db = buildDatabaseOptions({
 | 选项 | 默认值 | 含义 |
 |---|---|---|
 | `url` | | 连接 URL |
-| `host`、`port`、`username`、`password`、`database` | `127.0.0.1`、`27017` | 没有 `url` 时的服务器 |
+| `host`、`port`、`username`、`password`、`database` | `127.0.0.1`、`27017` | 未提供 `url` 时使用的服务器 |
 | `authSource`、`replicaSet`、`tls`、`readPreference`、`writeConcern`…… | | MongoDB 客户端的选项 |
 | `poolSize` | | 最大连接数（`maxPoolSize`） |
 
-- 实体要有一个 `@ObjectIdColumn()`，即它的 `_id`。它的类型是 `lakutata/orm` 中的 `ObjectId`：在 ES 模块中 `import {ObjectId} from 'bson'` 得到的是另一个类，实体的 id 不是它的实例。
-- `getRepository()` 返回 `MongoRepository`，它带有 MongoDB 的方法（使用 MongoDB 操作符的 `find`、`aggregate`、`createCursor`……）。
-- TypeORM 对 MongoDB 不支持：查询构造器、`query()`、关系和级联、树形仓储、流式查询。**`transaction()` 会在没有事务的情况下执行它的函数**：函数失败时，已经写入的内容不会撤销。
-- `synchronize` 只创建索引。迁移需要手写（见[迁移](Migrations.md)）。
+- 实体需要有一个 `@ObjectIdColumn()`，即实体的 `_id`。该列的类型是 `lakutata/orm` 中的 `ObjectId`。在 ES 模块中，`import {ObjectId} from 'bson'` 得到的是另一个类，实体的 ID 并不是该类的实例。
+- `getRepository()` 返回 `MongoRepository`，该仓储提供 MongoDB 的方法（使用 MongoDB 操作符的 `find`、`aggregate`、`createCursor`……）。
+- 对于 MongoDB，TypeORM 不支持以下功能：查询构造器、`query()`、关系和级联、树形仓储、流式查询。**`transaction()` 会在没有事务的情况下执行其函数**，因此函数失败时，已写入的内容不会撤销。
+- `synchronize` 仅创建索引。迁移需要手动编写（见[迁移](Migrations.md)）。
 
 ## SAP HANA、Google Cloud Spanner 与 Amazon Aurora
 
-这些驱动原样来自 TypeORM：
+这些驱动直接沿用 TypeORM 的实现：
 
-- **SAP HANA**（`sap`）：`host`、`port`、`username`、`password`、`database`、`schema`，加密连接的 `encrypt` 以及 `key`、`cert`、`ca`，还有 `pool`（`maxConnectedOrPooled`，默认 10）。
-- **Google Cloud Spanner**（`spanner`）：`projectId`、`instanceId`、`databaseId`，以及 `credentials`（`client_email`、`private_key`），不给出时使用运行环境中的凭据。它的类型中从 MySQL 复制来的其他选项不会被读取。
+- **SAP HANA**（`sap`）：`host`、`port`、`username`、`password`、`database`、`schema`，用于加密连接的 `encrypt` 以及 `key`、`cert`、`ca`，此外还有 `pool`（`maxConnectedOrPooled`，默认 10）。
+- **Google Cloud Spanner**（`spanner`）：`projectId`、`instanceId`、`databaseId`，以及 `credentials`（`client_email`、`private_key`），未提供时使用运行环境中的凭据。该驱动的类型中从 MySQL 复制而来的其他选项不会被读取。
 - **通过 Data API 访问的 Amazon Aurora**（`aurora-mysql`、`aurora-postgres`）：`region`、`secretArn`、`resourceArn` 和 `database` 为必填；查询通过 AWS 的 HTTP API 发送，而不是通过数据库连接。
 
 ## 手机应用
 
-`mobile-react` 模板的手机应用把 Lakutata 应用运行在它内嵌的 Node.js（Node.js 24.20）中，本页的驱动在那里和在电脑上一样可用。下面的结果是在 Android（API 36）、iOS（27.2）和鸿蒙的模拟器上实际验证的：写入数据库，关闭，再重新打开。
+`mobile-react` 模板的手机应用在其内嵌的 Node.js（Node.js 24.20）中运行 Lakutata 应用，本页的驱动在其中与在电脑上同样可用。以下结果在 Android（API 36）、iOS（27.2）和鸿蒙的模拟器上实际验证，验证步骤为：写入数据库，关闭，再重新打开。
 
 | 驱动 | Android | iOS | 鸿蒙 |
 |---|---|---|---|
-| `better-sqlite3` | 可以 | 可以 | 可以 |
-| `sqljs` 的 asm.js 版本 | 可以 | 可以 | 可以 |
-| `sqljs` 的 WebAssembly 版本 | 可以 | 可以，但慢得多（polyfill：asm.js 版本用 0.09 秒的操作，它用了 1.5 秒） | 不行：`ReferenceError: WebAssembly is not defined` |
-| `mongo-embedded` | 可以 | 可以 | 可以 |
-| `postgres`、`mysql`、`mongodb`（网络上的服务器） | 可以 | 可以 | 可以 |
+| `better-sqlite3` | 可用 | 可用 | 可用 |
+| `sqljs` 的 asm.js 版本 | 可用 | 可用 | 可用 |
+| `sqljs` 的 WebAssembly 版本 | 可用 | 可用，但慢得多（由于使用 polyfill，asm.js 版本耗时 0.09 秒的操作，该版本需要 1.5 秒） | 不可用：`ReferenceError: WebAssembly is not defined` |
+| `mongo-embedded` | 可用 | 可用 | 可用 |
+| `postgres`、`mysql`、`mongodb`（网络上的服务器） | 可用 | 可用 | 可用 |
 
-SQL Server 和 Oracle 还没有在手机上验证过。
+SQL Server 和 Oracle 尚未在手机上验证。
 
-- `lakutata mobile stage` 用 NDK、Xcode 或 DevEco Studio 为每个系统从源码编译 `better-sqlite3` 和 `@lakutata/mongo-embedded`（见 `@lakutata/cli` README 中的 `lakutata mobile` 命令）。
-- 数据库文件需要长期保存，而 `os.tmpdir()` 是应用的缓存目录，系统可能清空它。模板的 `App.ts` 把应用的数据目录声明为别名 `@data`：Android 上是应用的 files 目录，iOS 上是 `Library/Application Support`，鸿蒙上是 `/data/storage/el2/base/files`，在开发用的电脑上是 `packages/app/data`。数据库的选项可以直接写那里的文件 `@data/app.sqlite`，数据库连接时会解析这个别名。
-- sql.js 的 asm.js 版本是编译成 JavaScript 的 SQLite：不需要 WebAssembly，也没有其他文件，所以在三个系统上都一样能运行。鸿蒙的 Node.js 没有 WebAssembly，iOS 的 Node.js 只有 nodejs-mobile 的 polyfill，慢得多：
+- `lakutata mobile stage` 使用 NDK、Xcode 或 DevEco Studio 为每个系统从源码编译 `better-sqlite3` 和 `@lakutata/mongo-embedded`（见 `@lakutata/cli` README 中的 `lakutata mobile` 命令）。
+- 数据库文件需要长期保存，而 `os.tmpdir()` 是应用的缓存目录，可能被系统清空。模板的 `App.ts` 将应用的数据目录声明为别名 `@data`。该目录在 Android 上是应用的 files 目录，在 iOS 上是 `Library/Application Support`，在鸿蒙上是 `/data/storage/el2/base/files`，在开发用的电脑上是 `packages/app/data`。数据库选项可以直接使用该目录中的文件 `@data/app.sqlite`，数据库连接时会解析该别名。
+- sql.js 的 asm.js 版本是编译为 JavaScript 的 SQLite，不需要 WebAssembly，也不依赖其他文件，因此在三个系统上都能同样运行。鸿蒙的 Node.js 不提供 WebAssembly，iOS 的 Node.js 只有 nodejs-mobile 的 polyfill，速度慢得多：
 
 ```typescript
 import type {ApplicationOptions} from 'lakutata'
@@ -306,6 +306,6 @@ export function config(): ApplicationOptions {
 }
 ```
 
-- sql.js 1.15 把它的 asm.js 版本标为已弃用：每次加载都会打印一条警告，作者请无法放弃它的用户到 [sql-js/sql.js#635](https://github.com/sql-js/sql.js/issues/635) 说明情况。他们推荐的替代版本 `sql-wasm-inline.js` 需要 WebAssembly，而鸿蒙的 Node.js 没有。应用要长期保存的数据库，最好用 `better-sqlite3`，它在三个系统上都可用。
-- sql.js 的 WebAssembly 版本从它的模块旁边的 `sql-wasm.wasm` 读取，而应用的单文件包里没有这个文件：在 `lakutata.resources` 中把它声明为资源（`from` 是 npm 把 `sql.js` 装在工作区里的位置），再把它在资源中的路径交给 `sqlJsConfig.locateFile`（见[打包](Packaging.md)第 6 节）。
-- 数据库服务器通过设备的网络连接；在模拟器上，用 `adb reverse`（Android）或 `hdc rport`（鸿蒙）连到电脑。
+- sql.js 1.15 将其 asm.js 版本标记为已弃用，每次加载都会打印一条警告；作者请无法放弃该版本的用户到 [sql-js/sql.js#635](https://github.com/sql-js/sql.js/issues/635) 说明情况。作者推荐的替代版本 `sql-wasm-inline.js` 需要 WebAssembly，而鸿蒙的 Node.js 不提供 WebAssembly。对于应用需要长期保存的数据库，建议使用 `better-sqlite3`，该驱动在三个系统上均可用。
+- sql.js 的 WebAssembly 版本从其模块旁边的 `sql-wasm.wasm` 读取，而应用的单文件包中不包含该文件。请在 `lakutata.resources` 中将该文件声明为资源（`from` 是 npm 在工作区中安装 `sql.js` 的位置），再将其在资源中的路径传给 `sqlJsConfig.locateFile`（见[打包](Packaging.md)第 6 节）。
+- 通过设备的网络连接数据库服务器；在模拟器上，使用 `adb reverse`（Android）或 `hdc rport`（鸿蒙）连接到电脑。

@@ -1,14 +1,14 @@
 # 给 AI 助手用的 MCP 服务器
 
-这个示例构建一个给 AI 助手用的笔记服务器：Claude Code、Claude Desktop 或其他 MCP 客户端运行它，模型就能用它保存、搜索和删除用户的笔记，笔记保存在一个 JSON 文件中。它从 `default` 模板开始，展示 MCP 服务器的各个部分：用 DTO 校验参数的工具、一个资源和一个提示词、客户端自己启动服务器时使用的 stdio 传输方式、HTTP 传输方式，以及用 SDK 的 MCP 客户端编写的测试。
+本示例构建一个面向 AI 助手的笔记服务器：Claude Code、Claude Desktop 或其他 MCP 客户端运行该服务器后，模型即可使用该服务器保存、搜索和删除用户的笔记，笔记保存在一个 JSON 文件中。示例从 `default` 模板开始，展示 MCP 服务器的各个部分：使用 DTO 校验参数的工具、一个资源和一个提示词、客户端自行启动服务器时使用的 stdio 传输方式、HTTP 传输方式，以及使用 SDK 的 MCP 客户端编写的测试。
 
-| 名字 | 类型 | 作用 |
+| 名称 | 类型 | 作用 |
 |---|---|---|
 | `notes_add` | 工具 | 保存一条笔记：标题、正文和标签 |
-| `notes_search` | 工具 | 按关键词和标签查找笔记，最新的在前 |
+| `notes_search` | 工具 | 按关键词和标签查找笔记，最新的排在前面 |
 | `notes_delete` | 工具 | 删除一条笔记 |
-| `note://{id}` | 资源 | 以 Markdown 格式给出一条笔记 |
-| `notes_review` | 提示词 | 让模型总结带某个标签的笔记 |
+| `note://{id}` | 资源 | 以 Markdown 格式返回一条笔记 |
+| `notes_review` | 提示词 | 要求模型总结带有某个标签的笔记 |
 
 ## 1. 创建项目
 
@@ -21,7 +21,7 @@ npm uninstall express @types/express
 rm src/controllers/ExampleController.ts src/dtos/GreetDTO.ts
 ```
 
-MCP 客户端把服务器作为单个进程运行，所以只包含一个应用的 `default` 模板正合适（见[项目结构](../ProjectStructure.md)）。`@lakutata/mcp` 通过 MCP 提供应用的动作，它不属于 `lakutata`（见 [MCP](../MCP.md)）。SDK 的 MCP 客户端 `@modelcontextprotocol/client` 只用于测试。服务器没有 HTTP 路由，所以删掉了 express 和模板中的示例控制器。
+MCP 客户端将服务器作为单个进程运行，因此只包含一个应用的 `default` 模板正好适用（见[项目结构](../ProjectStructure.md)）。`@lakutata/mcp` 通过 MCP 提供应用的动作，该包不属于 `lakutata`（见 [MCP](../MCP.md)）。SDK 的 MCP 客户端 `@modelcontextprotocol/client` 仅用于测试。服务器没有 HTTP 路由，因此本例删除了 express 和模板中的示例控制器。
 
 ## 2. 输入和结果
 
@@ -107,11 +107,11 @@ export class TagDTO extends DTO {
 }
 ```
 
-工具会把 DTO 的 JSON Schema 发给客户端，模型按这个 Schema 传入参数来调用工具；和所有动作一样，参数随后由 DTO 校验（见 [DTO 与数据校验](../DTOValidation.md)）：
+工具会将 DTO 的 JSON Schema 发送给客户端，模型按该 Schema 传入参数调用工具；与所有动作相同，参数随后由 DTO 校验（见 [DTO 与数据校验](../DTOValidation.md)）：
 
 - `.description()` 向模型说明参数的含义；默认值（`tags`、`query`、`limit`）也写在 Schema 中；
 - `NoteIdDTO` 既用于工具，也用于资源：工具的参数是 JSON（数字 `1`），资源的变量是文本（`note://1` 中的 `'1'`），由 `.strict(false)` 转换；
-- `NoteDTO` 和 `SearchResultDTO` 描述两个工具的结果（即它们的 `output`，见第 5 节）；
+- `NoteDTO` 和 `SearchResultDTO` 描述两个工具的结果（即这两个工具的 `output`，见第 5 节）；
 - `TagDTO` 是提示词的参数；提示词的参数都是文本。
 
 ## 3. 异常
@@ -131,7 +131,7 @@ export class NoteNotFoundException extends Exception {
 }
 ```
 
-异常有一个 `errno` 和一个状态码（见[异常](../Exceptions.md)）。工具抛出这个异常时，模型收到一个标记为错误的结果 `E_NOTE_NOT_FOUND: The note 9 does not exist`，可以据此修正调用。读取资源时抛出这个异常，由于状态码是 404，客户端收到的是协议错误 `-32602`（参数无效）。
+异常带有一个 `errno` 和一个状态码（见[异常](../Exceptions.md)）。工具抛出该异常时，模型会收到一个标记为错误的结果 `E_NOTE_NOT_FOUND: The note 9 does not exist`，并可据此修正调用。读取资源时抛出该异常，由于状态码为 404，客户端收到的是协议错误 `-32602`（参数无效）。
 
 ## 4. 笔记
 
@@ -221,9 +221,9 @@ export class NoteStore extends Component {
 }
 ```
 
-- `NoteStore` 是一个组件：整个应用只有一个实例，而控制器是每个请求创建一个（见[对象与生命周期](../Objects.md)）。
-- `@Configurable` 把 `file` 变成组件的选项：它的值在声明组件的地方给出（第 6 节），并在应用启动时校验（见[依赖注入](../Injection.md)）。
-- 每个客户端运行自己的服务器：如果 Claude Code 和 Claude Desktop 使用同一个文件，就会有两个进程读写它。所以每次调用都重新读取文件，而不是把笔记留在内存中；写入时先把全部笔记写到临时文件，再重命名覆盖原文件。
+- `NoteStore` 是一个组件：整个应用只有一个实例，而控制器在每个请求中各创建一个（见[对象与生命周期](../Objects.md)）。
+- `@Configurable` 使 `file` 成为组件的选项：其值在声明组件的位置给出（第 6 节），并在应用启动时校验（见[依赖注入](../Injection.md)）。
+- 每个客户端运行各自的服务器：如果 Claude Code 和 Claude Desktop 使用同一个文件，就会有两个进程读写该文件。因此，每次调用都会重新读取文件，而不是将笔记保留在内存中；写入时先将全部笔记写入临时文件，再重命名覆盖原文件。
 
 ## 5. 控制器
 
@@ -304,12 +304,12 @@ export class NoteController extends Controller {
 }
 ```
 
-- `@Prefix({mcp: 'notes'})` 给工具和提示词的名字加上前缀：`add` 变成 `notes_add`。资源的 URI 不会加前缀。
-- 模型根据工具的 `description` 决定什么时候调用它：要写清楚工具做什么、什么时候使用。
-- `readOnly` 和 `destructive` 是给客户端的提示，客户端可能在执行删除之前先询问用户。
-- 声明了 `output` 时，结果既以 JSON 文本给出，也作为结构化内容给出，客户端会按 DTO 的 Schema 检查它。这样的工具必须返回对象：`search` 返回 `{total, notes}`，而不是笔记数组。
-- `note://{id}` 是一个模板：客户端填入 id，读取 `note://1`。返回的字符串就是资源的文本，类型为 `text/markdown`。
-- 提示词返回一个字符串，作为一条用户消息；用户在客户端中选中这个提示词时，这条消息就会发出。
+- `@Prefix({mcp: 'notes'})` 为工具和提示词的名称加上前缀：`add` 变为 `notes_add`。资源的 URI 不会加前缀。
+- 模型根据工具的 `description` 决定何时调用该工具：请在其中写明工具的作用以及使用时机。
+- `readOnly` 和 `destructive` 是提供给客户端的提示，客户端可能在执行删除之前先询问用户。
+- 声明了 `output` 时，结果既以 JSON 文本给出，也作为结构化内容给出，客户端会按 DTO 的 Schema 检查结构化内容。这样的工具必须返回对象：`search` 返回 `{total, notes}`，而非笔记数组。
+- `note://{id}` 是一个模板：客户端填入 ID，读取 `note://1`。返回的字符串即为资源的文本，类型为 `text/markdown`。
+- 提示词返回一个字符串，作为一条用户消息；用户在客户端中选中该提示词时，这条消息即会发出。
 
 ## 6. 服务器的选项
 
@@ -370,10 +370,10 @@ export function config(file: string = process.env.NOTES_FILE ?? path.join(os.hom
 
 这是模板中的 `Config.ts`，改动如下：
 
-- 新增 `log` 组件，日志写到标准错误（见[日志](../Logger.md)第 5 节）：通过 stdio 时，标准输出承载协议的消息，往里面写一行日志就会破坏这些消息，所以其他任何代码都不能写标准输出，连 `console.log()` 也不行。模板中的 `App.ts` 保持不变，它通过这个组件记录启动日志；
-- 新增 `notes` 组件和它的文件：环境变量 `NOTES_FILE`，没有时为主目录下的 `notes.json`。客户端会在它自己选择的目录中启动服务器，所以默认路径是绝对路径；
-- 入口的 `mcp` 适配器（见[入口](../Entrypoint.md)）：默认是 `stdioMCPEntrypoint()`，设置了 `MCP_PORT` 时是监听 `127.0.0.1` 的 `httpMCPEntrypoint()`。如果同时设置了 `MCP_TOKEN`，`authenticate` 会要求请求带上它，没带的请求得到 401；
-- `instructions`：客户端连接时收到这段说明，并交给模型。
+- 新增 `log` 组件，日志写入标准错误（见[日志](../Logger.md)第 5 节）。通过 stdio 通信时，标准输出承载协议的消息，向其中写入一行日志就会破坏这些消息，因此其他任何代码都不得写入标准输出，`console.log()` 也不例外。模板中的 `App.ts` 保持不变，该文件通过此组件记录启动日志；
+- 新增 `notes` 组件及其文件：环境变量 `NOTES_FILE`，未设置时为主目录下的 `notes.json`。客户端会在其自行选择的目录中启动服务器，因此默认路径是绝对路径；
+- 入口的 `mcp` 适配器（见[入口](../Entrypoint.md)）：默认为 `stdioMCPEntrypoint()`，设置了 `MCP_PORT` 时为监听 `127.0.0.1` 的 `httpMCPEntrypoint()`。如果同时设置了 `MCP_TOKEN`，`authenticate` 会要求请求携带该令牌，未携带的请求会收到 401 响应；
+- `instructions`：客户端连接时会收到这段说明，并将其转交给模型。
 
 ## 7. 运行
 
@@ -381,7 +381,7 @@ export function config(file: string = process.env.NOTES_FILE ?? path.join(os.hom
 npm run build
 ```
 
-不用客户端也可以试用服务器：把协议消息写到它的标准输入，先初始化，再调用 `notes_add`。
+无需客户端也可以试用服务器：将协议消息写入服务器的标准输入，先初始化，再调用 `notes_add`。
 
 ```bash
 printf '%s\n' \
@@ -396,7 +396,7 @@ printf '%s\n' \
 {"result":{"content":[{"type":"text","text":"{\n  \"id\": 1,\n  \"title\": \"Wi-Fi\",\n  \"text\": \"The password is on the back of the router.\",\n  \"tags\": [\n    \"home\"\n  ],\n  \"createdAt\": \"2026-10-17T14:56:05.346Z\"\n}"}],"structuredContent":{"id":1,"title":"Wi-Fi","text":"The password is on the back of the router.","tags":["home"],"createdAt":"2026-10-17T14:56:05.346Z"}},"jsonrpc":"2.0","id":2}
 ```
 
-标准输出中只有响应，每行一条消息；启动日志写到了标准错误，这里把它丢弃了。输入关闭后，服务器就会退出。客户端要运行 `node build/App.js`，而不是 `npm start`：npm 会把它自己的输出（`> notes@0.0.1 start`）写到标准输出。
+标准输出中只有响应，每行一条消息；启动日志写入了标准错误，此处将其丢弃。输入关闭后，服务器即会退出。客户端必须运行 `node build/App.js`，而不是 `npm start`，因为 npm 会将其自身的输出（`> notes@0.0.1 start`）写入标准输出。
 
 **在 Claude Code 中。** 注册一次服务器，供所有项目使用（`--scope user`），同时给出笔记文件的路径：
 
@@ -405,9 +405,9 @@ claude mcp add --scope user notes -e NOTES_FILE=$HOME/notes.json -- node $PWD/bu
 claude mcp get notes
 ```
 
-`claude mcp get notes` 会启动服务器检查连接，并显示 `Status: ✔ Connected`。之后在对话中，Claude 就能把你让它记住的内容存下来，也能搜索你的笔记；工具的描述和服务器的说明会告诉它什么时候这样做。`/mcp__notes__notes_review home` 会发送这个提示词，并填入带 `home` 标签的笔记。
+`claude mcp get notes` 会启动服务器检查连接，并显示 `Status: ✔ Connected`。之后在对话中，Claude 即可保存用户要求其记住的内容，也能搜索用户的笔记；工具的描述和服务器的说明会向 Claude 说明何时这样做。`/mcp__notes__notes_review home` 会发送该提示词，并填入带有 `home` 标签的笔记。
 
-**在 Claude Desktop 和其他客户端中。** 通过 stdio 运行服务器的客户端，会在配置的 `mcpServers` 中列出各个服务器的启动命令。Claude Desktop 的配置文件是 `claude_desktop_config.json`（通过 Settings > Developer > Edit Config 打开），应用启动时读取它：
+**在 Claude Desktop 和其他客户端中。** 通过 stdio 运行服务器的客户端，会在配置的 `mcpServers` 中列出各个服务器的启动命令。Claude Desktop 的配置文件为 `claude_desktop_config.json`（通过 Settings > Developer > Edit Config 打开），应用启动时会读取该文件：
 
 ```json
 {
@@ -421,9 +421,9 @@ claude mcp get notes
 }
 ```
 
-路径都要写绝对路径。如果客户端无法找到 `node`（例如用 nvm 安装的 Node.js），就要写出它的完整路径，也就是 `which node` 的输出。
+路径必须是绝对路径。如果客户端无法找到 `node`（例如使用 nvm 安装的 Node.js），则需要写出其完整路径，即 `which node` 的输出。
 
-**通过 HTTP。** 这时服务器独立运行，客户端连接它的 URL：
+**通过 HTTP。** 此时服务器独立运行，客户端连接服务器的 URL：
 
 ```bash
 MCP_PORT=3000 MCP_TOKEN=change-me node build/App.js
@@ -439,11 +439,11 @@ curl -i -X POST localhost:3000/mcp -H 'Content-Type: application/json' -d '{}'
 claude mcp add --transport http --scope user notes-http http://127.0.0.1:3000/mcp --header "Authorization: Bearer change-me"
 ```
 
-不带令牌的请求会被拒绝；Claude Code 会发送 `--header` 给出的请求头。通过 HTTP 时，服务器使用 2026-07-28 版本的协议；使用 2025 年各版本协议的客户端也能连接，只是没有会话（见 [MCP](../MCP.md) 第 6 节）。
+未携带令牌的请求会被拒绝；Claude Code 会发送 `--header` 指定的请求头。通过 HTTP 通信时，服务器使用 2026-07-28 版本的协议；使用 2025 年各版本协议的客户端也能连接，但没有会话（见 [MCP](../MCP.md) 第 6 节）。
 
 ## 8. 测试
 
-模板中的测试换成了针对服务器的测试，覆盖两种传输方式。通过 stdio 时，SDK 的 MCP 客户端像 Claude Code 一样把 `build/App.js` 作为子进程运行；通过 HTTP 时，服务器运行在测试进程中，端口为 18088：
+模板中的测试已替换为针对服务器的测试，覆盖两种传输方式。通过 stdio 通信时，SDK 的 MCP 客户端像 Claude Code 一样将 `build/App.js` 作为子进程运行；通过 HTTP 通信时，服务器运行在测试进程中，端口为 18088：
 
 **`src/tests/App.spec.ts`**
 
@@ -562,8 +562,8 @@ describe('notes over HTTP', (): void => {
 })
 ```
 
-- `env` 把 `NOTES_FILE` 加到 SDK 传给服务器的环境变量中（SDK 只传 `PATH` 等少数几个变量，而不是测试的全部环境），让服务器使用单独的文件。`stderr: 'pipe'` 收集服务器的日志。
-- 调用失败时，`callTool()` 返回一个 `isError` 为 true 的结果，而不是抛出异常：模型像读取普通结果一样读取错误。
+- `env` 将 `NOTES_FILE` 加入 SDK 传给服务器的环境变量中（SDK 只传递 `PATH` 等少数几个变量，而非测试的全部环境），使服务器使用单独的文件。`stderr: 'pipe'` 收集服务器的日志。
+- 调用失败时，`callTool()` 返回一个 `isError` 为 true 的结果，而不是抛出异常。模型像读取普通结果一样读取错误。
 
 ```bash
 npm test
@@ -599,6 +599,6 @@ npx lakutata package bundle
 ✔ dist/notes.cjs (0.9 MB): node dist/notes.cjs
 ```
 
-- 单文件包只有一个文件，不需要 `node_modules` 就能运行（见[打包](../Packaging.md)），git 会忽略它。把它复制到任意位置，再把路径告诉客户端：`claude mcp add --scope user notes -- node /path/to/notes.cjs`。
-- 每次调用都会完整地读写笔记文件，这对个人笔记来说足够了。笔记很多，或者有多个客户端同时写入时，请把笔记保存在数据库中（见[数据库](../Database.md)）。
-- 要通过 HTTP 为其他机器提供服务，请在服务器前面放一个带 TLS 的代理，并在 `allowedHosts` 中列出客户端连接时使用的主机名（见 [MCP](../MCP.md) 第 6 节）。
+- 单文件包只有一个文件，无需 `node_modules` 即可运行（见[打包](../Packaging.md)），git 会忽略该文件。请将其复制到任意位置，再将路径提供给客户端：`claude mcp add --scope user notes -- node /path/to/notes.cjs`。
+- 每次调用都会完整地读写笔记文件，这对个人笔记而言已经足够。当笔记很多或有多个客户端同时写入时，请将笔记保存在数据库中（见[数据库](../Database.md)）。
+- 如需通过 HTTP 为其他机器提供服务，请在服务器前部署一个带 TLS 的代理，并在 `allowedHosts` 中列出客户端连接时使用的主机名（见 [MCP](../MCP.md) 第 6 节）。

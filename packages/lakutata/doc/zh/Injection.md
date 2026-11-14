@@ -1,6 +1,6 @@
 # Lakutata 依赖注入
 
-对象不自己创建它所依赖的对象，而是声明这些依赖，由容器在创建它时注入。本页介绍 `@Inject` 和 `@Autoload`、对象的选项（`@Configurable`），以及如何把功能做成包、在多个应用之间共享。这些装饰器的全部规则见[装饰器](Decorator.md)第 1 节。
+对象不自行创建其所依赖的对象，而是声明这些依赖，由容器在创建该对象时注入。本指南介绍 `@Inject` 和 `@Autoload`、对象的选项（`@Configurable`），以及如何将功能封装为包，在多个应用之间共享。这些装饰器的全部规则见[装饰器](Decorator.md)第 1 节。
 
 ## 1. 注入对象
 
@@ -51,11 +51,11 @@ Application.run(() => ({
 }))
 ```
 
-本身不是容器中对象的代码（比如 `onLaunched` 处理函数）用 `app.getObject(name)` 获取对象；`app.getObject(SomeClass)` 只适用于单独注册的类（比如自动注册的类），不适用于按名称声明的组件。
+自身并非容器中对象的代码（例如 `onLaunched` 处理函数）使用 `app.getObject(name)` 获取对象；`app.getObject(SomeClass)` 仅适用于单独注册的类（例如自动注册的类），不适用于按名称声明的组件。
 
 ## 2. 选项
 
-`@Configurable(schema, fn?)` 把属性声明为对象的选项：它的值来自对象的声明（`{class: Mailer, host: 'smtp.example.com'}`）或 `getObject()` 的第二个参数，经校验规则校验后，如果提供了 `fn` 再交给 `fn` 处理。应用在启动时会检查它声明的对象的选项：不合法的值会抛出 `InvalidObjectOptionsException` 并终止启动，不是可配置属性的选项会给出警告。此时只检查声明中给出的选项：声明中缺少的必填选项要到创建对象时才会报告（抛出 `InvalidValueException`），因为它仍可以由 `getObject()` 的第二个参数提供。该参数只在本次调用创建对象时生效：已经存在的单例保留原有选项（非生产模式下会给出警告），带选项请求作用域类则得到一个新实例，归请求方所有。
+`@Configurable(schema, fn?)` 将属性声明为对象的选项。选项值来自对象的声明（`{class: Mailer, host: 'smtp.example.com'}`）或 `getObject()` 的第二个参数，先由校验规则校验，若提供了 `fn`，再交给 `fn` 处理。应用在启动时会检查其所声明对象的选项：不合法的值会抛出 `InvalidObjectOptionsException` 并终止启动，与任何可配置属性都不对应的选项会产生警告。此时只检查声明中给出的选项。声明中缺少的必填选项直到创建对象时才会报告（抛出 `InvalidValueException`），因为该选项仍可由 `getObject()` 的第二个参数提供。该参数仅在本次调用创建对象时生效：已存在的单例保留原有选项（非生产模式下会给出警告），带选项请求作用域类则会创建一个新实例，归请求方所有。
 
 ```typescript
 import {Application, Component, DTO, type ILogger} from 'lakutata'
@@ -102,7 +102,7 @@ Application
 
 ## 3. 在多个应用之间共享功能
 
-多个应用都要用到的功能，做成一个包来共享。包导出一个 `Component`（或 `Provider`），再导出一个生成其声明的函数，框架自带的包都是这样做的（`lakutata/com/database` 的 `buildDatabaseOptions`、`lakutata/com/queue` 的 `buildQueueOptions`）。应用自己给组件起名，把选项传给这个函数；应用启动时，组件的 `@Configurable` 校验规则会检查这些选项，其他对象按这个名字注入该组件。
+若要在多个应用中使用某项功能，可将其封装为一个包。该包导出一个 `Component`（或 `Provider`）以及一个生成其声明的函数，框架自带的包均采用这种方式（`lakutata/com/database` 的 `buildDatabaseOptions`、`lakutata/com/queue` 的 `buildQueueOptions`）。应用以自行选定的名称声明该组件，并将选项传给该函数；应用启动时，组件的 `@Configurable` 校验规则会检查这些选项，其他对象则按该名称注入组件。
 
 ```typescript
 import {Application, Component, type ComponentOptions, DTO} from 'lakutata'

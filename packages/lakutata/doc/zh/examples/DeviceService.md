@@ -1,12 +1,12 @@
 # 设备上的服务
 
-这个示例为小型 Linux 机器（例如树莓派或网关）构建一个服务：它每 10 秒读取一次机器的负载、内存和温度，在内存中保留最近一小时的读数，并通过 HTTP 提供这些读数。它从 `service` 模板及其 `installer` 功能开始，展示定时任务、自己编写的组件及其选项、Lakutata 的监控器、用环境变量配置服务，以及把服务安装到机器上、让它随系统启动的安装包。
+本示例为小型 Linux 机器（例如树莓派或网关）构建一个服务：该服务每 10 秒读取一次机器的负载、内存和温度，在内存中保留最近一小时的读数，并通过 HTTP 提供这些读数。示例从 `service` 模板及其 `installer` 功能开始，展示定时任务、自定义组件及其选项、Lakutata 的监控器、通过环境变量配置服务，以及将服务安装到机器上并使其随系统启动的安装包。
 
 | 方法 | 路由 | 作用 |
 |---|---|---|
-| `GET` | `/readings?limit=10` | 取最近的读数，最新的在前 |
-| `GET` | `/status` | 取服务的运行时长、读数条数，以及服务自身的 CPU 和内存占用 |
-| `GET` | `/health` | 检查进程是否在响应（模板自带） |
+| `GET` | `/readings?limit=10` | 获取最近的读数，最新的排在前面 |
+| `GET` | `/status` | 获取服务的运行时长、读数条数，以及服务自身的 CPU 和内存占用 |
+| `GET` | `/health` | 报告进程是否在响应（模板自带） |
 
 ## 1. 创建项目
 
@@ -16,7 +16,7 @@ cd telemetry
 rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/GreetDTO.ts
 ```
 
-项目是一个工作区，服务在 `packages/app` 中（见[项目结构](../ProjectStructure.md)）。`installer` 功能添加了制作安装包所需的内容：`packages/app/package.json` 中的 `lakutata.installer` 配置、`package:host` 和 `package:linux` 脚本、`Dockerfile.installer`、`@lakutata/builder`，以及 `packages/resources` 中的图标。服务不需要再安装其他包：定时任务和监控器都是 `lakutata` 自带的。这里还删掉了模板中的示例控制器。
+项目是一个工作区，服务位于 `packages/app` 中（见[项目结构](../ProjectStructure.md)）。`installer` 功能添加了制作安装包所需的内容：`packages/app/package.json` 中的 `lakutata.installer` 配置、`package:host` 和 `package:linux` 脚本、`Dockerfile.installer`、`@lakutata/builder`，以及 `packages/resources` 中的图标。服务无需安装其他包，因为定时任务和监控器都是 `lakutata` 自带的。此外，本例删除了模板中的示例控制器。
 
 ## 2. 传感器
 
@@ -81,13 +81,13 @@ export class Sensors extends Component {
 }
 ```
 
-组件是长期存在的对象，整个应用中只有一个（见[对象与生命周期](../Objects.md)）。这个组件：
+组件是长期存在的对象，整个应用中只有一个实例（见[对象与生命周期](../Objects.md)）。该组件：
 
-- 读取最近一分钟的平均负载（`os.loadavg()`，在 Windows 上总是 0），以及已用内存所占的比例；
-- 从 Linux 的 thermal zone 读取 CPU 温度：这是一个以千分之一摄氏度为单位的文件（`48312` 表示 48.3 °C）。机器上没有这个文件时（例如 Mac），温度为 `null`；
-- 有一个选项 `temperatureFile`：创建组件时，`@Configurable` 会用声明的规则校验服务选项中给出的值。
+- 读取最近一分钟的平均负载（`os.loadavg()`，在 Windows 上始终为 0），以及已用内存所占的比例；
+- 从 Linux 的 thermal zone 读取 CPU 温度：thermal zone 是一个以千分之一摄氏度为单位的文件（`48312` 表示 48.3 °C）。机器上没有该文件时（例如 Mac），温度为 `null`；
+- 具有一个选项 `temperatureFile`：创建组件时，`@Configurable` 会使用声明的规则校验服务选项中给出的值。
 
-如果设备有自己的传感器（接在串口或 I2C 上），就由这个组件读取它们，服务的其他部分不用改。
+如果设备有自身的传感器（连接在串口或 I2C 上），则由该组件读取这些传感器，服务的其他部分无需修改。
 
 ## 3. 读数
 
@@ -142,8 +142,8 @@ export class Readings extends Component {
 }
 ```
 
-- 读数保存在内存中，最多 `size` 条（和 `temperatureFile` 一样是组件的选项）：新读数会替换最旧的一条。服务重启后读数就没有了，第 11 节介绍如何保留它们。
-- 组件是单例：虽然每次执行和每个请求都有自己的控制器，但添加读数的定时任务和读取读数的 HTTP 动作用的是同一个组件实例。
+- 读数保存在内存中，最多 `size` 条（与 `temperatureFile` 一样是组件的选项）：新读数会替换最旧的一条。服务重启后读数就会丢失，第 11 节介绍了如何保留读数。
+- 组件是单例：虽然每次执行和每个请求都有各自的控制器，但添加读数的定时任务和读取读数的 HTTP 动作使用的是同一个组件实例。
 
 ## 4. 输入
 
@@ -162,7 +162,7 @@ export class ReadingsDTO extends DTO {
 }
 ```
 
-`limit` 是要取的读数条数：从 1 到 1000，默认为 10。查询字符串是文本：`.strict(false)` 把 `'3'` 转换为数字 3，不合法的值在动作运行之前就会被拒绝（见 [DTO 与数据校验](../DTOValidation.md)）。
+`limit` 是要获取的读数条数，取值为 1 到 1000，默认为 10。查询字符串是文本。`.strict(false)` 将 `'3'` 转换为数字 3，不合法的值在动作运行之前就会被拒绝（见 [DTO 与数据校验](../DTOValidation.md)）。
 
 ## 5. 控制器
 
@@ -229,10 +229,10 @@ export class ReadingController extends Controller {
 }
 ```
 
-- 一个控制器可以包含多种传输方式的动作（见[控制器与动作](../Controllers.md)）：`sample()` 是定时任务，`list()` 和 `status()` 是 HTTP 动作。`sample()` 的每次执行都像请求一样处理，都会创建一个新的控制器。
-- `@Schedule({every, immediate: true})` 在启动时执行一次 `sample()`，之后每过一个间隔执行一次（见[定时任务](../Schedules.md)）。`this.context` 是本次执行的 `ScheduleContext`：其中的 `scheduledAt` 是本次执行的计划时间，用作读数的时间。
-- 间隔是在定义这个类时（也就是加载它所在的模块时）从 `SAMPLE_EVERY` 读取的，所以取的是进程启动时的环境变量（来自 shell，或者安装后服务的环境变量文件）。如果值不是时长（例如没有单位的 `30`），服务在启动时就会停止：`SyntaxError: Invalid duration "30": such as "500ms", "30s", "5m", "1h30m" or "1d"`。
-- 监控器测量的是服务本身，而不是机器（见[监控](../Monitor.md)）：`usageAvg` 是进程自启动以来的平均 CPU 使用率，以单个核心的百分比表示；`physicalUsed` 是进程的常驻内存，单位为字节。从这两个值可以看出服务在小型机器上是否足够轻量。
+- 一个控制器可以包含多种传输方式的动作（见[控制器与动作](../Controllers.md)）：`sample()` 是定时任务，`list()` 和 `status()` 是 HTTP 动作。`sample()` 的每次执行都像请求一样处理，每次都会创建一个新的控制器。
+- `@Schedule({every, immediate: true})` 在启动时执行一次 `sample()`，之后每隔一个间隔执行一次（见[定时任务](../Schedules.md)）。`this.context` 是本次执行的 `ScheduleContext`：其中的 `scheduledAt` 是本次执行的计划时间，用作读数的时间。
+- 间隔是在定义该类时（即加载该类所在的模块时）从 `SAMPLE_EVERY` 读取的，因此读取的是进程启动时的环境变量（来自 shell，或者安装后服务的环境变量文件）。如果该值不是时长（例如没有单位的 `30`），进程会在加载该模块时退出，此时服务尚未启动：`SyntaxError: Invalid duration "30": such as "500ms", "30s", "5m", "1h30m" or "1d"`。
+- 监控器测量的是服务本身，而非机器（见[监控](../Monitor.md)）：`usageAvg` 是进程自启动以来的平均 CPU 使用率，以单个核心的百分比表示；`physicalUsed` 是进程的常驻内存，单位为字节。从这两个值可以看出服务在小型机器上是否足够轻量。
 
 ## 6. 服务的选项
 
@@ -289,21 +289,21 @@ export function config(port: number = Number(process.env.PORT ?? 8080), kept: nu
 
 这是模板中的 `Config.ts`，改动如下：
 
-- 新增监控器 `cpu` 和 `memory`，并把它们列在 `bootstrap` 中，让它们从启动时开始测量；
+- 新增监控器 `cpu` 和 `memory`，并将二者列在 `bootstrap` 中，使其从启动时开始测量；
 - 新增 `sensors` 和 `readings` 组件及其选项；
-- 用 `ReadingController` 替换示例控制器，并加上定时适配器 `scheduleEntrypoint()`，没有它，`@Schedule` 定时任务永远不会执行（见[入口](../Entrypoint.md)）；
-- 请求体的上限从 100 MB 改为 1 MB：这个 API 只读取查询字符串。
+- 用 `ReadingController` 替换示例控制器，并加上定时适配器 `scheduleEntrypoint()`，没有该适配器，`@Schedule` 定时任务永远不会执行（见[入口](../Entrypoint.md)）；
+- 请求体的上限从 100 MB 改为 1 MB，因为该 API 只读取查询字符串。
 
 服务通过环境变量配置：
 
 | 变量 | 默认值 | 作用 |
 |---|---|---|
 | `PORT` | `8080` | HTTP API 的端口 |
-| `SAMPLE_EVERY` | `10s` | 两次读数之间的间隔：`500ms`、`30s`、`5m` 这样的时长 |
-| `READINGS_KEPT` | `360` | 保留多少条读数 |
+| `SAMPLE_EVERY` | `10s` | 两次读数之间的间隔：`500ms`、`30s`、`5m` 等时长 |
+| `READINGS_KEPT` | `360` | 保留的读数条数 |
 | `TEMPERATURE_FILE` | `/sys/class/thermal/thermal_zone0/temp` | 温度文件 |
-| `API_TOKEN` | 无 | 设置后，请求必须带上 `Authorization: Bearer <API_TOKEN>`（模板中的中间件） |
-| `MODE` | `development` | 安装后的服务为 `production`；它优先于 `mode` 选项（见[应用](../Application.md)） |
+| `API_TOKEN` | 无 | 设置后，请求必须携带 `Authorization: Bearer <API_TOKEN>`（模板中的中间件） |
+| `MODE` | `development` | 安装后的服务为 `production`；该变量优先于 `mode` 选项（见[应用](../Application.md)） |
 
 值不合法时，服务在启动时就会停止，日志会说明原因：
 
@@ -374,17 +374,17 @@ READINGS_KEPT=0 npm start
 }
 ```
 
-这是 `installer` 功能生成的 `package.json`，加上了描述和服务的选项（见[安装包](../Installers.md)）：
+这是 `installer` 功能生成的 `package.json`，其中加上了描述和服务的选项（见[安装包](../Installers.md)）：
 
-- `bin` 给出程序名 `telemetry`，软件包会把它加入 PATH（Linux 上是 `/usr/bin/telemetry`）；
+- `bin` 给出程序名 `telemetry`，软件包会将该程序加入 PATH（Linux 上为 `/usr/bin/telemetry`）；
 - `description` 是软件包和服务的描述；
-- `service` 把服务注册到系统中：Linux 上由 systemd 运行，macOS 上由 launchd 运行，Windows 上作为 Windows 服务运行。安装时启用并启动服务，升级时重启它，卸载时停止并禁用它；
-- `service.env` 是服务的环境变量，写在它的环境变量文件中（见第 10 节）；
-- `restart: "always"` 让服务每次结束后都重新启动；默认值 `on-failure` 只在失败时重启；
-- 服务以 `telemetry` 用户运行，这是安装时创建的系统用户；它的工作目录是 `/var/lib/telemetry`，数据可以写在这里；
-- `linux.targets` 是要制作的 Linux 软件包：deb（Debian、Ubuntu、Raspberry Pi OS）、rpm（Fedora、Red Hat），以及一个 tar.gz 压缩包，压缩包只包含应用本身，不注册服务。
+- `service` 将服务注册到系统中：Linux 上由 systemd 运行，macOS 上由 launchd 运行，Windows 上作为 Windows 服务运行。安装时启用并启动服务，升级时重启服务，卸载时停止并禁用服务；
+- `service.env` 是服务的环境变量，写入服务的环境变量文件中（见第 10 节）；
+- `restart: "always"` 使服务每次结束后都重新启动；默认值 `on-failure` 只在失败时重启；
+- 服务以 `telemetry` 用户运行，这是安装时创建的系统用户；服务的工作目录为 `/var/lib/telemetry`，数据可以写入该目录；
+- `linux.targets` 是要制作的 Linux 软件包：deb（Debian、Ubuntu、Raspberry Pi OS）、rpm（Fedora、Red Hat），以及一个仅包含应用本身、不注册服务的 tar.gz 压缩包。
 
-软件包的维护者取自 `lakutata.installer.maintainer`，没有时取 `package.json` 的 `author`；两者都没有时，工具会给出警告。
+软件包的维护者取自 `lakutata.installer.maintainer`，未设置时取 `package.json` 的 `author`；两者均未设置时，工具会给出警告。
 
 ## 8. 运行
 
@@ -405,11 +405,11 @@ curl 'localhost:8080/readings?limit=abc'
 # {"errno":"E_INVALID_VALUE","errMsg":"\"limit\" must be a number","data":null}
 ```
 
-服务启动时先取一条读数，之后每 2 秒一条。这里是在 Mac 上运行的，所以温度为 `null`；在有 thermal zone 的 Linux 机器上，它是 CPU 的温度（摄氏度）。
+服务启动时先获取一条读数，之后每 2 秒获取一条。此处的服务运行在 Mac 上，因此温度为 `null`；在有 thermal zone 的 Linux 机器上，温度为 CPU 的温度（摄氏度）。
 
 ## 9. 测试
 
-模板中的测试换成了针对读数的测试。它自己写一个 thermal zone 文件（42.5 摄氏度），然后启动服务，每 200 毫秒读取一次，只保留 3 条读数：
+模板中的测试已替换为针对读数的测试。该测试自行写入一个 thermal zone 文件（42.5 摄氏度），然后启动服务，每 200 毫秒读取一次，只保留 3 条读数：
 
 **`packages/app/src/tests/App.spec.ts`**
 
@@ -489,7 +489,7 @@ describe('telemetry', (): void => {
 })
 ```
 
-设置好 `SAMPLE_EVERY` 之后才导入选项，因为间隔是在加载控制器的模块时读取的。`node --test` 让每个测试文件在单独的进程中运行，所以这里设置的环境变量不会影响其他测试文件。
+设置好 `SAMPLE_EVERY` 之后才导入选项，因为间隔是在加载控制器的模块时读取的。`node --test` 使每个测试文件在单独的进程中运行，因此此处设置的环境变量不会影响其他测试文件。
 
 ```bash
 npm test
@@ -506,10 +506,10 @@ app │ ℹ pass 4
 
 ## 10. 安装到设备上
 
-安装包中是一个内嵌 Node.js 的可执行文件，它按制作时所在的系统和架构构建（见[打包](../Packaging.md)）。`installer` 功能的两个脚本把安装包写到 `dist/installer`：
+安装包中是一个内嵌 Node.js 的可执行文件，该文件按制作安装包的机器的系统和架构构建（见[打包](../Packaging.md)）。`installer` 功能的两个脚本将安装包写入 `dist/installer`：
 
-- `npm run package:linux` 在 Docker 容器中（`Dockerfile.installer`）制作 Linux 软件包，在 macOS 和 Windows 上也能用；软件包的架构就是 Docker 的架构：在 Apple 芯片的 Mac 上是 arm64，与装 64 位系统的树莓派 4、5 相同。文件名由包名、版本和架构组成：`telemetry_0.0.1_arm64.deb`、`telemetry-0.0.1-1.aarch64.rpm` 和 `telemetry-0.0.1-linux-arm64.tar.gz`。要为 x64 机器制作，就给 Docker 指定对应的平台：`docker buildx build --platform linux/amd64 --file Dockerfile.installer --output type=local,dest=dist/installer .`
-- `npm run package:host` 制作当前机器的安装包：在 Linux 上是同样的软件包；在 macOS 上是 `pkg` 安装包（launchd 服务）和 tar.gz 压缩包；在 Windows 上是 NSIS 和 MSI 安装程序（Windows 服务）以及 zip 压缩包。
+- `npm run package:linux` 在 Docker 容器中（`Dockerfile.installer`）制作 Linux 软件包，在 macOS 和 Windows 上同样可用；软件包的架构即为 Docker 的架构，在采用 Apple 芯片的 Mac 上为 arm64，与运行 64 位系统的树莓派 4、5 相同。文件名由包名、版本和架构组成：`telemetry_0.0.1_arm64.deb`、`telemetry-0.0.1-1.aarch64.rpm` 和 `telemetry-0.0.1-linux-arm64.tar.gz`。如需为 x64 机器制作软件包，请为 Docker 指定对应的平台：`docker buildx build --platform linux/amd64 --file Dockerfile.installer --output type=local,dest=dist/installer .`
+- `npm run package:host` 制作当前机器的安装包：在 Linux 上为同样的软件包；在 macOS 上为 `pkg` 安装包（launchd 服务）和 tar.gz 压缩包；在 Windows 上为 NSIS 和 MSI 安装程序（Windows 服务）以及 zip 压缩包。
 
 在运行 Debian 或 Raspberry Pi OS 的设备上：
 
@@ -530,17 +530,17 @@ SAMPLE_EVERY="10s"
 READINGS_KEPT="360"
 ```
 
-要修改服务的配置，就编辑这个文件，然后重启服务：
+如需修改服务的配置，请编辑该文件，然后重启服务：
 
 ```bash
 sudoedit /etc/telemetry/telemetry.env         # 例如 SAMPLE_EVERY="30s"、API_TOKEN="…"
 sudo systemctl restart telemetry
 ```
 
-升级（用 `sudo apt install` 安装下一个版本）会保留你对环境变量文件的修改，并重启服务。`sudo apt remove telemetry` 会停止服务并删除应用，但保留环境变量文件和工作目录。
+升级（使用 `sudo apt install` 安装下一个版本）会保留对环境变量文件所做的修改，并重启服务。`sudo apt remove telemetry` 会停止服务并删除应用，但保留环境变量文件和工作目录。
 
 ## 11. 下一步
 
-- 要在重启后保留读数，可以把它们存进服务工作目录中的 SQLite 数据库，使用相对路径（安装后，`readings.sqlite` 就是 `/var/lib/telemetry/readings.sqlite`），做法见[带数据库的 REST API](RestAPI.md)。它的驱动 better-sqlite3 是原生插件，安装包会把它放在可执行文件旁边（见[打包](../Packaging.md)第 3 节）。
-- 要把读数发送到服务器，可以在 `sample()` 中通过 [NATS](../NATS.md) 发布，或者把它们加入[队列](../Queue.md)。
-- 在 Linux 设备上，服务还可以和系统打交道：通过 [D-Bus](../DBus.md) 调用系统的服务，或者用 [containerd](../ContainerdIntegration.md) 或 [Docker](../DockerIntegration.md) 运行容器。
+- 如需在重启后保留读数，可以将读数存入服务工作目录中的 SQLite 数据库，并使用相对路径（安装后，`readings.sqlite` 即为 `/var/lib/telemetry/readings.sqlite`），做法见[带数据库的 REST API](RestAPI.md)。该数据库的驱动 better-sqlite3 是原生插件，安装包会将其放在可执行文件旁边（见[打包](../Packaging.md)第 3 节）。
+- 如需将读数发送到服务器，可以在 `sample()` 中通过 [NATS](../NATS.md) 发布读数，或者将读数加入[队列](../Queue.md)。
+- 在 Linux 设备上，服务还可以与系统交互：通过 [D-Bus](../DBus.md) 调用系统服务，或者使用 [containerd](../ContainerdIntegration.md) 或 [Docker](../DockerIntegration.md) 运行容器。

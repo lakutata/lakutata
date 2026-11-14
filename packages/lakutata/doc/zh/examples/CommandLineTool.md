@@ -1,12 +1,12 @@
 # 命令行工具
 
-这个示例构建一个处理 CSV 文件的命令行工具 `tally`：列出文件中的列，统计某个数值列，把各行转换为 JSON。它从 `cli` 模板开始，展示 Lakutata 命令行工具的各个部分：带参数和选项的命令（`@CLIAction` 及其 DTO）、输入校验、在终端中询问缺少的选项、输出与退出码、测试，以及不需要 `node_modules` 就能运行的单文件包。
+本示例构建一个处理 CSV 文件的命令行工具 `tally`，用于列出文件中的列、统计某个数值列，以及将各行转换为 JSON。示例从 `cli` 模板开始，展示 Lakutata 命令行工具的各个部分：带参数和选项的命令（`@CLIAction` 及其 DTO）、输入校验、在终端中询问缺少的选项、输出与退出码、测试，以及无需 `node_modules` 即可运行的单文件包。
 
 | 命令 | 作用 |
 |---|---|
 | `tally columns <file>` | 列出文件中的列，以及每列的类型和值的个数 |
 | `tally stats <file> --column <name>` | 给出数值列的个数、总和、最小值、最大值、平均值和中位数 |
-| `tally json <file>` | 把各行转换为 JSON：可以选全部列或部分列，数字可以保留为文本，也可以输出为数字 |
+| `tally json <file>` | 将各行转换为 JSON：可以选择全部列或部分列，数字可以保留为文本，也可以输出为数字 |
 
 ## 1. 创建项目
 
@@ -16,7 +16,7 @@ cd tally
 rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/GreetDTO.ts
 ```
 
-项目是一个工作区，工具在 `packages/app` 中（见[项目结构](../ProjectStructure.md)）。需要的依赖模板里都有：`commander` 负责读取命令行，`@inquirer/prompts` 负责在终端中提问。CSV 文件由工具自带的一个小解析器读取，所以不用再安装其他包。这里删掉了模板中的示例命令和它的 DTO。
+项目是一个工作区，工具位于 `packages/app` 中（见[项目结构](../ProjectStructure.md)）。所需的依赖模板中均已提供：`commander` 负责读取命令行，`@inquirer/prompts` 负责在终端中提问。CSV 文件由工具自带的一个小型解析器读取，因此无需安装其他包。本例删除了模板中的示例命令及其 DTO。
 
 ## 2. 输入
 
@@ -66,14 +66,14 @@ export class JsonDTO extends FileDTO {
 }
 ```
 
-每个命令都有一个 DTO，DTO 的属性就是命令的参数和选项（见[命令行](../CLI.md)）：
+每个命令都有一个 DTO，DTO 的属性即为命令的参数和选项（见[命令行](../CLI.md)）：
 
-- `file` 写在命令里（`'stats <file>'`），所以它是参数。其他属性都是选项，以属性名命名：`--delimiter`、`--column`、`--decimals`……
+- `file` 写在命令中（`'stats <file>'`），因此它是参数。其他属性都是选项，以属性名命名：`--delimiter`、`--column`、`--decimals`……
 - 选项的形式由属性的类型决定：数字写成 `--decimals 3`，布尔值是开关 `--numbers`，数组写成 `--columns product units`。
 - 帮助中会显示每个属性的 `.description()`、默认值和允许的取值（`.valid()`）。
-- 命令行上都是文本：适配器先把每个值转换为对应属性的类型，再交给 DTO 校验（见 [DTO 与数据校验](../DTOValidation.md)），所以数字不需要 `.strict(false)`。
+- 命令行上的值都是文本。适配器先将每个值转换为对应属性的类型，再交给 DTO 校验（见 [DTO 与数据校验](../DTOValidation.md)），因此数字无需 `.strict(false)`。
 - `StatsDTO` 和 `JsonDTO` 继承自 `FileDTO`：每个命令都接受文件和分隔符。
-- `column` 是必填的，也没有默认值：在终端中运行时如果缺少这个选项，工具会提问（见第 7 节）。
+- `column` 是必填项，且没有默认值。在终端中运行时，如果缺少该选项，工具会提问（见第 7 节）。
 
 ## 3. 异常
 
@@ -90,7 +90,7 @@ export class CsvException extends Exception {
 }
 ```
 
-文件和列的错误都用 `CsvException` 表示（见[异常](../Exceptions.md)）。异常的消息是一个模板，抛出时用传入的值填充：`new CsvException('The file {file} does not exist', {file: file})`。在命令行上，失败的命令会输出 `error:` 加上这条消息，并以退出码 1 结束。
+文件和列的错误均以 `CsvException` 表示（见[异常](../Exceptions.md)）。异常的消息是一个模板，抛出时使用传入的值填充：`new CsvException('The file {file} does not exist', {file: file})`。在命令行上，失败的命令会输出 `error:` 及该消息，并以退出码 1 结束。
 
 ## 4. 读取 CSV 文件
 
@@ -176,10 +176,10 @@ export function isNumber(value: string): boolean {
 }
 ```
 
-这些是普通函数，不是容器中的对象，由命令直接调用。
+这些是普通函数，而非容器中的对象，由命令直接调用。
 
-- `parseCsv()` 按 RFC 4180 的规则把文本拆成行和值：双引号里的值可以包含分隔符、换行和连续两个双引号，行以 `\n` 或 `\r\n` 结尾。
-- `readCsv()` 用第一行作为列名，并跳过空行。文件不存在、文件为空、某一行的值个数和列数不一致，都会抛出 `CsvException`；文件系统的其他错误（比如给的是目录，或者没有读权限）原样抛出。
+- `parseCsv()` 按 RFC 4180 的规则将文本拆分为行和值：双引号中的值可以包含分隔符、换行和连续两个双引号，行以 `\n` 或 `\r\n` 结尾。
+- `readCsv()` 以第一行作为列名，并跳过空行。当文件不存在、文件为空、某一行的值个数与列数不一致时，都会抛出 `CsvException`；文件系统的其他错误（例如给出的是目录，或者没有读取权限）则原样抛出。
 
 ## 5. 命令
 
@@ -289,10 +289,10 @@ export class CsvController extends Controller {
 }
 ```
 
-- 每个 `@CLIAction` 声明一个命令：命令名和参数（`'stats <file>'`）、DTO，以及 `description`，即帮助中这个命令的说明（见[控制器与动作](../Controllers.md)）。
-- 动作收到的是校验后的输入，已经补上默认值：没有给出时，`delimiter` 为 `','`，`decimals` 为 2。
-- 动作的返回值写到 stdout：字符串原样输出（`columns`，以及默认的 `stats`），其他值输出为带缩进的 JSON（`stats --format json`、`json`）。
-- 抛出的异常就是这个命令的错误。
+- 每个 `@CLIAction` 声明一个命令：命令名和参数（`'stats <file>'`）、DTO，以及 `description`，即帮助中该命令的说明（见[控制器与动作](../Controllers.md)）。
+- 动作收到的是校验后的输入，其中已补上默认值：未给出时，`delimiter` 为 `','`，`decimals` 为 2。
+- 动作的返回值写入 stdout：字符串原样输出（`columns`，以及默认的 `stats`），其他值输出为带缩进的 JSON（`stats --format json`、`json`）。
+- 抛出的异常即为该命令的错误。
 
 ## 6. 工具的选项
 
@@ -324,7 +324,7 @@ export function config(): ApplicationOptions {
 }
 ```
 
-这是模板中的 `Config.ts`，用 `CsvController` 替换了示例控制器。工具的说明直接写在这里，而模板是从 `packages/app/package.json` 读取说明的，那里的说明由 `lakutata create --description` 写入；版本号仍然来自这个文件。`bin` 是工具在帮助中显示的名字。
+这是模板中的 `Config.ts`，其中用 `CsvController` 替换了示例控制器。工具的说明直接写在此处，而模板从 `packages/app/package.json` 读取说明，该文件中的说明由 `lakutata create --description` 写入；版本号仍然来自该文件。`bin` 是工具在帮助中显示的名称。
 
 ## 7. 运行
 
@@ -347,7 +347,7 @@ date,region,product,units,price
 2026-10-04,north,Cocoa,11,5.10
 ```
 
-下面的命令用 node 运行构建好的工具；执行 `npm link -w app` 后，也可以直接用 `tally` 命令。
+下面的命令使用 node 运行构建好的工具；执行 `npm link -w app` 后，也可以直接使用 `tally` 命令。
 
 ```text
 $ node packages/app/build/App.js --help
@@ -424,9 +424,9 @@ $ node packages/app/build/App.js json sales.csv --columns product units --number
 ]
 ```
 
-用分号分隔值的文件可以加 `--delimiter ';'` 读取，TSV 文件则用 `--delimiter $'\t'`。
+以分号分隔值的文件可以加上 `--delimiter ';'` 读取，TSV 文件则使用 `--delimiter $'\t'`。
 
-**缺少选项时提问。** 在终端中运行时如果缺少必填选项，工具会向用户提问。问题的文字是属性的说明加上属性名。回答（这里是 `price`）会按该属性的规则检查，不合法时重新提问：
+**缺少选项时提问。** 在终端中运行时，如果缺少必填选项，工具会向用户提问。问题的文字为属性的说明加上属性名。回答（此处为 `price`）会按该属性的规则检查，不合法时工具会重新提问：
 
 ```text
 $ node packages/app/build/App.js stats sales.csv
@@ -441,14 +441,14 @@ mean    4.14
 median  4.5
 ```
 
-只有 stdin 和 stdout 都是终端时，工具才会提问。在脚本或管道中，它不会提问，缺少的选项直接报错：
+只有当 stdin 和 stdout 都是终端时，工具才会提问。在脚本或管道中，工具不会提问，缺少选项会直接报错：
 
 ```text
 $ node packages/app/build/App.js stats sales.csv < /dev/null
 error: required option '--column <value>' not specified
 ```
 
-**错误与退出码。** 不合法的输入会在三个环节之一被拒绝。无论哪个环节，都会向 stderr 写出 `error:` 和一条消息，工具以退出码 1 结束：
+**错误与退出码。** 不合法的输入会在三个环节之一被拒绝。无论在哪个环节被拒绝，都会向 stderr 写出 `error:` 和一条消息，工具以退出码 1 结束：
 
 ```text
 $ node packages/app/build/App.js stats sales.csv --column units --decimals two
@@ -465,15 +465,15 @@ $ echo $?
 1
 ```
 
-- 命令行解析器在 DTO 之前就拒绝不符合命令格式的输入：该是数字的地方给了文本、取值不在 `.valid()` 之内、缺少参数或选项、命令不存在。
-- DTO 拒绝违反其他规则的值，比如 `.max(6)`。
-- 只有动作自己才能检查的问题，由动作抛出异常来拒绝：文件不存在，或者某列不全是数字。
+- 命令行解析器在 DTO 之前就会拒绝不符合命令格式的输入：应为数字的位置给出了文本、取值不在 `.valid()` 之内、缺少参数或选项、命令不存在。
+- DTO 拒绝违反其他规则的值，例如 `.max(6)`。
+- 只有动作自身才能检查的问题，由动作抛出异常来拒绝：文件不存在，或者某列不全是数字。
 
-命令成功时退出码为 0，`--help` 和 `--version` 也是如此，所以脚本可以根据退出码判断每个命令是否成功。
+命令成功时退出码为 0，`--help` 和 `--version` 也是如此，因此脚本可以根据退出码判断每个命令是否成功。
 
 ## 8. 测试
 
-模板中的测试换成了针对这些命令的测试。和模板一样，它在子进程中运行构建好的工具，这里还会先在临时目录中写一个 CSV 文件。子进程的 stdin 不是终端，所以工具不会提问：
+模板中的测试已替换为针对这些命令的测试。与模板相同，该测试在子进程中运行构建好的工具，此外还会先在临时目录中写入一个 CSV 文件。子进程的 stdin 不是终端，因此工具不会提问：
 
 **`packages/app/src/tests/App.spec.ts`**
 
@@ -593,7 +593,7 @@ npm run package:bundle
 ✔ ../../dist/tally.cjs (1.1 MB): node ../../dist/tally.cjs
 ```
 
-这个脚本先构建工具，再由 `lakutata package bundle` 把工具连同 `lakutata`、commander 和 `@inquirer/prompts` 一起打成一个 JavaScript 文件，即项目根目录下的 `dist/tally.cjs`（输出的路径相对于脚本运行的目录 `packages/app`）。Node.js 可以在任何目录中运行它，不需要 `node_modules`，比如在项目旁边的目录中：
+该脚本先构建工具，再由 `lakutata package bundle` 将工具连同 `lakutata`、commander 和 `@inquirer/prompts` 一起打包成一个 JavaScript 文件，即项目根目录下的 `dist/tally.cjs`（输出的路径相对于脚本运行的目录 `packages/app`）。Node.js 可以在任何目录中运行该文件，无需 `node_modules`，例如在项目旁边的目录中：
 
 ```bash
 mkdir ../tally-bundle && cp dist/tally.cjs sales.csv ../tally-bundle && cd ../tally-bundle
@@ -613,6 +613,6 @@ node tally.cjs stats sales.csv --column units --format json
 }
 ```
 
-- 单文件包是 CommonJS 文件，所以源码中不能使用顶层 `await`。
-- `npm run package:exe` 生成 `dist/tally`，这是一个不需要安装 Node.js 就能运行的可执行文件：Node.js 已经嵌在里面（约 110 MB）。它只能在生成它的平台上运行，其他平台的可执行文件如何生成，项目的 README 里有说明（见[打包](../Packaging.md)）。
-- 模板的 `installer` 功能（`lakutata create --with installer`）可以生成安装包，即各个系统的软件包（deb、rpm、pkg、msi 等），它们会把 `tally` 加入 PATH（见[安装包](../Installers.md)）。
+- 单文件包是 CommonJS 文件，因此源码中不能使用顶层 `await`。
+- `npm run package:exe` 生成 `dist/tally`，这是一个无需安装 Node.js 即可运行的可执行文件，因为 Node.js 已嵌入其中（约 110 MB）。该文件只能在生成时所在的平台上运行，项目的 README 说明了如何为其他平台生成可执行文件（见[打包](../Packaging.md)）。
+- 模板的 `installer` 功能（`lakutata create --with installer`）可以生成安装包，即各个系统的软件包（deb、rpm、pkg、msi 等），这些软件包会将 `tally` 加入 PATH（见[安装包](../Installers.md)）。

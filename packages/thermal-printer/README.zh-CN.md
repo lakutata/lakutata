@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-[Lakutata](https://github.com/lakutata/lakutata) 框架的热敏打印机包。管理器组件负责找到打印机（USB 打印机、系统打印队列、串口和蓝牙口），并按应用落盘的 JSON 定义打开它们。打开后的每台打印机都是一个对象：它用 [`@lakutata/thermal`](../thermal) 渲染用 HTML 编排的小票、标签和腕带，编码成这台打印机的指令（ESC/POS、TSPL 或 ZPL），按调用的顺序发出去。`lakutata` 包不重新导出这个包，请从 `@lakutata/thermal-printer` 导入。
+[Lakutata](https://github.com/lakutata/lakutata) 框架的热敏打印机包。管理器组件负责查找打印机（USB 打印机、系统打印队列、串口和蓝牙口），并按应用保存到磁盘的 JSON 定义打开这些打印机。打开后的每台打印机都是一个对象，该对象用 [`@lakutata/thermal`](../thermal) 渲染以 HTML 编排的小票、标签和腕带，将其编码为该打印机的指令（ESC/POS、TSPL 或 ZPL），并按调用顺序发出。`lakutata` 包不会重新导出本包，请从 `@lakutata/thermal-printer` 导入。
 
 ## 安装
 
@@ -10,9 +10,9 @@
 npm install @lakutata/thermal-printer
 ```
 
-- 它会安装 `@lakutata/thermal`，后者的原生插件在安装时编译（机器上需要什么见它的 README）。
-- 在 macOS 和 Windows 上，这个包还会编译一个自己的小插件，用于 USB 打印机和 Windows 的后台打印服务。Linux 上不需要：USB 打印机就是设备文件，打印队列用 CUPS 命令。
-- 串口和蓝牙打印机需要 `@lakutata/serial`（`npm install @lakutata/serial`）。没有安装时，打开这类打印机会失败，错误信息里写明需要这个包。
+- 本包会安装 `@lakutata/thermal`，后者的原生插件在安装时编译（机器上所需的工具见其 README）。
+- 在 macOS 和 Windows 上，本包还会编译一个自带的小插件，用于 USB 打印机和 Windows 的后台打印服务。Linux 上不需要该插件，因为 USB 打印机就是设备文件，打印队列使用 CUPS 命令。
+- 串口和蓝牙打印机需要 `@lakutata/serial`（`npm install @lakutata/serial`）。未安装时，打开这类打印机会失败，错误信息中会写明需要该包。
 - Node.js `>=18.10.0`，以及 `@lakutata/core`。
 
 ## 用法
@@ -37,11 +37,11 @@ Application.run(() => ({
 }))
 ```
 
-配置里的打印机在第一次使用时才打开，应用启动时某台打印机不在也不会让应用启动失败。
+配置中的打印机在首次使用时才打开，因此应用启动时即使某台打印机不可用，也不会导致应用启动失败。
 
 ### 找到打印机并保存
 
-打印机一般是在程序运行时选择的，而不是写死在代码里：先找到打印机，打开用户选中的那台，再把它的定义存下来。
+打印机一般在程序运行时选择，而不是固定写在代码中：先查找打印机，打开用户选中的打印机，再保存其定义。
 
 ```typescript
 import {writeFile} from 'node:fs/promises'
@@ -70,9 +70,9 @@ async function restore(manager: ThermalPrinterManager): Promise<void> {
 }
 ```
 
-- `discover()` 列出候选设备，每项都带一个可以直接打开、也可以直接保存的 `connection`。USB 打印机还会给出它上报的 IEEE 1284 ID（`deviceId`）、这个 ID 对应的 `printerModels()` 里的型号（`model`），以及它上报的指令语言（`language`）。网络打印机无法这样找到，需要用户填写地址。
-- `open(definition, name?)` 对每台设备只打开一次：同一台设备再次打开，返回的是同一个对象（定义仍是第一次的），这样一台打印机上不会有两个队列交错发送数据。
-- `get(name)` 按名字取打印机，`names()` 列出名字，`openPrinters()` 列出已打开的打印机，`close(printer)` 关闭一台打印机。
+- `discover()` 列出候选设备，每项都带一个可以直接打开、也可以直接保存的 `connection`。USB 打印机还会给出其上报的 IEEE 1284 ID（`deviceId`）、该 ID 在 `printerModels()` 中对应的型号（`model`），以及其上报的指令语言（`language`）。网络打印机无法以这种方式找到，需要用户填写地址。
+- `open(definition, name?)` 对每台设备只打开一次。再次打开同一台设备时，返回的是同一个对象（定义仍为第一次的定义），因此一台打印机上不会有两个队列交错发送数据。
+- `get(name)` 按名称获取打印机，`names()` 列出名称，`openPrinters()` 列出已打开的打印机，`close(printer)` 关闭一台打印机。
 - `validatePrinterDefinition()` 检查从文件读出的定义；介质在打开时由引擎检查。
 
 ### 打印
@@ -94,14 +94,14 @@ async function print(manager: ThermalPrinterManager): Promise<void> {
 }
 ```
 
-- `print()` 在指令交给连接后完成（打印机可能还在打印），结果是打印的页数和发送的字节数。同一台打印机的打印按调用顺序一个接一个发出。
-- 一次打印的 `commands` 选项覆盖打印机自己的；它的 `signal` 可以在它排队等候或渲染时取消它。
-- 用定义调用 `manager.print()` 时会打开这台打印机（见 `open()`），打开后一直保持到被关闭：这样打印过一次的 USB、串口或蓝牙打印机会一直被应用占用，`close()` 之前其他程序打开它会得到 `'EBUSY'`。
+- `print()` 在指令交给连接后完成（打印机可能仍在打印），结果为打印的页数和发送的字节数。同一台打印机的各次打印按调用顺序依次发出。
+- 一次打印的 `commands` 选项会逐项覆盖打印机自身 `commands` 中的同名选项；该次打印的 `signal` 可以在其排队等候或渲染时将其取消。
+- 用定义调用 `manager.print()` 时会打开该打印机（见 `open()`），打印机打开后会保持到被关闭为止。因此，以这种方式打印过一次的 USB、串口或蓝牙打印机会持续被应用占用，在 `close()` 之前，其他程序打开该打印机会得到 `'EBUSY'`。
 - `preview(html)` 只渲染不打印；`commandsOf(content)` 给出指令但不发送。
 
 ### 图片和条码
 
-HTML 里的图片可以是 `data:` 地址（PNG、JPEG、GIF、BMP、SVG）、内联的 `<svg>` 元素，以及 `baseDir` 下的文件。[`@lakutata/barcode`](../barcode) 生成的条码可以直接放进去，不需要存文件：
+HTML 中的图片可以是 `data:` 地址（PNG、JPEG、GIF、BMP、SVG）、内联的 `<svg>` 元素，以及 `baseDir` 下的文件。[`@lakutata/barcode`](../barcode) 生成的条码可以直接放入，无需保存为文件：
 
 ```typescript
 import type {Barcode} from '@lakutata/barcode'
@@ -118,81 +118,81 @@ async function label(printer: ThermalPrinter, barcode: Barcode): Promise<void> {
 }
 ```
 
-- SVG 按打印机的分辨率画成黑白，条码最清晰。用 `<img>` 放进去并给 `<img>` 设尺寸：直接内联的 `<svg>` 会保持它自己声明的宽高，浏览器里也是这样。
-- 位图（PNG、JPEG……）默认做抖动，适合照片。条码的位图要加上 `#threshold`，线条才是实心的。
-- `qrcode:` 由引擎直接画二维码，模块落在整点上，不需要图片。
+- SVG 按打印机的分辨率绘制为黑白图像，条码最清晰。请用 `<img>` 放入并为 `<img>` 设置尺寸，因为直接内联的 `<svg>` 会保持其自身声明的宽高，在浏览器中也是如此。
+- 位图（PNG、JPEG……）默认做抖动处理，适合照片。条码的位图需要加上 `#threshold`，线条才能保持实心。
+- `qrcode:` 由引擎直接绘制二维码，模块对齐到整点，无需图片。
 
 ### 打印机定义
 
 | 字段 | 说明 |
 |---|---|
 | `connection` | 连接方式（见[连接方式](#连接方式)） |
-| `model`、`paper`、`label`、`width`、`dpi`、`rotate`、`page` | 它的介质，写法和 `@lakutata/thermal` 的 `render()` 一样 |
-| `commands` | 每页或每次打印之后让打印机做的事：切纸、走纸、弹钱箱……（见[指令选项](#指令选项)） |
-| `baseDir` | 它的 HTML 读取图片的目录 |
+| `model`、`paper`、`label`、`width`、`dpi`、`rotate`、`page` | 打印机的介质，写法与 `@lakutata/thermal` 的 `render()` 相同 |
+| `commands` | 每页或每次打印之后打印机执行的操作：切纸、走纸、弹钱箱……（见[指令选项](#指令选项)） |
+| `baseDir` | 打印机的 HTML 读取图片的目录 |
 | `textLanguage` | 文字的语言，用于断行 |
-| `connectTimeout` | 打开连接最多可以花多长时间（10 秒） |
-| `stallTimeout` | 打印机多久不接收数据（缺纸、上盖打开、离线）就判这次打印失败（10 秒；设为 0 则一直等） |
-| `bytesPerSecond` | 每秒最多发送多少字节：用于慢速连接，数据来得太快或太慢时，这类连接上的打印机会卡顿或印出白线 |
+| `connectTimeout` | 打开连接的最长时间（10 秒） |
+| `stallTimeout` | 打印机不接收数据（缺纸、上盖打开、离线）达到多长时间即判定本次打印失败（10 秒；设为 0 则无限等待） |
+| `bytesPerSecond` | 每秒最多发送的字节数，用于慢速连接；数据到达过快或过慢时，这类连接上的打印机会卡顿或印出白线 |
 
 没有介质的打印机仍然可以打印原始指令和渲染结果。
 
 ### 指令选项
 
-`commands` 的写法和 `@lakutata/thermal` 的 `encode()` 一样。一次打印可以单独修改它们（`print(html, {commands: {cut: false}})`）。
+`commands` 的写法与 `@lakutata/thermal` 的 `encode()` 相同。一次打印可以单独修改这些选项（`print(html, {commands: {cut: false}})`）。
 
-| 选项 | 作用 |
+| 选项 | 含义 |
 |---|---|
 | `language` | 定义里没有 `model` 时的指令语言：`'escpos'`（小票机）、`'tspl'` 或 `'zpl'`（标签机） |
-| `cut` | 每页之后切纸（打印机要有切刀）：`'partial'` 半切，小票还连着一点；`'full'`（或 `true`）全切。`false` 关闭标签打印机的切刀。默认不切纸 |
-| `feed` | ESC/POS：每页打印完后再走出多少毫米的纸：写 `15` 就多走 15 毫米，用来把小票送过撕纸口（每台打印机到撕纸口的距离不一样，按自己的打印机填）。默认 0，不走纸。它和 `cut` 互不影响：两个都写时先走纸，再切纸（切纸指令会自己把纸送到切刀） |
+| `cut` | 每页之后切纸（打印机需配备切刀）：`'partial'` 为半切，小票仍有一小部分相连；`'full'`（或 `true`）为全切。`false` 关闭标签打印机的切刀。默认不切纸 |
+| `feed` | ESC/POS：每页打印完毕后额外走纸的毫米数，例如设为 `15` 即多走 15 毫米，用于将小票送过撕纸口（各台打印机到撕纸口的距离不同，请按所用打印机设置）。默认 0，不走纸。该选项与 `cut` 互不影响，同时设置时先走纸，再切纸（切纸指令会自行将纸送到切刀） |
 | `drawer` | ESC/POS：最后一页之后弹开钱箱：`true`（2 号引脚），第二个钱箱用 `{pin: 5}` |
-| `copies` | TSPL 和 ZPL：每张标签打几份 |
+| `copies` | TSPL 和 ZPL：每张标签的打印份数 |
 | `sensor`、`gap` | TSPL 和 ZPL：打印机如何找到标签的起点（标签间的间隙、黑标或连续纸）以及间隙的大小 |
 | `density`、`speed` | TSPL 和 ZPL：打印的浓度和速度 |
-| `raster`、`bandHeight`、`initialize`、`compress`、`skipBlank` | 点阵的发送方式：除非打印机工作不正常，保持默认即可（见 `@lakutata/thermal` 的 README） |
+| `raster`、`bandHeight`、`initialize`、`compress`、`skipBlank` | 点阵的发送方式；除非打印机工作异常，保持默认即可（见 `@lakutata/thermal` 的 README） |
 
 ### 连接方式
 
 | `type` | 选项 | 方式 |
 |---|---|---|
-| `'network'` | `host`、`port`（9100） | 连接原始打印端口的 TCP 连接，ESC/POS、TSPL、ZPL 打印机都一样；每次打印连接一次 |
-| `'queue'` | `name` | 系统打印队列，指令原样发送：macOS 和 Linux 上是 CUPS 的 `lp -d <name> -o raw`，Windows 上是后台打印服务（RAW 文档；第 4 版驱动用 `XPS_PASS`） |
-| `'usb'` | `path`，或 `vendorId`、`productId` 和 `serialNumber` | USB 打印机：Linux 上是设备文件 `/dev/usb/lpN`（用户需要在 `lp` 组里），macOS 上按 ID 打开，Windows 上是它的打印机接口路径（用系统自带的驱动，不需要另装驱动） |
+| `'network'` | `host`、`port`（9100） | 连接原始打印端口的 TCP 连接，适用于 ESC/POS、TSPL、ZPL 打印机；每次打印连接一次 |
+| `'queue'` | `name` | 系统打印队列，指令原样发送：macOS 和 Linux 上为 CUPS 的 `lp -d <name> -o raw`，Windows 上为后台打印服务（RAW 文档；第 4 版驱动使用 `XPS_PASS`） |
+| `'usb'` | `path`，或 `vendorId`、`productId` 和 `serialNumber` | USB 打印机：Linux 上为设备文件 `/dev/usb/lpN`（用户需要位于 `lp` 组中），macOS 上按 ID 打开，Windows 上为其打印机接口路径（使用系统自带的驱动，无需另行安装驱动） |
 | `'serial'` | `path`、`baudRate`（9600）、`flowControl`（`'rts/cts'`、`'dtr/dsr'`、`'xon/xoff'`） | 串口，由 `@lakutata/serial` 提供 |
-| `'bluetooth'` | `address`、`channel`（1，仅 Linux） | 经典蓝牙打印机（串口协议 SPP），需要先和系统配对，由 `@lakutata/serial` 提供 |
+| `'bluetooth'` | `address`、`channel`（1，仅 Linux） | 经典蓝牙打印机（串口协议 SPP），需要先与系统配对，由 `@lakutata/serial` 提供 |
 
-- USB、串口和蓝牙打印机在对象存在期间一直保持连接：第一次打印时打开，出错后重新打开。网络打印机和打印队列每次打印连接一次，因为 9100 端口的打印机往往一次只接受一个客户端，打印队列每个任务对应一个文档。
-- `/dev/usb/lp0` 是 USB 打印机，不是串口：要写成 `'usb'` 连接，而不是 `'serial'`。
-- 在 macOS 上，某个 CUPS 队列正在用这台 USB 打印机打印时，它是被占用的，这时打开会以 `'EBUSY'` 失败。
+- USB、串口和蓝牙打印机在对象存在期间始终保持连接，在第一次打印时打开，出错后重新打开。网络打印机和打印队列在每次打印时连接一次，因为 9100 端口的打印机往往一次只接受一个客户端，打印队列的每个任务对应一个文档。
+- `/dev/usb/lp0` 是 USB 打印机，不是串口，因此应配置为 `'usb'` 连接，而不是 `'serial'`。
+- 在 macOS 上，某个 CUPS 队列正在使用某台 USB 打印机打印时，该打印机处于占用状态，此时打开会以 `'EBUSY'` 失败。
 
 ### 关闭
 
-- `manager.close(printer)` 关闭一台打印机：先把它队列里的打印发完（最多等 `drainTimeout`，10 秒），再关闭连接。配置里的打印机下次使用时会重新打开。
+- `manager.close(printer)` 关闭一台打印机，先发完其队列中的打印（最多等待 `drainTimeout`，10 秒），再关闭连接。配置中的打印机下次使用时会重新打开。
 - 应用停止（容器销毁）时，管理器关闭所有打印机。
-- 进程结束时，还开着的设备文件、套接字和句柄由系统关闭。进程被强杀时正在进行的打印，打印机只会收到前半段数据。
+- 进程结束时，仍打开的设备文件、套接字和句柄由系统关闭。进程被强制终止时，对于正在进行的打印，打印机只会收到前面一部分数据。
 
 ## API
 
 | 导出 | 说明 |
 |---|---|
 | `ThermalPrinterManager` | 管理器：`discover()`、`open()`、`get()`、`names()`、`openPrinters()`、`close()`、`print()`、`preview()` |
-| `buildThermalPrinterManagerOptions`、`ThermalPrinterManagerConfig` | 管理器在配置里的选项（`printers`、`drainTimeout`） |
+| `buildThermalPrinterManagerOptions`、`ThermalPrinterManagerConfig` | 管理器在配置中的选项（`printers`、`drainTimeout`） |
 | `ThermalPrinter` | 打开的打印机：`print()`、`preview()`、`commandsOf()`、`definition` |
 | `validatePrinterDefinition` | 检查从文件读出的定义 |
-| `PrinterDefinition`、`PrinterConnection`、`NetworkConnection`、`QueueConnection`、`UsbConnection`、`SerialConnection`、`BluetoothConnection` | 打印机和它的连接方式 |
+| `PrinterDefinition`、`PrinterConnection`、`NetworkConnection`、`QueueConnection`、`UsbConnection`、`SerialConnection`、`BluetoothConnection` | 打印机及其连接方式 |
 | `PrinterCandidate`、`DiscoverOptions` | `discover()` 找到的设备 |
 | `PrintOptions`、`PrintResult` | 一次打印的选项和结果 |
-| `ThermalPrinterException`、`ThermalPrinterConnectionException`、`ThermalPrinterOptionException` | 这个包的异常（见[错误](#错误)） |
+| `ThermalPrinterException`、`ThermalPrinterConnectionException`、`ThermalPrinterOptionException` | 本包的异常（见[错误](#错误)） |
 
 ## 错误
 
-| 错误 | 什么时候 |
+| 错误 | 抛出时机 |
 |---|---|
-| `ThermalPrinterConnectionException` | 无法连接打印机或指令无法发出：连接被拒绝或超时、设备没接上或被占用、打印队列出错、打印机在停滞超时内一直不接收数据 |
-| `ThermalPrinterOptionException` | 不是合法的定义：缺少连接方式或连接方式不对、选项类型不对 |
-| `ThermalPrinterException` | 没有这个名字的打印机、连接方式所需的包没有安装、打印机或管理器已关闭 |
-| `@lakutata/thermal` 的异常 | 引擎不接受这个介质（`ThermalOptionException`），或渲染、编码失败 |
+| `ThermalPrinterConnectionException` | 无法连接打印机或指令无法发出：连接被拒绝或超时、设备未连接或被占用、打印队列出错、打印机在停滞超时时间内始终不接收数据 |
+| `ThermalPrinterOptionException` | 定义不合法：缺少连接方式或连接方式有误、选项类型有误 |
+| `ThermalPrinterException` | 不存在该名称的打印机、连接方式所需的包未安装、打印机或管理器已关闭 |
+| `@lakutata/thermal` 的异常 | 引擎不接受该介质（`ThermalOptionException`），或渲染、编码失败 |
 
 ## 另见
 

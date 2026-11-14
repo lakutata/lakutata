@@ -1,6 +1,6 @@
 # Lakutata 实体、查询与事务
 
-实体、仓储、查询和事务都来自 [TypeORM](https://typeorm.io) 1：装饰器来自 `lakutata/decorator/orm`，其余 API 来自 `lakutata/orm`。本指南介绍常见的用法，每个选项的说明见 TypeORM 的文档。
+实体、仓储、查询和事务都来自 [TypeORM](https://typeorm.io) 1，其中装饰器来自 `lakutata/decorator/orm`，其余 API 来自 `lakutata/orm`。本指南介绍常见用法，各选项的说明见 TypeORM 的文档。
 
 ## 1. 实体
 
@@ -65,7 +65,7 @@ export class OrderLine {
 | 装饰器 | 用途 |
 |---|---|
 | `@Entity(name)`、`@ViewEntity`、`@ChildEntity`、`@TableInheritance` | 实体、视图、表的继承 |
-| `@PrimaryGeneratedColumn(strategy)`、`@PrimaryColumn` | 主键：自动生成（`'increment'`、`'uuid'`、`'identity'`），或者手动给出 |
+| `@PrimaryGeneratedColumn(strategy)`、`@PrimaryColumn` | 主键：自动生成（`'increment'`、`'uuid'`、`'identity'`），或者手动指定 |
 | `@Column(type, options)` | 列：类型、`length`、`nullable`、`default`、`unique`、`transformer`…… |
 | `@CreateDateColumn`、`@UpdateDateColumn`、`@DeleteDateColumn`、`@VersionColumn` | 由 TypeORM 自动设置的列 |
 | `@OneToOne`、`@OneToMany`、`@ManyToOne`、`@ManyToMany`、`@JoinColumn`、`@JoinTable` | 关系 |
@@ -73,11 +73,11 @@ export class OrderLine {
 | `@BeforeInsert`、`@AfterLoad`、`@BeforeUpdate`…… | 在操作前后执行的方法 |
 | `@ObjectIdColumn` | MongoDB 实体的 `_id` |
 
-实体要列在每个使用它的数据库的 `entities` 选项中。实体也可以继承 `lakutata/orm` 中的 `BaseEntity`，从而自己保存和查询（`await Order.findOneBy({id})`、`await order.save()`）：这些操作使用最后一个连接了该实体的数据库。
+使用某个实体的每个数据库，都需要在其 `entities` 选项中列出该实体。实体也可以继承 `lakutata/orm` 中的 `BaseEntity`，从而自行保存和查询（`await Order.findOneBy({id})`、`await order.save()`）。这些操作使用最后一个连接了该实体的数据库。
 
 ## 2. 查询
 
-仓储（`db.getRepository(Order)`）用来读写一张表中的实体：
+仓储（`db.getRepository(Order)`）用于读写一张表中的实体：
 
 ```typescript
 import {Component} from 'lakutata'
@@ -132,16 +132,16 @@ class Orders extends Component {
 }
 ```
 
-- **查询：** `find`、`findBy`、`findOne`、`findOneBy`、`findAndCount`、`count`、`exists`；`findOneByOrFail` 什么都没找到时会抛出 `EntityNotFoundError`。
-- **查询选项**使用对象：`where`、`relations: {lines: true}`、`select: {id: true, customer: true}`、`order: {createdAt: 'DESC'}`、`skip` 和 `take`、`withDeleted`。`where` 中给出条件列表表示 `OR`。
+- **查询：** `find`、`findBy`、`findOne`、`findOneBy`、`findAndCount`、`count`、`exists`；`findOneByOrFail` 未找到任何结果时会抛出 `EntityNotFoundError`。
+- **查询选项**以对象形式给出：`where`、`relations: {lines: true}`、`select: {id: true, customer: true}`、`order: {createdAt: 'DESC'}`、`skip` 和 `take`、`withDeleted`。`where` 为条件列表时表示 `OR`。
 - **查询操作符**来自 `lakutata/orm`：`In`、`Not`、`IsNull`、`Like`、`ILike`、`Between`、`MoreThan`、`MoreThanOrEqual`、`LessThan`、`LessThanOrEqual`、`Any`、`ArrayContains`、`Raw`……
 - **写入：** `save`（插入或更新，并按关系的级联设置一起保存）、`insert`、`update`、`delete`、`softDelete` 和 `restore`（需要 `@DeleteDateColumn`）、`increment`、`upsert`。
-- **查询构造器**（`createQueryBuilder`）用来写查询选项无法表达的查询：带条件的连接、分组、子查询。它的值（`:customer`）作为参数传递，从不拼接进 SQL 文本。
-- **SQL**（`query(sql, parameters)`）原样返回驱动给出的行：PostgreSQL 的 `COUNT(*)` 是字符串。
+- **查询构造器**（`createQueryBuilder`）用于编写查询选项无法表达的查询：带条件的连接、分组、子查询。其中的值（`:customer`）作为参数传递，从不拼接到 SQL 文本中。
+- **SQL**（`query(sql, parameters)`）原样返回驱动给出的行，例如 PostgreSQL 的 `COUNT(*)` 结果是字符串。
 
 ## 3. 事务
 
-`transaction(fn)` 在事务中执行一个函数：函数成功时提交，失败时回滚，并重新抛出它的错误。事务中的每个操作都要通过传给函数的实体管理器执行；通过 `db.manager` 或 `db.getRepository()` 执行的操作不在事务中。
+`transaction(fn)` 在事务中执行一个函数：函数成功时提交，失败时回滚并重新抛出其错误。事务中的每个操作都必须通过传给函数的实体管理器执行；通过 `db.manager` 或 `db.getRepository()` 执行的操作不在事务中。
 
 ```typescript
 import {Component} from 'lakutata'
@@ -173,13 +173,13 @@ class Transfers extends Component {
 }
 ```
 
-- 隔离级别可以省略：`'READ UNCOMMITTED'`、`'READ COMMITTED'`、`'REPEATABLE READ'`、`'SERIALIZABLE'`。
-- `createQueryRunner()` 提供一个独占的连接，用来手动控制事务（`startTransaction()`、`commitTransaction()`、`rollbackTransaction()`，最后 `release()`）。
-- 在 TypeORM 中 MongoDB 没有事务：在它上面，`transaction()` 会在没有事务的情况下执行函数。嵌入式 MongoDB 则在它自己的事务中执行（见[嵌入式 MongoDB](MongoEmbedded.md) 第 4 节）。
+- 隔离级别可以省略，其取值为：`'READ UNCOMMITTED'`、`'READ COMMITTED'`、`'REPEATABLE READ'`、`'SERIALIZABLE'`。
+- `createQueryRunner()` 提供一个独占的连接，用于手动控制事务（`startTransaction()`、`commitTransaction()`、`rollbackTransaction()`，最后调用 `release()`）。
+- TypeORM 未为 MongoDB 提供事务，因此 `transaction()` 在 MongoDB 上会在没有事务的情况下执行函数。嵌入式 MongoDB 则在其自身的事务中执行函数（见[嵌入式 MongoDB](MongoEmbedded.md) 第 4 节）。
 
 ## 4. 需要注意的值
 
-- **大数。** PostgreSQL 和 MySQL 以字符串返回 `bigint` 和 `decimal` 列，以保持精度。SQLite 以数字返回它们，超过 2^53 时会丢失精度。如果数字就够用，可以用列的 `transformer` 转换：
+- **大数。** PostgreSQL 和 MySQL 以字符串返回 `bigint` 和 `decimal` 列，以保持精度。SQLite 以数字返回这些列，超过 2^53 时会丢失精度。如果数字类型已能满足需要，可以通过列的 `transformer` 转换：
 
   ```typescript
   import {Column, Entity, PrimaryGeneratedColumn} from 'lakutata/decorator/orm'
@@ -200,20 +200,20 @@ class Transfers extends Component {
   }
   ```
 
-- **条件中的 `null` 和 `undefined`** 默认会被忽略：`findOneBy({id: undefined})` 会查到第一行。见[数据库](Database.md)第 2 节。
-- **日期。** 优先使用带时区的列（PostgreSQL 的 `timestamptz`）。在 MySQL 上，连接的 `timezone` 选项决定日期如何写入和读取。
+- **条件中的 `null` 和 `undefined`** 默认会被忽略，因此 `findOneBy({id: undefined})` 会查到第一行。见[数据库](Database.md)第 2 节。
+- **日期。** 优先使用带时区的列（PostgreSQL 的 `timestamptz`）。在 MySQL 上，连接的 `timezone` 选项决定日期的写入和读取方式。
 
 ## 5. 错误
 
-错误都来自 TypeORM，由 `lakutata/orm` 导出：
+错误均来自 TypeORM，由 `lakutata/orm` 导出：
 
-| 错误 | 什么时候 |
+| 错误 | 抛出时机 |
 |---|---|
-| `QueryFailedError` | 数据库拒绝了查询。它的 `driverError` 是驱动的错误：在 PostgreSQL 上，代码 `23505` 表示重复键，`constraint` 是约束的名字 |
-| `EntityNotFoundError` | `findOneByOrFail()` 和 `findOneOrFail()` 什么都没找到 |
+| `QueryFailedError` | 数据库拒绝了查询。该错误的 `driverError` 是驱动的错误，例如在 PostgreSQL 上，代码 `23505` 表示重复键，`constraint` 是约束名称 |
+| `EntityNotFoundError` | `findOneByOrFail()` 和 `findOneOrFail()` 未找到任何结果 |
 | `EntityMetadataNotFoundError` | 实体不在数据库的 `entities` 中 |
 | `OptimisticLockVersionMismatchError` | 加锁时 `@VersionColumn` 与期望的版本不一致 |
-| `CannotExecuteNotConnectedError` | 在没有连接或已经断开的数据库上查询 |
+| `CannotExecuteNotConnectedError` | 在尚未连接或已断开的数据库上查询 |
 
 ```typescript
 import {QueryFailedError} from 'lakutata/orm'
