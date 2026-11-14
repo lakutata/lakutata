@@ -26,11 +26,11 @@ Lakutata 官方的 Agent Skill（智能体技能），供 AI 编程助手使用�
   /plugin install lakutata --marketplace lakutata/lakutata
   ```
 
-  更早的版本需要两条命令：先运行 `/plugin marketplace add lakutata/lakutata`，再运行 `/plugin install lakutata@lakutata`。在终端中（Claude Code 2.1.292 或更高版本）运行 `claude plugin install lakutata --marketplace lakutata/lakutata`。然后选择适用范围：用户（当前用户的所有项目）、项目（在该仓库中工作的所有人；该选择记录在 `.claude/settings.json` 中并提交到仓库，每个协作者各自运行一次安装）或本地（仅对当前用户、仅在该仓库中）。
+  更早的版本需要两条命令：先运行 `/plugin marketplace add lakutata/lakutata`，再运行 `/plugin install lakutata@lakutata`。在终端中（Claude Code 2.1.292 或更高版本）运行 `claude plugin install lakutata --marketplace lakutata/lakutata`。在会话中，Claude Code 随后会询问适用范围：用户（当前用户的所有项目）、项目（在该仓库中工作的所有人；该选择记录在 `.claude/settings.json` 中并提交到仓库，每个协作者各自运行一次安装）或本地（仅对当前用户、仅在该仓库中）。在终端中，插件默认安装在用户范围，加 `--scope project` 或 `--scope local` 可改为其他范围。
 - **文件夹：** Claude Code 从项目中的 `.claude/skills` 和用户目录中的 `~/.claude/skills` 读取技能。不使用插件市场时，请将 `lakutata` 文件夹复制到其中一个文件夹，或运行 `npx skills add lakutata/lakutata -a claude-code`。
 - **确认：** 打开 `/plugin` 的 Installed 标签页，或在终端中运行 `claude plugin list`。在会话中安装的插件在运行 `/reload-plugins` 后加载；在终端中安装的插件在下一个会话中加载，或在已打开的会话中运行 `/reload-plugins` 后加载。复制到文件夹中的技能在当前会话中即会被发现（如果 `.claude/skills` 文件夹是在会话开始之后才创建的，则需要运行 `/reload-skills`）。以插件方式安装时，技能的命令为 `/lakutata:lakutata`；复制到文件夹中时为 `/lakutata`。
 - **更新：** 插件随本仓库的提交更新：`claude plugin update lakutata@lakutata` 安装最新的提交，在下一个会话中或运行 `/reload-plugins` 后生效。如需自动更新，请在 `/plugin` 的 Marketplaces 标签页中选择该市场，再选择 Enable auto-update（非官方的市场默认关闭自动更新）。通过 `npx skills` 安装的技能使用 `npx skills update lakutata` 更新。
-- **注意：** Claude Code 会跟随指向技能文件夹的符号链接，因此 `npx skills` 创建的链接可以正常使用。
+- **注意：** Claude Code 会跟随指向技能文件夹的符号链接，因此 `npx skills` 创建的链接可以正常使用。云端会话不加载插件，也不读取 `~/.claude/skills`，因此请将 `lakutata` 文件夹提交到仓库的 `.claude/skills` 中，或将技能添加到 claude.ai 账号。
 - **官方文档：** [安装和管理插件](https://code.claude.com/docs/zh-CN/plugins/install)、[使用 skills 扩展 Claude](https://code.claude.com/docs/zh-CN/skills)。
 
 ## Cline
@@ -44,7 +44,7 @@ Lakutata 官方的 Agent Skill（智能体技能），供 AI 编程助手使用�
 
 ## CodeBuddy
 
-- **安装：** `npx skills add lakutata/lakutata -a codebuddy` 将技能写入项目中的 `.codebuddy/skills/lakutata`（加 `-g` 则写入 `~/.codebuddy/skills`）。CodeBuddy IDE 也能导入该技能，方法是使用技能设置页右上角的“导入 Skill”按钮。CodeBuddy Code 的插件市场要求仓库中有 `.codebuddy-plugin/marketplace.json`，本仓库没有该文件。
+- **安装：** `npx skills add lakutata/lakutata -a codebuddy` 将技能写入项目中的 `.codebuddy/skills/lakutata`（加 `-g` 则写入 `~/.codebuddy/skills`）。CodeBuddy IDE 也能导入该技能，方法是使用技能设置页右上角的“导入 Skill”按钮。
 - **文件夹：** CodeBuddy Code（命令行）读取项目中的 `.codebuddy/skills` 和用户目录中的 `~/.codebuddy/skills`；同名时，项目中的技能优先。IDE 读取工作区中的 `.codebuddy/skills`；其文档未给出用户目录中的文件夹。
 - **确认：** 在 CodeBuddy Code 中，`/skills` 列出已加载的技能；IDE 在设置中分 Project Skills 和 User Skills 列出这些技能。直接说出 lakutata 技能的名称，即可主动使用该技能。
 - **更新：** CodeBuddy 的文档未说明。通过 `npx skills` 安装的技能使用 `npx skills update lakutata` 更新；对于手动复制的文件夹，重新复制一次即可。
@@ -69,7 +69,7 @@ Lakutata 官方的 Agent Skill（智能体技能），供 AI 编程助手使用�
 - **文件夹：** 从当前文件夹到仓库根目录之间每一层的 `.agents/skills`，以及用户目录中的 `~/.agents/skills`。Codex 会跟随指向技能文件夹的符号链接。
 - **确认：** `codex plugin list` 列出已安装的插件。在 Codex 命令行或 IDE 扩展中，`/skills` 列出技能；输入 `$` 并选择 lakutata，可以主动使用该技能。在 ChatGPT 桌面应用中，打开侧边栏的 Skills。Codex 会自动发现新增和改动的技能文件夹；如果技能没有出现，请重启 Codex。
 - **更新：** `codex plugin marketplace upgrade lakutata` 刷新该插件市场（插件带有版本号，技能每次改动都会随之更新）。通过 `npx skills` 安装的技能使用 `npx skills update lakutata` 更新。`$skill-installer` 不会覆盖已有的技能，因此重新安装之前，请先删除 `~/.codex/skills/lakutata`。
-- **注意：** 插件可以在 Codex 命令行和 ChatGPT 桌面应用中使用；IDE 扩展不支持插件，改为读取技能文件夹。如需关闭该技能而不删除，请在 `~/.codex/config.toml` 中添加一个 `[[skills.config]]` 条目，写明技能的路径和 `enabled = false`。
+- **注意：** 主动使用插件中的该技能时（`$lakutata:lakutata`），Codex 只将其 `SKILL.md` 的前 8,000 字节加入提示，并提示该技能已被截断；通过 `npx skills` 或 `$skill-installer` 安装的副本会完整加入，因此在 Codex 中建议使用这两种方式之一。插件可以在 Codex 命令行和 ChatGPT 桌面应用中使用；IDE 扩展不支持插件，改为读取技能文件夹。如需关闭该技能而不删除，请在 `~/.codex/config.toml` 中添加一个 `[[skills.config]]` 条目，写明技能的路径和 `enabled = false`。
 - **官方文档：** [Build skills](https://learn.chatgpt.com/docs/build-skills)、[Plugins](https://learn.chatgpt.com/docs/plugins)。
 
 ## Cursor
@@ -93,7 +93,7 @@ Windsurf 已于 2026 年 6 月 2 日更名为 Devin Desktop。其智能体 Devin
 
   插件安装在用户级别，登录后 Devin Desktop 也会获得同样的插件。也可以运行 `npx skills add lakutata/lakutata -a devin`，将技能写入项目中的 `.devin/skills/lakutata`（加 `-g` 则写入 `~/.config/devin/skills`）。
 - **文件夹：** 项目中的 `.agents/skills`、`.devin/skills` 或 `.windsurf/skills`；用户目录中的 `~/.agents/skills` 或 `~/.config/devin/skills`（Windows 上为 `%APPDATA%\devin\skills`）。
-- **确认：** 在 Devin Desktop 中，新标签页菜单中的 Open customizations 会列出 Devin Local 会话加载的所有内容；在命令行中使用 `devin skills list` 和 `devin plugins list`。以插件方式安装时，技能的命令为 `/lakutata:lakutata`；复制到文件夹中时为 `/lakutata`。新安装的插件在下一个会话中加载。
+- **确认：** 在 Devin Desktop 中，点击智能体侧边栏中的 Customize，其 Skills 和 Plugins 标签页列出智能体加载的内容；在命令行中使用 `devin skills list` 和 `devin plugins list`。以插件方式安装时，技能的命令为 `/lakutata:lakutata`；复制到文件夹中时为 `/lakutata`。新安装的插件在下一个会话中加载。
 - **更新：** `devin plugins update lakutata` 安装最新的提交，在下一个会话中生效。通过 `npx skills` 安装的技能使用 `npx skills update lakutata` 更新。
 - **注意：** Devin Local 默认无法读取被 git 忽略的文件，例如 `node_modules`。可以开启 Devin Local > Configuration > Gitignore access；否则技能会用终端命令读取指南，或读取本网站上的版本。企业可以为成员关闭插件功能。
 - **官方文档：** [Skills](https://docs.devin.ai/cli/extensibility/skills/overview)、[Plugins](https://docs.devin.ai/cli/extensibility/plugins/overview)。
@@ -110,7 +110,7 @@ Windsurf 已于 2026 年 6 月 2 日更名为 Devin Desktop。其智能体 Devin
 - **文件夹：** 项目中的 `.gemini/skills` 或 `.agents/skills`，用户目录中的 `~/.gemini/skills` 或 `~/.agents/skills`；同名时，项目中的技能优先。
 - **确认：** 在会话中输入 `/skills list`，或在终端中运行 `gemini skills list`。Gemini CLI 在会话开始时查找技能；`/skills reload` 无需重启即可发现新的技能。要求 Gemini CLI“使用 lakutata 技能”即可主动使用该技能；激活技能之前，Gemini CLI 会请求用户确认。
 - **更新：** 没有更新命令，请先运行 `gemini skills uninstall lakutata`（项目中的安装需要加上 `--scope workspace`），再重新安装。
-- **注意：** 项目中的技能只在受信任的文件夹中加载，因此请运行 `/trust`，然后重启会话。Gemini CLI 遵循 `.gitignore`，不会读取 `node_modules`，因此技能会用终端命令读取指南，或读取本网站上的版本；设置项 `context.fileFiltering.respectGitIgnore` 可以改变这一行为。
+- **注意：** 项目中的技能只在受信任的文件夹中加载，因此请在信任对话框中选择信任，或运行 `/permissions trust`，Gemini CLI 随后会重启。Gemini CLI 遵循 `.gitignore`，不会读取 `node_modules`，因此技能会用终端命令读取指南，或读取本网站上的版本；设置项 `context.fileFiltering.respectGitIgnore` 可以改变这一行为。
 - **官方文档：** [Agent Skills](https://geminicli.com/docs/cli/skills/)。
 
 ## GitHub Copilot
@@ -124,7 +124,7 @@ Windsurf 已于 2026 年 6 月 2 日更名为 Devin Desktop。其智能体 Devin
     ```
 
     在会话中，先运行 `/plugin marketplace add lakutata/lakutata`，再运行 `/plugin install lakutata@lakutata`。不经过插件市场时，运行 `copilot plugin install lakutata/lakutata:plugins/lakutata`。
-  - VS Code：将该市场加入设置项 `chat.plugins.marketplaces`（`"chat.plugins.marketplaces": ["lakutata/lakutata"]`），然后在扩展视图中搜索 `@agentPlugins`，安装 lakutata。VS Code 也会显示通过 Copilot 命令行安装的插件。
+  - VS Code：在命令面板中运行“聊天: 管理插件市场”（Chat: Manage Plugin Marketplaces），选择 Add Marketplace…，输入 `lakutata/lakutata`；然后打开聊天视图中的 Customize（“聊天: 打开自定义”），在 Browse（或 Plugins > Browse Marketplace）中找到 lakutata，选择 Install。实验性的设置项 `chat.plugins.marketplaces` 也可以添加该市场，但请保留其中的默认市场：`"chat.plugins.marketplaces": ["github/awesome-copilot#marketplace", "lakutata/lakutata"]`。VS Code 也会显示通过 Copilot 命令行安装的插件。
   - 云端代理使用仓库中的内容，因此请将技能提交到下面的某个文件夹中，或在 `.github/copilot/settings.json` 中启用插件：
 
     ```json
@@ -139,8 +139,8 @@ Windsurf 已于 2026 年 6 月 2 日更名为 Devin Desktop。其智能体 Devin
 - **文件夹：** 仓库中的 `.github/skills`、`.claude/skills` 或 `.agents/skills`；用户目录中的 `~/.copilot/skills` 或 `~/.agents/skills`（VS Code 还读取 `~/.claude/skills`）。
 - **确认：** 在 Copilot 命令行中使用 `/skills list` 或 `/skills info lakutata`；在提示中输入 `/lakutata` 可以主动使用该技能，`/skills reload` 无需重启即可加载新的技能。在 VS Code 中，在对话框中输入 `/` 查看技能；从插件安装的技能为 `/lakutata:lakutata`。云端代理根据技能的描述决定是否使用该技能。
 - **更新：** 在 Copilot 命令行中运行 `copilot plugin update lakutata`。VS Code 通过 Extensions: Check for Extension Updates 检查插件更新，或在开启 `extensions.autoUpdate` 时每 24 小时检查一次。Copilot 读取插件的 Agent Plugins 清单文件（`plugin.json`），技能每次改动，其中的版本号都会随之更新。通过 `npx skills` 安装的技能使用 `npx skills update lakutata` 更新，通过 `gh skill` 安装的技能使用 `gh skill update lakutata` 更新。
-- **注意：** 在云端代理上，只有 `.github/workflows/copilot-setup-steps.yml` 安装了依赖（`npm ci`）时才有 `node_modules`；否则技能会读取本网站上的指南。Copilot 代码审查、GitHub Copilot 应用和 JetBrains IDE 中也能使用技能。
-- **官方文档：** [关于代理技能](https://docs.github.com/zh/copilot/concepts/agents/about-agent-skills)、[VS Code 中的 Agent plugins](https://code.visualstudio.com/docs/agent-customization/agent-plugins)。
+- **注意：** 在 GitHub Actions 上运行的云端代理会话中，`.github/workflows/copilot-setup-steps.yml` 可以在代理开始工作前运行 `npm ci`；云端沙盒会话（可选择时的默认环境）不运行该文件。否则代理可能自行安装依赖，或者技能读取本网站上的指南。Copilot 代码审查、GitHub Copilot 应用和 JetBrains IDE 中也能使用技能。
+- **官方文档：** [代理技能](https://docs.github.com/zh/copilot/concepts/customizations/agent-skills)、[VS Code 中的 Agent plugins](https://code.visualstudio.com/docs/agent-customization/agent-plugins)。
 
 ## Kiro
 
@@ -161,10 +161,10 @@ Windsurf 已于 2026 年 6 月 2 日更名为 Devin Desktop。其智能体 Devin
 
 - **安装：** OpenCode 没有安装技能的工具。`npx skills add lakutata/lakutata -a opencode` 将技能写入项目中的 `.agents/skills/lakutata`（加 `-g` 则写入 `~/.config/opencode/skills`）；也可以直接复制文件夹。
 - **文件夹：** 从当前文件夹到 git 工作树根目录之间每一层的 `.opencode/skills`、`.agents/skills` 或 `.claude/skills`；用户目录中的 `~/.config/opencode/skills`、`~/.agents/skills` 或 `~/.claude/skills`。
-- **确认：** OpenCode 的文档没有提供列出技能的方法。在 OpenCode 2 中，在提示中写入 `@lakutata` 即可加载该技能；在 OpenCode 1 中，任务符合时，模型会用其 `skill` 工具加载技能，你也可以直接说出技能的名称。
+- **确认：** 在 OpenCode 1 中，`opencode debug skill` 列出所有技能；OpenCode 2 的文档没有提供列出技能的方法。在 OpenCode 2 中，在提示中写入 `@lakutata` 即可加载该技能；在 OpenCode 1 中，任务符合时，模型会用其 `skill` 工具加载技能，你也可以直接说出技能的名称。
 - **更新：** OpenCode 的文档未说明。通过 `npx skills` 安装的技能使用 `npx skills update lakutata` 更新；对于手动复制的文件夹，重新复制一次即可。
-- **注意：** OpenCode 1 和 OpenCode 2 目前都在使用，命令都是 `opencode`；OpenCode 1 的技能在 OpenCode 2 中可以继续使用。
-- **官方文档：** [Agent Skills（OpenCode 1）](https://opencode.ai/docs/skills)、[Skills（OpenCode 2）](https://opencode.ai/v2/docs/skills/)。
+- **注意：** OpenCode 2 是当前版本，部分安装方式仍会安装 OpenCode 1。两者的命令都是 `opencode`（`opencode --version` 可以看出所用的版本），OpenCode 1 的技能在 OpenCode 2 中可以继续使用。
+- **官方文档：** [Agent Skills（OpenCode 1）](https://opencode.ai/v1/docs/skills/)、[Skills（OpenCode 2）](https://opencode.ai/docs/skills/)。
 
 ## Qoder
 
@@ -177,11 +177,11 @@ Windsurf 已于 2026 年 6 月 2 日更名为 Devin Desktop。其智能体 Devin
 
 ## Qoder CN
 
-通义灵码已于 2026 年 5 月 20 日更名为 Qoder CN；其 IDE 使用的文件夹仍名为 `.lingma`。
+通义灵码已于 2026 年 5 月 20 日更名为 Qoder CN。
 
-- **安装：** Qoder CN IDE：将 `lakutata` 文件夹复制到项目中的 `.lingma/skills` 或用户目录中的 `~/.lingma/skills`，然后重启 IDE；`npx skills add lakutata/lakutata -a lingma` 写入的也是这两个文件夹。Qoder CN 命令行（`qodercn`）：`npx skills add lakutata/lakutata -a qoder-cn` 写入命令行读取的文件夹。Qoder CN 桌面应用：打开“扩展 > 技能 > 添加技能 > 上传技能”，上传技能的 `SKILL.md`（位于[该 zip 文件](https://lakutata.com/lakutata-skill.zip)中）。
-- **文件夹：** IDE 读取项目中的 `.lingma/skills` 和用户目录中的 `~/.lingma/skills`；命令行读取项目中的 `.qoder/skills` 和用户目录中的 `~/.qoder-cn/skills`。
-- **确认：** 在 IDE 中，重启后在对话框中输入 `/` 查看已加载的技能；`/lakutata` 可以主动使用该技能。在命令行中使用 `/skills`，在运行中的会话中使用 `/skills reload`。
+- **安装：** Qoder CN IDE 和 Qoder CN 命令行（`qodercn`）：`npx skills add lakutata/lakutata -a qoder-cn` 将技能写入项目中的 `.qoder/skills/lakutata`（加 `-g` 则写入 `~/.qoder-cn/skills`）；也可以将 `lakutata` 文件夹复制到这两个文件夹，或在 IDE 的“设置 → 技能与指令”的“技能”区点击“导入”。Qoder CN 桌面应用：打开“扩展 > 技能 > 添加技能 > 上传技能”，上传技能的 `SKILL.md`（位于[该 zip 文件](https://lakutata.com/lakutata-skill.zip)中）。
+- **文件夹：** IDE 和命令行都读取项目中的 `.qoder/skills` 和用户目录中的 `~/.qoder-cn/skills`；IDE 还会读取 `.agents/skills`。
+- **确认：** 在 IDE 中，在对话框中输入 `/` 查看已加载的技能；`/lakutata` 可以主动使用该技能。在命令行中使用 `/skills`，在运行中的会话中使用 `/skills reload`。
 - **更新：** 在 IDE 中，重新复制文件夹（或运行 `npx skills update lakutata`），然后重启。在命令行中，新的会话会加载改动后的技能，或使用 `/skills reload`。
 - **注意：** 在 Qoder CN 命令行中，只有开启了 Skills 功能和管理员权限，`/skills` 才会出现。
 - **官方文档：** [技能（Skills）](https://docs.qoder.cn/user-guide/skills)、[Qoder CN 应用中的技能](https://docs.qoder.cn/qoder/skills)。
@@ -192,12 +192,12 @@ Windsurf 已于 2026 年 6 月 2 日更名为 Devin Desktop。其智能体 Devin
 - **文件夹：** 项目中的 `.trae/skills`；用户目录中的 `~/.trae/skills`（Trae 中国版：`~/.trae-cn/skills`）。在“导入设置”中打开“启用 .agents 技能目录”之后，Trae 也会读取项目中的 `.agents/skills`；同名时，`.trae/skills` 中的技能优先。
 - **确认：** “设置 > 技能与命令”中分“全局”和“项目”两个标签页列出技能，每个技能都有开关。Trae 没有调用技能的命令，直接提出要求即可，例如“使用 lakutata 技能添加一个 HTTP 路由”。
 - **更新：** Trae 的文档未说明。请替换技能文件夹中的 `SKILL.md`；通过 `npx skills` 安装的技能使用 `npx skills update lakutata` 更新。
-- **注意：** 上传的技能只保留 `SKILL.md`，其他文件需要手动添加；该技能只有这一个文件。
+- **注意：** 上传的技能只保留 `SKILL.md`，其他文件需要手动添加；该技能只有这一个文件。Trae 中国版只加载可信目录中的项目技能。打开项目时如果出现“是否信任此文件夹中的文件的作者？”，请选择“是，我信任此作者”。
 - **官方文档：** [技能（国际版）](https://docs.trae.ai/ide/skills)、[技能（中国版）](https://docs.trae.cn/ide_skills)。
 
 ## Claude 应用
 
-下载 [lakutata-skill.zip](https://lakutata.com/lakutata-skill.zip)（其中包含 `lakutata` 文件夹），在 Claude 的设置中将其上传为技能；使用技能需要开启代码执行功能。详见 [Claude 帮助中心关于自定义技能的说明](https://support.claude.com/en/articles/12512198)。在 Claude 应用中，助手没有项目文件。技能提供规则和模型，只有在能访问本网站时才能读取指南。
+下载 [lakutata-skill.zip](https://lakutata.com/lakutata-skill.zip)（其中包含 `lakutata` 文件夹），在“自定义 > 技能”中上传（“+” > “+ 创建技能” > “上传技能”），然后启用该技能；需要在“设置 > 功能”中开启“代码执行和文件创建”。详见 [Claude 帮助中心：在 Claude 中使用技能](https://support.claude.com/zh-CN/articles/12512180)。在 Claude 应用中，助手没有项目文件。技能提供规则和模型，只有在能访问本网站时才能读取指南。
 
 ## 其他任何助手
 

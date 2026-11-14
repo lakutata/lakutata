@@ -20,8 +20,8 @@ The details come from the documentation, in this order:
 1. **The guides inside the installed package**, `node_modules/lakutata/doc/en/`: they describe the very version the
    project runs, require no network, and change when the project upgrades `lakutata`.
 2. **The type declarations** of the installed packages, for the exact signatures and options.
-3. **The guides on this website as plain Markdown**, such as https://lakutata.com/doc/en/Overview.md, listed by
-   https://lakutata.com/llms.txt: when the package is not installed yet (a new project), or when the assistant cannot
+3. **The guides on this website as plain Markdown**, such as <https://lakutata.com/doc/en/Overview.md>, listed by
+   <https://lakutata.com/llms.txt>: when the package is not installed yet (a new project), or when the assistant cannot
    read `node_modules`. They follow the latest sources, so the installed package takes precedence when both exist.
 
 The skill therefore seldom has to be updated when the framework changes. Some assistants keep `node_modules` away from
@@ -42,9 +42,10 @@ says. Each section also says how to ask for it explicitly.
 
   Earlier versions require two commands: `/plugin marketplace add lakutata/lakutata`, then
   `/plugin install lakutata@lakutata`. In a shell (Claude Code 2.1.292 or later):
-  `claude plugin install lakutata --marketplace lakutata/lakutata`. Then choose the scope: user (all your projects),
-  project (everyone who works in the repository; the choice is committed in `.claude/settings.json`, and each
-  collaborator runs the install once) or local (you, in this repository only).
+  `claude plugin install lakutata --marketplace lakutata/lakutata`. In a session, Claude Code then asks for the scope:
+  user (all your projects), project (everyone who works in the repository; the choice is committed in
+  `.claude/settings.json`, and each collaborator runs the install once) or local (you, in this repository only). In a
+  shell, the plugin is installed for the user; add `--scope project` or `--scope local` for the others.
 - **Folders:** Claude Code reads the skills in `.claude/skills` in the project and `~/.claude/skills` in your home
   folder. Without the marketplace, copy the `lakutata` folder into one of them, or run
   `npx skills add lakutata/lakutata -a claude-code`.
@@ -57,8 +58,10 @@ says. Each section also says how to ask for it explicitly.
   one, for the next session or after `/reload-plugins`. To have it update automatically, select the marketplace in the
   Marketplaces tab of `/plugin`, then Enable auto-update (it is off for marketplaces that are not official). A skill
   installed with `npx skills` is updated by `npx skills update lakutata`.
-- **Note:** Claude Code follows symbolic links to skill folders, so the links that `npx skills` creates work.
-- **Its documentation:** [Discover and install plugins](https://code.claude.com/docs/en/plugins/install),
+- **Note:** Claude Code follows symbolic links to skill folders, so the links that `npx skills` creates work. Cloud
+  sessions load neither the plugin nor `~/.claude/skills`: commit the `lakutata` folder to the repository's
+  `.claude/skills`, or add the skill to your claude.ai account.
+- **Its documentation:** [Install and manage plugins](https://code.claude.com/docs/en/plugins/install),
   [Skills](https://code.claude.com/docs/en/skills).
 
 ## Cline
@@ -82,8 +85,7 @@ says. Each section also says how to ask for it explicitly.
 
 - **Install:** `npx skills add lakutata/lakutata -a codebuddy` writes the skill to `.codebuddy/skills/lakutata` in the
   project (with `-g`, to `~/.codebuddy/skills`). The CodeBuddy IDE can also import it, with the Import Skill button at
-  the top right of its Skills settings. CodeBuddy Code's plugin marketplaces expect a
-  `.codebuddy-plugin/marketplace.json`, which this repository does not have.
+  the top right of its Skills settings. 
 - **Folders:** CodeBuddy Code (the CLI) reads `.codebuddy/skills` in the project and `~/.codebuddy/skills` in your home
   folder; a project skill takes precedence over one with the same name in your home folder. The IDE reads
   `.codebuddy/skills` in the workspace; its documentation does not name the folder in your home folder.
@@ -121,9 +123,11 @@ says. Each section also says how to ask for it explicitly.
 - **Update:** `codex plugin marketplace upgrade lakutata` refreshes the marketplace (the plugin carries a version that
   changes whenever the skill does). A skill installed with `npx skills` is updated by `npx skills update lakutata`.
   `$skill-installer` does not overwrite a skill: delete `~/.codex/skills/lakutata` before installing it again.
-- **Note:** plugins work in Codex CLI and the ChatGPT desktop app; the IDE extension does not support plugins and
-  reads the skill folders instead. To turn the skill off without deleting it, add a `[[skills.config]]` entry with its
-  path and `enabled = false` to `~/.codex/config.toml`.
+- **Note:** when the skill of the plugin is mentioned explicitly (`$lakutata:lakutata`), Codex adds only the first 8,000
+  bytes of its `SKILL.md` to the prompt and warns that it was truncated; a copy installed with `npx skills` or
+  `$skill-installer` is added whole, so prefer one of these for Codex. Plugins work in Codex CLI and the ChatGPT desktop
+  app; the IDE extension does not support plugins and reads the skill folders instead. To turn the skill off without
+  deleting it, add a `[[skills.config]]` entry with its path and `enabled = false` to `~/.codex/config.toml`.
 - **Its documentation:** [Build skills](https://learn.chatgpt.com/docs/build-skills),
   [Plugins](https://learn.chatgpt.com/docs/plugins).
 
@@ -164,7 +168,7 @@ Windsurf was renamed Devin Desktop on June 2, 2026. Devin Local, its agent, read
   `-g`, to `~/.config/devin/skills`).
 - **Folders:** `.agents/skills`, `.devin/skills` or `.windsurf/skills` in the project; `~/.agents/skills` or
   `~/.config/devin/skills` in your home folder (on Windows, `%APPDATA%\devin\skills`).
-- **Check:** in Devin Desktop, Open customizations (in a new tab's menu) lists what a Devin Local session has
+- **Check:** in Devin Desktop, click Customize in the agent sidebar: its Skills and Plugins tabs list what the agent has
   loaded; in the CLI, `devin skills list` and `devin plugins list`. Installed as a plugin, the skill is the command
   `/lakutata:lakutata`; copied into a folder, `/lakutata`. A newly installed plugin is loaded by the next session.
 - **Update:** `devin plugins update lakutata` installs the latest commit, for the next session. A skill installed with
@@ -194,7 +198,8 @@ Windsurf was renamed Devin Desktop on June 2, 2026. Devin Local, its agent, read
   asks you to confirm before it activates a skill.
 - **Update:** there is no update command: `gemini skills uninstall lakutata` (with `--scope workspace` for a project
   install), then install it again.
-- **Note:** a project's skills load only in a trusted folder: run `/trust`, then restart the session. Gemini CLI
+- **Note:** a project's skills load only in a trusted folder: accept the trust dialog, or run `/permissions trust`;
+  Gemini CLI then restarts. Gemini CLI
   follows `.gitignore` and does not read `node_modules`, so the skill reads the guides with a shell command or from
   this website; the setting `context.fileFiltering.respectGitIgnore` changes that.
 - **Its documentation:** [Agent Skills](https://geminicli.com/docs/cli/skills/).
@@ -211,9 +216,11 @@ Windsurf was renamed Devin Desktop on June 2, 2026. Devin Local, its agent, read
 
     In a session: `/plugin marketplace add lakutata/lakutata`, then `/plugin install lakutata@lakutata`. Without the
     marketplace: `copilot plugin install lakutata/lakutata:plugins/lakutata`.
-  - VS Code: add the marketplace to the `chat.plugins.marketplaces` setting
-    (`"chat.plugins.marketplaces": ["lakutata/lakutata"]`), then install `lakutata` from the Extensions view, searching
-    for `@agentPlugins`. VS Code also shows the plugins installed with Copilot CLI.
+  - VS Code: run Chat: Manage Plugin Marketplaces, select Add Marketplace… and enter `lakutata/lakutata`; then open
+    Customize in the Chat view (Chat: Open Customizations), find `lakutata` under Browse (or Plugins > Browse
+    Marketplace) and select Install. The experimental setting `chat.plugins.marketplaces` adds it too; keep the default
+    marketplace in it: `"chat.plugins.marketplaces": ["github/awesome-copilot#marketplace", "lakutata/lakutata"]`.
+    VS Code also shows the plugins installed with Copilot CLI.
   - The cloud agent uses what the repository holds: commit the skill to one of the folders below, or enable the plugin
     in `.github/copilot/settings.json`:
 
@@ -238,10 +245,11 @@ Windsurf was renamed Devin Desktop on June 2, 2026. Devin Local, its agent, read
   for Extension Updates, or every 24 hours when `extensions.autoUpdate` is on. Copilot reads the plugin's Agent Plugins
   manifest (`plugin.json`), whose version changes whenever the skill does. A skill installed with `npx skills` is
   updated by `npx skills update lakutata`, and one installed with `gh skill` by `gh skill update lakutata`.
-- **Note:** on the cloud agent, `node_modules` exists only when `.github/workflows/copilot-setup-steps.yml` installs
-  the dependencies (`npm ci`); without it, the skill reads the guides from this website. Skills also work in Copilot
-  code review, the GitHub Copilot app and the JetBrains IDEs.
-- **Its documentation:** [About agent skills](https://docs.github.com/en/copilot/concepts/agents/about-agent-skills),
+- **Note:** in cloud agent sessions that run on GitHub Actions, `.github/workflows/copilot-setup-steps.yml` can run
+  `npm ci` before the agent starts; it does not run in cloud-sandbox sessions (the default where you can choose).
+  Otherwise the agent may install the dependencies itself, or the skill reads the guides from this website. Skills also
+  work in Copilot code review, the GitHub Copilot app and the JetBrains IDEs.
+- **Its documentation:** [Agent skills](https://docs.github.com/en/copilot/concepts/customizations/agent-skills),
   [Agent plugins in VS Code](https://code.visualstudio.com/docs/agent-customization/agent-plugins).
 
 ## Kiro
@@ -275,15 +283,16 @@ Windsurf was renamed Devin Desktop on June 2, 2026. Devin Local, its agent, read
   `.agents/skills/lakutata` in the project (with `-g`, to `~/.config/opencode/skills`); or copy the folder.
 - **Folders:** `.opencode/skills`, `.agents/skills` or `.claude/skills`, in each folder from the current one up to the
   git worktree root; `~/.config/opencode/skills`, `~/.agents/skills` or `~/.claude/skills` in your home folder.
-- **Check:** its documentation gives no list of the skills. In OpenCode 2, mention `@lakutata` in a prompt to load the
+- **Check:** in OpenCode 1, `opencode debug skill` lists the skills; OpenCode 2's documentation gives no list. In
+  OpenCode 2, mention `@lakutata` in a prompt to load the
   skill; in OpenCode 1, the model loads it with its `skill` tool when a task matches it, and you can ask for it by
   name.
 - **Update:** its documentation does not say. A skill installed with `npx skills` is updated by
   `npx skills update lakutata`; a manually copied folder, by copying it again.
-- **Note:** OpenCode 1 and OpenCode 2 are both current, and both use the `opencode` command; OpenCode 1 skills continue
-  to work in OpenCode 2.
-- **Its documentation:** [Agent Skills (OpenCode 1)](https://opencode.ai/docs/skills),
-  [Skills (OpenCode 2)](https://opencode.ai/v2/docs/skills/).
+- **Note:** OpenCode 2 is the current version; some installation methods still install OpenCode 1. Both use the
+  `opencode` command (`opencode --version` tells which one runs), and OpenCode 1 skills continue to work in OpenCode 2.
+- **Its documentation:** [Agent Skills (OpenCode 1)](https://opencode.ai/v1/docs/skills/),
+  [Skills (OpenCode 2)](https://opencode.ai/docs/skills/).
 
 ## Qoder
 
@@ -304,17 +313,17 @@ Windsurf was renamed Devin Desktop on June 2, 2026. Devin Local, its agent, read
 
 ## Qoder CN
 
-Tongyi Lingma (通义灵码) was renamed Qoder CN on May 20, 2026; its IDE's folders keep the name `.lingma`.
+Tongyi Lingma (通义灵码) was renamed Qoder CN on May 20, 2026.
 
-- **Install:** for the Qoder CN IDE, copy the `lakutata` folder into `.lingma/skills` in the project or
-  `~/.lingma/skills` in your home folder, then restart the IDE; `npx skills add lakutata/lakutata -a lingma` writes it
-  to the same folders. For the Qoder CN CLI (`qodercn`), `npx skills add lakutata/lakutata -a qoder-cn` writes it to the
-  CLI's folders. In the Qoder CN desktop app: 扩展 > 技能 > 添加技能 > 上传技能 (Extensions > Skills > Add Skills > Upload Skill),
-  and upload the skill's `SKILL.md` (from [the zip](https://lakutata.com/lakutata-skill.zip)).
-- **Folders:** the IDE reads `.lingma/skills` in the project and `~/.lingma/skills` in your home folder; the CLI reads
-  `.qoder/skills` in the project and `~/.qoder-cn/skills` in your home folder.
-- **Check:** in the IDE, after the restart, type `/` in the chat to see the loaded skills; `/lakutata` uses the skill
-  explicitly. In the CLI, `/skills`, and `/skills reload` in a running session.
+- **Install:** for the Qoder CN IDE and the Qoder CN CLI (`qodercn`), `npx skills add lakutata/lakutata -a qoder-cn`
+  writes the skill to `.qoder/skills/lakutata` in the project (with `-g`, to `~/.qoder-cn/skills`); or copy the
+  `lakutata` folder there; or, in the IDE, Settings > 技能与指令, Skills section, 导入 (Import). In the Qoder CN desktop app:
+  扩展 > 技能 > 添加技能 > 上传技能 (Extensions > Skills > Add Skills > Upload Skill), and upload the skill's `SKILL.md` (from [the
+  zip](https://lakutata.com/lakutata-skill.zip)).
+- **Folders:** the IDE and the CLI read `.qoder/skills` in the project and `~/.qoder-cn/skills` in your home folder;
+  the IDE also reads `.agents/skills`.
+- **Check:** in the IDE, type `/` in the chat to see the loaded skills; `/lakutata` uses the skill explicitly. In the
+  CLI, `/skills`, and `/skills reload` in a running session.
 - **Update:** in the IDE, copy the folder again (or run `npx skills update lakutata`), then restart it. In the CLI, a
   new session loads the changed skill, or `/skills reload`.
 - **Note:** in the Qoder CN CLI, `/skills` appears only when skill support and the administrator permission are
@@ -337,15 +346,17 @@ Tongyi Lingma (通义灵码) was renamed Qoder CN on May 20, 2026; its IDE's fol
 - **Update:** its documentation does not say. Replace the `SKILL.md` in the skill's folder; a skill installed
   with `npx skills` is updated by `npx skills update lakutata`.
 - **Note:** an uploaded skill keeps only its `SKILL.md`, and any other file is added manually; this skill is that one
-  file.
+  file. Trae CN loads project skills only from a trusted folder: when it asks whether you trust the authors of the
+  files, choose yes.
 - **Its documentation:** [Skills](https://docs.trae.ai/ide/skills),
   [Skills of Trae CN](https://docs.trae.cn/ide_skills).
 
 ## Claude apps
 
-Download [lakutata-skill.zip](https://lakutata.com/lakutata-skill.zip) (the `lakutata` folder) and upload it as a skill
-in Claude's settings; skills require code execution to be turned on. See
-[Claude's help on custom skills](https://support.claude.com/en/articles/12512198). There, the assistant has no project
+Download [lakutata-skill.zip](https://lakutata.com/lakutata-skill.zip) (the `lakutata` folder) and upload it in
+Customize > Skills (+ > Create skill > Upload a skill), then turn it on; Code execution and file creation must be on
+under Settings > Capabilities. See
+[Claude's help on using skills](https://support.claude.com/en/articles/12512180). There, the assistant has no project
 files: the skill provides it with the rules and the model, and the guides only when it can reach this website.
 
 ## Any other assistant
