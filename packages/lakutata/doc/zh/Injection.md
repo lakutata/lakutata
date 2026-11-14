@@ -102,7 +102,7 @@ Application
 
 ## 3. 在多个应用之间共享功能
 
-若要在多个应用中使用某项功能，可将其封装为一个包。该包导出一个 `Component`（或 `Provider`）以及一个生成其声明的函数，框架自带的包均采用这种方式（`lakutata/com/database` 的 `buildDatabaseOptions`、`lakutata/com/queue` 的 `buildQueueOptions`）。应用以自行选定的名称声明该组件，并将选项传给该函数；应用启动时，组件的 `@Configurable` 校验规则会检查这些选项，其他对象则按该名称注入组件。
+若要在多个应用中使用某项功能，可将其封装为一个包。该包导出一个 `Component`（或 `Provider`）以及一个生成其声明的函数，框架自带的包均采用这种方式（`lakutata/com/database` 的 `buildDatabaseOptions`、`lakutata/com/queue` 的 `buildQueueOptions`）。应用以自行选定的名称声明组件，并将选项传给该函数；应用启动时，组件的 `@Configurable` 校验规则会检查这些选项，其他对象则按此名称注入组件。
 
 ```typescript
 import {Application, Component, type ComponentOptions, DTO} from 'lakutata'

@@ -15,7 +15,7 @@ npm install lakutata @lakutata/webrtc
 
 ## 1. 连接是怎么建立的
 
-两端在知道如何找到对方之前无法建立连接。每一端通过 **offer** 或 **answer** 描述自身（编解码器、密钥、数据通道），并列出其**候选地址**，即其他端可能借以找到该端的地址。候选地址包括该端的本地地址、STUN 服务器所见的公网地址，以及 TURN 服务器上的一个地址。其他方式均无法连通时，由该 TURN 服务器转发该端的流量。这些消息经由两端都已连接的一台服务器传递，这就是**信令**。两端收到这些消息后，成对地测试候选地址（ICE），保留其中可用的一对，再对连接加密（DTLS）。此后，数据通道即可双向传输消息，既可以可靠有序，也可以不作此要求；轨道则传输音视频。
+两端在知道如何找到对方之前无法建立连接。每一端通过 **offer** 或 **answer** 描述自身（编解码器、密钥、数据通道），并列出其**候选地址**，即其他端可能借以找到该端的地址。候选地址包括本地地址、STUN 服务器所见的公网地址，以及 TURN 服务器上的一个地址。其他方式均无法连通时，由 TURN 服务器转发该端的流量。这些消息经由两端都已连接的一台服务器传递，这就是**信令**。两端收到这些消息后，成对地测试候选地址（ICE），保留其中可用的一对，再对连接加密（DTLS）。此后，数据通道即可双向传输消息，既可以可靠有序，也可以不作此要求；轨道则传输音视频。
 
 本包的信令以**房间**为单位：客户端加入房间，获取已在房间中的成员，每两个成员之间相互交换 offer、answer 和候选地址。其余工作均自动完成：
 
@@ -95,7 +95,7 @@ Application.run(() => ({
 
 默认情况下，服务器在主线程上中转流量。以下是在 Apple M4 和 Node.js 24 上测得的结果。一个数据通道的两端都经该服务器中转（因此服务器对每个包要转发两次）：16 KiB 的消息约 38 MiB/s，每 GiB 耗费 27 秒 CPU；100 字节的消息每秒 365,000 条，每条耗费 2.8 微秒 CPU。另有其他客户端的 500 个空闲分配时，每个包的开销不变。
 
-设为 `workers: 3` 时，由三个工作线程为客户端提供服务。这些线程的监听套接字共用服务器的端口（`SO_REUSEPORT`），系统根据客户端的地址和端口将每个客户端固定交给一个线程，由该线程中转该客户端的流量。各线程的分配合计计入 `maxAllocations`，`relayPortRange` 会划分给各个线程分别使用。只有 Linux 允许线程共用端口；在其他系统上，服务器在主线程上中转，并在调试消息（`webrtc/turn`）中说明这一点。某个线程停止时（只有程序缺陷会导致线程停止），该线程的分配随之丢失，随后该线程会被重新启动。在此期间，系统先将 UDP 客户端重新分配给其余线程，之后再分配给全部线程，因此大多数客户端会发现自身的分配已经丢失，如同 TURN 服务器重启过一样；其他线程上 TCP 和 TLS 的连接不受影响。
+设为 `workers: 3` 时，由三个工作线程为客户端提供服务。这些线程的监听套接字共用服务器的端口（`SO_REUSEPORT`），系统根据客户端的地址和端口将每个客户端固定交给一个线程，由该线程中转客户端的流量。各线程的分配合计计入 `maxAllocations`，`relayPortRange` 会划分给各个线程分别使用。只有 Linux 允许线程共用端口；在其他系统上，服务器在主线程上中转，并在调试消息（`webrtc/turn`）中说明这一点。某个线程停止时（只有程序缺陷会导致线程停止），其分配随之丢失，随后该线程会被重新启动。在此期间，系统先将 UDP 客户端重新分配给其余线程，之后再分配给全部线程，因此大多数客户端会发现自身的分配已经丢失，如同 TURN 服务器重启过一样；其他线程上 TCP 和 TLS 的连接不受影响。
 
 在同一台 Mac 上的 arm64 Linux 虚拟机中（Docker Desktop，10 个核），三个连接同时经该服务器中转（六个客户端）：
 
@@ -134,7 +134,7 @@ room.on('peer-left', (peer: Peer): void => console.log(`${peer.id} left`))
 
 该类的选项：`iceTransportPolicy`（`'relay'` 表示只使用 TURN 中转）、`configuration`（`RTCPeerConnection` 的附加选项）、`createPeerConnection`（`RTCPeerConnection` 的其他实现）、`timeout`（请求的超时时间，默认 15 秒）。
 
-房间为其他每个成员发出 `peer` 事件：先是已在房间中的成员，然后是每个新加入的成员。之后添加的监听函数会立即为每个已有成员各调用一次。在有媒体服务器的房间中，要等到与服务器的连接完成第一次 offer 和 answer 的交换后，才会发出 `peer` 事件，从而避免在监听函数中创建的通道与这一 offer 发生冲突。`room.publish(track, stream)` 将一条轨道发送给每个成员（第 8 节）；房间有媒体服务器时，`room.sfu` 是该服务器的 ID（第 9 节）。`Peer` 具有成员的 `id`、`metadata`、通往该成员的连接 `connection`（一个 `RTCPeerConnection`，可用于读取统计信息），以及 `createDataChannel()`、`pause()` 和 `resume()`（暂停、恢复接收该成员的某条轨道）、`restartIce()` 和 `close()`。该对象会发出 `datachannel`、`track`、`connectionstatechange`、`metadata`（成员带着新的 metadata 重新加入）、`error` 和 `close` 事件。某个 Peer 关闭时，房间发出 `peer-left`，表示该成员已离开，或者连接已彻底断开。
+房间为其他每个成员发出 `peer` 事件：先是已在房间中的成员，然后是每个新加入的成员。之后添加的监听函数会立即为每个已有成员各调用一次。在有媒体服务器的房间中，要等到与服务器的连接完成第一次 offer 和 answer 的交换后，才会发出 `peer` 事件，从而避免在监听函数中创建的通道与这一 offer 发生冲突。`room.publish(track, stream)` 将一条轨道发送给每个成员（第 8 节）；房间有媒体服务器时，`room.sfu` 是媒体服务器的 ID（第 9 节）。`Peer` 具有成员的 `id`、`metadata`、通往该成员的连接 `connection`（一个 `RTCPeerConnection`，可用于读取统计信息），以及 `createDataChannel()`、`pause()` 和 `resume()`（暂停、恢复接收成员的某条轨道）、`restartIce()` 和 `close()`。该对象会发出 `datachannel`、`track`、`connectionstatechange`、`metadata`（成员带着新的 metadata 重新加入）、`error` 和 `close` 事件。某个 Peer 关闭时，房间发出 `peer-left`，表示成员已离开，或者连接已彻底断开。
 
 双方都可以创建通道，每一端通过 `datachannel` 获取对方创建的通道。双方只希望共用一个通道时，两端都使用 `negotiated: true` 和相同的 `id` 创建该通道。
 
@@ -163,7 +163,7 @@ export class Telemetry extends Component {
 }
 ```
 
-`http:` 或 `https:` 的 URL 使用 Socket.IO（需要安装 `socket.io-client`）。`ws:` 或 `wss:` 的 URL 通过 Node.js 22 和 Bun 内置的 `WebSocket` 使用 JSON-RPC，运行环境未内置该类时使用 `ws` 包的 `WebSocket`（需要安装 `ws`）。该客户端的选项：`url`、`id`（默认为随机的 UUID）、`path`（Socket.IO 的路径）、`auth`（Socket.IO 握手的附加字段，例如令牌）、`timeout`，以及其连接的选项（`iceTransportPolicy`、`icePortRange`、`iceAdditionalHostAddresses`、`codecs`、`threads`）。该客户端的生命周期类型为 `@Transient`，即每次 `getObject()` 都会得到一个新的客户端；`close()` 会离开该客户端所在的房间并断开连接。
+`http:` 或 `https:` 的 URL 使用 Socket.IO（需要安装 `socket.io-client`）。`ws:` 或 `wss:` 的 URL 通过 Node.js 22 和 Bun 内置的 `WebSocket` 使用 JSON-RPC，运行环境未内置该类时使用 `ws` 包的 `WebSocket`（需要安装 `ws`）。该客户端的选项：`url`、`id`（默认为随机的 UUID）、`path`（Socket.IO 的路径）、`auth`（Socket.IO 握手的附加字段，例如令牌）、`timeout`，以及其连接的选项（`iceTransportPolicy`、`icePortRange`、`iceAdditionalHostAddresses`、`codecs`、`threads`）。客户端的生命周期类型为 `@Transient`，即每次 `getObject()` 都会得到一个新的客户端；`close()` 会离开客户端所在的房间并断开连接。
 
 ### 调用应用的动作
 
@@ -289,7 +289,7 @@ Application
     })
 ```
 
-线程在需要时才启动。新的连接交给一个没有连接的线程（线程数少于 `threads` 时会启动一个新线程，该选项默认为核数减一），否则交给连接最少的线程。连接始终留在其所在的线程中；某个线程停止时（只有程序缺陷会导致线程停止），该线程上的连接会失败（先 `failed`，再 `closed`），该线程会为之后的连接重新启动。`resourceLimits` 限制每个线程的堆，与媒体服务器的 `workerResourceLimits` 相同（Bun 会忽略该选项）。收到的消息在送往主线程的途中仍占用接收窗口，主线程读取后才归还，因此主线程读取得慢时，对方的发送也会随之减慢，与不使用线程时相同。两个线程之间在途的 RTP 包每个连接每个方向最多 2 MiB，超出的部分会被丢弃，如同 UDP 缓冲区已满一样。
+线程在需要时才启动。新的连接交给一个没有连接的线程（线程数少于 `threads` 时会启动一个新线程，该选项默认为核数减一），否则交给连接最少的线程。连接始终留在其所在的线程中；某个线程停止时（只有程序缺陷会导致线程停止），其上的连接会失败（先 `failed`，再 `closed`），该线程会为之后的连接重新启动。`resourceLimits` 限制每个线程的堆，与媒体服务器的 `workerResourceLimits` 相同（Bun 会忽略此选项）。收到的消息在送往主线程的途中仍占用接收窗口，主线程读取后才归还，因此主线程读取得慢时，对方的发送也会随之减慢，与不使用线程时相同。两个线程之间在途的 RTP 包每个连接每个方向最多 2 MiB，超出的部分会被丢弃，如同 UDP 缓冲区已满一样。
 
 以下是在 Apple M4 和 Node.js 24 上测得的结果。同一个进程中的若干对连接通过数据通道互发消息（仓库中的 `packages/webrtc/test-env/bench/threads.mjs`）：
 
@@ -517,7 +517,7 @@ export class Recorder extends Component {
 
 ## 10. 用 WHIP 推流
 
-WHIP（RFC 9725）通过一个 HTTP 请求推送一路流。编码器（OBS、GStreamer、ffmpeg）或浏览器将 offer 提交到该路流的 URL，取回 answer 和会话 URL。`WHIP` 组件回答这些 offer。推流开始时，该组件发出 `publish` 并附带会话（会话的 `id`、`stream`、`connection` 和 `tracks`）；会话结束时，该组件发出 `unpublish`。会话在以下情形结束：推流方删除了会话，会话的连接失败或关闭，或者应用停止。`WHIPController` 是该组件的 HTTP 接口；HTTP 适配器必须将 `application/sdp` 按文本读取（`body.text` 选项）。
+WHIP（RFC 9725）通过一个 HTTP 请求推送一路流。编码器（OBS、GStreamer、ffmpeg）或浏览器将 offer 提交到该路流的 URL，取回 answer 和会话 URL。`WHIP` 组件回答这些 offer。推流开始时，组件发出 `publish` 并附带会话（会话的 `id`、`stream`、`connection` 和 `tracks`）；会话结束时，组件发出 `unpublish`。会话在以下情形结束：推流方删除了会话，会话的连接失败或关闭，或者应用停止。`WHIPController` 是该组件的 HTTP 接口；HTTP 适配器必须将 `application/sdp` 按文本读取（`body.text` 选项）。
 
 ```typescript
 import {Application, Component} from 'lakutata'
@@ -580,7 +580,7 @@ Application.run(() => ({
 
 answer 中带有服务器的全部候选地址，服务器收集完毕后才回答。在 NAT 之后或容器中运行时，需要为服务器配置其公网地址，并放开其端口。
 
-配置了 `sfu` 时，推送的流不再交给应用，而是进入媒体服务器（第 9 节）的一个房间：默认为与流同名的房间，`roomOf` 可以指定其他房间。该流作为一个 ID 以 `whip:` 开头的成员加入房间，房间中的成员接收该流的轨道，如同接收其他成员的轨道一样，WHEP 观众也能拉取这路流（第 11 节）。此时该流的连接由媒体服务器管理，因此会话中没有 `connection` 和 `tracks`，而是该流的 `room` 和 `peerId`；如需获取该流的包，请使用 `sfu.track()`。
+配置了 `sfu` 时，推送的流不再交给应用，而是进入媒体服务器（第 9 节）的一个房间：默认为与流同名的房间，`roomOf` 可以指定其他房间。该流作为一个 ID 以 `whip:` 开头的成员加入房间，房间中的成员接收流的轨道，如同接收其他成员的轨道一样，WHEP 观众也能拉取这路流（第 11 节）。此时流的连接由媒体服务器管理，因此会话中没有 `connection` 和 `tracks`，而是该流的 `room` 和 `peerId`；如需获取流的包，请使用 `sfu.track()`。
 
 ## 11. 用 WHEP 拉流
 
@@ -652,7 +652,7 @@ await connection.setRemoteDescription({type: 'answer', sdp: await response.text(
 | `turn`、`iceServers` | | 在 `Link` 头中提供给观众的 ICE 服务器 |
 | `cluster`、`turnSecret`、`selectTURN` | | 多个节点（第 13 节） |
 
-一个观众只接收一个成员：默认为通过 WHIP 推送到房间的最新一路流，没有时为第一个发布音视频的成员。`select` 可以另选一个成员；房间中的轨道每次变化时都会重新调用该函数，该函数抛出错误时，观众接收默认的成员。该成员停止发布后，观众在同一条连接上继续接收下一个成员。此时画面会短暂停顿，并从下一个关键帧开始恢复。观众的 offer 决定其接收的内容，即一路音频和一路视频；观众的连接会协商 offer 中服务器同样支持的所有编码，因此之后以其中任何一种编码推送的流也能发送给该观众。
+一个观众只接收一个成员：默认为通过 WHIP 推送到房间的最新一路流，没有时为第一个发布音视频的成员。`select` 可以另选一个成员；房间中的轨道每次变化时都会重新调用该函数，函数抛出错误时，观众接收默认的成员。该成员停止发布后，观众在同一条连接上继续接收下一个成员。此时画面会短暂停顿，并从下一个关键帧开始恢复。观众的 offer 决定其接收的内容，即一路音频和一路视频；观众的连接会协商 offer 中服务器同样支持的所有编码，因此之后以其中任何一种编码推送的流也能发送给观众。
 
 组件在回答之后发出 `play`（参数为会话，包括其 `id`、`stream`、`room`、`viewerId` 和 `source`，即该会话正在接收的成员），会话结束时发出 `stop`。会话在以下情形结束：观众删除了会话，会话的连接失败或关闭，或者应用停止。`whep.sessions` 列出本节点的会话，`sfu.rooms()` 统计每个房间的观众数。
 
@@ -763,7 +763,7 @@ const sfu = buildSFUOptions({
 
 同一个房间的媒体服务器之间相互转发该房间的轨道。只要某个节点上有接收方（被 `select` 选中的成员、观众、`sfu.track()`），一条轨道就会向该节点发送一份，无论该节点上有多少接收方，并且从发布者所在的节点直接发送过去。节点之间与客户端一样使用 WebRTC 连接（DTLS-SRTP），使用各自的 `icePortRange`。分配在不同节点上的两个成员之间的数据通道，会经过两个节点的媒体服务器。
 
-某个节点下线时（该节点停止，或者其他节点连续三次未收到其心跳，约 6 秒），该节点的媒体服务器离开其所在的房间。该节点上的成员通过信令重新加入房间，分配到另一个节点的媒体服务器，并重新发布自身的轨道；其他人会看到这些成员的轨道中断几秒。对于更换了节点的成员，其自身的 peer 和其他成员通往该成员的 peer 都会关闭后重新打开，如同该成员刷新了页面。`peer` 的监听函数会重新创建各自的通道。如果此时所有节点都已满，客户端不会像第一次 `join()` 那样直接失败，而是先等待 1 秒再重试，之后每次等待时间加倍（最长 10 秒），每次失败时其信令都会发出一个 `error`。重试会一直持续到有节点接收这名成员，或者成员离开房间为止。
+某个节点下线时（节点停止，或者其他节点连续三次未收到其心跳，约 6 秒），该节点的媒体服务器离开其所在的房间。该节点上的成员通过信令重新加入房间，分配到另一个节点的媒体服务器，并重新发布自身的轨道；其他人会看到这些成员的轨道中断几秒。对于更换了节点的成员，其自身的 peer 和其他成员通往此成员的 peer 都会关闭后重新打开，如同成员刷新了页面。`peer` 的监听函数会重新创建各自的通道。如果此时所有节点都已满，客户端不会像第一次 `join()` 那样直接失败，而是先等待 1 秒再重试，之后每次等待时间加倍（最长 10 秒），每次失败时其信令都会发出一个 `error`。重试会一直持续到有节点接收这名成员，或者成员离开房间为止。
 
 WHIP 或 WHEP 会话保存在回答其 POST 请求的节点上，会话的连接则位于为其选定的节点上。会话的 PATCH 和 DELETE 请求可以到达任何节点；PATCH 到达不持有该会话的节点时，需要等待所有节点回应，最长 12 秒。观众默认接收其所在节点最后得知的那路 WHIP 推流。
 

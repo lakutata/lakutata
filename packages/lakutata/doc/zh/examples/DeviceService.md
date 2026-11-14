@@ -231,7 +231,7 @@ export class ReadingController extends Controller {
 
 - 一个控制器可以包含多种传输方式的动作（见[控制器与动作](../Controllers.md)）：`sample()` 是定时任务，`list()` 和 `status()` 是 HTTP 动作。`sample()` 的每次执行都像请求一样处理，每次都会创建一个新的控制器。
 - `@Schedule({every, immediate: true})` 在启动时执行一次 `sample()`，之后每隔一个间隔执行一次（见[定时任务](../Schedules.md)）。`this.context` 是本次执行的 `ScheduleContext`：其中的 `scheduledAt` 是本次执行的计划时间，用作读数的时间。
-- 间隔是在定义该类时（即加载该类所在的模块时）从 `SAMPLE_EVERY` 读取的，因此读取的是进程启动时的环境变量（来自 shell，或者安装后服务的环境变量文件）。如果该值不是时长（例如没有单位的 `30`），进程会在加载该模块时退出，此时服务尚未启动：`SyntaxError: Invalid duration "30": such as "500ms", "30s", "5m", "1h30m" or "1d"`。
+- 间隔是在定义该类时（即加载其所在的模块时）从 `SAMPLE_EVERY` 读取的，因此读取的是进程启动时的环境变量（来自 shell，或者安装后服务的环境变量文件）。如果该值不是时长（例如没有单位的 `30`），进程会在加载此模块时退出，此时服务尚未启动：`SyntaxError: Invalid duration "30": such as "500ms", "30s", "5m", "1h30m" or "1d"`。
 - 监控器测量的是服务本身，而非机器（见[监控](../Monitor.md)）：`usageAvg` 是进程自启动以来的平均 CPU 使用率，以单个核心的百分比表示；`physicalUsed` 是进程的常驻内存，单位为字节。从这两个值可以看出服务在小型机器上是否足够轻量。
 
 ## 6. 服务的选项

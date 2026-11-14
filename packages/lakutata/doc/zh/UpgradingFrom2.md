@@ -49,7 +49,7 @@
 | 基于 WebSocket 的 `lakutata/adapter/jsonrpc` | `ws` 8 |
 | 某种数据库 `type` | `pg`、`mysql2`（3.15.3+）、`better-sqlite3` 12（取代 `sqlite3`）、`mongodb` 7、`mssql` 12、`oracledb`、`sql.js` 等 |
 | 某种缓存存储 | `redis`（4 或 5）或 `@redis/client`、`memjs`、`mongodb`、`mysql2`、`pg`、`better-sqlite3`（2.x 中 SQLite 存储使用的是 `sqlite3`） |
-| NATS、D-Bus | `@lakutata/nats`、`@lakutata/dbus`，与其他 `@lakutata/*` 包一样使用 `^3.0.0` |
+| NATS、D-Bus | `@lakutata/nats`、`@lakutata/dbus`，使用与 `lakutata` 相同的次版本（其 peer 依赖只接受该次版本） |
 
 - **按第 3 节的表格改名**，然后构建。改名的函数均没有别名，因此编译器会报告每一个遗留的导入。之后再逐条检查第 4 节，编译器不会报告其中的变化。
 

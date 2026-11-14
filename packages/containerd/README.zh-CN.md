@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-Lakutata 框架的 containerd 组件。该组件直接与 containerd 的 gRPC 套接字通信，管理一个 [containerd](https://containerd.io) 命名空间中的镜像、容器、CNI 网络和命名卷。该组件无需 Docker 守护进程，也无需 nerdctl（其 gRPC 客户端以 TypeScript 编写，不含原生插件）。该组件面向只运行 containerd 的 Linux 机器，例如嵌入式设备，其 API 沿用 Docker 组件的 API。镜像可以拉取（支持镜像仓库凭据）、推送、标记、导入、导出和清理。创建容器时可以设置端口、卷、设备、seccomp 和资源限制；之后可以启动和停止容器、在容器中执行命令、以流的形式读取日志、获取统计数据、更新容器、将容器提交为镜像，以及从容器中导出目录。构建交由 BuildKit 完成。该组件创建的容器与 nerdctl 创建的容器相同，因此 `nerdctl ps` 能够列出这些容器。`lakutata` 包将本包重新导出为 `lakutata/com/containerd`。
+Lakutata 框架的 containerd 组件。该组件直接与 containerd 的 gRPC 套接字通信，管理一个 [containerd](https://containerd.io) 命名空间中的镜像、容器、CNI 网络和命名卷，无需 Docker 守护进程，也无需 nerdctl（其 gRPC 客户端以 TypeScript 编写，不含原生插件）。该组件面向只运行 containerd 的 Linux 机器，例如嵌入式设备，其 API 沿用 Docker 组件的 API。镜像可以拉取（支持镜像仓库凭据）、推送、标记、导入、导出和清理。创建容器时可以设置端口、卷、设备、seccomp 和资源限制；之后可以启动和停止容器、在容器中执行命令、以流的形式读取日志、获取统计数据、更新容器、将容器提交为镜像，以及从容器中导出目录。构建交由 BuildKit 完成。此组件创建的容器与 nerdctl 创建的容器相同，因此 `nerdctl ps` 能够列出这些容器。`lakutata` 包将本包重新导出为 `lakutata/com/containerd`。
 
 ## 安装
 

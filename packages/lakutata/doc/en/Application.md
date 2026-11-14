@@ -85,7 +85,7 @@ with exit code 2, skipping the done handlers and teardown.
   `SIGINT`). The `shutdownSignals` option accepts other signals (`['SIGTERM', 'SIGINT', 'SIGHUP']`), or `false` to
   leave them to Node.js.
 - **Nothing left to do**: when nothing keeps the process busy any more (no server, connection or timer), the
-  application stops gracefully, as with `app.exit()`. The `onDone` handlers run, the objects are destroyed, and the
+  application stops gracefully, as with `app.exit(0)`. The `onDone` handlers run, the objects are destroyed, and the
   process exits with its current exit code (`process.exitCode`, 0 by default). A script can therefore simply finish its
   work. An application that has been disposed (`app.dispose()`, as in tests) leaves the process exit to whatever runs
   it.

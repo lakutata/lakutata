@@ -153,7 +153,7 @@ lakutata create --name my-service --template service --with i18n --yes
 
 ## 单文件包和可执行文件
 
-这些命令打包当前目录中的应用，应用必须先编译好（使用 `tsc` 编译，该编译器会生成装饰器的元数据）。实际工作由 `@lakutata/builder` 完成：优先使用项目中安装的副本（`npm install --save-dev @lakutata/builder`，需要打包应用的模板均已如此配置），否则使用随工具一起安装的副本（全局安装工具时不会附带该包，因为该包只是工具的可选 peer 依赖）。脚本也可以调用该包的函数（`bundleProject`、`buildExecutable`）来打包应用。
+这些命令打包当前目录中的应用，应用必须先编译好（使用 `tsc` 编译，这一编译器会生成装饰器的元数据）。实际工作由 `@lakutata/builder` 完成：优先使用项目中安装的副本（`npm install --save-dev @lakutata/builder`，需要打包应用的模板均已如此配置），否则使用随工具一起安装的副本（全局安装工具时不会附带该包，因为它只是工具的可选 peer 依赖）。脚本也可以调用该包的函数（`bundleProject`、`buildExecutable`）来打包应用。
 
 ### `lakutata package bundle`
 
@@ -168,7 +168,7 @@ lakutata create --name my-service --template service --with i18n --yes
 
 单文件包是 CommonJS 模块，因为 Node.js 的可执行文件要运行这些模块。应用的 ES 模块会被转换，因此无法使用顶层 `await`，请在异步函数中使用 await。
 
-原生插件（`.node` 文件）无法打进单文件包。打包时，工具会找出含有插件的包，以及通过计算出的路径加载插件的包（例如 sharp）。工具将这些包连同其在运行时加载的内容（这些包 require 的 JavaScript，以及插件所链接共享库的所在包，例如 libvips）排除在单文件包之外，按 `node_modules` 的结构放在 `dist/<name>.native/` 中，该目录随单文件包一起发布。该目录中是运行时加载的文件：插件和共享库所在包的全部文件；对于其他包，则是其加载的 JavaScript（逐个跟踪得出）和其他文件（其读取的数据）；以及通过无法跟踪的路径加载自身文件的包（`require(path.join(__dirname, name))`）的全部文件。这些包的类型声明、source map、TypeScript 源码和文档会被排除；插件的 C 和 C++ 源码与目标文件（better-sqlite3 带有 SQLite 的源码），以及构建插件时产生的文件也会被排除，即 `build/` 中 node-gyp 和 CMake 的文件、cargo 的 `target` 目录、静态库和导入库。应用自身的插件（`require('./x.node')`、`createRequire(import.meta.url)('./x.node')`）也放入该目录。框架的包以及基于框架的包，无论依赖什么、自身是否带有插件，始终与应用一起打进单文件包，这样框架、框架的类和容器都只有一份。这些包的原生依赖放入该目录；这些包自身的插件也放入该目录，前提是插件通过直接 `require` 插件文件、从模块位置构造的路径（`path.join(__dirname, 'prebuilds', ...)`）或包自身的目录（`node-gyp-build`）加载，以其他方式加载的插件会列在警告中。未安装的可选依赖（应用未使用的存储驱动，即 `peerDependenciesMeta` 中标为 optional 的依赖，以及 `optionalDependencies`）会被排除，运行时加载这类依赖会抛出异常，与不打包时相同。
+原生插件（`.node` 文件）无法打进单文件包。打包时，工具会找出含有插件的包，以及通过计算出的路径加载插件的包（例如 sharp）。工具将这些包连同其在运行时加载的内容（这些包 require 的 JavaScript，以及插件所链接共享库的所在包，例如 libvips）排除在单文件包之外，按 `node_modules` 的结构放在 `dist/<name>.native/` 中，该目录随单文件包一起发布。目录中是运行时加载的文件：插件和共享库所在包的全部文件；对于其他包，则是其加载的 JavaScript（逐个跟踪得出）和其他文件（其读取的数据）；以及通过无法跟踪的路径加载自身文件的包（`require(path.join(__dirname, name))`）的全部文件。这些包的类型声明、source map、TypeScript 源码和文档会被排除；插件的 C 和 C++ 源码与目标文件（better-sqlite3 带有 SQLite 的源码），以及构建插件时产生的文件也会被排除，即 `build/` 中 node-gyp 和 CMake 的文件、cargo 的 `target` 目录、静态库和导入库。应用自身的插件（`require('./x.node')`、`createRequire(import.meta.url)('./x.node')`）也放入这一目录。框架的包以及基于框架的包，无论依赖什么、自身是否带有插件，始终与应用一起打进单文件包，这样框架、框架的类和容器都只有一份。这些包的原生依赖放入该目录；这些包自身的插件也放入其中，前提是插件通过直接 `require` 插件文件、从模块位置构造的路径（`path.join(__dirname, 'prebuilds', ...)`）或包自身的目录（`node-gyp-build`）加载，以其他方式加载的插件会列在警告中。未安装的可选依赖（应用未使用的存储驱动，即 `peerDependenciesMeta` 中标为 optional 的依赖，以及 `optionalDependencies`）会被排除，运行时加载这类依赖会抛出异常，与不打包时相同。
 
 打包器不会跟踪应用按路径读取的文件，即应用单独运行的脚本（worker：`new Worker()`、传入文件的 worker 池；子进程：`fork()`；按路径加载的模块：`require(path.join(__dirname, 'x.js'))`），以及应用的数据（`fs.readFileSync(path.join(__dirname, 'defaults.json'))`、存放 schema 的目录）。此外，单文件包并不位于原先各模块所在的位置：对于 `build/config/` 中的模块，`path.resolve(__dirname, '../../schema')` 指向项目的 `schema/` 目录，但打包到 `dist/` 之后则不再如此。工具会在应用的模块及其所用包的模块中，找出所有由模块位置构造的文件路径（无论写在何处），并改写这些表达式，使其指向 `.native` 目录中的文件（`dist/<name>.native/.lakutata/files/`，目录结构与项目中相同，从项目外部链接进来的包放在 `node_modules/` 下）：
 
@@ -314,7 +314,7 @@ Electron 应用（`"runtime": "electron"`）的安装包由 electron-builder 制
 
 在 Linux arm64 上，fpm 软件包需要系统中的 fpm（`gem install fpm`、`USE_SYSTEM_FPM=true`），因为 electron-builder 下载的 fpm 是为 x64 构建的。在 Windows arm64 上，NSIS 安装程序使用 BCJ 过滤器压缩可执行文件（`ELECTRON_BUILDER_7Z_FILTER`），因为 7-Zip 默认会选用 ARM64 过滤器，而 NSIS 安装程序无法解压用该过滤器压缩的文件。
 
-NW.js 应用（`"runtime": "nwjs"`）的安装包中是该应用所用 NW.js（`lakutata nwjs use`，见下文）的 normal 版本，以应用的名称命名，应用放在其中：为该 NW.js 的 Node.js 打包的代码、处理成能在其中加载的原生插件、资源和 NW.js 的清单。Windows 上的可执行文件为 `<name>.exe`，带有应用的图标和版本信息；macOS 上的应用包为 `<productName>.app`，其 `Info.plist` 给出应用的名称、`appId`、版本和图标（并以临时签名重新签署应用包）。该应用的安装包为桌面应用的安装包，默认在 Linux 上为 `deb`，在 macOS 上为 `dmg`，在 Windows 上为 `nsis`。Windows 的安装程序（`nsis`、`msi`）将应用添加到开始菜单和桌面；`dmg` 磁盘映像中包含应用和一个指向 /Applications 的链接；`pkg` 安装包将应用安装到 /Applications；Linux 的软件包（`deb`、`rpm`）添加应用的桌面入口和图标，并依赖 Chromium 所需的库。`--arch` 为本机以外的架构制作安装包（`ia32` 表示 32 位 Windows）。NW.js 应用不是服务；该应用的脚本与其他应用一样执行（macOS 上的应用直接删除，没有卸载脚本）。
+NW.js 应用（`"runtime": "nwjs"`）的安装包中是应用所用 NW.js（`lakutata nwjs use`，见下文）的 normal 版本，以应用的名称命名，应用放在其中：为该 NW.js 的 Node.js 打包的代码、处理成能在其中加载的原生插件、资源和 NW.js 的清单。Windows 上的可执行文件为 `<name>.exe`，带有应用的图标和版本信息；macOS 上的应用包为 `<productName>.app`，其 `Info.plist` 给出应用的名称、`appId`、版本和图标（并以临时签名重新签署应用包）。NW.js 应用的安装包为桌面应用的安装包，默认在 Linux 上为 `deb`，在 macOS 上为 `dmg`，在 Windows 上为 `nsis`。Windows 的安装程序（`nsis`、`msi`）将应用添加到开始菜单和桌面；`dmg` 磁盘映像中包含应用和一个指向 /Applications 的链接；`pkg` 安装包将应用安装到 /Applications；Linux 的软件包（`deb`、`rpm`）添加应用的桌面入口和图标，并依赖 Chromium 所需的库。`--arch` 为本机以外的架构制作安装包（`ia32` 表示 32 位 Windows）。NW.js 应用不是服务；该应用的脚本与其他应用一样执行（macOS 上的应用直接删除，没有卸载脚本）。
 
 | 命令选项 | |
 |---|---|
@@ -333,7 +333,7 @@ NW.js 应用（`nwjs-react` 和 `nwjs-vue` 模板）运行在其 `package.json` 
 
 ### `lakutata nwjs use <version>`
 
-为当前目录的应用设置 NW.js 版本，可以是某个版本（`0.119.2`）、`latest` 或 `win7`，以具体的版本号写入 `package.json` 的 `lakutata.nwjs`。命令同时写入 `nwjs.json`，即该版本及其内置的 Node.js 和 Chromium；模板中用户界面的构建会读取该文件，以该 Chromium 为目标。命令还会给出该版本能够运行的系统。`--download` 立即为本机下载该版本的 sdk 版本。
+为当前目录的应用设置 NW.js 版本，可以是某个版本（`0.119.2`）、`latest` 或 `win7`，以具体的版本号写入 `package.json` 的 `lakutata.nwjs`。命令同时写入 `nwjs.json`，即该版本及其内置的 Node.js 和 Chromium；模板中用户界面的构建会读取此文件，以其中的 Chromium 为目标。命令还会给出该版本能够运行的系统。`--download` 立即为本机下载所设版本的 sdk 版本。
 
 ### `lakutata nwjs run [args...]`
 

@@ -65,7 +65,7 @@ that the project declares and the installed one. There is no upgrade command: th
 | `lakutata/adapter/jsonrpc` over WebSocket | `ws` 8 |
 | A database `type` | `pg`, `mysql2` (3.15.3+), `better-sqlite3` 12 (instead of `sqlite3`), `mongodb` 7, `mssql` 12, `oracledb`, `sql.js`… |
 | A cache store | `redis` (4 or 5) or `@redis/client`, `memjs`, `mongodb`, `mysql2`, `pg`, `better-sqlite3` (the SQLite store used `sqlite3` in 2.x) |
-| NATS, D-Bus | `@lakutata/nats`, `@lakutata/dbus`, at `^3.0.0` like the other `@lakutata/*` packages |
+| NATS, D-Bus | `@lakutata/nats`, `@lakutata/dbus`, in the same minor version as `lakutata` (their peer dependencies accept that minor version only) |
 
 - **Rename** using the tables in section 3, then build: none of the renamed functions has an alias, so the compiler
   reports every remaining import. Then go through section 4, whose changes the compiler does not report.
