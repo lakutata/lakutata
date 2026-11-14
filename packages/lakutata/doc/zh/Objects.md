@@ -17,14 +17,14 @@
 | 装饰器（`lakutata/decorator/di`） | 实例数量 |
 |---|---|
 | `@Singleton()` | 每个注册该类的容器一个，由它的使用者和它的作用域共享 |
-| `@Scoped()` | 每个作用域一个（`container.createScope()`；入口的每次请求是一个作用域，根容器本身也是一个作用域） |
+| `@Scoped()` | 每个作用域一个（`container.createScope()`；入口的每次请求是一个作用域）；在作用域之外，注册该类的容器共享一个实例 |
 | `@Transient()` | 每次解析都新建，从不缓存 |
 
-子类继承父类的生命周期类型。`Component` 锁定了自己的类型：子类声明其他类型会抛出 `LifetimeLockedException`。`Provider` 默认是 `@Scoped`，也可以声明为 `@Transient` 或 `@Singleton`（与 2.x 相同：一个实例由各作用域共享，例如 `@lakutata/nats` 的 `ServiceProxy`）；长期持有资源（连接、订阅、服务器）的对象更适合用 `Component`。单例注入作用域对象时，拿到的是创建它的那个作用域的实例。`@Lifetime('SINGLETON' | 'SCOPED' | 'TRANSIENT', lock)` 是这三个装饰器的完整写法。
+子类继承父类的生命周期类型。`Component` 锁定了自己的类型：子类声明其他类型会抛出 `LifetimeLockedException`。`Provider` 默认是 `@Scoped`，也可以声明为 `@Transient` 或 `@Singleton`（与 2.x 相同：一个实例由各作用域共享，例如 `@lakutata/nats` 的 `ServiceProxy`）；长期持有资源（连接、订阅、服务器）的对象更适合用 `Component`。单例注入作用域对象时，得到的是注册该作用域类的容器所持有的实例（对于应用声明的提供者，即应用容器中的实例），而不是某次请求的实例；即使该单例是在请求过程中首次被获取，也是如此。`@Lifetime('SINGLETON' | 'SCOPED' | 'TRANSIENT', lock)` 是这三个装饰器的完整写法。
 
 ## 3. 作用域
 
-作用域是一个子容器，持有自己的作用域对象实例，父容器的单例和注册项则是共享的。入口为每次请求创建一个作用域：该请求的控制器以及它注入的提供者都在其中创建，请求结束时一并销毁。组件可以通过受保护的 `createScope()` 创建自己的作用域。
+作用域是一个子容器，持有自己的作用域对象实例，父容器的单例和注册项则是共享的。入口为每次请求创建一个作用域：该请求的控制器以及它注入的提供者都在其中创建，请求结束时一并销毁。组件可以通过受保护的 `createScope()` 创建自己的作用域。不再需要这样的作用域时应将其销毁；否则它会随组件一起销毁。
 
 ## 4. 创建与销毁
 
@@ -36,7 +36,11 @@
 4. 执行它的 `startup()`。此时其他对象已经可以获取它，但要等 `startup()` 完成才拿到（失败时得到同样的错误）；例外是在 `startup()` 内部直接或经由它创建的对象去获取的一方，会立即拿到它，所以在那里获取的对象可以反过来注入它（入口就在 `startup()` 里启动各个适配器，适配器的钩子会获取一个注入了入口的 Authenticator）。方法叫 `startup` 而不是 `start`，是为了避免框架去启动那些自带 `start()` 方法的类（比如 `@lakutata/docker` 的容器）；
 5. 应用启动完成（且对象已启动）后，执行它的 `launched()`（不会被等待，其错误会被记录到日志）。
 
-销毁时（调用 `dispose()`，或创建它的对象、作用域、应用被销毁时），先等待 `startup()` 结束，再执行它的 `beforeDestroy()`，再销毁它创建的对象，最后执行它的 `destroy()`。每个对象都拥有自己的容器：通过 `this.getObject()` 创建的对象会随它一起销毁。
+销毁时（调用 `dispose()`，或拥有它的对象、作用域、应用被销毁时），先等待 `startup()` 结束，再执行它的 `beforeDestroy()`，然后销毁它所拥有的对象，最后执行它的 `destroy()`。
+
+每个对象都拥有自己的容器。对象所拥有的对象包括：通过 `this.getObject()` 获取的瞬态对象、通过 `getObject()` 的第二个参数带选项请求的作用域对象，以及通过 `buildObject()` 创建的对象。单例以及作用域内共享的作用域实例属于注册它们的容器，不会随请求它们的对象一起销毁。
+
+销毁一个容器时（例如请求结束、应用停止），先并发执行其中所有对象的 `beforeDestroy()`，然后销毁这些对象；销毁的先后顺序不固定，即使对象之间存在依赖关系也是如此。因此，对象应在 `beforeDestroy()` 中停止使用其依赖，在 `destroy()` 中只释放自身的资源。
 
 ```typescript
 import {Application, Component, type ILogger} from 'lakutata'
@@ -89,7 +93,7 @@ Application
     .onDone((app: Application, log: ILogger): void => log.info('onDone'))
 ```
 
-它依次记录 `init`、`startup`、`launched` 和 `onLaunched`。按下 Ctrl+C 后，依次记录 `onDone`、`beforeDestroy` 和 `destroy`，然后进程退出。
+它先记录 `init` 和 `startup`，再记录 `launched` 和 `onLaunched`，后两者之间的先后顺序不固定。按下 Ctrl+C 后，依次记录 `onDone`、`beforeDestroy` 和 `destroy`，然后进程退出。
 
 ## 5. 不使用应用的容器
 

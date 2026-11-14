@@ -101,7 +101,7 @@ own by default) and the validation options.
 | `@Expect(schema)` | A property of a DTO | Declares the schema of the property |
 | `@IndexSignature(schema)` | A DTO class | Keeps the keys that have no `@Expect` schema, validating them against this schema, instead of removing them |
 | `@Accept(...schemas)` | A method | Validates the arguments of each call, by position; throws `InvalidMethodAcceptException` |
-| `@Return(schema)` | A method | Validates the result of each call (awaited for an async method); throws `InvalidMethodReturnException` |
+| `@Return(schema)` | A method | Validates the result of each call (awaited for an async method); throws `InvalidMethodReturnException`, also when the method returns `undefined`, whatever the schema |
 
 `@Accept` and `@Return` pass the validated values on to the method (or to its caller), with defaults applied and unknown
 keys removed. When a DTO class validates an argument or a result, the value passed on is a plain object, not an instance

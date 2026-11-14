@@ -21,22 +21,24 @@ declarations of each export give the details.
 | Decorator (`lakutata/decorator/di`) | One instance… |
 |---|---|
 | `@Singleton()` | per container that registers the class, shared by everything that uses it, including its scopes |
-| `@Scoped()` | per scope (`container.createScope()`; each request of an entrypoint is a scope, the root container is one too) |
+| `@Scoped()` | per scope (`container.createScope()`; each request of an entrypoint is a scope); outside a scope, one per container that registers the class |
 | `@Transient()` | per resolution, never cached |
 
 Subclasses inherit the lifetime. `Component` locks its lifetime: a subclass that declares a different one throws a
 `LifetimeLockedException`. A `Provider` is `@Scoped` by default but may be declared `@Transient` or `@Singleton` (as in
 2.x, one instance shared by all scopes, like the `ServiceProxy` of `@lakutata/nats`). A long-lived object that owns
-resources (connections, subscriptions, servers) is better written as a `Component`. When a singleton injects a scoped
-object, it keeps the instance from the scope that created it. `@Lifetime('SINGLETON' | 'SCOPED' | 'TRANSIENT', lock)` is
-the long form of the three decorators.
+resources (connections, subscriptions, servers) is better written as a `Component`. A singleton that injects a scoped
+object receives the instance of the container that registers the scoped class (the application's container, for a
+provider the application declares), never the instance of a request, even when the singleton is first requested during
+a request. `@Lifetime('SINGLETON' | 'SCOPED' | 'TRANSIENT', lock)` is the long form of the three decorators.
 
 ## 3. Scopes
 
 A scope is a child container that holds its own instances of the scoped objects and shares the singletons and
 registrations of its parent. The entrypoint creates a scope for each request: the request's controller and the providers
 it injects are created in it and destroyed when the request ends. A component can create its own scope with its
-protected `createScope()`.
+protected `createScope()`. Destroy such a scope once it is no longer needed; otherwise it is destroyed with the
+component.
 
 ## 4. Creation and teardown
 
@@ -56,9 +58,18 @@ once the object is ready. Creation goes through these steps:
 5. once the application has launched (and the object has started), its `launched()` runs; it is not awaited, and its
    errors are logged.
 
-An object is torn down by `dispose()`, or along with the object, scope or application that created it. Teardown waits
-for `startup()` to end, then runs `beforeDestroy()`, destroys the objects it created, and finally runs `destroy()`. Each
-object owns a container, so whatever it creates with `this.getObject()` is destroyed with it.
+An object is torn down by `dispose()`, or along with the object, scope or application that owns it. Teardown waits
+for `startup()` to end, then runs `beforeDestroy()`, destroys the objects it owns, and finally runs `destroy()`.
+
+Each object owns a container. The objects it owns are the transient objects it obtains with `this.getObject()`, the
+scoped objects it requests with options (the second argument of `getObject()`), and the objects it creates with
+`buildObject()`. A singleton, and the scoped instance shared within a scope, belong to the container that registers
+them: they are not destroyed with the object that requested them.
+
+When a container is destroyed (a request ending, the application stopping), the `beforeDestroy()` hooks of all its
+objects run first, concurrently; the objects are then destroyed in no particular order, even when one depends on
+another. An object therefore stops using its dependencies in `beforeDestroy()`, and releases only its own resources in
+`destroy()`.
 
 ```typescript
 import {Application, Component, type ILogger} from 'lakutata'
@@ -111,8 +122,8 @@ Application
     .onDone((app: Application, log: ILogger): void => log.info('onDone'))
 ```
 
-It logs `init`, `startup`, `launched` and `onLaunched`. On Ctrl+C, it logs `onDone`, `beforeDestroy` and `destroy`,
-then the process exits.
+It logs `init` and `startup`, then `launched` and `onLaunched`, which run in no guaranteed order relative to each
+other. On Ctrl+C, it logs `onDone`, `beforeDestroy` and `destroy`, then the process exits.
 
 ## 5. A container without an application
 

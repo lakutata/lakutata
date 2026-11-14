@@ -123,7 +123,7 @@ export async function pay(orderId: number, charge: () => Promise<void>): Promise
 
 ## 5. 翻译与识别异常
 
-使用 `I18nMiddleware` 时，异常的消息会按请求的语言翻译，翻译的键是 `errors.<errno>`，参数来自异常的模板（见 [I18n](I18n.md) 中的“异常消息的翻译”一节）。在请求之外，`lakutata` 中的 `exceptionParams(exception)` 返回这些参数。
+使用 `I18nMiddleware` 时，异常的消息会按请求的语言翻译，翻译的键是 `errors.<errno>`，参数来自异常的模板（见 [I18n](I18n.md#异常消息的翻译) 中的“异常消息的翻译”一节）。在请求之外，`lakutata` 中的 `exceptionParams(exception)` 返回这些参数。
 
 在应用内部用 `instanceof` 识别异常，跨进程时用 `errno`：客户端收到的是错误的属性，而不是它的类。HTTP 服务、NATS 和 gRPC 的代理抛出的 `ServiceInvokeException` 带有远端错误的 `errno`。
 

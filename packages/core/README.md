@@ -155,7 +155,7 @@ await container.destroy()
 | Export | Subpath | What it is |
 |---|---|---|
 | `Application` | `lakutata` | The application: `run()`, `env()`, `alias()`, `onLaunched()`, `onDone()`, `onFatalException()`, `getObject()`, `exit()` |
-| `Module` | `lakutata` | The base class of `Application`: the container and the declared objects live here |
+| `Module` | `lakutata` | A component that declares its own components, providers and objects, which the other objects of the application cannot inject; also the base class of `Application` |
 | `Component` | `lakutata` | A singleton service with events (`emit`, `on`…) |
 | `Provider` | `lakutata` | A scoped object (one per scope) |
 | `BaseObject` | `lakutata` | The root class: asynchronous construction (`init`), destruction (`destroy`), `getObject` |

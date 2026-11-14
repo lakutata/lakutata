@@ -14,7 +14,7 @@
 | `shutdownSignals` | 使应用优雅退出的信号（默认 `['SIGTERM', 'SIGINT']`），或 `false` |
 | `components`、`providers` | 按名称声明的组件和提供者：`{class, ...options}` |
 | `objects` | 其他对象：`{named: {...}, anonymous: [...]}` |
-| `bootstrap` | 启动时依次执行的步骤：名称、symbol 或类（创建该对象），或以应用为参数调用的异步函数 |
+| `bootstrap` | 启动时依次执行的步骤：名称或类（创建该对象），或声明为 `async`、以应用为参数的函数 |
 | `checkOptions` | 启动时检查所声明对象的选项（默认 `true`） |
 
 不带 `class` 的声明会补充框架预置的同名对象的选项：`lakutata` 包预置了 `log`（`Logger`）和 `entrypoint`（`Entrypoint`），因此 `log: {level: 'debug'}` 会设置预置日志组件的级别。`Application.preset(options)` 为进程中的所有应用预置对象。

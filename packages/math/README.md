@@ -122,13 +122,13 @@ integers, `-inf` or `inf`, or expressions of other variables. `k` is bound: it i
 `substitute()` and `diff()` leave it alone. As in SymPy, `b = a - 1` gives 0 (1 for a product), and `b < a - 1` the sum
 from `b + 1` to `a - 1` with the sign changed (the reciprocal of the product). Between integers at most 1000 apart, the
 terms are computed one by one, exactly. Otherwise a closed form is looked for: the sum of a polynomial in `k` (`sum(k^2,
-k, 1, n)` is `n^3/3 + n^2/2 + n/6`), of a geometric series (`sum(x^k, k, 0, n)` is `piecewise(n + 1, x = 1, (-x^(n + 1)
-+ 1)/(-x + 1))`; to `inf`, its value where `abs(x) < 1`), of a power of `1/(k + q)` (with `zeta` and `polygamma`:
-`sum(1/k^2, k, 1, inf)` is `pi^2/6`), of a hypergeometric term, by Gosper's algorithm (`sum(k*2^k, k, 1, n)` is `2(n -
-1)*2^n + 2`, `sum(1/(k*(k + 1)), k, 1, n)` is `n/(n + 1)`, `sum(k*k!, k, 1, n)` is `gamma(n + 2) - 1`; to `inf`, the
-limit of the sum up to `n`, so `sum(1/(k*(k + 1)), k, 1, inf)` is 1; when the ratio of consecutive terms has other
-variables, the value for a ratio below 1 in absolute value: `sum(k*x^k, k, 0, inf)` is `x/(x - 1)^2` where `abs(x) <
-1`), or of a sum of such terms, one by one; the product of powers, or of a fraction of polynomials with linear factors
+k, 1, n)` is `n^3/3 + n^2/2 + n/6`), of a geometric series (`sum(x^k, k, 0, n)` is `piecewise(n + 1, x = 1,
+(-x^(n + 1) + 1)/(-x + 1))`; to `inf`, its value where `abs(x) < 1`), of a power of `1/(k + q)` (with `zeta` and
+`polygamma`: `sum(1/k^2, k, 1, inf)` is `pi^2/6`), of a hypergeometric term, by Gosper's algorithm (`sum(k*2^k, k, 1,
+n)` is `2(n - 1)*2^n + 2`, `sum(1/(k*(k + 1)), k, 1, n)` is `n/(n + 1)`, `sum(k*k!, k, 1, n)` is `gamma(n + 2) - 1`; to
+`inf`, the limit of the sum up to `n`, so `sum(1/(k*(k + 1)), k, 1, inf)` is 1; when the ratio of consecutive terms has
+other variables, the value for a ratio below 1 in absolute value: `sum(k*x^k, k, 0, inf)` is `x/(x - 1)^2` where `abs(x)
+< 1`), or of a sum of such terms, one by one; the product of powers, or of a fraction of polynomials with linear factors
 (with `gamma`: `product(1 - 1/k^2, k, 2, n)` is `(n + 1)/(2n)`). A sum to `inf` that grows without bound is `inf` or
 `-inf` (`sum(2^k, k, 0, inf)`, `sum(k*k!, k, 1, inf)`). The others stay as `sum(…)` and `product(…)`: their values are
 computed term by term between integers, up to 10^4 terms, and they cannot be compiled.
@@ -432,10 +432,10 @@ other: `sqrt(2)^2` is not read as 2. An expression with a negative power, or wit
 exact, is not a polynomial (`MathNotSupportedException`); fractions of polynomials have the operations of the next
 section.
 
-- The results are over the integers when every coefficient is an integer, with the gcd of the contents in a gcd (`gcd(2x
-  + 2, 4x + 4)` is `2x + 2`), and over the rationals otherwise (monic: `gcd(x/2 + 1/2, x + 1)` is `x + 1`). Their
-  leading coefficients are positive, as in SymPy. Numbers alone have the gcd and the lcm of numbers (`gcd(1/2, 1/3)` is
-  `1/6`).
+- The results are over the integers when every coefficient is an integer, with the gcd of the contents in a gcd
+  (`gcd(2x + 2, 4x + 4)` is `2x + 2`), and over the rationals otherwise (monic: `gcd(x/2 + 1/2, x + 1)` is `x + 1`).
+  Their leading coefficients are positive, as in SymPy. Numbers alone have the gcd and the lcm of numbers (`gcd(1/2,
+  1/3)` is `1/6`).
 - `factorList` gives the rational coefficient and the irreducible factors over the rationals with their multiplicities
   (`factorList('6x^2 - 6')` is 6, `x - 1` and `x + 1`); `sqfList` gives the square-free decomposition (Yun's algorithm).
   `factor()` writes them as a product with the coefficient in front (`3x*y + 6x + 3y + 6` is `3(x + 1)(y + 2)`); a
@@ -483,8 +483,8 @@ polynomials, with the generators of `poly`:
   1)^2 - 1`); a polynomial of another degree throws `MathNotSupportedException`.
 - The terms of a result of `apart()` or `completeSquare()` keep their written form when terms are added to it; otherwise
   an operation on a result (a product by a number, `expand()`) gives the usual form of the formulas again. `equals()`
-  puts the fractions of a difference over one denominator, so that it proves identities between fractions (`(x^2 - 1)/(x
-  - 1)` equals `x + 1`). `cancel()` and `apart()` have asynchronous versions: a gcd or a factorization in several
+  puts the fractions of a difference over one denominator, so that it proves identities between fractions (`(x^2 -
+  1)/(x - 1)` equals `x + 1`). `cancel()` and `apart()` have asynchronous versions: a gcd or a factorization in several
   variables can take long.
 
 ```typescript

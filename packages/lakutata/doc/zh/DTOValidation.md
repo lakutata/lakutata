@@ -86,7 +86,7 @@ const port: number = DTO.validate(8080, DTO.Number().port().required())
 | `@Expect(schema)` | DTO 的属性 | 声明属性的校验规则 |
 | `@IndexSignature(schema)` | DTO 类 | 保留没有 `@Expect` 规则的字段，并按这条规则校验它们，而不是移除 |
 | `@Accept(...schemas)` | 方法 | 每次调用时按位置校验参数；失败时抛出 `InvalidMethodAcceptException` |
-| `@Return(schema)` | 方法 | 每次调用时校验返回值（异步方法会等待其结果）；失败时抛出 `InvalidMethodReturnException` |
+| `@Return(schema)` | 方法 | 每次调用时校验返回值（异步方法会等待其结果）；失败时抛出 `InvalidMethodReturnException`；无论校验规则如何，方法返回 `undefined` 时也会抛出该异常 |
 
 `@Accept` 和 `@Return` 把校验后的值交给方法（或调用方）：默认值已填充，未知字段已移除。用 DTO 类校验参数或返回值时，得到的是普通对象，而不是该类的实例。缺少的参数会被接受，除非它的规则是必填的（`MyDTO.required()`）。
 

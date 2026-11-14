@@ -144,7 +144,7 @@ await container.destroy()
 | 导出 | 子路径 | 说明 |
 |---|---|---|
 | `Application` | `lakutata` | 应用：`run()`、`env()`、`alias()`、`onLaunched()`、`onDone()`、`onFatalException()`、`getObject()`、`exit()` |
-| `Module` | `lakutata` | `Application` 的基类：容器和声明的对象都在这里 |
+| `Module` | `lakutata` | 声明自身组件、提供者和对象的组件，应用中的其他对象无法注入这些对象；也是 `Application` 的基类 |
 | `Component` | `lakutata` | 带事件（`emit`、`on`……）的单例服务 |
 | `Provider` | `lakutata` | 作用域对象（每个作用域一个） |
 | `BaseObject` | `lakutata` | 根类：异步构造（`init`）、销毁（`destroy`）、`getObject` |

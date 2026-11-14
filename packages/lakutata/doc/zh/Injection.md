@@ -11,37 +11,51 @@
 - `@Inject(SomeClass)`：注入为该类注册的对象（`@Inject(Application)` 注入应用本身）；
 - `@Inject('name', transform)`：注入 `transform(object)` 的返回值（可以是异步函数）。
 
-标记了 `@Autoload()` 的类在第一次被请求时自动注册，而不是报错：单例注册到根容器，作用域类注册到最近的作用域，瞬态类注册到发起请求的容器。依赖无法解析时，创建失败，抛出 `DependencyInjectionException`。
+标记了 `@Autoload()` 的类在第一次被请求时自动注册，而不是报错：瞬态类注册到发起请求的容器，作用域类注册到最近的作用域，单例注册到根容器。根容器是容纳应用本身的容器，位于应用所声明对象的容器之上。因此，以这种方式注册的单例（以及在请求之外获取的作用域类）可以注入应用，但无法注入在应用中注册的对象（例如预置的 `log`）；需要这些对象的组件应在应用选项中声明。依赖无法解析时，创建失败，抛出 `DependencyInjectionException`。
 
 ```typescript
-import {Application, Component, Provider} from 'lakutata'
-import {Autoload, Inject, Scoped} from 'lakutata/decorator/di'
+import {Application, BaseObject, Component, type ILogger} from 'lakutata'
+import {Autoload, Inject} from 'lakutata/decorator/di'
 
-//未在应用中声明：第一次被注入时自动注册
+//未在应用中声明：第一次被注入时自动注册，每个注入它的对象各得到一个实例
 @Autoload()
-@Scoped()
-class RequestClock extends Provider {
-    public readonly startedAt: number = Date.now()
+class Stopwatch extends BaseObject {
+    readonly #startedAt: number = Date.now()
+
+    public elapsed(): number {
+        return Date.now() - this.#startedAt
+    }
 }
 
 class Reports extends Component {
-    @Inject(RequestClock)
-    protected readonly clock: RequestClock
+    @Inject(Stopwatch)
+    protected readonly stopwatch: Stopwatch
 
     @Inject(Application)
     protected readonly app: Application
 
-    public elapsed(): number {
-        return Date.now() - this.clock.startedAt
+    @Inject('log')
+    protected readonly log: ILogger
+
+    public uptime(): void {
+        this.log.info('%s: reports ready for %d ms', this.app.appName, this.stopwatch.elapsed())
     }
 }
+
+Application.run(() => ({
+    id: 'reports.app',
+    name: 'Reports',
+    components: {
+        reports: {class: Reports}
+    }
+}))
 ```
 
 本身不是容器中对象的代码（比如 `onLaunched` 处理函数）用 `app.getObject(name)` 获取对象；`app.getObject(SomeClass)` 只适用于单独注册的类（比如自动注册的类），不适用于按名称声明的组件。
 
 ## 2. 选项
 
-`@Configurable(schema, fn?)` 把属性声明为对象的选项：它的值来自对象的声明（`{class: Mailer, host: 'smtp.example.com'}`）或 `getObject()` 的第二个参数，经校验规则校验后，如果提供了 `fn` 再交给 `fn` 处理。应用在启动时会检查它声明的对象的选项：不合法的值会抛出 `InvalidObjectOptionsException` 并终止启动，不是可配置属性的选项会给出警告。
+`@Configurable(schema, fn?)` 把属性声明为对象的选项：它的值来自对象的声明（`{class: Mailer, host: 'smtp.example.com'}`）或 `getObject()` 的第二个参数，经校验规则校验后，如果提供了 `fn` 再交给 `fn` 处理。应用在启动时会检查它声明的对象的选项：不合法的值会抛出 `InvalidObjectOptionsException` 并终止启动，不是可配置属性的选项会给出警告。此时只检查声明中给出的选项：声明中缺少的必填选项要到创建对象时才会报告（抛出 `InvalidValueException`），因为它仍可以由 `getObject()` 的第二个参数提供。该参数只在本次调用创建对象时生效：已经存在的单例保留原有选项（非生产模式下会给出警告），带选项请求作用域类则得到一个新实例，归请求方所有。
 
 ```typescript
 import {Application, Component, DTO, type ILogger} from 'lakutata'

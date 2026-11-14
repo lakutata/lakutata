@@ -154,7 +154,7 @@ error: The script lakutata.installer.mac.scripts.postinstall (scripts/missing.sh
 
 ```sh
 #!/bin/sh
-# build/linux/postinstall.sh: $1 is install or upgrade
+# build/linux/postinstall.sh：$1 为 install 或 upgrade
 if [ "$1" = install ]; then
     echo "Installed in $LAKUTATA_INSTALL_DIR"
 fi

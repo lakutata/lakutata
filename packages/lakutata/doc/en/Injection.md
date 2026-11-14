@@ -13,32 +13,50 @@ between applications as a package. [Decorator](Decorator.md), section 1, gives e
 - `@Inject(SomeClass)`: the object registered for the class (`@Inject(Application)` gives the application);
 - `@Inject('name', transform)`: the value returned by `transform(object)` (it may be async).
 
-A class marked `@Autoload()` is registered the first time it is requested, instead of failing: a singleton in the root
-container, a scoped class in the nearest scope, a transient class in the container that requested it. A dependency that
-cannot be resolved fails the creation with a `DependencyInjectionException`.
+A class marked `@Autoload()` is registered the first time it is requested, instead of failing: a transient class in the
+container that requests it, a scoped class in the nearest scope, a singleton in the root container. The root container
+holds the application, above the container of the objects the application declares. A singleton registered this way,
+like a scoped class requested outside a request, can therefore inject the application but not the objects registered
+in the application, such as the preset `log`; a component that needs them is declared in the application options
+instead. A dependency that cannot be
+resolved fails the creation with a `DependencyInjectionException`.
 
 ```typescript
-import {Application, Component, Provider} from 'lakutata'
-import {Autoload, Inject, Scoped} from 'lakutata/decorator/di'
+import {Application, BaseObject, Component, type ILogger} from 'lakutata'
+import {Autoload, Inject} from 'lakutata/decorator/di'
 
-//Not declared in the application: registered the first time it is injected
+//Not declared in the application: registered when first injected, one instance per object that injects it
 @Autoload()
-@Scoped()
-class RequestClock extends Provider {
-    public readonly startedAt: number = Date.now()
+class Stopwatch extends BaseObject {
+    readonly #startedAt: number = Date.now()
+
+    public elapsed(): number {
+        return Date.now() - this.#startedAt
+    }
 }
 
 class Reports extends Component {
-    @Inject(RequestClock)
-    protected readonly clock: RequestClock
+    @Inject(Stopwatch)
+    protected readonly stopwatch: Stopwatch
 
     @Inject(Application)
     protected readonly app: Application
 
-    public elapsed(): number {
-        return Date.now() - this.clock.startedAt
+    @Inject('log')
+    protected readonly log: ILogger
+
+    public uptime(): void {
+        this.log.info('%s: reports ready for %d ms', this.app.appName, this.stopwatch.elapsed())
     }
 }
+
+Application.run(() => ({
+    id: 'reports.app',
+    name: 'Reports',
+    components: {
+        reports: {class: Reports}
+    }
+}))
 ```
 
 Code that is not itself an object of the container (an `onLaunched` handler, for example) gets objects with
@@ -51,7 +69,11 @@ not for a component declared under a name.
 declaration (`{class: Mailer, host: 'smtp.example.com'}`) or from the second argument of `getObject()`; the schema
 validates it, and `fn`, when given, transforms it. The application checks the options of the objects it declares when
 it launches: an invalid value stops the launch with an `InvalidObjectOptionsException`, and an option that matches no
-configurable property produces a warning.
+configurable property produces a warning. Only the options that the declarations give are checked at that point: a
+required option that a declaration leaves out is reported when the object is created, with an `InvalidValueException`,
+because it may still be given by the second argument of `getObject()`. That argument applies when the call creates the
+object: a singleton that already exists keeps its options (a warning says so outside production), and a scoped class
+requested with options gives a new instance, owned by the requester.
 
 ```typescript
 import {Application, Component, DTO, type ILogger} from 'lakutata'

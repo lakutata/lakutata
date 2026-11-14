@@ -62,7 +62,7 @@ lakutata create --name tool --template cli --package-manager none --no-git
 
 `lakutata migration <action>` 生成、创建、执行、回滚和查看应用的数据库迁移。它用应用的 `dev` 脚本构建并启动应用，此时应用只连接数据库。见 [Migrations](Migrations.md) 第 2 节。
 
-`lakutata i18n <action>` 检查应用各语言的消息，生成键名的类型声明，以及添加新语言。见 [I18n](I18n.md) 的“命令行工具”一节。
+`lakutata i18n <action>` 检查应用各语言的消息，生成键名的类型声明，以及添加新语言。见 [I18n](I18n.md#命令行工具) 的“命令行工具”一节。
 
 ## 5. 打包
 

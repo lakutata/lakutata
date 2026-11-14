@@ -18,7 +18,7 @@ options:
 | `shutdownSignals` | The signals that end the application gracefully (default `['SIGTERM', 'SIGINT']`), or `false` |
 | `components`, `providers` | The components and providers by name: `{class, ...options}` |
 | `objects` | Other objects: `{named: {...}, anonymous: [...]}` |
-| `bootstrap` | The steps run in order at launch: a name, a symbol or a class (the object is created), or an async function that receives the application |
+| `bootstrap` | The steps run in order at launch: a name or a class (the object is created), or a function declared `async` that receives the application |
 | `checkOptions` | Check the options of the declared objects at launch (default `true`) |
 
 A declaration without `class` adds options to an object of the same name that the framework presets: the `lakutata`

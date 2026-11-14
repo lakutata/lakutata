@@ -106,7 +106,7 @@ npm install --save-dev typescript @types/node @types/express @lakutata/cli
 ```typescript
 import {Application, DTO, type ILogger} from 'lakutata'
 import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
-import {GET, ServiceAction} from 'lakutata/decorator/ctrl'
+import {GET} from 'lakutata/decorator/ctrl'
 import {Expect} from 'lakutata/decorator/dto'
 import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
 
@@ -116,9 +116,8 @@ class GreetDTO extends DTO {
 }
 
 class GreetController extends Controller {
-    //GET /greet?name=you，以及服务动作 {cmd: 'greet', name: 'you'}
+    //GET /greet?name=you
     @GET('/greet', GreetDTO)
-    @ServiceAction({cmd: 'greet'}, GreetDTO)
     public async greet(input: GreetDTO): Promise<{ message: string }> {
         return {message: `Hello, ${input.name}!`}
     }

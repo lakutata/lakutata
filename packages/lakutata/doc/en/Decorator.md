@@ -110,13 +110,18 @@ Application.run(() => ({
 
   A class that reads its options without configurable properties (through `getConfigurableRecords()`) overrides the
   static `acceptsOption(name, value)` to accept them without a warning. Values checked by external (asynchronous) rules
-  are validated when the object is created. `checkOptions: false` in the options of the application disables the check.
+  are validated when the object is created. The check covers the options that the declarations give: a required option
+  that a declaration leaves out is reported when the object is created, since the second argument of `getObject()` may
+  still give it. The objects declared by a module are checked when the module is created.
+  `checkOptions: false` in the options of the application disables the check.
 
 ### 1.3 `@Autoload`
 
 A class marked `@Autoload()` is registered the first time it is requested (`@Inject(TheClass)`,
 `getObject(TheClass)`) instead of failing: a singleton in the root container, a scoped class in the nearest scope, a
-transient class in the requesting container. The mark is not inherited.
+transient class in the requesting container. The mark is not inherited. The root container holds the application, above
+the container of the objects the application declares: an autoloaded singleton, like an autoloaded scoped class
+requested outside a request, can inject the application but not the objects registered in the application.
 
 ### 1.4 Lifetimes: `@Singleton`, `@Scoped`, `@Transient`, `@Lifetime`
 
