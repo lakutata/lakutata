@@ -9,8 +9,11 @@
 | `BaseObject` | 根类：异步构造、`init()`/`destroy()`、`getObject()` | `@Transient` |
 | `Provider` | 存在于某个作用域（如一次请求）中的功能单元（仓储、哈希器等） | `@Scoped` |
 | `Component` | 整个应用共享的长期服务（日志、数据库、入口等），同时是事件发射器 | `@Singleton`（锁定） |
-| `Application` | 应用本身：声明组件、提供者和对象，由 `Application.run()` 创建 | |
+| `Module` | 声明自身组件、提供者和对象的组件（[模块](Modules.md)） | `@Singleton`（锁定） |
+| `Application` | 根模块：声明组件、提供者和对象，由 `Application.run()` 创建 | |
 | `Controller`（`lakutata/com/entrypoint`） | 处理入口请求的提供者 | `@Scoped`（锁定） |
+
+这些类之间的继承关系以及各自的设计用意见[核心概念](Concepts.md)。
 
 ## 2. 生命周期类型
 

@@ -14,15 +14,17 @@ components in every application: `log` (the `Logger`, which writes pino-compatib
 ## Where to start
 
 [GettingStarted](GettingStarted.md) creates a first project from a template and shows a first application;
-[ProjectStructure](ProjectStructure.md) describes the files of a project; the guides below cover each part of the
-framework. The [examples](examples/README.md) build whole applications from the templates: a REST API, a command line
-tool, a web and a desktop application, calls between services, background jobs, an MCP server and a service on a device.
+[Concepts](Concepts.md) explains the model of the framework, and [Application Design](ApplicationDesign.md) how to
+structure an application on it; [ProjectStructure](ProjectStructure.md) describes the files of a project; the guides
+below cover each part of the framework. The [examples](examples/README.md) build whole applications from the templates:
+a REST API, a command line tool, a web and a desktop application, calls between services, background jobs, an MCP server
+and a service on a device.
 
 ## The subpaths
 
 | Subpath | What it provides |
 |---|---|
-| `lakutata` | `Application`, `Component`, `Provider`, `BaseObject`, `Container`, `DTO`, `Exception`, `Time`, `isPackaged`, `resourcesPath`, the validation messages |
+| `lakutata` | `Application`, `Module`, `Component`, `Provider`, `BaseObject`, `Container`, `DTO`, `Exception`, `Time`, `isPackaged`, `resourcesPath`, the validation messages |
 | `lakutata/decorator/di` | `@Inject`, `@Configurable`, `@Autoload`, `@Singleton`, `@Scoped`, `@Transient`, `@Lifetime` |
 | `lakutata/decorator/dto` | `@Expect`, `@Accept`, `@Return`, `@IndexSignature` |
 | `lakutata/decorator/asst` | `@Before`, `@After` |
@@ -62,12 +64,15 @@ HTML, a manager component), `@lakutata/serial` (serial ports and Bluetooth devic
 | Guide | Topic |
 |---|---|
 | [GettingStarted](GettingStarted.md) | Requirements, creating a project, adding Lakutata to an existing project, a first application |
+| [Concepts](Concepts.md) | The model of the framework: the application as a tree of objects, the base classes and the reasons for their design, lifetimes, options, actions and transports, the terms |
 | [ProjectStructure](ProjectStructure.md) | The files, scripts and features of the projects made from the templates, and templates of your own |
+| [ApplicationDesign](ApplicationDesign.md) | Structuring an application: the class of each part, where the logic and the state live, configuration, creation order, tests |
 | [UpgradingFrom2](UpgradingFrom2.md) | Upgrading a project from Lakutata 2.x (the package `lakutata` 2.x) |
 | [UpgradingFrom1](UpgradingFrom1.md) | Porting a project from Lakutata 1.x (`@lakutata/core` 1.x and the `@lakutata-module/*`, `@lakutata-component/*` packages) |
 | [Application](Application.md) | The application: its options, the fluent API, the lifecycle, the mode, packed applications |
 | [Objects](Objects.md) | Components, providers and their container: lifetimes, scopes, creation and teardown, a container without an application |
 | [Injection](Injection.md) | Dependency injection, the options of objects, sharing features between applications |
+| [Modules](Modules.md) | Modules: features with their own components and providers, how their objects are resolved, configuring them from the application |
 | [DTOValidation](DTOValidation.md) | DTOs and schemas: validating options, inputs and results |
 | [Exceptions](Exceptions.md) | Declaring exceptions, their messages, what the clients receive, the exceptions of the framework |
 | [Logger](Logger.md) | The `log` component: writing lines, readable lines or JSON, destinations, another logger |

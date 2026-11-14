@@ -13,8 +13,8 @@ const SITE: string = 'https://lakutata.com'
  * The guides, in the order of the README of lakutata, by group
  */
 const GUIDES: {en: string, zh: string, guides: string[]}[] = [
-    {en: 'Introduction', zh: '入门', guides: ['Overview', 'GettingStarted', 'ProjectStructure', 'UpgradingFrom2', 'UpgradingFrom1']},
-    {en: 'Fundamentals', zh: '基础', guides: ['Application', 'Objects', 'Injection', 'DTOValidation', 'Exceptions', 'Logger', 'Decorator', 'Time', 'HelperFunctions']},
+    {en: 'Introduction', zh: '入门', guides: ['Overview', 'GettingStarted', 'Concepts', 'ProjectStructure', 'ApplicationDesign', 'UpgradingFrom2', 'UpgradingFrom1']},
+    {en: 'Fundamentals', zh: '基础', guides: ['Application', 'Objects', 'Injection', 'Modules', 'DTOValidation', 'Exceptions', 'Logger', 'Decorator', 'Time', 'HelperFunctions']},
     {en: 'Controllers and Entrypoints', zh: '控制器与入口', guides: ['Controllers', 'Entrypoint', 'Middlewares', 'HTTP', 'CLI', 'ServiceCalls', 'GRPC', 'NATS', 'Schedules', 'Queue']},
     {en: 'Data', zh: '数据', guides: ['Database', 'DatabaseDrivers', 'MongoEmbedded', 'Entities', 'Migrations', 'Cache']},
     {en: 'Components', zh: '组件', guides: ['Mutex', 'I18n', 'DockerIntegration', 'ContainerdIntegration', 'Monitor', 'Security', 'DBus', 'MCP', 'WebRTC', 'FFI', 'Barcode', 'Thermal', 'LDAP']},

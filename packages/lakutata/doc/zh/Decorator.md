@@ -96,7 +96,7 @@ Application.run(() => ({
   - 不符合 `@Configurable` 属性校验规则的值会导致启动失败，抛出 `InvalidObjectOptionsException`，并列出所有不合法的选项；
   - 不是该类 `@Configurable` 属性的选项（例如拼错的选项名）会被忽略，并发出警告，警告中列出该类的可配置属性。
 
-  不通过可配置属性、而是通过 `getConfigurableRecords()` 读取选项的类，可以覆盖静态方法 `acceptsOption(name, value)` 来接受这些选项，这样就不会产生警告。由外部（异步）规则校验的值在对象创建时校验。这项检查只覆盖声明中给出的选项：声明中缺少的必填选项要到创建对象时才会报告，因为 `getObject()` 的第二个参数仍可能提供它。模块声明的对象在模块创建时检查。在应用的选项中设置 `checkOptions: false` 可以关闭这项检查。
+  不通过可配置属性、而是通过 `getConfigurableRecords()` 读取选项的类，可以覆盖静态方法 `acceptsOption(name, value)` 来接受这些选项，这样就不会产生警告。由外部（异步）规则校验的值在对象创建时校验。这项检查只覆盖声明中给出的选项：声明中缺少的必填选项要到创建对象时才会报告，因为 `getObject()` 的第二个参数仍可能提供它。[模块](Modules.md)声明的对象在模块创建时检查。在应用的选项中设置 `checkOptions: false` 可以关闭这项检查。
 
 ### 1.3 `@Autoload`
 

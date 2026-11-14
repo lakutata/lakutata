@@ -6,13 +6,13 @@
 
 ## 从哪里开始
 
-[GettingStarted](GettingStarted.md) 用模板创建第一个项目，并演示第一个应用；[ProjectStructure](ProjectStructure.md) 介绍项目中的文件；下面的各篇指南分别介绍框架的各个部分。[示例](examples/README.md) 从模板出发构建完整的应用：REST API、命令行工具、Web 应用和桌面应用、服务之间的调用、后台任务、MCP 服务器，以及设备上的服务。
+[GettingStarted](GettingStarted.md) 用模板创建第一个项目，并演示第一个应用；[核心概念](Concepts.md) 阐述框架的对象模型，[应用设计](ApplicationDesign.md) 说明如何基于这一模型组织应用；[ProjectStructure](ProjectStructure.md) 介绍项目中的文件；下面的各篇指南分别介绍框架的各个部分。[示例](examples/README.md) 从模板出发构建完整的应用：REST API、命令行工具、Web 应用和桌面应用、服务之间的调用、后台任务、MCP 服务器，以及设备上的服务。
 
 ## 子路径
 
 | 子路径 | 内容 |
 |---|---|
-| `lakutata` | `Application`、`Component`、`Provider`、`BaseObject`、`Container`、`DTO`、`Exception`、`Time`、`isPackaged`、`resourcesPath`、校验消息 |
+| `lakutata` | `Application`、`Module`、`Component`、`Provider`、`BaseObject`、`Container`、`DTO`、`Exception`、`Time`、`isPackaged`、`resourcesPath`、校验消息 |
 | `lakutata/decorator/di` | `@Inject`、`@Configurable`、`@Autoload`、`@Singleton`、`@Scoped`、`@Transient`、`@Lifetime` |
 | `lakutata/decorator/dto` | `@Expect`、`@Accept`、`@Return`、`@IndexSignature` |
 | `lakutata/decorator/asst` | `@Before`、`@After` |
@@ -42,12 +42,15 @@
 | 指南 | 主题 |
 |---|---|
 | [GettingStarted](GettingStarted.md) | 环境要求、创建项目、在已有项目中加入 Lakutata、第一个应用 |
+| [Concepts](Concepts.md) | 框架的对象模型：作为对象树的应用、基础类及其设计用意、生命周期类型、选项、动作与传输方式、术语 |
 | [ProjectStructure](ProjectStructure.md) | 用模板创建的项目中的文件、脚本和可选功能，以及自己的模板 |
+| [ApplicationDesign](ApplicationDesign.md) | 组织应用的结构：各部分应使用的类、逻辑与状态的归属、配置、创建顺序、测试 |
 | [UpgradingFrom2](UpgradingFrom2.md) | 把项目从 Lakutata 2.x（`lakutata` 包的 2.x 版本）升级 |
 | [UpgradingFrom1](UpgradingFrom1.md) | 把项目从 Lakutata 1.x（1.x 版本的 `@lakutata/core` 以及 `@lakutata-module/*`、`@lakutata-component/*` 包）移植过来 |
 | [Application](Application.md) | 应用：选项、链式 API、生命周期、运行模式、打包后的应用 |
 | [Objects](Objects.md) | 组件、提供者及其容器：生命周期类型、作用域、创建与销毁、不使用应用的容器 |
 | [Injection](Injection.md) | 依赖注入、对象的选项、在多个应用之间共享功能 |
+| [Modules](Modules.md) | 模块：拥有自身组件和提供者的功能单元、其对象的解析方式、从应用中配置模块 |
 | [DTOValidation](DTOValidation.md) | DTO、校验规则，以及选项、输入和返回值的校验 |
 | [Exceptions](Exceptions.md) | 声明异常、异常的消息、客户端收到的内容、框架的异常 |
 | [Logger](Logger.md) | `log` 组件：写日志、可读的行或 JSON、输出目标、换用其他日志记录器 |

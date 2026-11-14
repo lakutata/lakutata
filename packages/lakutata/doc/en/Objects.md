@@ -13,8 +13,11 @@ declarations of each export give the details.
 | `BaseObject` | The root class: asynchronous construction, `init()`/`destroy()`, `getObject()` | `@Transient` |
 | `Provider` | A unit of work that lives in a scope such as a request (a repository, a password hasher) | `@Scoped` |
 | `Component` | A long-lived service shared by the whole application (a logger, a database, an entrypoint); also an event emitter | `@Singleton` (locked) |
-| `Application` | The application: it declares the components, providers and objects, and is created by `Application.run()` | |
+| `Module` | A component that declares its own components, providers and objects ([Modules](Modules.md)) | `@Singleton` (locked) |
+| `Application` | The root module: it declares the components, providers and objects, and is created by `Application.run()` | |
 | `Controller` (`lakutata/com/entrypoint`) | A provider that handles the requests of an entrypoint | `@Scoped` (locked) |
+
+[Concepts](Concepts.md) shows how these classes extend one another, and why each of them exists.
 
 ## 2. Lifetimes
 

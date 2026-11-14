@@ -74,5 +74,6 @@ Application.run(() => ({
 }))
 ```
 
-[Getting Started](/guide/GettingStarted) creates a first project; the [Overview](/guide/Overview) introduces the
-concepts, and each guide then covers one part of the framework.
+[Getting Started](/guide/GettingStarted) creates a first project, [Concepts](/guide/Concepts) explains the model of the
+framework, and [Application Design](/guide/ApplicationDesign) describes how to structure an application; each of the
+other guides covers one part of the framework.

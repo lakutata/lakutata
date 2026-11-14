@@ -112,7 +112,7 @@ Application.run(() => ({
   static `acceptsOption(name, value)` to accept them without a warning. Values checked by external (asynchronous) rules
   are validated when the object is created. The check covers the options that the declarations give: a required option
   that a declaration leaves out is reported when the object is created, since the second argument of `getObject()` may
-  still give it. The objects declared by a module are checked when the module is created.
+  still give it. The objects declared by a [module](Modules.md) are checked when the module is created.
   `checkOptions: false` in the options of the application disables the check.
 
 ### 1.3 `@Autoload`

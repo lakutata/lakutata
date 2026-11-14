@@ -139,14 +139,15 @@ on. Each package's README lists its exceptions.
 - The website, [lakutata.com](https://lakutata.com): the guides, the examples and the API reference, in English and in
   Chinese.
 - The guides, in this package: `doc/en` (English) and `doc/zh` (Chinese): `Overview.md`, `GettingStarted.md`,
-  `ProjectStructure.md`, `UpgradingFrom2.md`, `UpgradingFrom1.md`, `Application.md`, `Objects.md`, `Injection.md`,
-  `DTOValidation.md`, `Exceptions.md`, `Logger.md`, `Decorator.md`, `Time.md`, `HelperFunctions.md`, `Controllers.md`,
-  `Entrypoint.md`, `Middlewares.md`, `HTTP.md`, `CLI.md`, `ServiceCalls.md`, `GRPC.md`, `NATS.md`, `Schedules.md`,
-  `Queue.md`, `Database.md`, `DatabaseDrivers.md`, `MongoEmbedded.md`, `Entities.md`, `Migrations.md`, `Cache.md`,
-  `Mutex.md`, `I18n.md`, `DockerIntegration.md`, `ContainerdIntegration.md`, `Monitor.md`, `Security.md`, `DBus.md`,
-  `MCP.md`, `WebRTC.md`, `FFI.md`, `Barcode.md`, `Thermal.md`, `LDAP.md`, `Math.md`, `Netif.md`, `Serial.md`,
-  `LDAPEngine.md`, `Command.md`, `Workspaces.md`, `NativeAddons.md`, `Packaging.md`, `Installers.md`; and the examples,
-  in `doc/en/examples` and `doc/zh/examples`: whole applications built from the templates.
+  `Concepts.md`, `ProjectStructure.md`, `ApplicationDesign.md`, `UpgradingFrom2.md`, `UpgradingFrom1.md`,
+  `Application.md`, `Objects.md`, `Injection.md`, `Modules.md`, `DTOValidation.md`, `Exceptions.md`, `Logger.md`,
+  `Decorator.md`, `Time.md`, `HelperFunctions.md`, `Controllers.md`, `Entrypoint.md`, `Middlewares.md`, `HTTP.md`,
+  `CLI.md`, `ServiceCalls.md`, `GRPC.md`, `NATS.md`, `Schedules.md`, `Queue.md`, `Database.md`, `DatabaseDrivers.md`,
+  `MongoEmbedded.md`, `Entities.md`, `Migrations.md`, `Cache.md`, `Mutex.md`, `I18n.md`, `DockerIntegration.md`,
+  `ContainerdIntegration.md`, `Monitor.md`, `Security.md`, `DBus.md`, `MCP.md`, `WebRTC.md`, `FFI.md`, `Barcode.md`,
+  `Thermal.md`, `LDAP.md`, `Math.md`, `Netif.md`, `Serial.md`, `LDAPEngine.md`, `Command.md`, `Workspaces.md`,
+  `NativeAddons.md`, `Packaging.md`, `Installers.md`; and the examples, in `doc/en/examples` and `doc/zh/examples`:
+  whole applications built from the templates.
 - `@lakutata/cli`: creating, building and packaging applications.
 - The official Agent Skill for AI coding assistants that work on lakutata projects:
   [lakutata.com/skill](https://lakutata.com/skill/).

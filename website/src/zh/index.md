@@ -74,4 +74,4 @@ Application.run(() => ({
 }))
 ```
 
-[快速开始](/zh/guide/GettingStarted)带你创建第一个项目；[概述](/zh/guide/Overview)介绍框架的基本概念，之后每篇指南讲解框架的一个部分。
+[快速开始](/zh/guide/GettingStarted)介绍如何创建第一个项目，[核心概念](/zh/guide/Concepts)阐述框架的对象模型，[应用设计](/zh/guide/ApplicationDesign)说明如何组织应用的结构；其余各篇指南分别介绍框架的一个部分。

@@ -69,8 +69,9 @@ website.
 | Task | Guides (file names of the current version; `Overview.md` lists those of the installed one) |
 |---|---|
 | A new project, its files and scripts, the `lakutata` command | `GettingStarted.md`, `ProjectStructure.md`, `Command.md` |
+| The model of the framework; how to structure an application, where its logic lives, tests | `Concepts.md`; `ApplicationDesign.md` |
 | The application: options, lifecycle, mode | `Application.md` |
-| Components, providers, lifetimes, injection, options of objects | `Objects.md`, `Injection.md`, `Decorator.md` |
+| Components, providers, modules, lifetimes, injection, options of objects | `Objects.md`, `Injection.md`, `Modules.md`, `Decorator.md` |
 | DTOs and validation; exceptions | `DTOValidation.md`; `Exceptions.md` |
 | Controllers, the entrypoint, middlewares and access control | `Controllers.md`, `Entrypoint.md`, `Middlewares.md` |
 | HTTP routes and responses; command line tools | `HTTP.md`; `CLI.md` |
