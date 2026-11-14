@@ -67,7 +67,7 @@ See [Application](Application.md), [Objects and Lifetimes](Objects.md) and [Depe
 | `app.Components.get<T>('name')`, `app.Modules.service`, and the `declare module` that types them | `@Inject('name')` on a typed property; `await app.getObject<T>('name')` outside the objects; no augmentation |
 | `@Configurable()` | `@Configurable(schema)`: the schema validates the option at launch (without one, any value is accepted) |
 | The global `getApp()` | `@Inject(Application)` |
-| `new SomeComponent()` in a test | Never: `await new Container().set(SomeComponent, options)` |
+| `new SomeComponent()` in a test | Never: create a `Container`, register the objects it injects (`registerNamed()`), then `await container.set(SomeComponent, options)` |
 | `app.Logger.info`, `.warning`, `.error`, `.debug`… (winston) | `@Inject('log')` an `ILogger`: `info`, `warn`, `error`, `debug`, `trace` (`emerg`, `alert`, `crit` become `error`, `notice` becomes `info`) |
 | `app.Security.MD5()`, `SHA1()`, `SHA256()` | `md5()`, `sha1()`, `sha256()` from `lakutata/utils`, which return a `Buffer` (`.toString('hex')`); with a key, `hmac()` from `lakutata/security` |
 | `app.Security.generateRandomString()` | `randomString()` from `lakutata/utils` |

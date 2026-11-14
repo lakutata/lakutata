@@ -11,15 +11,18 @@ existing project and write an application manually.
   - the Kafka driver of `@lakutata/queue`: Node.js 22.22, 24.6 or later, as required by `@platformatic/kafka`;
   - Node.js executables (`lakutata package exe`, the installers): built by Node.js 20.12, 21.7 or later, or with
     `--node-program` pointing to such a Node.js program;
-  - `await using` with framework objects: Node.js 18.18, 20.4 or later.
+  - `await using` with framework objects: Node.js 18.18, 20.4 or later;
+  - `@lakutata/mongo-embedded`: Node.js 20.19 or later.
 
   On Node.js 18 and 19, an application uses commander 13, @inquirer/prompts 7 and better-sqlite3 11, because their next
   major versions require Node.js 20 or later.
 
   Projects created by `lakutata create` declare Node.js `>=22.13.0`, as required by the tools in the web and desktop
   templates.
-- TypeScript, with decorators (`experimentalDecorators`) and their metadata (`emitDecoratorMetadata`). The framework
-  publishes the compiler options it requires as `lakutata/tsconfig.json`; the templates use TypeScript 6.
+- TypeScript, with decorators (`experimentalDecorators`), their metadata (`emitDecoratorMetadata`) and
+  `useDefineForClassFields: false`. The framework publishes the compiler options it requires as
+  `lakutata/tsconfig.json`, whose `"module": "Node20"` requires a TypeScript version that supports it; the templates use
+  TypeScript 6.
 - ES modules (`"type": "module"`), as in the templates; the package also ships CommonJS builds.
 
 ## 2. Creating a project

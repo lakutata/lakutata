@@ -32,7 +32,7 @@ Read the dependencies in the `package.json` of the project (in a workspace, the 
 
 | Signs | Version |
 |---|---|
-| `lakutata` at `^3…`; `"type": "module"`; relative imports ending in `.js`; `buildEntrypoints()` | 3.x: this skill |
+| `lakutata` at `^3…`; builders in camelCase (`buildEntrypoints()`); helpers from `lakutata/utils` | 3.x: this skill |
 | `lakutata` at `^2…`; imports from `lakutata/helper`; builders in PascalCase (`BuildEntrypoints()`) | 2.x |
 | `@lakutata/core` at `^1…`, with packages named `@lakutata-component/*` or `@lakutata-module/*` | 1.x |
 
@@ -90,6 +90,7 @@ website.
 | Mathematics: formulas, equations, decimals, matrices, statistics, numeric solutions, units (`@lakutata/math`) | `Math.md` |
 | Listening on a network interface whatever its addresses (the `interface` option of the entrypoints, or `@lakutata/netif` alone); the interfaces and their changes | `Netif.md` |
 | Serial ports and classic Bluetooth devices: opening a port as a stream, its line and modem lines, finding it by its USB ids, unplugged devices (`@lakutata/serial`) | `Serial.md` |
+| WebRTC: the signaling, a TURN server, a media server, peer connections, service actions over data channels, a browser client (`@lakutata/webrtc`) | `WebRTC.md` |
 | Bundles, executables, installers | `Packaging.md`, `Installers.md` |
 | A whole application of a kind (REST API, CLI tool, web, desktop or mobile application, calls between services, background jobs, MCP server, service on a device) | `examples/README.md` and its pages |
 | A 2.x project to bring to 3.x | `https://lakutata.com/doc/en/UpgradingFrom2.md` (the installed 2.x package does not have it) |
@@ -97,38 +98,46 @@ website.
 
 ## A project
 
-- Node.js `>=18.10.0` (a few features need a newer one: the guide Getting Started lists them), TypeScript with
-  `experimentalDecorators` and `emitDecoratorMetadata`, ES modules. The `tsconfig.json` extends `lakutata/tsconfig.json`
-  (and keeps an `include`), and the relative imports of the sources end in `.js`:
+- Node.js `>=18.10.0` (`lakutata create` projects declare `>=22.13.0`; Getting Started lists the features that need a
+  newer one), ES modules, TypeScript with `experimentalDecorators`, `emitDecoratorMetadata` and
+  `useDefineForClassFields: false`. The `tsconfig.json` extends `lakutata/tsconfig.json` (keeping an `include`; it needs
+  a TypeScript that supports `"module": "Node20"`) or sets these options itself, as the `default` and `cli` templates
+  do: keep the project's choice. The relative imports of the sources end in `.js`:
   `import {config} from './config/Config.js'`.
 - `npx @lakutata/cli create --name my-app` creates a project from a template: `default` (an HTTP application), `cli`,
   `service`, `web-react`, `web-vue`, `web-next`, `web-nuxt`, `electron-react`, `electron-vue`, `nwjs-react`, `nwjs-vue`,
   `mobile-react` (Android, iOS and HarmonyOS with React Native; give it `--bundle-id com.acme.app`);
-  `--with i18n,installer` adds features (`win7` gives the `nwjs-*` templates NW.js 0.72, which runs on Windows 7). All but `default` are workspaces, the application being the package `packages/app`.
-- `src/App.ts` starts the application with the options returned by `config()` in `src/config/Config.ts`; controllers,
-  components, DTOs and tests have their own directories (`controllers/`, `components/`, `dtos/`, `tests/`).
-- `npm run build` compiles to `build/`, `npm test` builds then runs `node --test` on the compiled tests, `npm run dev`
-  builds and starts.
+  `--with` adds features: `i18n` (every template), `installer` (`cli`, `service`, `web-*`), `win7` (`nwjs-*`: NW.js
+  0.72, which runs on Windows 7). All but `default` are workspaces, the application being the package `packages/app`.
+- `src/App.ts` (in a workspace, in `packages/app`) starts the application with the options returned by `config()` in
+  `src/config/Config.ts`; controllers, components, DTOs and tests have their own directories (`controllers/`,
+  `components/`, `dtos/`, `tests/`).
+- In `default`, `npm run build` compiles to `build/`, `npm test` builds then runs `node --test` on the compiled tests,
+  and `npm run dev` builds and starts. In a workspace, the root scripts run those of every package (the application
+  builds into `packages/app/build/`); `cli` and `mobile-react` have no `dev` script.
 
 ## The subpaths
 
-Import only from these subpaths, never from the files inside a package.
+Import only from the subpaths of the packages (the main ones are below; the `exports` of
+`node_modules/lakutata/package.json` lists them all), never from the files inside a package.
 
 | Subpath | What it gives |
 |---|---|
-| `lakutata` | `Application`, `Component`, `Provider`, `Container`, `DTO`, `Exception`, `Time`, `isPackaged`, `resourcesPath` |
+| `lakutata` | `Application`, `Module`, `Component`, `Provider`, `BaseObject`, `Container`, `DTO`, `Exception` and the framework's exceptions (`InvalidValueException`…), `Time`, `isPackaged`, `resourcesPath`, the types (`ILogger`…) |
 | `lakutata/decorator/di` | `@Inject`, `@Configurable`, `@Autoload`, `@Singleton`, `@Scoped`, `@Transient` |
 | `lakutata/decorator/dto` | `@Expect`, `@Accept`, `@Return`, `@IndexSignature` |
+| `lakutata/decorator/asst` | `@Before`, `@After` |
 | `lakutata/dtos` | `PaginationSearchDTO`, `PaginationResultDTO`, `paginator`, `FlexibleDTO` |
 | `lakutata/com/entrypoint` | `buildEntrypoints`, `Controller`, the contexts, `Result`, middlewares, access control, `httpServiceEntrypoint`, `HTTPServiceProxy`, `scheduleEntrypoint` |
 | `lakutata/decorator/ctrl` | `@GET`…`@OPTIONS`, `@HTTPAction`, `@CLIAction`, `@ServiceAction`, `@Schedule`, `@Prefix`, `@UseMiddlewares` |
-| `lakutata/adapter/express`, `lakutata/adapter/fastify` | The HTTP adapters (`expressHTTPEntrypoint`, `jsonEnvelope`…) |
+| `lakutata/adapter/express`, `lakutata/adapter/fastify` | The HTTP adapters: `expressHTTPEntrypoint` and `jsonEnvelope` (express), `fastifyHTTPEntrypoint` and `fastifyJSONEnvelope` (fastify) |
 | `lakutata/adapter/commander` | The command line adapter (`commanderCLIEntrypoint`) |
 | `lakutata/adapter/socket.io`, `lakutata/adapter/jsonrpc`, `lakutata/adapter/electron`, `lakutata/adapter/nwjs`, `lakutata/adapter/react-native` | Service transports |
 | `lakutata/com/logger` | The `Logger`, preset as the component `log` |
 | `lakutata/orm`, `lakutata/decorator/orm` | TypeORM and its decorators |
 | `lakutata/com/database`, `lakutata/provider/database` | `buildDatabaseOptions`, the `Database` component and provider |
-| `lakutata/com/queue`, `lakutata/com/mutex`, `lakutata/com/cacher` | Queues, locks, caches |
+| `lakutata/com/queue` | Queues: `buildQueueOptions`, `@QueueAction`, `queueEntrypoint` (the `queue` adapter of `buildEntrypoints()`) |
+| `lakutata/com/mutex`, `lakutata/com/cacher` | Locks, caches |
 | `lakutata/com/i18n`, `lakutata/com/monitor`, `lakutata/com/docker`, `lakutata/com/containerd` | Other components |
 | `lakutata/security`, `lakutata/provider/passwordHash`, `lakutata/utils` | Security, password hashes, helpers |
 
@@ -147,9 +156,11 @@ wristbands written in HTML, rendered to a thermal printer's dots and encoded as 
 saved as JSON; a provider, `ThermalPrinter`, for each), `@lakutata/serial` (serial ports and classic Bluetooth devices
 as streams; plain functions), `@lakutata/ldap` (LDAP: the components `LDAPClient` and `LDAPServer`, and
 `DirectoryBackend` keeping the entries of the server in the application's database), `@lakutata/ldap-engine` (the LDAP
-protocol, client and server without an application; plain functions and classes). The adapters and drivers need their
-library installed (`express`, `fastify`, `commander`, `socket.io`, `ws`, `pg`, `mysql2`, `better-sqlite3`, `ioredis`…):
-they are optional peer dependencies.
+protocol, client and server without an application; plain functions and classes). The packages with native code
+(`@lakutata/barcode`, `@lakutata/netif`, `@lakutata/thermal`, `@lakutata/serial`, `@lakutata/math`,
+`@lakutata/mongo-embedded`) compile it when they are installed, which needs Python 3 and a C++ compiler. The adapters
+and drivers need their library installed (`express`, `fastify`, `commander`, `socket.io`, `ws`, `pg`, `mysql2`,
+`better-sqlite3`, `ioredis`…): they are optional peer dependencies, of `lakutata` or of the package that uses them.
 
 ## An application
 
@@ -259,21 +270,25 @@ Application
 | `Controller` | `@Scoped`, locked | The actions; a new instance for each request |
 
 - Never call `new` on these classes: declare them and let the container create them. In tests and scripts,
-  `await new Container().set(Notes, {limit: 10})` creates one with its options.
+  create a `new Container()`, register what the object injects (`await container.registerNamed('log', Logger)`), then
+  create the object with its options: `await container.set(Notes, {limit: 10})`.
 - Creation: `@Inject` properties are resolved, then `@Configurable` options are validated and set, then `init()` runs,
   then `startup()`; once the application has launched, `launched()` runs (not awaited). Teardown runs
   `beforeDestroy()`, destroys what the object created, then `destroy()`. These hooks are `protected async` methods.
 - `@Inject()` takes the object named like the property, `@Inject('name')` a named one, `@Inject(Class)` the object
-  registered for a class (`@Inject(Application)`), `@Inject('db', (db) => …)` a value derived from it.
+  registered for a class (`@Inject(Application)`, an `@Autoload` class), `@Inject('db', (db) => …)` a value derived
+  from it. An object declared under a name is found by that name only.
 - `@Configurable(schema)` makes a property an option: its value comes from the declaration, the initializer is the
-  default, and an invalid value stops the launch with `InvalidObjectOptionsException`. Libraries export a function that
-  builds the declaration (`buildDatabaseOptions()`, `buildQueueOptions()`); use them.
+  default, and an invalid value in a declaration stops the launch with `InvalidObjectOptionsException` (given to
+  `getObject()` or `container.set()`, it fails that creation with `InvalidValueException`). Libraries export a function
+  that builds the declaration (`buildDatabaseOptions()`, `buildQueueOptions()`); use them.
 
 ## Controllers, DTOs and errors
 
 - An action is a controller method with an address: `@GET('/path', InputDTO)`, `@CLIAction('command <arg>', InputDTO)`,
   `@ServiceAction({cmd: 'name'}, InputDTO)`, `@Schedule('5m')`, `@QueueAction('queue')`. One method may carry several.
   A decorator does nothing without its adapter in `buildEntrypoints()` (`http`, `cli`, `service`, `schedule`, `queue`).
+  `@QueueAction` and the `queue` adapter (`queueEntrypoint`) come from `lakutata/com/queue`.
 - The input: HTTP merges the query and the body, with the route parameters over them; the command line gives its
   arguments and options; a service call gives its message without the pattern's keys. The DTO validates it, applies
   the defaults and removes the unknown keys; the method receives a plain object.
@@ -286,25 +301,32 @@ Application
 - Errors: extend `Exception` with an `errno` and a `statusCode`; build messages from templates
   (`'Order {id} not found', {id}`). HTTP answers with the status and `{errno, errMsg}`; the service transports send
   the whole error, and a client recognizes it by `errno` (the class does not cross the call).
-- `this.context` describes the request (`HTTPContext`, `CLIContext`, `ServiceContext`…), `this.signal` aborts when the
-  client leaves or the application stops: long actions should check it. `Result.status()`, `Result.file()` and
-  `Result.events()` control HTTP responses.
+- `this.context` describes the request (`HTTPContext`, `CLIContext`, `ServiceContext`…). `this.signal` (typed as
+  optional: `this.signal?.aborted`) aborts when the client leaves, or when the entrypoint stops and the request is still
+  running after `shutdownTimeout` (30 seconds by default): long actions should check it. `Result.status()`,
+  `Result.file()` and `Result.events()` control HTTP responses.
 
 ## Pitfalls
 
-1. The entrypoint is not in `bootstrap`: the application launches and nothing listens.
+1. The entrypoint is not in `bootstrap`: the application launches, nothing listens, and the process exits with code 0
+   because nothing keeps it running.
 2. An action decorator without the matching adapter in `buildEntrypoints()` is ignored silently.
 3. A query or route number without `.strict(false)` fails with `"id" must be a number`.
-4. A relative import without `.js` compiles and then fails at run time (`ERR_MODULE_NOT_FOUND`).
+4. A relative import without `.js` fails the build (`TS2835`: "Did you mean './X.js'?"); compiled by a tool that does
+   not check it, it fails at run time with `ERR_MODULE_NOT_FOUND`.
 5. Request state kept in a component is shared by every request: components are singletons.
-6. `app.getObject(SomeComponent)` does not find a component declared under a name: use the name.
-7. An adapter's or a driver's library that is not installed fails the start with an error naming the package: install
-   it in the package of the application (in a workspace, `npm install <package> -w app`).
+6. An object declared under a name (`notes: {class: Notes}`) is found by that name only: `@Inject(Notes)` and
+   `app.getObject(Notes)` fail with `Could not resolve 'Notes'`; use `@Inject('notes')` and `getObject('notes')`.
+7. An adapter's or a driver's library that is not installed fails with an error naming the package (an adapter's as soon
+   as its subpath is imported): install it in the application's package (in a workspace,
+   `npm install <package> -w app`).
 8. A plain `Error` reaches an HTTP client as status 500 with `errno` `E_UNKNOWN` (or its `code`): throw an `Exception`
    subclass, whose `errno` and `statusCode` the client can rely on.
 9. Clients of another service must test `errno`, not `instanceof`: exception classes do not cross the call.
-10. An option that no `@Configurable` property declares is only warned about at launch: check the spelling.
+10. An option that no `@Configurable` property declares is only warned about at launch (a Node.js warning on stderr,
+    not in the log), and ignored silently when given to `getObject()` or `container.set()`: check the spelling.
 11. `launched()` is not awaited and its errors are only logged: work that must succeed before the application serves
     belongs in `init()` or `startup()`.
-12. Tests that start the application use a port of their own and `await app.dispose()` at the end, or the next test
-    file finds the port in use.
+12. A test file launches the application once, in `before()`, on a port of its own (`node --test` runs files in
+    parallel), and calls `await app.dispose()` in `after()`, or the test run never ends. `Application.run()` launches
+    once per process.

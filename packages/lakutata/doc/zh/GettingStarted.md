@@ -8,12 +8,13 @@
   - Fastify 适配器：Fastify 5 需要 Node.js 18.19、19.9、20 或更高版本（Express 适配器无此要求）；
   - `@lakutata/queue` 的 Kafka 驱动：需要 Node.js 22.22、24.6 或更高版本，这是 `@platformatic/kafka` 的要求；
   - Node.js 可执行文件（`lakutata package exe` 和安装包）：需要用 Node.js 20.12、21.7 或更高版本生成，或通过 `--node-program` 指定符合要求的 Node.js；
-  - 对框架对象使用 `await using`：需要 Node.js 18.18、20.4 或更高版本。
+  - 对框架对象使用 `await using`：需要 Node.js 18.18、20.4 或更高版本；
+  - `@lakutata/mongo-embedded`：需要 Node.js 20.19 或更高版本。
 
   在 Node.js 18 和 19 上，应用需要使用 commander 13、@inquirer/prompts 7 和 better-sqlite3 11，因为它们的后续主版本需要 Node.js 20 或更高版本。
 
   `lakutata create` 生成的项目声明 Node.js `>=22.13.0`，这是 Web 模板和桌面应用模板所用工具的要求。
-- TypeScript，并开启装饰器（`experimentalDecorators`）及其元数据（`emitDecoratorMetadata`）。框架所需的编译选项以 `lakutata/tsconfig.json` 发布；模板使用 TypeScript 6。
+- TypeScript，并开启装饰器（`experimentalDecorators`）及其元数据（`emitDecoratorMetadata`），同时设置 `useDefineForClassFields: false`。框架所需的编译选项以 `lakutata/tsconfig.json` 发布，其中的 `"module": "Node20"` 需要支持该选项的 TypeScript 版本；模板使用 TypeScript 6。
 - ES 模块（`"type": "module"`），与模板相同；包中同时提供 CommonJS 构建。
 
 ## 2. 创建项目

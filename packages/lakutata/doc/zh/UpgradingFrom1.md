@@ -48,7 +48,7 @@ Lakutata 1.x 是一组包：`@lakutata/core` 1.x、模块 `@lakutata-module/*`�
 | `app.Components.get<T>('name')`、`app.Modules.service`，以及为其声明类型的 `declare module` | 在带类型的属性上使用 `@Inject('name')`；在对象之外使用 `await app.getObject<T>('name')`；不再需要类型扩充 |
 | `@Configurable()` | `@Configurable(schema)`：启动时用 schema 校验选项（未提供 schema 时接受任何值） |
 | 全局的 `getApp()` | `@Inject(Application)` |
-| 测试中的 `new SomeComponent()` | 请勿这样做：使用 `await new Container().set(SomeComponent, options)` |
+| 测试中的 `new SomeComponent()` | 请勿这样做：创建一个 `Container`，注册其注入的对象（`registerNamed()`），再使用 `await container.set(SomeComponent, options)` |
 | `app.Logger.info`、`.warning`、`.error`、`.debug` 等（winston） | `@Inject('log')` 注入 `ILogger`：`info`、`warn`、`error`、`debug`、`trace`（`emerg`、`alert`、`crit` 改为 `error`，`notice` 改为 `info`） |
 | `app.Security.MD5()`、`SHA1()`、`SHA256()` | `lakutata/utils` 中的 `md5()`、`sha1()`、`sha256()`，这些函数返回 `Buffer`（可用 `.toString('hex')` 转换）；需要密钥时使用 `lakutata/security` 中的 `hmac()` |
 | `app.Security.generateRandomString()` | `lakutata/utils` 中的 `randomString()` |
