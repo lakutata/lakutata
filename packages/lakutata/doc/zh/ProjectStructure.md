@@ -98,7 +98,7 @@ Electron 和 NW.js 模板无需 `installer` 功能即可制作安装包。
 
 ## 4. 自己的模板
 
-`--template` 也可以指定不在官方列表中的模板：`npm:<package>[@<version>]`、`github:<owner>/<repo>[#<ref>]`，或一个目录。不含 `template/` 子目录的目录会被原样复制；模板包（与官方模板相同）包含以下内容：
+`--template` 也可以指定不在官方列表中的模板：`npm:<package>[@<version>]`、`github:<owner>/<repo>[#<ref>]`，或一个目录。不含 `template/` 子目录的目录本身即作为模板，没有可选功能；模板包（与官方模板相同）包含以下内容：
 
 - `template/`：项目的文件。npm 不会发布某些点文件，因此这些文件以 `_` 开头命名，在创建项目时再重命名（`_gitignore` 变为 `.gitignore`）。文本文件中的 `{$APP_NAME}`、`{$APP_ID}`、`{$APP_DESC}`、`{$APP_AUTHOR}`、`{$APP_LICENSE}` 和 `{$LAKUTATA_VERSION}` 会被替换。
 - `features/<name>/`：每个功能的文件；各功能连同其说明在模板 `package.json` 的 `lakutata.features` 中声明。这些文件会加入项目：项目中已有的 JSON 文件会与之合并（数组整体替换），其他文件则替换模板中的同名文件。

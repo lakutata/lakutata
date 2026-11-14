@@ -47,17 +47,18 @@ services, background jobs, an MCP server and a service on a device.
 | `lakutata/security`, `lakutata/provider/passwordHash` | Hashing, ciphers, signatures, the `PasswordHash` provider |
 | `lakutata/utils` | Helper functions |
 
-The following are separate packages: `@lakutata/cli` (the `lakutata` command for creating projects, running migrations
-and packing applications, see [Command-Line Tool](Command.md)), `@lakutata/grpc` (a gRPC client, server and service
-adapter), `@lakutata/nats` (a NATS component and service adapter), `@lakutata/dbus` (D-Bus), `@lakutata/mcp` (the Model
-Context Protocol), `@lakutata/webrtc` (WebRTC signaling, a TURN server, a media server, peer connections),
-`@lakutata/ffi` (the C functions of native libraries), `@lakutata/math` (symbolic and numeric mathematics, as functions
-that need no Lakutata application), `@lakutata/barcode` (barcodes and QR codes, generated and read in a native addon),
-`@lakutata/netif` (servers and UDP sockets listening on a network interface regardless of its addresses, the machine's
-interfaces and their changes), `@lakutata/mongo-embedded` (the embedded MongoDB that `mongo-embedded` databases use, in
-a native addon), `@lakutata/thermal` and `@lakutata/thermal-printer` (thermal printers, with receipts and labels written
-in HTML, and a manager component), `@lakutata/serial` (serial ports and Bluetooth devices), and `@lakutata/ldap` with
-`@lakutata/ldap-engine` (signing users in against an LDAP directory, and the application's own LDAP directory server).
+The following packages are not part of `lakutata`: `@lakutata/cli` (the `lakutata` command for creating projects,
+running migrations and packing applications, see [Command-Line Tool](Command.md)), `@lakutata/grpc` (a gRPC client,
+server and service adapter), `@lakutata/nats` (a NATS component and service adapter), `@lakutata/dbus` (D-Bus),
+`@lakutata/mcp` (the Model Context Protocol), `@lakutata/webrtc` (WebRTC signaling, a TURN server, a media server, peer
+connections), `@lakutata/ffi` (the C functions of native libraries), `@lakutata/math` (symbolic and numeric mathematics,
+as functions that need no Lakutata application), `@lakutata/barcode` (barcodes and QR codes, generated and read in a
+native addon), `@lakutata/netif` (servers and UDP sockets listening on a network interface regardless of its addresses,
+the machine's interfaces and their changes), `@lakutata/mongo-embedded` (the embedded MongoDB that `mongo-embedded`
+databases use, in a native addon), `@lakutata/thermal` and `@lakutata/thermal-printer` (thermal printers, with receipts
+and labels written in HTML, and a manager component), `@lakutata/serial` (serial ports and Bluetooth devices), and
+`@lakutata/ldap` with `@lakutata/ldap-engine` (signing users in against an LDAP directory, and the application's own
+LDAP directory server).
 
 ## The guides
 

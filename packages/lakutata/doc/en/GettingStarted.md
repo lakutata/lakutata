@@ -10,7 +10,7 @@ existing project and write an application manually.
     requirement);
   - the Kafka driver of `@lakutata/queue`: Node.js 22.22, 24.6 or later, as required by `@platformatic/kafka`;
   - Node.js executables (`lakutata package exe`, the installers): built by Node.js 20.12, 21.7 or later, or with
-    `--node-program` pointing to such a version;
+    `--node-program` pointing to such a Node.js program;
   - `await using` with framework objects: Node.js 18.18, 20.4 or later.
 
   On Node.js 18 and 19, an application uses commander 13, @inquirer/prompts 7 and better-sqlite3 11, because their next

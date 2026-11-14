@@ -35,7 +35,7 @@
 | `lakutata/security`、`lakutata/provider/passwordHash` | 哈希、加解密、签名、`PasswordHash` 提供者 |
 | `lakutata/utils` | 辅助函数 |
 
-以下是独立的包：`@lakutata/cli`（`lakutata` 命令，用于创建项目、执行迁移和打包应用，见[命令行工具](Command.md)）；`@lakutata/grpc`（gRPC 客户端、服务端和服务适配器）；`@lakutata/nats`（NATS 组件和服务适配器）；`@lakutata/dbus`（D-Bus）；`@lakutata/mcp`（Model Context Protocol）；`@lakutata/webrtc`（WebRTC 信令、TURN 服务器、媒体服务器、对等连接）；`@lakutata/ffi`（调用动态库中的 C 函数）；`@lakutata/math`（符号计算和数值计算，直接作为函数使用，无需 Lakutata 应用）；`@lakutata/barcode`（条形码和二维码的生成与识别，由原生插件实现）；`@lakutata/netif`（服务器和 UDP 套接字按网口监听，无论网口的地址如何变化；本机的网口及其变化）；`@lakutata/mongo-embedded`（`mongo-embedded` 数据库所用的嵌入式 MongoDB，由原生插件实现）；`@lakutata/thermal` 和 `@lakutata/thermal-printer`（热敏打印机，包括用 HTML 编排的小票和标签，以及管理器组件）；`@lakutata/serial`（串口和蓝牙设备）；`@lakutata/ldap` 和 `@lakutata/ldap-engine`（用 LDAP 目录验证用户登录，以及由应用自身提供的 LDAP 目录服务）。
+以下包不包含在 `lakutata` 中，需要单独安装：`@lakutata/cli`（`lakutata` 命令，用于创建项目、执行迁移和打包应用，见[命令行工具](Command.md)）；`@lakutata/grpc`（gRPC 客户端、服务端和服务适配器）；`@lakutata/nats`（NATS 组件和服务适配器）；`@lakutata/dbus`（D-Bus）；`@lakutata/mcp`（Model Context Protocol）；`@lakutata/webrtc`（WebRTC 信令、TURN 服务器、媒体服务器、对等连接）；`@lakutata/ffi`（调用动态库中的 C 函数）；`@lakutata/math`（符号计算和数值计算，直接作为函数使用，无需 Lakutata 应用）；`@lakutata/barcode`（条形码和二维码的生成与识别，由原生插件实现）；`@lakutata/netif`（服务器和 UDP 套接字按网口监听，无论网口的地址如何变化；本机的网口及其变化）；`@lakutata/mongo-embedded`（`mongo-embedded` 数据库所用的嵌入式 MongoDB，由原生插件实现）；`@lakutata/thermal` 和 `@lakutata/thermal-printer`（热敏打印机，包括用 HTML 编排的小票和标签，以及管理器组件）；`@lakutata/serial`（串口和蓝牙设备）；`@lakutata/ldap` 和 `@lakutata/ldap-engine`（用 LDAP 目录验证用户登录，以及由应用自身提供的 LDAP 目录服务）。
 
 ## 指南
 

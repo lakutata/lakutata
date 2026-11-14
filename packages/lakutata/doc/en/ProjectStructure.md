@@ -125,8 +125,8 @@ The Electron and NW.js templates build installers without the `installer` featur
 ## 4. Templates of your own
 
 `--template` also accepts a template that is not in the catalog: `npm:<package>[@<version>]`,
-`github:<owner>/<repo>[#<ref>]`, or a directory. A directory without a `template/` subdirectory is copied unchanged; a
-template package (like the official ones) contains:
+`github:<owner>/<repo>[#<ref>]`, or a directory. A directory without a `template/` subdirectory serves as the template
+itself, with no features; a template package (like the official ones) contains:
 
 - `template/`: the project's files. npm does not publish some dotfiles, so they are named with `_` and renamed
   (`_gitignore` becomes `.gitignore`). `{$APP_NAME}`, `{$APP_ID}`, `{$APP_DESC}`, `{$APP_AUTHOR}`, `{$APP_LICENSE}` and
