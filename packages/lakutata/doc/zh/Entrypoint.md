@@ -167,7 +167,7 @@ Application.run(() => ({
 
 ## 6. 向客户端推送事件
 
-保持客户端连接的服务传输方式可以接收应用推送的事件。这类传输方式有 Socket.IO、Electron、NW.js、HTTP 服务的事件流、WebSocket 或 stdio 上的 JSON-RPC，以及 gRPC。`entrypoint.notify(clientId, event, ...args)` 将事件发送给一个客户端，即某个动作从 `this.context.clientId` 读取到的客户端，并返回该客户端是否收到。`entrypoint.broadcast(event, ...args)` 将事件发送给所有已连接的客户端，并返回客户端的数量。见 [gRPC](GRPC.md) 和[服务调用](ServiceCalls.md)。
+通过保持客户端连接的服务传输方式，客户端可以接收应用推送的事件。这类传输方式有 Socket.IO、Electron、NW.js、HTTP 服务的事件流、WebSocket 或 stdio 上的 JSON-RPC，以及 gRPC。`entrypoint.notify(clientId, event, ...args)` 将事件发送给一个客户端，即某个动作从 `this.context.clientId` 读取到的客户端，并返回该客户端是否收到。`entrypoint.broadcast(event, ...args)` 将事件发送给所有已连接的客户端，并返回客户端的数量。见 [gRPC](GRPC.md) 和[服务调用](ServiceCalls.md)。
 
 ## 7. 定制入口
 

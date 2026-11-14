@@ -86,6 +86,7 @@ The options of `buildSignalingOptions`:
 | `maxMessageSize` | `65536` | The maximum size of a signal and of a member's metadata, in bytes |
 | `maxMessagesPerSecond` | `50` | The number of signals a member may send per second, on average (bursts of twice as many) |
 | `heartbeatInterval` | `10000` | How often a client sends a heartbeat when the server cannot see its disconnection, in milliseconds |
+| `cluster`, `turnSecret`, `selectTURN` | — | Several nodes (section 13) |
 
 The component also works without the controller: `join()`, `signal()`, `leave()` and `disconnect()` change the rooms
 from the application's own code, and `rooms()` lists them. A member added by the application receives its events through
@@ -767,6 +768,7 @@ interface under another path.
 | `codecs` | Opus, PCMU, VP8, H.264, VP9 | The codecs accepted |
 | `sfu` | none | The name of an `SFU` component: the streams go to its rooms |
 | `roomOf` | the stream | `({stream, token}, context) => string`: the room of the media server a stream goes to |
+| `cluster`, `turnSecret`, `selectTURN` | | Several nodes (section 13) |
 
 The answer carries all the candidates of the server, which gathers them before answering: behind a NAT or in a
 container, specify its public address and open its ports.
@@ -958,9 +960,9 @@ that node.
 ### The TURN servers of the cluster
 
 A TURN server joins the cluster with its `cluster` option and the `secret` shared by all of them (it refuses to start
-without one); it reports its address, ports and allocations to the others every second. The `Signaling` and `WHIP`
-components configured with `turnSecret` provide each client with the two least loaded TURN servers that are not full,
-after the one on their own node (`turn`). `selectTURN` chooses differently, for example by the nodes' labels:
+without one); it reports its address, ports and allocations to the others every second. The `Signaling`, `WHIP` and
+`WHEP` components configured with `turnSecret` provide each client with the two least loaded TURN servers that are not
+full, after the one on their own node (`turn`). `selectTURN` chooses differently, for example by the nodes' labels:
 
 ```typescript
 import {buildSignalingOptions, type ClusterTURNServer} from '@lakutata/webrtc'
@@ -1351,8 +1353,9 @@ tried.
   messages, and 626,000 messages of 100 bytes per second; in an arm64 Linux virtual machine (Docker Desktop) on the
   same Mac, about 43 MiB/s, and 548,000 messages a second. `packages/webrtc/test-env/bench/engine.mjs` in the
   repository measures it on another machine.
-- The media server does not transcode, and sends each video as it is published: there is no simulcast yet, so a member
-  with little bandwidth receives `congestion` events rather than a lower quality. Its capacity on one machine is given
-  in section 9; `packages/webrtc/test-env/bench/forward.mjs` in the repository measures it on another.
+- The media server does not transcode, and sends each video as it is published: there is no simulcast yet, so for a
+  member with little bandwidth the media server emits `congestion` events rather than sending a lower quality. Its
+  capacity on one machine is given in section 9; `packages/webrtc/test-env/bench/forward.mjs` in the repository measures
+  it on another.
 - The media servers of a cluster send a track straight from its publisher's node to each node that wants it, which suits
   rooms spread over tens of nodes; beyond that, the nodes would have to forward through each other.

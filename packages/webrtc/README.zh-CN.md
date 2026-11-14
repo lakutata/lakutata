@@ -247,7 +247,7 @@ Application.run(() => ({
 }))
 ```
 
-answer 中带有服务器的全部候选地址。请为服务器提供其公网地址（`iceAdditionalHostAddresses`）和需要放开的 UDP 端口（`icePortRange`）。会话的 `PATCH` 请求将推流端的候选地址提交给服务器（Trickle ICE），或者重启 ICE；`body.text` 中也必须列出 `application/trickle-ice-sdpfrag`，否则 Fastify 会在请求到达控制器之前以 415 拒绝该请求。ffmpeg 使用 `-f whip -authorization <令牌> <URL>` 推流。
+answer 中带有服务器的全部候选地址。请为服务器提供其公网地址（`iceAdditionalHostAddresses`）和需要放开的 UDP 端口（`icePortRange`）。会话的 `PATCH` 请求将推流端的候选地址提交给服务器（Trickle ICE），或者重启 ICE；`body.text` 中也必须列出 `application/trickle-ice-sdpfrag`，否则 PATCH 请求会以 415 被拒绝：使用 Express 时由控制器拒绝，使用 Fastify 时由 Fastify 在请求到达控制器之前拒绝。ffmpeg 使用 `-f whip -authorization <令牌> <URL>` 推流。
 
 通过 WHEP 拉流：播放端将一个只收不发的 offer 提交到 `/whep/:stream`（`WHEPController`），`WHEP` 组件将媒体服务器房间中一个成员的音频和视频发送给该播放端。该成员默认为通过 WHIP 推送到该房间的流，或者 `select` 选中的成员。观众不是房间的成员，一路流可以有很多观众。
 

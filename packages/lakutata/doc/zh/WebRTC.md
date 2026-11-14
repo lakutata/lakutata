@@ -67,6 +67,7 @@ Application.run(() => ({
 | `maxMessageSize` | `65536` | 一条信令和一个成员的 metadata 的最大字节数 |
 | `maxMessagesPerSecond` | `50` | 一个成员平均每秒最多可发送的信令条数（短时间内允许达到两倍） |
 | `heartbeatInterval` | `10000` | 服务端无法察觉断开时，客户端发送心跳的间隔，单位为毫秒 |
+| `cluster`、`turnSecret`、`selectTURN` | — | 多个节点（第 13 节） |
 
 不使用控制器时，组件同样可用：`join()`、`signal()`、`leave()` 和 `disconnect()` 供应用自身的代码修改房间，`rooms()` 列出房间。由应用自行加入的成员，其事件通过 `join()` 的 `receive` 选项接收。以 `sfu:` 和 `whip:` 开头的 ID 保留给服务端自行加入的成员（媒体服务器、WHIP 推送的流），客户端使用此类 ID 加入时会被拒绝。
 
@@ -577,6 +578,7 @@ Application.run(() => ({
 | `codecs` | Opus、PCMU、VP8、H.264、VP9 | 接受的编码 |
 | `sfu` | 无 | 一个 `SFU` 组件的名称：推送的流进入该组件的房间 |
 | `roomOf` | 流的名称 | `({stream, token}, context) => string`：一路流进入媒体服务器的哪个房间 |
+| `cluster`、`turnSecret`、`selectTURN` | | 多个节点（第 13 节） |
 
 answer 中带有服务器的全部候选地址，服务器收集完毕后才回答。在 NAT 之后或容器中运行时，需要为服务器配置其公网地址，并放开其端口。
 
@@ -721,7 +723,7 @@ Application.run(() => ({
 
 ### 集群里的 TURN 服务器
 
-TURN 服务器通过 `cluster` 选项和所有 TURN 服务器共用的 `secret` 加入集群（没有 `secret` 时该服务器不会启动），并且每秒将自身的地址、端口和中转数量通报给其他节点。配置了 `turnSecret` 的 `Signaling` 和 `WHIP` 组件，会在本节点的 TURN 服务器（`turn`）之后，再将集群中负载最低且未满的两个 TURN 服务器提供给每个客户端。通过 `selectTURN` 可以改用其他选择方式，例如按节点的标签选择：
+TURN 服务器通过 `cluster` 选项和所有 TURN 服务器共用的 `secret` 加入集群（没有 `secret` 时该服务器不会启动），并且每秒将自身的地址、端口和中转数量通报给其他节点。配置了 `turnSecret` 的 `Signaling`、`WHIP` 和 `WHEP` 组件，会在本节点的 TURN 服务器（`turn`）之后，再将集群中负载最低且未满的两个 TURN 服务器提供给每个客户端。通过 `selectTURN` 可以改用其他选择方式，例如按节点的标签选择：
 
 ```typescript
 import {buildSignalingOptions, type ClusterTURNServer} from '@lakutata/webrtc'
@@ -1044,5 +1046,5 @@ setDebugHandler((namespace: string, args: unknown[]): void => console.debug(name
 
 - Node.js 端不采集、不编码，也不解码音视频。Node.js 端的轨道传输的是 RTP 包，来自编码器或另一条连接。
 - 两个 Node.js 进程之间单个数据通道的吞吐量（Apple M4）：大消息约 80 MiB/s，100 字节的消息每秒约 62.6 万条；在同一台 Mac 上的 arm64 Linux 虚拟机（Docker Desktop）中，大消息约 43 MiB/s，小消息每秒约 54.8 万条。可以使用仓库中的 `packages/webrtc/test-env/bench/engine.mjs` 在其他机器上测量。
-- 媒体服务器不转码，按发布时的原样发送每路视频。由于尚不支持 simulcast，带宽不足的成员收到的是 `congestion` 事件，而不是更低的画质。媒体服务器在一台机器上的转发能力见第 9 节；可以使用仓库中的 `packages/webrtc/test-env/bench/forward.mjs` 在其他机器上测量。
+- 媒体服务器不转码，按发布时的原样发送每路视频。由于尚不支持 simulcast，对于带宽不足的成员，服务器发出的是 `congestion` 事件，而不是改发更低的画质。媒体服务器在一台机器上的转发能力见第 9 节；可以使用仓库中的 `packages/webrtc/test-env/bench/forward.mjs` 在其他机器上测量。
 - 在集群中，媒体服务器将一条轨道从发布者所在的节点直接发送给每个需要该轨道的节点，一个房间分布在几十个节点上没有问题；规模更大时，则需要节点之间逐级转发。

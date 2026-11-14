@@ -296,8 +296,9 @@ Application.run(() => ({
 
 The answers carry all of the server's candidates: specify its public address (`iceAdditionalHostAddresses`) and the UDP
 ports to open (`icePortRange`). A `PATCH` of a session sends the server the publisher's candidates (trickle ICE) or
-restarts ICE; also list `application/trickle-ice-sdpfrag` in `body.text`, or Fastify refuses it with 415 before it
-reaches the controller. ffmpeg publishes with `-f whip -authorization <token> <url>`.
+restarts ICE; also list `application/trickle-ice-sdpfrag` in `body.text`, otherwise the PATCH is refused with 415: by
+the controller with Express, and by Fastify itself before it reaches the controller. ffmpeg publishes with `-f whip
+-authorization <token> <url>`.
 
 Playing with WHEP: a player posts a receive-only offer to `/whep/:stream` (`WHEPController`), and the `WHEP` component
 sends it the audio and the video of a member of the media server's room (by default the stream published into it with

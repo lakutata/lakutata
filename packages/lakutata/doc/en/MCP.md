@@ -291,4 +291,6 @@ before the adapter starts and after it stops.
 | A resource or a prompt fails with a client error (400 to 499) | The protocol error `-32602`, its message `errno: message`, its data `{errno}` |
 | A resource or a prompt fails otherwise | The protocol error `-32603` |
 | An unknown tool, prompt or resource | The protocol error `-32602` (`Tool nope not found`) |
-| An invalid tool or prompt name, a resource URI without a scheme | A `TypeError` when the class is declared |
+
+An invalid tool or prompt name, or a resource URI without a scheme, makes the decorator throw a `TypeError` when the
+class is declared; no client receives it.

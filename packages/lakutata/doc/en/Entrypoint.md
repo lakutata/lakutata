@@ -182,8 +182,8 @@ other transport's actions (`getActions('schedule')`). Each action is described b
 
 ## 6. Pushing events to the clients
 
-Service transports that keep their clients connected (Socket.IO, Electron, NW.js, the HTTP service's event stream,
-JSON-RPC over WebSocket or stdio, gRPC) can receive events from the application.
+The clients of service transports that keep them connected (Socket.IO, Electron, NW.js, the HTTP service's event
+stream, JSON-RPC over WebSocket or stdio, gRPC) can receive events from the application.
 `entrypoint.notify(clientId, event, ...args)` sends an event to the client whose ID an action found in
 `this.context.clientId`, and returns whether that client received it. `entrypoint.broadcast(event, ...args)` sends it to
 every connected client, and returns their number. See [gRPC](GRPC.md) and [Service Calls](ServiceCalls.md).

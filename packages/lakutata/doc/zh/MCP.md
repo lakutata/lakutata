@@ -263,4 +263,5 @@ export const entrypoint = buildEntrypoints({
 | 资源或提示词因客户端错误（400 到 499）失败 | 协议错误 `-32602`，消息为 `errno: message`，数据为 `{errno}` |
 | 资源或提示词因其他原因失败 | 协议错误 `-32603` |
 | 未知的工具、提示词或资源 | 协议错误 `-32602`（`Tool nope not found`） |
-| 工具或提示词的名称无效、资源 URI 没有协议名 | 声明类时抛出 `TypeError` |
+
+工具或提示词的名称无效、资源 URI 没有协议名，这些错误不会到达客户端：声明类时，装饰器即抛出 `TypeError`。
