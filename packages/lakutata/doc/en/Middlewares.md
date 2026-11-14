@@ -1,11 +1,11 @@
 # Lakutata Middlewares and Access Control
 
-A middleware runs around the actions: it sees each request before the action, and its result after. The access control
+A middleware runs around actions: it sees each request before the action runs, and its result afterwards. Access control
 decides whether a request may reach its action. Both work the same way for every transport.
 
 ## 1. Middlewares
 
-A middleware is a function `(invocation, next) => Promise<unknown>`. It calls `next()` to go on with the request, and
+A middleware is a function `(invocation, next) => Promise<unknown>`. It calls `next()` to continue with the request, and
 returns what the request returns:
 
 ```typescript
@@ -31,7 +31,7 @@ class HealthController extends Controller {
 ```
 
 A middleware can also be a class that extends `Middleware` and implements `handle(invocation, next)`. The class is
-created for each request, in the scope of the request, so it can inject other objects:
+created for each request, in the request's scope, so it can inject other objects:
 
 ```typescript
 import {Component} from 'lakutata'
@@ -64,36 +64,36 @@ export class Timing extends Middleware {
 
 | Property | Meaning |
 |---|---|
-| `context` | The context of the request (`this.context` in the action). Its `data`, the input before validation, can be changed |
-| `action` | The action: its `name`, `description`, `groups`, its address (`route`, `command`, `pattern`) |
-| `container` | The container of the request's scope, to get the objects of the request |
-| `signal` | The `AbortSignal` of the request |
+| `context` | The request's context (`this.context` in the action). Its `data`, the input before validation, can be changed |
+| `action` | The action: its `name`, `description`, `groups` and address (`route`, `command`, `pattern`) |
+| `container` | The container of the request's scope, to obtain the request's objects |
+| `signal` | The request's `AbortSignal` |
 
-- A middleware that returns without calling `next()` answers the request itself: the action does not run. A cache
+- A middleware that returns without calling `next()` responds to the request itself: the action does not run. A cache
   can work this way.
-- A middleware that throws fails the request with its error, as an action that throws.
+- When a middleware throws, the request fails with its error, as when an action throws.
 - `next()` can be called only once: a second call throws a `MiddlewareNextCalledException`.
-- The middlewares run for every transport, the scheduled jobs included. `invocation.context.type` tells them apart.
+- Middlewares run for every transport, including scheduled jobs. `invocation.context.type` identifies the transport.
 
 ## 2. Where to declare them
 
 | Where | Applies to |
 |---|---|
 | `buildEntrypoints({middlewares})` | Every action |
-| The `middlewares` option of an adapter | The actions reached through that adapter |
-| `@UseMiddlewares(...)` on a controller class | The actions of the class and of its subclasses |
+| An adapter's `middlewares` option | The actions reached through that adapter |
+| `@UseMiddlewares(...)` on a controller class | The actions of the class and its subclasses |
 | The `middlewares` action option | That action |
 | `@UseMiddlewares(...)` on a method | That method |
 
 They run in the order of this table, from the first row (the outermost) to the last: entrypoint, adapter, controller
-class, action option, method. On a controller, the middlewares of the parent classes run before the ones of the
-subclass. After the last middleware come the validation of the input, the access control, then the action.
+class, action option, method. On a controller, the middlewares of the parent classes run before those of the subclass.
+After the last middleware come input validation, access control, then the action.
 
 ## 3. Passing data to the action
 
-A middleware often finds something the action needs, such as the user who sent the request. The input is the wrong
-place for it: the DTO validates the input after the middlewares, and removes the keys it does not declare. Use a
-provider of the request instead. A `@Scoped` provider has one instance per request: the middleware fills it, and the
+A middleware often finds something the action needs, such as the user who sent the request. The input is the wrong place
+for it: the DTO validates the input after the middlewares run, and removes the keys it does not declare. Use a
+request-scoped provider instead. A `@Scoped` provider has one instance per request: the middleware fills it, and the
 action injects the same instance.
 
 ```typescript
@@ -150,7 +150,7 @@ $ curl localhost:8080/me
 
 ## 4. Access control
 
-An action declared with `acl: true` is checked by the access rules of the entrypoint. A rule is a class that extends
+An action declared with `acl: true` is checked by the entrypoint's access rules. A rule is a class that extends
 `AccessControlRule` and is listed in `buildEntrypoints({rules})`:
 
 ```typescript
@@ -198,16 +198,16 @@ export class StatsController extends Controller {
 //buildEntrypoints({controllers: [StatsController], rules: [AdminRule], httpActionGroups: {admin: 'Administration'}})
 ```
 
-- A rule is created for each request, in the scope of the request: it can inject the objects of the request, such as
-  the `CurrentUser` filled by a middleware.
-- In a rule, `this.context` is the context of the request, `this.input` the validated input, `this.targetAction` the
-  action (its `name`, its `groups`), and `this.actions` all the actions of the transport.
+- A rule is created for each request, in the request's scope: it can inject the request's objects, such as the
+  `CurrentUser` filled by a middleware.
+- In a rule, `this.context` is the request's context, `this.input` the validated input, `this.targetAction` the action
+  (its `name` and `groups`), and `this.actions` all the transport's actions.
 - `supportContextTypes` lists the transports the rule checks; it is skipped for the others.
-- The rules run in the order of the `rules` option, then the `rule` option of the action. The first one that resolves
+- The rules run in the order of the `rules` option, followed by the action's `rule` option. The first one that resolves
   `false` denies the request with an `AccessDeniedException` (errno `E_ACCESS_DENY`, status 403 over HTTP); one that
   throws denies it with its own error (such as a 401).
-- The `rule` option of an action works on its own: without `acl`, only that rule is checked.
+- An action's `rule` option works independently: without `acl`, only that rule is checked.
 - An action with neither `acl` nor `rule` is not checked. An `acl: true` action is allowed when no rule denies it.
 
-The access control runs after the middlewares and the validation of the input, just before the action. To change how
+Access control runs after the middlewares and input validation, just before the action. To change how
 it decides for the whole application, see [Entrypoint](Entrypoint.md), section 7.

@@ -13,15 +13,14 @@ fastest first. The umbrella package `lakutata` re-exports it as `lakutata/com/ca
 npm install lakutata
 ```
 
-The memory and file stores need nothing else. The other stores rely on optional peer dependencies: install the
-package of each store you use. When a store's package is missing, creating the cache fails with
-`CacheDriverNotFoundException`.
+The memory and file stores need nothing else. The other stores rely on optional peer dependencies: install the package
+for each store you use. When a store's package is missing, creating the cache fails with `CacheDriverNotFoundException`.
 
 | Store | `type` | Install |
 |---|---|---|
 | Memory (the default when `stores` is not set) | `'memory'` | none |
 | JSON file | `'file'` | none |
-| Redis or Valkey (`clear()` needs Redis 6+) | `'redis'` | `redis` (4 or 5) |
+| Redis or Valkey (`clear()` requires Redis 6+) | `'redis'` | `redis` (4 or 5) |
 | Memcache | `'memcache'` | `memjs` |
 | MongoDB | `'mongo'` | `mongodb` |
 | SQLite | `'sqlite'` | `better-sqlite3` (12); none on Bun (`bun:sqlite`) |
@@ -32,7 +31,7 @@ package of each store you use. When a store's package is missing, creating the c
 
 ### A cache in an application
 
-Register the `Cacher` component with `buildCacherOptions`, then get it with `getObject()` or `@Inject`. Without
+Register the `Cacher` component with `buildCacherOptions`, then obtain it with `getObject()` or `@Inject`. Without
 `stores`, it caches in memory.
 
 ```typescript
@@ -65,9 +64,9 @@ Application
 
 ### Cache-aside with `wrap()`
 
-`wrap()` returns the cached value; when there is none, it computes the value, caches it and returns it. Concurrent
-calls for the same key share one computation. With a refresh threshold, a value that is about to expire is returned at
-once and recomputed in the background.
+`wrap()` returns the cached value; when there is none, it computes the value, caches it and returns it. Concurrent calls
+for the same key share one computation. With a refresh threshold, a value that is about to expire is returned
+immediately and recomputed in the background.
 
 ```typescript
 import {Component} from 'lakutata'
@@ -120,13 +119,13 @@ Application.run(() => ({
   to the stores above it.
 - A failed read counts as a miss, and its error is emitted as an `'error'` event. A failed write or deletion rejects
   the call, unless `nonBlocking: true` is set (calls then return without waiting for the stores).
-- When a store cannot connect, creating the cache fails (a Redis store with `throwOnConnectError: false` keeps trying
-  in the background instead). The application fails to start only when the cache is created during the start: when it
-  is listed in `bootstrap`, or injected into an object that is. Otherwise the `getObject()` call or the injection that
-  creates it fails.
-- The memory store keeps values by reference. The other stores keep them as JSON: a `Buffer` comes back as a
-  `Buffer`, but a `Date` comes back as its ISO string and a class instance as a plain object.
-- `namespace` keeps apart applications that share a backend: `clear()` then deletes only the entries in the namespace
+- When a store cannot connect, creating the cache fails (a Redis store with `throwOnConnectError: false` keeps trying in
+  the background instead). The launch fails only when the cache is created during the launch: when it is listed in
+  `bootstrap`, or injected into an object that is. Otherwise, the `getObject()` call or the injection that creates it
+  fails.
+- The memory store keeps values by reference. The other stores keep them as JSON: a `Buffer` is read back as a `Buffer`,
+  but a `Date` is read back as its ISO string and a class instance as a plain object.
+- `namespace` separates applications that share a backend: `clear()` then deletes only the entries in the namespace
   (except with Memcache, where `clear()` flushes the whole server).
 
 ### Events
@@ -153,8 +152,8 @@ cache.on('error', (error: Error): void => console.error('Cache store error', err
 | `Cacher` | The component: `set`, `get`, `multipleSet`, `multipleGet`, `getTTL`, `wrap`, `del`, `multipleDel`, `clear`; the events `set`, `del`, `clear`, `refresh`, `error` |
 | `buildCacherOptions` | Builds the component options for a `Cacher` |
 | `CacherOptions` | The options: `stores`, `ttl`, `refreshThreshold`, `refreshAllStores`, `nonBlocking` |
-| `CacheStoreOptions` | The options of a single store, distinguished by `type` |
-| `MemoryCacheOptions`, `FileCacheOptions`, `RedisCacheOptions`, `MemcacheCacheOptions`, `MongoCacheOptions`, `SqliteCacheOptions`, `PostgresCacheOptions`, `MysqlCacheOptions` | The options of each store |
+| `CacheStoreOptions` | A single store's options, distinguished by `type` |
+| `MemoryCacheOptions`, `FileCacheOptions`, `RedisCacheOptions`, `MemcacheCacheOptions`, `MongoCacheOptions`, `SqliteCacheOptions`, `PostgresCacheOptions`, `MysqlCacheOptions` | Each store's options |
 | `WrapOptions` | The TTL and refresh threshold of a `wrap()` call |
 | `MultipleSetInput` | An entry passed to `multipleSet()` |
 | `OnSetEventData`, `OnDeleteEventData`, `OnRefreshEventData` | The data of the `set`, `del` and `refresh` events |
@@ -168,16 +167,16 @@ examples.
 | Exception | Thrown when |
 |---|---|
 | `CacheDriverNotFoundException` (`E_CACHE_DRIVER_NOT_FOUND`) | The cache is created with a store whose driver package (`redis`, `memjs`, `mongodb`, `better-sqlite3`, `pg`, `mysql2`) is not installed |
-| `InvalidObjectOptionsException` (from `lakutata`) | An option of the cache has an invalid value; the application fails to start |
+| `InvalidObjectOptionsException` (from `lakutata`) | A cache option has an invalid value; the launch fails |
 
-Store failures (a refused connection, a failed query) are reported with the errors of their drivers. A failure to
-connect makes the cache's creation fail, a failed write or deletion rejects the call (unless `nonBlocking` is set), and
-a failed read is emitted as an `'error'` event.
+Store failures (a refused connection, a failed query) are reported with their drivers' errors. When a store fails to
+connect, creating the cache fails; a failed write or deletion rejects the call (unless `nonBlocking` is set); and a
+failed read is emitted as an `'error'` event.
 
 ## See also
 
 - The guide on the website: [Cache](https://lakutata.com/guide/Cache).
-- `doc/en/Cache.md` in the `lakutata` package (Chinese version in `doc/zh`): the guide to the cache.
+- `doc/en/Cache.md` in the `lakutata` package (Chinese version in `doc/zh`): the cache guide.
 - `@lakutata/core` (`lakutata`): components, `Application` and dependency injection (see `doc/en/Objects.md` and
   `doc/en/Injection.md` in the `lakutata` package, and their Chinese versions in `doc/zh`).
 - `@lakutata/mutex` (`lakutata/com/mutex`): locks, to compute a cached value in only one instance at a time.

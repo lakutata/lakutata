@@ -1,15 +1,15 @@
 # A command-line tool
 
-This example builds `tally`, a command-line tool for CSV files: it lists the columns of a file, computes the statistics
-of a numeric column, and converts the rows to JSON. It starts from the `cli` template and shows the parts of a Lakutata
-tool: the commands with their arguments and options (`@CLIAction` and its DTO), input validation, asking for a missing
-option in the terminal, output and exit codes, the tests, and a bundle that runs without `node_modules`.
+This example builds `tally`, a command-line tool for CSV files: it lists a file's columns, computes statistics for a
+numeric column, and converts rows to JSON. It starts from the `cli` template and shows the parts of a Lakutata tool:
+commands with their arguments and options (`@CLIAction` and its DTO), input validation, prompting for a missing option
+in the terminal, output and exit codes, tests, and a bundle that runs without `node_modules`.
 
 | Command | What it does |
 |---|---|
-| `tally columns <file>` | Lists the columns of the file, with the type and the number of values of each |
-| `tally stats <file> --column <name>` | Gives the count, the sum, the minimum, the maximum, the mean and the median of a numeric column |
-| `tally json <file>` | Converts the rows to JSON: all the columns or only some, with the numbers kept as text or written as numbers |
+| `tally columns <file>` | Lists the file's columns, with the type and number of values of each |
+| `tally stats <file> --column <name>` | Returns the count, sum, minimum, maximum, mean and median of a numeric column |
+| `tally json <file>` | Converts the rows to JSON: all columns or only some, with numbers kept as text or written as numbers |
 
 ## 1. Create the project
 
@@ -20,9 +20,9 @@ rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/Greet
 ```
 
 The project is a workspace whose tool is `packages/app` ([Project Structure](../ProjectStructure.md)). Its dependencies
-are already there: `commander`, which reads the command line, and `@inquirer/prompts`, which asks the questions in a
-terminal. The tool reads the CSV files with a small parser of its own, so nothing else is installed. The example
-command of the template and its DTO are removed.
+are already present: `commander`, which reads the command line, and `@inquirer/prompts`, which asks questions in a
+terminal. The tool reads CSV files with its own small parser, so nothing else is installed. The template's example
+command and its DTO are removed.
 
 ## 2. The input
 
@@ -72,15 +72,15 @@ export class JsonDTO extends FileDTO {
 }
 ```
 
-Each command takes a DTO, whose properties are its arguments and its options ([Command Line](../CLI.md)):
+Each command takes a DTO whose properties are its arguments and options ([Command Line](../CLI.md)):
 
-- `file` is named in the commands (`'stats <file>'`), so it is an argument. The other properties are options of the
+- `file` is named in the commands (`'stats <file>'`), so it is an argument. The other properties are options with the
   same name: `--delimiter`, `--column`, `--decimals`…
-- The type of a property decides the form of its option: `--decimals 3` for a number, `--numbers` for a boolean (a
-  flag), `--columns product units` for an array.
-- The help shows the `.description()` of each property, its default and its allowed values (`.valid()`).
-- The command line is text: the adapter converts each value to the type of its property before the DTO validates the
-  input ([DTO and Validation](../DTOValidation.md)), so the numbers need no `.strict(false)`.
+- A property's type determines the form of its option: `--decimals 3` for a number, `--numbers` for a boolean (a flag),
+  `--columns product units` for an array.
+- The help shows each property's `.description()`, its default and its allowed values (`.valid()`).
+- The command line is text: the adapter converts each value to its property's type before the DTO validates the input
+  ([DTO and Validation](../DTOValidation.md)), so numbers need no `.strict(false)`.
 - `StatsDTO` and `JsonDTO` extend `FileDTO`: every command takes the file and the delimiter.
 - `column` is required and has no default: in a terminal, the tool asks for it when it is missing (section 7).
 
@@ -99,8 +99,8 @@ export class CsvException extends Exception {
 }
 ```
 
-Errors in a file or in its columns are `CsvException`s ([Exceptions](../Exceptions.md)). The message is a template,
-filled in from the values given when the exception is thrown:
+Errors in a file or its columns are `CsvException`s ([Exceptions](../Exceptions.md)). The message is a template, filled
+in from the values provided when the exception is thrown:
 `new CsvException('The file {file} does not exist', {file: file})`. On the command line, a failed command writes
 `error:` and the message, and exits with code 1.
 
@@ -191,11 +191,11 @@ export function isNumber(value: string): boolean {
 
 These are plain functions, not objects in the container: the commands call them directly.
 
-- `parseCsv()` splits the text into lines and values as RFC 4180 describes them: a value in double quotes may hold the
-  delimiter, line breaks and doubled quotes, and the lines end with `\n` or `\r\n`.
-- `readCsv()` takes the names of the columns from the first line and skips the blank lines. A file that does not
-  exist, an empty file, or a row with more or fewer values than columns is a `CsvException`; other file system errors
-  (a directory, a file it may not read) are thrown as they are.
+- `parseCsv()` splits the text into lines and values as RFC 4180 describes them: a value in double quotes may contain
+  the delimiter, line breaks and doubled quotes, and lines end with `\n` or `\r\n`.
+- `readCsv()` takes the column names from the first line and skips blank lines. A missing file, an empty file, or a row
+  with more or fewer values than columns results in a `CsvException`; other file system errors (a directory, a file it
+  may not read) are thrown unchanged.
 
 ## 5. The commands
 
@@ -305,13 +305,13 @@ export class CsvController extends Controller {
 }
 ```
 
-- Each `@CLIAction` declares a command: its name and its arguments (`'stats <file>'`), its DTO, and its
-  `description`, the line that the help shows for the command ([Controllers and Actions](../Controllers.md)).
-- The action receives the validated input, with the defaults applied: `delimiter` is `','` and `decimals` is 2 when
-  they are not given.
-- What it returns is written to stdout: a string as it is (`columns`, and `stats` by default), any other value as
+- Each `@CLIAction` declares a command: its name and arguments (`'stats <file>'`), its DTO, and its `description`, the
+  line that the help shows for the command ([Controllers and Actions](../Controllers.md)).
+- The action receives the validated input, with the defaults applied: `delimiter` is `','` and `decimals` is 2 when they
+  are not specified.
+- What it returns is written to stdout: a string unchanged (`columns`, and `stats` by default), any other value as
   indented JSON (`stats --format json`, `json`).
-- A thrown exception is the error of the command.
+- A thrown exception becomes the command's error.
 
 ## 6. The options of the tool
 
@@ -343,14 +343,13 @@ export function config(): ApplicationOptions {
 }
 ```
 
-This is the `Config.ts` of the template, with `CsvController` instead of the example controller. The description of
-the tool is written here, whereas the template reads it from `packages/app/package.json`, where
-`lakutata create --description` puts it; the version still comes from that file. `bin` is the name of the tool in the
-help.
+This is the template's `Config.ts`, with `CsvController` instead of the example controller. The tool's description is
+written here, whereas the template reads it from `packages/app/package.json`, where `lakutata create --description` puts
+it; the version still comes from that file. `bin` is the tool's name in the help.
 
 ## 7. Run it
 
-Build the tool, and save a CSV file at the root of the project:
+Build the tool, and save a CSV file at the project root:
 
 ```bash
 npm run build
@@ -369,7 +368,7 @@ date,region,product,units,price
 2026-10-04,north,Cocoa,11,5.10
 ```
 
-The commands below run the built tool with node; `npm link -w app` would install it as the command `tally`.
+The commands below run the built tool with node; `npm link -w app` would install it as the `tally` command.
 
 ```text
 $ node packages/app/build/App.js --help
@@ -446,11 +445,11 @@ $ node packages/app/build/App.js json sales.csv --columns product units --number
 ]
 ```
 
-`--delimiter ';'` reads the files whose values are separated by semicolons, and `--delimiter $'\t'` the TSV files.
+`--delimiter ';'` reads files whose values are separated by semicolons, and `--delimiter $'\t'` reads TSV files.
 
 **A question for a missing option.** In a terminal, the tool asks for a missing required option. The question is the
-description of the property followed by its name. The answer, `price` here, is checked against the rules of the
-property, and the question is asked again if the answer is invalid:
+property's description followed by its name. The answer, `price` here, is checked against the property's rules, and the
+question is asked again if the answer is invalid:
 
 ```text
 $ node packages/app/build/App.js stats sales.csv
@@ -465,7 +464,7 @@ mean    4.14
 median  4.5
 ```
 
-The tool asks only when its stdin and its stdout are both a terminal. In a script or a pipe, it asks nothing, and the
+The tool asks only when both its stdin and its stdout are terminals. In a script or a pipe, it asks nothing, and the
 missing option is an error:
 
 ```text
@@ -494,17 +493,15 @@ $ echo $?
 - The command line parser refuses what does not fit the command, before the DTO sees it: text instead of a number, a
   value outside `.valid()`, a missing argument or option, an unknown command.
 - The DTO refuses a value that breaks its other rules, such as `.max(6)`.
-- The action refuses what only it can check, with an exception: a file that does not exist, a column that does not
-  hold numbers.
+- The action refuses what only it can check, with an exception: a missing file, a column that does not contain numbers.
 
-A command that succeeds exits with code 0, as do `--help` and `--version`, so scripts can test the result of each
-command.
+A command that succeeds exits with code 0, as do `--help` and `--version`, so scripts can test each command's result.
 
 ## 8. Test it
 
-The test of the template is replaced by a test of the commands. As in the template, it runs the built tool in a child
-process, here with a CSV file written to a temporary directory. The stdin of the child is not a terminal, so the tool
-asks nothing:
+The template's test is replaced by a test of the commands. As in the template, it runs the built tool in a child
+process, here with a CSV file written to a temporary directory. The child's stdin is not a terminal, so the tool asks
+nothing:
 
 **`packages/app/src/tests/App.spec.ts`**
 
@@ -625,9 +622,9 @@ npm run package:bundle
 ```
 
 The script builds the tool, then `lakutata package bundle` writes it, with `lakutata`, commander and
-`@inquirer/prompts`, into one JavaScript file: `dist/tally.cjs` at the root of the project (the printed path is
-relative to `packages/app`, where the script runs). Node.js runs it from any directory, without `node_modules`; here,
-from a directory next to the project:
+`@inquirer/prompts`, into one JavaScript file: `dist/tally.cjs` at the project root (the printed path is relative to
+`packages/app`, where the script runs). Node.js runs it from any directory, without `node_modules`; here, from a
+directory next to the project:
 
 ```bash
 mkdir ../tally-bundle && cp dist/tally.cjs sales.csv ../tally-bundle && cd ../tally-bundle
@@ -648,11 +645,11 @@ node tally.cjs stats sales.csv --column units --format json
 ```
 
 - The bundle is a CommonJS file, so the sources cannot use top-level `await`.
-- `npm run package:exe` makes `dist/tally`, an executable that runs without Node.js installed: Node.js is embedded in
-  it (about 110 MB). It runs on the platform it is made on; the README of the project shows how to make it for the
-  other platforms ([Packaging](../Packaging.md)).
-- The `installer` feature of the template (`lakutata create --with installer`) makes the installers, the packages of
-  each system (deb, rpm, pkg, msi…) that put `tally` in the PATH ([Installers](../Installers.md)).
+- `npm run package:exe` builds `dist/tally`, an executable that runs without Node.js installed: Node.js is embedded in
+  it (about 110 MB). It runs on the platform it is built on; the project's README shows how to build it for other
+  platforms ([Packaging](../Packaging.md)).
+- The template's `installer` feature (`lakutata create --with installer`) builds the installers, each system's packages
+  (deb, rpm, pkg, msi…) that put `tally` in the PATH ([Installers](../Installers.md)).
 
 <!--
 check:

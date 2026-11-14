@@ -1,17 +1,17 @@
 # A mobile application
 
-This example builds an expense book for Android, iOS and HarmonyOS: the user writes down what they spend, and sees the
-total of each month and of each category. It starts from the `mobile-react` template and shows the two sides of a mobile
-application made with Lakutata: the Node.js side, a Lakutata application running in the Node.js that the mobile
-application embeds, which keeps the expenses in an SQLite database of the data directory of the application and brings
-the database up to date with its migrations; and the user interface of React Native, the same on the three systems,
-which calls the actions of the Node.js side through the native module and receives its events. It also shows the tests
-of the Node.js side, which run on the computer, without a device.
+This example builds an expense book for Android, iOS and HarmonyOS: the user records what they spend, and sees the total
+for each month and each category. It starts from the `mobile-react` template and shows the two sides of a mobile
+application built with Lakutata: the Node.js side, a Lakutata application running in the Node.js runtime that the mobile
+application embeds, which keeps the expenses in an SQLite database in the application's data directory and brings the
+database up to date with its migrations; and the React Native user interface, the same on all three systems, which calls
+the Node.js side's actions through the native module and receives its events. It also shows the Node.js side's tests,
+which run on the computer, without a device.
 
 | Message | What it does |
 |---|---|
 | `{cmd: 'expenses.add', amount: 1250, category: 'Food', note: 'Lunch', spentOn: '2026-11-04'}` | Adds an expense of 12.50 |
-| `{cmd: 'expenses.month', month: '2026-11'}` | Gives the expenses of November 2026, their total and the total of each category |
+| `{cmd: 'expenses.month', month: '2026-11'}` | Returns the expenses for November 2026, their total and each category's total |
 | `{cmd: 'expenses.delete', id: 1}` | Deletes an expense |
 
 When an expense is added or deleted, the Node.js side pushes the `expenses.changed` event, with its month, to the user
@@ -26,13 +26,13 @@ npm install better-sqlite3 -w app
 rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/GreetDTO.ts
 ```
 
-The root of the project is the application of React Native, with its native projects `android`, `ios` and `harmony`; its
-parts are packages of a workspace ([Project Structure](../ProjectStructure.md)): `packages/app` is the Node.js side,
-`packages/ui` the user interface, and `packages/ipc` what connects them. The README of the project lists what each
-system needs on the computer: the Android SDK with its NDK, Xcode, DevEco Studio. The Node.js side uses SQLite through
-`better-sqlite3`, installed here: an addon in C++, which `lakutata mobile stage` builds from its sources for each system
-with those tools ([Database Drivers](../DatabaseDrivers.md), section "The mobile applications"). The example controller
-of the template is removed.
+The project root is the React Native application, with its native projects `android`, `ios` and `harmony`; its parts are
+workspace packages ([Project Structure](../ProjectStructure.md)): `packages/app` is the Node.js side, `packages/ui` the
+user interface, and `packages/ipc` what connects them. The project's README lists what each system needs on the
+computer: the Android SDK with its NDK, Xcode, DevEco Studio. The Node.js side uses SQLite through `better-sqlite3`,
+installed here: a C++ addon, which `lakutata mobile stage` builds from source for each system with those tools
+([Database Drivers](../DatabaseDrivers.md), section "The mobile applications"). The template's example controller is
+removed.
 
 ## 2. The entity
 
@@ -68,8 +68,8 @@ export class Expense {
 ```
 
 An entity is a class whose decorators describe its table ([Entities, Queries and Transactions](../Entities.md)). An
-amount is an integer of cents: 12.50 is 1250, and the totals add integers, without the rounding errors of decimal
-numbers. The day is text, `YYYY-MM-DD`, so the expenses of a month are those whose day starts with `2026-11-`.
+amount is an integer number of cents: 12.50 is 1250, and the totals add integers, without the rounding errors of decimal
+numbers. The day is text, `YYYY-MM-DD`, so a month's expenses are those whose day starts with `2026-11-`.
 
 ## 3. The migration
 
@@ -103,20 +103,20 @@ export class Migrations1793722916138 implements MigrationInterface {
 }
 ```
 
-The database lives on the device of each user, and an update of the application has to bring it up to date: its schema
-changes through migrations, never through `synchronize`, which may drop a column with its data
-([Migrations](../Migrations.md)). The application wrote this one itself, from its entities, with the
-`lakutata migration` command ([Migrations](../Migrations.md), section 2), run on the computer, where its database is
+The database lives on each user's device, and an application update has to bring it up to date: its schema changes
+through migrations, never through `synchronize`, which may drop a column with its data ([Migrations](../Migrations.md)).
+The application wrote this one itself, from its entities, with the `lakutata migration` command
+([Migrations](../Migrations.md), section 2), run on the computer, where its database is
 `packages/app/data/expenses.sqlite`:
 
 ```bash
 npx lakutata migration generate --package app
 ```
 
-The migration you generate has another timestamp in its name: import it in the options under that name (section 7). When
-an entity changes, bring the database of the computer up to date first, with `npx lakutata migration run --package app`,
-as the command compares the entities with its tables; then generate the next migration, which the options list after
-this one.
+The migration you generate has a different timestamp in its name: import it in the options under that name (section 7).
+When an entity changes, first bring the computer's database up to date with `npx lakutata migration run --package app`,
+because `migration generate` compares the entities with the database's tables; then generate the next migration, which
+the options list after this one.
 
 ## 4. The input
 
@@ -163,9 +163,9 @@ export class MonthDTO extends DTO {
 ```
 
 Each action validates its input with a DTO before it runs ([DTO and Validation](../DTOValidation.md)). A message is
-JSON, so its values keep their types: `amount` must be an integer, and `12.5` is refused with `"amount" must be an
-integer`. The day is the one of the device, which the user interface gives: the Node.js side does not decide what today
-is for the user.
+JSON, so its values keep their types: `amount` must be an integer, and `12.5` is refused with
+`"amount" must be an integer`. The day is the device's day, which the user interface provides: the Node.js side does not
+decide what today is for the user.
 
 ## 5. The exception
 
@@ -257,10 +257,10 @@ export class ExpenseController extends Controller {
 - Each `@ServiceAction` is called by a message ([Service Calls](../ServiceCalls.md), section 2): the user interface
   sends it with `ipc.invoke({cmd: 'expenses.month', month: '2026-11'})`, through the native module and its socket to
   Node.js.
-- `this.entrypoint.broadcast()` pushes `expenses.changed` to every client: the user interface, and the tools of the
-  development (section 10). Its argument is the month that changed, so a user interface showing another month does not
-  load it again.
-- `Like` comes from `lakutata/orm`, the API of TypeORM ([Databases](../Database.md)).
+- `this.entrypoint.broadcast()` pushes `expenses.changed` to every client: the user interface, and the development tools
+  (section 10). Its argument is the month that changed, so a user interface showing another month does not load it
+  again.
+- `Like` comes from `lakutata/orm`, the TypeORM API ([Databases](../Database.md)).
 
 ## 7. The options of the application
 
@@ -326,15 +326,15 @@ export function config(options: ConfigOptions = {}): ApplicationOptions {
 }
 ```
 
-- The database is a file of the data directory of the application, `@data/expenses.sqlite`; the alias is resolved when
-  the database connects. The `App.ts` of the template declares the alias `@data` for each system: the `files` directory
-  of the application on Android, `Library/Application Support` on iOS, `/data/storage/el2/base/files` on HarmonyOS, and
+- The database is a file in the application's data directory, `@data/expenses.sqlite`; the alias is resolved when the
+  database connects. The template's `App.ts` declares the `@data` alias for each system: the application's `files`
+  directory on Android, `Library/Application Support` on iOS, `/data/storage/el2/base/files` on HarmonyOS, and
   `packages/app/data` on the computer. The system keeps it until the application is uninstalled, unlike `os.tmpdir()`,
   its cache.
 - The migrations are listed as classes. The Node.js side is a bundle on the device (`lakutata mobile stage`), without
   the compiled files that a glob such as `build/migrations/*.js` would find. `migrationsRun: true` runs the migrations
-  that the database of the device has not run yet when it connects, so an update of the application brings its database
-  up to date at its first launch.
+  that the device's database has not yet run when it connects, so an application update brings its database up to date
+  at its first launch.
 - `bootstrap` connects the database, and migrates it, before the actions are served.
 
 ## 8. The user interface
@@ -492,39 +492,39 @@ const styles = StyleSheet.create({
 })
 ```
 
-- The screen is in the safe area of the device, as in the template: `useSafeAreaInsets()` gives the room that the status
-  bar, the camera and the home indicator take.
-- `ipc` comes from the `ipc` package of the template: `ipc.invoke()` calls an action and gives its `payload`, or rejects
-  with its error; `ipc.on()` listens to an event and returns the function that removes the listener.
-- The month shown is loaded again on `expenses.changed` when it is the month that changed.
+- The screen stays within the device's safe area, as in the template: `useSafeAreaInsets()` returns the space that the
+  status bar, the camera and the home indicator take up.
+- `ipc` comes from the template's `ipc` package: `ipc.invoke()` calls an action and resolves with its `payload`, or
+  rejects with its error; `ipc.on()` listens to an event and returns the function that removes the listener.
+- The displayed month is reloaded on `expenses.changed` when it is the month that changed.
 - `keyboardShouldPersistTaps="handled"` lets a tap on a button reach it while the keyboard is shown: by default, the tap
-  only hides the keyboard, and the expense typed is not added.
+  only hides the keyboard, and the typed expense is not added.
 - When Node.js ends (an uncaught exception, `process.exit()`), the mobile application keeps running: `ipc` emits `exit`,
   and `ipc.restart()` starts Node.js again, as in the template.
 
 ## 9. Run it
 
-Start Metro in a terminal of its own, then the application on an emulator (or a device):
+Start Metro in its own terminal, then launch the application on an emulator (or a device):
 
 ```bash
 npm start
 npm run android     # or: npm run ios, npm run harmony
 ```
 
-`npm run android` builds the packages, makes the Node.js project of the application (`lakutata mobile stage`: the bundle
-of the Node.js side, and `better-sqlite3` built for the architectures of Android), builds the debug application,
-installs it and starts it. The first time, it downloads the libnode of the system. The user interface comes from Metro,
-and its changes show at once; a change of `packages/app` is put into the installed application by
-`npm run deploy:android` (or `deploy:ios`, `deploy:harmony`), without installing it again.
+`npm run android` builds the packages, creates the application's Node.js project (`lakutata mobile stage`: the Node.js
+side's bundle, and `better-sqlite3` built for the Android architectures), builds the debug application, installs it and
+launches it. The first time, it downloads the libnode for the system. The user interface comes from Metro, and its
+changes appear immediately; a change to `packages/app` is put into the installed application by `npm run deploy:android`
+(or `deploy:ios`, `deploy:harmony`), without reinstalling it.
 
 Add an expense, close the application (on Android, swipe it away from the recent applications), and open it again: the
-month still lists the expense, read from the database of the data directory. Hold an expense to delete it.
+month still lists the expense, read from the database in the data directory. Press and hold an expense to delete it.
 
 ## 10. Try it on the computer
 
-`npm run dev -w app` runs the Node.js side on the computer, its database in `packages/app/data`, and serves its actions
-over HTTP on port 9000 (`DEV_PORT`) for tools such as curl or Postman: `POST /` sends a message, and `GET /events`
-streams the events of a client ([Service Calls](../ServiceCalls.md), section 4).
+`npm run dev -w app` runs the Node.js side on the computer, with its database in `packages/app/data`, and serves its
+actions over HTTP on port 9000 (`DEV_PORT`) for tools such as curl or Postman: `POST /` sends a message, and
+`GET /events` streams a client's events ([Service Calls](../ServiceCalls.md), section 4).
 
 ```bash
 npm run dev -w app
@@ -554,7 +554,7 @@ curl -X POST localhost:9000/ -H 'Content-Type: application/json' -d '{"cmd": "ex
 # {"success":false,"error":{…,"message":"The expense 7 does not exist","errMsg":"The expense 7 does not exist","err":"ExpenseNotFoundException","errno":"E_EXPENSE_NOT_FOUND"},"payload":null}
 ```
 
-The errors carry all the properties of the exception, including its stack (left out here).
+The errors carry all the exception's properties, including its stack (omitted here).
 
 ## 11. Test it
 
@@ -693,9 +693,9 @@ describe('expenses', (): void => {
 })
 ```
 
-The tests run the Node.js side on the computer, the way the native module runs it on a device: a socket stands for the
-one of the native module, and the tests write its messages, a line of JSON each (`invoke`, `subscribe`), and read the
-responses and the events. `@data` is a temporary directory, declared as `App.ts` declares it.
+The tests run the Node.js side on the computer, the way the native module runs it on a device: a socket stands in for
+the native module's socket, and the tests write its messages, one JSON line each (`invoke`, `subscribe`), and read the
+responses and events. `@data` is a temporary directory, declared the way `App.ts` declares it.
 
 ```bash
 npm test
@@ -711,17 +711,16 @@ app │ ℹ pass 5
 ✔ test ran in app
 ```
 
-The tests use the `better-sqlite3` installed for the Node.js of the computer; the one of each system is built by
+The tests use the `better-sqlite3` installed for the computer's Node.js; the one for each system is built by
 `lakutata mobile stage`.
 
 ## 12. Release it
 
-The release builds of the three systems come from their native projects: they bundle the user interface into the
-application instead of loading it from Metro, and are signed for their stores. The section "The packaging" of the README
-of the project gives their commands; make the Node.js project first, with `npm run stage:android` (or `stage:ios`,
-`stage:harmony`). The Node.js side is the same in the debug and the release builds, and so are its data directory and
-its migrations: an update installed over an older version keeps the database, and its first launch runs the new
-migrations.
+The release builds for the three systems come from their native projects: they bundle the user interface into the
+application instead of loading it from Metro, and are signed for their stores. The project's README lists their commands
+in its section "The packaging"; create the Node.js project first, with `npm run stage:android` (or `stage:ios`,
+`stage:harmony`). The Node.js side is the same in debug and release builds, and so are its data directory and
+migrations: an update installed over an older version keeps the database, and its first launch runs the new migrations.
 
 <!--
 check:

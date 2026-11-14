@@ -1,15 +1,15 @@
 # Lakutata Mutex
 
-The **Mutex component** (`lakutata/com/mutex`, package `@lakutata/mutex`) gives an application named locks: the work
-protected by a lock runs in one place at a time. Depending on the driver, a lock is shared by the components of a
-process, by the processes of a machine, or by every instance of the application. The component also serves
-`@Synchronized`, which runs a controller action under a lock, and the `exclusive` schedules. The README of
-`@lakutata/mutex` gives the details.
+The **Mutex component** (`lakutata/com/mutex`, package `@lakutata/mutex`) provides an application with named locks: work
+protected by a lock runs in one place at a time. Depending on the driver, a lock is shared by the components in a
+process, by the processes on a machine, or by every instance of the application. The component also serves
+`@Synchronized`, which runs a controller action under a lock, and `exclusive` schedules. The `@lakutata/mutex` README
+provides the details.
 
 ## 1. Configuration
 
-Declare `Mutex` in the `components` of the application, named `mutex` (the name `@Synchronized` and the `exclusive`
-schedules use by default). Without `driver`, the locks are in memory.
+Declare `Mutex` in the application's `components`, named `mutex` (the name that `@Synchronized` and `exclusive`
+schedules use by default). Without `driver`, locks are held in memory.
 
 ```typescript
 import {Application} from 'lakutata'
@@ -34,11 +34,11 @@ Application.run(() => ({
 
 | Driver | Shared by | Notes |
 |---|---|---|
-| `{type: 'memory'}` (default) | The components of a process | Development, tests, a single instance |
-| `{type: 'file', directory?}` | The processes of a machine | Lock files, created exclusively (in `lakutata-mutex` under the temporary directory of the system unless `directory` is given); the lock of a process that died is taken over at once |
+| `{type: 'memory'}` (default) | The components in a process | Development, tests, a single instance |
+| `{type: 'file', directory?}` | The processes on a machine | Lock files, created exclusively (in `lakutata-mutex` under the system's temporary directory unless `directory` is specified); a lock held by a process that died is taken over immediately |
 | `{type: 'redis', url}` | Every instance | Redis 4+ or Valkey, package `redis`; fencing tokens; use `noeviction` (an evicted key is a lost lock) |
-| `{type: 'postgres', host, database, username, password, mode}` | Every instance | Package `pg`; `mode: 'advisory'` (default): advisory locks on a connection of its own, released when it closes, not usable through PgBouncer in transaction mode; `mode: 'table'`: rows of a table, which expire, with fencing tokens |
-| `{type: 'mysql', host, database, username, password, mode}` | Every instance | Package `mysql2`; `mode: 'advisory'` (default): `GET_LOCK` on a connection of its own, which the nodes of a cluster do not share; `mode: 'table'`: rows of a table, which expire, with fencing tokens |
+| `{type: 'postgres', host, database, username, password, mode}` | Every instance | Package `pg`; `mode: 'advisory'` (default): advisory locks on a dedicated connection, released when it closes, not usable through PgBouncer in transaction mode; `mode: 'table'`: rows in a table, which expire, with fencing tokens |
+| `{type: 'mysql', host, database, username, password, mode}` | Every instance | Package `mysql2`; `mode: 'advisory'` (default): `GET_LOCK` on a dedicated connection, which a cluster's nodes do not share; `mode: 'table'`: rows in a table, which expire, with fencing tokens |
 
 The clients (`redis`, `pg`, `mysql2`) are optional peer dependencies. A driver connects at the first acquisition; when
 its package is missing, that acquisition fails with `MutexDriverNotFoundException`.
@@ -83,26 +83,26 @@ class Orders extends Component {
 ```
 
 - **Holders**: a lock is acquired with a random token; only its holder releases or renews it.
-- **Expiration**: the expiring drivers hold a lock for its `ttl` and the component renews it every third of that time,
-  so a crashed holder keeps it at most one `ttl`. The advisory locks of PostgreSQL and MySQL do not expire: they end
-  with their connection.
+- **Expiration**: expiring drivers hold a lock for its `ttl`, and the component renews it every third of that time, so a
+  crashed holder keeps it for at most one `ttl`. PostgreSQL and MySQL advisory locks do not expire: they end with their
+  connection.
 - **Lost locks**: when a renewal fails until the lock expires, or the connection holding an advisory lock closes,
   `lock.held` becomes `false` and `lock.signal` is aborted with a `MutexLostException`. The work is not interrupted: it
   should watch the signal.
-- **Fencing tokens**: `lock.fence` increases with each acquisition (memory, Redis, the `table` modes): a store written
-  under a lock can use it to refuse the writes of an older holder.
+- **Fencing tokens**: `lock.fence` increases with each acquisition (memory, Redis, `table` modes); a store written under
+  a lock can use it to refuse writes from an older holder.
 - **Not reentrant**: acquiring a lock the component already holds waits for its release, like any other holder.
-- **Lifecycle**: the component releases its locks and closes its driver when it is destroyed (the application
-  stopping).
+- **Lifecycle**: the component releases its locks and closes its driver when it is destroyed (when the application
+  stops).
 
 ## 3. Synchronized actions
 
-`@Synchronized(name, options?)` runs a controller action under a lock, acquired after its input is validated and its
-access control has passed, and released when the action returns. The requests that need the same lock run one at a time,
-across every instance and whatever their transport; the other requests run in parallel. The name is a template whose
-`{field}` are fields of the validated input, or a function `(input, context) => string`. The options are `mutex` (the
-name of the component, `'mutex'` by default), `timeout`, `wait` and `ttl`. A request that does not get the lock in time
-fails with `MutexTimeoutException` (HTTP 409); it stops waiting when it is aborted.
+`@Synchronized(name, options?)` runs a controller action under a lock, which is acquired after the action's input is
+validated and its access control has passed, and released when the action returns. Requests that need the same lock run
+one at a time, across every instance and whatever their transport; other requests run in parallel. The name is a
+template whose `{field}` placeholders are fields of the validated input, or a function `(input, context) => string`. The
+options are `mutex` (the component's name, `'mutex'` by default), `timeout`, `wait` and `ttl`. A request that does not
+obtain the lock in time fails with `MutexTimeoutException` (HTTP 409); it stops waiting when it is aborted.
 
 ```typescript
 import {Controller} from 'lakutata/com/entrypoint'
@@ -133,11 +133,11 @@ class OrderController extends Controller {
 
 ## 4. Exclusive schedules
 
-A scheduled action declared `exclusive` runs in one instance of the application at a time: each run tries to acquire the
-lock `schedule:<key>` (the key is the name of the action by default) from the component `mutex` (or the one
-`exclusive: {mutex, key}` names), and the instances that do not get it skip the run. Its intervals are aligned on the
+A scheduled action declared `exclusive` runs in one application instance at a time: each run tries to acquire the lock
+`schedule:<key>` (the key defaults to the action's name) from the component `mutex` (or the one that
+`exclusive: {mutex, key}` names), and instances that do not obtain it skip the run. Its intervals are aligned to the
 clock (every 5 minutes means at :00, :05, :10…), so that every instance plans the same times. After a run, the lock is
-held until half the period has passed since the planned time (30 s at most), so that an instance whose clock is a little
+held until half the period has passed since the planned time (30 s at most), so that an instance whose clock is slightly
 behind does not run it again. Without its lock component, the action does not run, and the error is logged.
 
 ```typescript
@@ -167,4 +167,4 @@ scheduleEntrypoint()})` (see [Scheduled Jobs](Schedules.md)).
 | `MutexTimeoutException` (HTTP 409) | The lock is not acquired before the timeout; a `@Synchronized` action whose lock another request holds |
 | `MutexLostException` | Not thrown: the abort reason of `lock.signal` when the lock is lost |
 | `MutexDriverException` | The lock store failed during a call |
-| `MutexDriverNotFoundException` | The package of the driver (`redis`, `pg`, `mysql2`) is not installed |
+| `MutexDriverNotFoundException` | The driver's package (`redis`, `pg`, `mysql2`) is not installed |

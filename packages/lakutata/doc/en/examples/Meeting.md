@@ -1,17 +1,17 @@
 # A video meeting
 
 This example builds a video meeting: a page where each person enters a name and a room, then sees and hears the others
-and writes to them in a chat. It starts from the `web-react` template, adds `@lakutata/webrtc` to the application and
-to the page, and shows its three parts working together: the signaling, which puts the people of a room in touch, the
-media server, which forwards their video, and the browser client, which connects the page to both. With the media
-server, each person sends their camera once, however many people are in the room.
+and writes to them in a chat. It starts from the `web-react` template, adds `@lakutata/webrtc` to the application and to
+the page, and shows its three parts working together: the signaling, which puts the people in a room in touch, the media
+server, which forwards their video, and the browser client, which connects the page to both. With the media server, each
+person sends their camera once, however many people are in the room.
 
 | Where | What it serves |
 |---|---|
 | `GET /`, and any other page | The meeting page: the built `ui` package |
 | `/socket.io`, on the same port | The signaling, over Socket.IO |
-| UDP ports 40000 to 40999 | The connections of the browsers to the media server |
-| `GET /health` | Tells whether the process answers (from the template) |
+| UDP ports 40000 to 40999 | Browser connections to the media server |
+| `GET /health` | Tells whether the process responds (from the template) |
 
 ## 1. Create the project
 
@@ -26,12 +26,13 @@ npm install @lakutata/webrtc socket.io-client -w ui
 ```
 
 The project is a workspace ([Project Structure](../ProjectStructure.md)): `packages/app` is the application, and
-`packages/ui` the React page. The example controller of the template is removed, and so is its middleware
-`Authenticate.ts`: the people of a meeting give a name, not a token (section 8 says what to add on a public network).
+`packages/ui` the React page. The template's example controller is removed, and so is its `Authenticate.ts` middleware:
+people in a meeting provide a name, not a token (section 8 describes what to add on a public network).
 
-The application gets `@lakutata/webrtc` (the signaling and the media server) and `socket.io` (the Socket.IO server the
-signaling goes through); its tests get `socket.io-client`, to join meetings from Node.js. The page gets
-`@lakutata/webrtc`, of which it imports the browser entry `@lakutata/webrtc/client` only, and `socket.io-client`.
+The application depends on `@lakutata/webrtc` (the signaling and the media server) and `socket.io` (the Socket.IO
+server that the signaling goes through); its tests use `socket.io-client` to join meetings from Node.js. The page
+depends on `@lakutata/webrtc`, from which it imports only the browser entry `@lakutata/webrtc/client`, and on
+`socket.io-client`.
 
 ## 2. The server
 
@@ -118,26 +119,26 @@ export function config(port: number = Number(process.env.PORT ?? 8080)): Applica
 }
 ```
 
-This is the `Config.ts` of the template, with three components instead of the example controller:
+This is the template's `Config.ts`, with three components instead of the example controller:
 
-- `signaling` holds the rooms. Each person is a member of a room; the member's id is the id of their Socket.IO
-  connection, and its metadata what their page gives when it joins: here `{name}`. `authorize` refuses a member
+- `signaling` holds the rooms. Each person is a member of a room; the member's ID is the ID of their Socket.IO
+  connection, and its metadata is what their page provides when it joins: here `{name}`. `authorize` refuses a member
   without a name, and `maxPeers` a 51st member.
-- `sfu` is the media server. It joins each room as a member of its own; the pages see it and connect to it instead of
-  to each other, and it forwards the audio and the video of each person to the others, without decoding them. Its
-  connections use the UDP ports 40000 to 40999, one port on each address of the machine for each person, and these
-  addresses as their candidates (`PUBLIC_ADDRESS` adds another).
-- `SignalingController` serves the requests of the signaling (`webrtc.join`, `webrtc.signal`…), through the Socket.IO
-  adapter. `socketIOServiceEntrypoint({server})` attaches Socket.IO to the HTTP server of express, which `before` gives:
-  the page, its signaling and the health check share port 8080.
+- `sfu` is the media server. It joins each room as a separate member; the pages see it and connect to it instead
+  of to each other, and it forwards each person's audio and video to the others, without decoding them. Its connections
+  use UDP ports 40000 to 40999, one port on each of the machine's addresses for each person, and these addresses as
+  their candidates (`PUBLIC_ADDRESS` adds another).
+- `SignalingController` serves the signaling requests (`webrtc.join`, `webrtc.signal`…), through the Socket.IO adapter.
+  `socketIOServiceEntrypoint({server})` attaches Socket.IO to the express HTTP server, which `before` provides: the
+  page, its signaling and the health check share port 8080.
 
 The application bootstraps `sfu`, which attaches itself to `signaling`, then the entrypoint, which starts listening. The
-rest comes from the template: `uiDirectory()` and `fallback` serve the built page, `jsonEnvelope` the results of the
-actions ([A web application with a user interface](WebApp.md) explains them).
+rest comes from the template: `uiDirectory()` and `fallback` serve the built page, and `jsonEnvelope` the action results
+([A web application with a user interface](WebApp.md) explains them).
 
 ## 3. The meeting
 
-The page keeps its WebRTC code in a module of its own, which knows nothing of React.
+The page keeps its WebRTC code in its own module, which knows nothing of React.
 
 **`packages/ui/src/meeting.ts`**
 
@@ -240,18 +241,18 @@ export async function joinMeeting(name: string, roomName: string, events: Meetin
 }
 ```
 
-- `SignalingConnection` takes the Socket.IO connection of the page. `io()` without an address connects to the origin of
-  the page; `transports: ['websocket']` makes it a single connection, which needs no sticky sessions behind a load
-  balancer. The id of the member is the `auth.id` of the connection.
-- `signaling.join()` joins the room with the name in its metadata, and gives the `Room`. The room emits `peer` for each
-  other person, the ones already there first, and `peer-left` when one leaves.
-- `room.publish()` sends the camera and the microphone to every person, the ones joining later too. The room has a
-  media server (`room.sfu` is its id), so each track goes once, to the server.
-- Each `Peer` emits the tracks of its person (`track`), and the channels that person opens (`datachannel`). Its
+- `SignalingConnection` takes the page's Socket.IO connection. `io()` without an address connects to the page's origin;
+  `transports: ['websocket']` makes it a single connection, which needs no sticky sessions behind a load balancer. The
+  member's ID is the connection's `auth.id`.
+- `signaling.join()` joins the room with the name in its metadata, and returns the `Room`. The room emits `peer` for
+  each other person, those already present first, and `peer-left` when one leaves.
+- `room.publish()` sends the camera and microphone to every person, including those who join later. The room has a media
+  server (`room.sfu` is its ID), so each track is sent once, to the server.
+- Each `Peer` emits its person's tracks (`track`), and the channels that person opens (`datachannel`). Its
   `createDataChannel()` opens a channel to that person, through the media server, which relays the messages. Without a
-  media server, this code would connect the pages to each other and work the same.
-- When the node of the media server goes down (with several instances, see the guide), each person moves to another
-  one: the room emits `peer-left`, then `peer` again, and the channels are created again.
+  media server, this code would connect the pages to each other and work the same way.
+- When the media server's node goes down (with several instances, see the guide), each person moves to another one: the
+  room emits `peer-left`, then `peer` again, and the channels are created again.
 
 ## 4. The page
 
@@ -345,11 +346,11 @@ export function App() {
 }
 ```
 
-- Before joining, the page asks for a name and a room. `joinMeeting()` asks the browser for the camera and the
-  microphone, so the browser asks the person first; a refusal, or a name the server refuses, shows as an error.
-- In the meeting, the page shows its own camera (without its sound, which would echo) and the camera of each other
-  person, whose video stays black until it arrives; then the chat, and the field to write in it.
-- The `main.tsx` of the template, which renders `App`, does not change.
+- Before joining, the page asks for a name and a room. `joinMeeting()` asks the browser for the camera and microphone,
+  so the browser asks the person first; a refusal, or a name that the server refuses, is shown as an error.
+- In the meeting, the page shows its own camera (without its sound, which would echo) and each other person's camera,
+  whose video stays black until it arrives; then the chat, and the field for writing in it.
+- The template's `main.tsx`, which renders `App`, does not change.
 
 ## 5. The signaling during development
 
@@ -371,8 +372,8 @@ export default defineConfig({
 ```
 
 The page connects to `/socket.io` on its own origin. During development, that origin is Vite: its proxy forwards the
-WebSocket of Socket.IO to the application (`ws: true`). The page has no API under `/api`, so the template's proxy of
-`/api` is replaced.
+Socket.IO WebSocket to the application (`ws: true`). The page has no API under `/api`, so the template's `/api` proxy is
+replaced.
 
 ## 6. Run it
 
@@ -380,17 +381,17 @@ WebSocket of Socket.IO to the application (`ws: true`). The page has no API unde
 npm run dev
 ```
 
-This builds and starts the application on port 8080, and Vite serves the page on http://localhost:5173. Open it in two
-windows, give two names and the same room, and allow the camera: each window shows both cameras, and a message written
-in one appears in the other. On another computer, the page needs HTTPS (section 8): browsers give the camera to
-`localhost` and to HTTPS pages only.
+This builds and launches the application on port 8080, and Vite serves the page on http://localhost:5173. Open it in two
+windows, enter two names and the same room, and allow the camera: each window shows both cameras, and a message written
+in one appears in the other. On another computer, the page needs HTTPS (section 8): browsers grant camera access only to
+`localhost` and HTTPS pages.
 
 ## 7. Test it
 
-The test of the template is replaced by a test of the meeting. It starts the application on its own port, and joins a
-meeting with two members in Node.js: `SignalingClient` is the client of `@lakutata/webrtc` for the applications, with
-the same rooms and peers as the page. Node.js has no camera, so each member sends a video track whose packets carry its
-name, and checks it receives the name of the other one:
+The template's test is replaced by a test of the meeting. It launches the application on its own port, and joins a
+meeting with two members in Node.js: `SignalingClient` is the `@lakutata/webrtc` client for applications, with the same
+rooms and peers as the page. Node.js has no camera, so each member sends a video track whose packets carry its name, and
+checks that it receives the other member's name:
 
 **`packages/app/src/tests/App.spec.ts`**
 
@@ -535,8 +536,8 @@ app │ ℹ pass 4
 ✔ test ran in app
 ```
 
-`npm test` builds the packages first, so the built page is there for the second test. The test covers the server and
-the client of the package, not the React code; `npm run typecheck -w ui` checks the types of the page.
+`npm test` builds the packages first, so the built page is available for the second test. The test covers the package's
+server and client, not the React code; `npm run typecheck -w ui` checks the page's types.
 
 ## 8. Build it and deploy it
 
@@ -546,21 +547,21 @@ npm start
 ```
 
 The application now serves the page, the signaling and the media server, from one process: the page on
-http://localhost:8080, its connections on the UDP ports 40000 to 40999. To deploy it:
+http://localhost:8080, its connections on UDP ports 40000 to 40999. To deploy it:
 
-- **HTTPS.** Browsers give the camera and the microphone to `localhost` and to HTTPS pages only. The adapters serve
-  HTTP: put a reverse proxy in front of the application (nginx, Caddy), which serves HTTPS and forwards the WebSockets
-  of Socket.IO ([HTTP](../HTTP.md)).
-- **The ports of the media server.** The browsers connect to the media server directly: open the UDP ports 40000 to
-  40999 in the firewall. Behind a NAT that forwards them with the same numbers, start the application with
-  `PUBLIC_ADDRESS` set to the public address.
-- **The networks that let no UDP through.** Some company and mobile networks need a TURN server: add the `TURNServer`
-  component and give its name to the signaling ([WebRTC](../WebRTC.md), sections 3 and 12).
-- **Who may join.** Anyone who reaches the page may join any room under any name. On a public network, authenticate the
-  people with a middleware of the entrypoint (the `Authenticate.ts` of the template checks a token), and decide who
-  joins which room in `authorize`, which also gets the context of the request.
-- **Larger meetings.** One process forwards a few hundred videos (the WebRTC guide has the numbers); the `workers`
-  option of the media server uses more cores, and several instances share the rooms through a `Cluster`
+- **HTTPS.** Browsers grant camera and microphone access only to `localhost` and HTTPS pages. The adapters serve HTTP:
+  put a reverse proxy in front of the application (nginx, Caddy), which serves HTTPS and forwards the Socket.IO
+  WebSockets ([HTTP](../HTTP.md)).
+- **The ports of the media server.** Browsers connect to the media server directly: open UDP ports 40000 to 40999 in the
+  firewall. Behind a NAT that forwards them with the same numbers, launch the application with `PUBLIC_ADDRESS` set to
+  the public address.
+- **The networks that let no UDP through.** Some corporate and mobile networks need a TURN server: add the `TURNServer`
+  component and pass its name to the signaling ([WebRTC](../WebRTC.md), sections 3 and 12).
+- **Who may join.** Anyone who reaches the page may join any room under any name. On a public network, authenticate
+  people with an entrypoint middleware (the template's `Authenticate.ts` checks a token), and decide who joins which
+  room in `authorize`, which also receives the request's context.
+- **Larger meetings.** One process forwards a few hundred videos (the WebRTC guide provides the figures); the media
+  server's `workers` option uses more cores, and several instances share the rooms through a `Cluster`
   ([WebRTC](../WebRTC.md), section 13).
 
 <!--

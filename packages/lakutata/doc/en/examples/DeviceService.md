@@ -1,16 +1,16 @@
 # A service on a device
 
-This example builds a service for a small Linux machine, such as a Raspberry Pi or a gateway: it reads the load, the
-memory and the temperature of the machine every 10 seconds, keeps the last hour of readings in memory, and serves them
-over HTTP. It starts from the `service` template with its `installer` feature, and shows a scheduled action, components
-of its own with their options, the Lakutata monitors, configuration through environment variables, and the packages that
-install the service on the machine and start it with the system.
+This example builds a service for a small Linux machine, such as a Raspberry Pi or a gateway: it reads the machine's
+load, memory and temperature every 10 seconds, keeps the last hour of readings in memory, and serves them over HTTP. It
+starts from the `service` template with its `installer` feature, and shows a scheduled action, custom components with
+their options, the Lakutata monitors, configuration through environment variables, and the packages that install the
+service on the machine and start it at system startup.
 
 | Method | Route | What it does |
 |---|---|---|
-| `GET` | `/readings?limit=10` | Gives the latest readings, the newest first |
-| `GET` | `/status` | Gives the uptime of the service, its number of readings, and its own CPU and memory use |
-| `GET` | `/health` | Tells whether the process answers (from the template) |
+| `GET` | `/readings?limit=10` | Returns the latest readings, newest first |
+| `GET` | `/status` | Returns the service's uptime, its number of readings, and its own CPU and memory use |
+| `GET` | `/health` | Tells whether the process responds (from the template) |
 
 ## 1. Create the project
 
@@ -21,10 +21,10 @@ rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/Greet
 ```
 
 The project is a workspace whose service is `packages/app` ([Project Structure](../ProjectStructure.md)). The
-`installer` feature adds what is needed to make the installers: the `lakutata.installer` configuration in
+`installer` feature adds what is needed to build the installers: the `lakutata.installer` configuration in
 `packages/app/package.json`, the `package:host` and `package:linux` scripts, `Dockerfile.installer`,
-`@lakutata/builder`, and the icon in `packages/resources`. The service needs no other package: the schedules and the
-monitors are part of `lakutata`. The example controller of the template is removed.
+`@lakutata/builder`, and the icon in `packages/resources`. The service needs no other package: schedules and monitors
+are part of `lakutata`. The template's example controller is removed.
 
 ## 2. The sensors
 
@@ -92,11 +92,11 @@ export class Sensors extends Component {
 
 A component is a long-lived object, one for the whole application ([Objects and Lifetimes](../Objects.md)). This one:
 
-- reads the load average over the last minute (`os.loadavg()`, always 0 on Windows), and the share of the memory in use;
-- reads the temperature of the CPU from a Linux thermal zone: a file that holds thousandths of a degree (`48312` for
+- reads the load average over the last minute (`os.loadavg()`, always 0 on Windows), and the share of memory in use;
+- reads the CPU temperature from a Linux thermal zone: a file that contains thousandths of a degree (`48312` for
   48.3 °C). On a machine without one, such as a Mac, the temperature is `null`;
-- has an option, `temperatureFile`: when the component is created, `@Configurable` checks the value given in the options
-  of the service against its schema.
+- has an option, `temperatureFile`: when the component is created, `@Configurable` checks the value provided in the
+  service's options against its schema.
 
 On a device with its own sensors (on a serial port or I2C), this is the component that reads them; the rest of the
 service stays the same.
@@ -157,7 +157,7 @@ export class Readings extends Component {
 - The readings are kept in memory, at most `size` of them (an option, like `temperatureFile`): a new reading replaces
   the oldest one. They are lost when the service restarts; section 11 shows how to keep them.
 - A component is a singleton: the scheduled action that adds the readings and the HTTP actions that read them share the
-  same instance, although each run and each request gets its own controller.
+  same instance, although each run and each request receives its own controller.
 
 ## 4. The input
 
@@ -245,19 +245,20 @@ export class ReadingController extends Controller {
 }
 ```
 
-- A controller can hold the actions of several transports ([Controllers and Actions](../Controllers.md)): `sample()` is
-  a scheduled action, `list()` and `status()` are HTTP actions. Each run of `sample()` is handled like a request, with a
+- A controller can hold actions for several transports ([Controllers and Actions](../Controllers.md)): `sample()` is a
+  scheduled action, `list()` and `status()` are HTTP actions. Each run of `sample()` is handled like a request, with a
   new controller.
-- `@Schedule({every, immediate: true})` runs `sample()` once at the start, then once every interval ([Scheduled
-  Jobs](../Schedules.md)). `this.context` is the `ScheduleContext` of the run: its `scheduledAt`, the time the run was
-  planned for, becomes the time of the reading.
+- `@Schedule({every, immediate: true})` runs `sample()` once at launch, then once every interval ([Scheduled
+  Jobs](../Schedules.md)). `this.context` is the run's `ScheduleContext`: its `scheduledAt`, the time the run was
+  planned for, becomes the reading's time.
 - The interval is read from `SAMPLE_EVERY` when the class is defined, that is, when its module is loaded, so it comes
-  from the environment the process starts with (the shell, or the environment file of the installed service). A value
-  that is not a duration, such as `30` without a unit, stops the service at startup:
+  from the environment the process starts with (the shell, or the installed service's environment file). With a value
+  that is not a duration, such as `30` without a unit, the process exits while the module loads, before the service
+  launches:
   `SyntaxError: Invalid duration "30": such as "500ms", "30s", "5m", "1h30m" or "1d"`.
-- The monitors measure the service itself, not the machine ([Monitors](../Monitor.md)): `usageAvg` is the mean CPU usage
-  of the process since its start, in percent of one core, and `physicalUsed` is its resident memory, in bytes. They show
-  whether the service stays light on a small machine.
+- The monitors measure the service itself, not the machine ([Monitors](../Monitor.md)): `usageAvg` is the process's mean
+  CPU usage since it started, as a percentage of one core, and `physicalUsed` is its resident memory, in bytes. They
+  show whether the service stays light on a small machine.
 
 ## 6. The options of the service
 
@@ -313,26 +314,26 @@ export function config(port: number = Number(process.env.PORT ?? 8080), kept: nu
 }
 ```
 
-This is the `Config.ts` of the template, with:
+This is the template's `Config.ts`, with:
 
-- the monitors `cpu` and `memory`, listed in `bootstrap` so that they measure from the start;
+- the monitors `cpu` and `memory`, listed in `bootstrap` so that they measure from launch;
 - the `sensors` and `readings` components, with their options;
 - `ReadingController` instead of the example controller, and the schedule adapter, `scheduleEntrypoint()`, without
   which the `@Schedule` actions never run ([Entrypoint](../Entrypoint.md));
-- a limit of 1 MB on the request bodies instead of 100 MB: the API only reads query strings.
+- a 1 MB limit on request bodies instead of 100 MB: the API only reads query strings.
 
 The service is configured through environment variables:
 
 | Variable | Default | What it sets |
 |---|---|---|
-| `PORT` | `8080` | The port of the HTTP API |
-| `SAMPLE_EVERY` | `10s` | The interval between the readings: a duration such as `500ms`, `30s` or `5m` |
+| `PORT` | `8080` | The HTTP API's port |
+| `SAMPLE_EVERY` | `10s` | The interval between readings: a duration such as `500ms`, `30s` or `5m` |
 | `READINGS_KEPT` | `360` | How many readings are kept |
 | `TEMPERATURE_FILE` | `/sys/class/thermal/thermal_zone0/temp` | The temperature file |
-| `API_TOKEN` | None | When it is set, the requests must carry `Authorization: Bearer <API_TOKEN>` (the middleware of the template) |
-| `MODE` | `development` | `production` for the installed service; it wins over the `mode` option ([Application](../Application.md)) |
+| `API_TOKEN` | None | When it is set, requests must carry `Authorization: Bearer <API_TOKEN>` (the template's middleware) |
+| `MODE` | `development` | `production` for the installed service; it takes precedence over the `mode` option ([Application](../Application.md)) |
 
-An invalid value stops the service at startup, and the log says why:
+With an invalid value, the service fails to launch, and the log says why:
 
 ```bash
 READINGS_KEPT=0 npm start
@@ -401,22 +402,22 @@ READINGS_KEPT=0 npm start
 }
 ```
 
-This is the `package.json` made by the `installer` feature, with a description and the options of the service added
+This is the `package.json` that the `installer` feature creates, with a description and the service's options added
 ([Installers](../Installers.md)):
 
 - `bin` names the program, `telemetry`, which the packages put in the PATH (`/usr/bin/telemetry` on Linux);
 - `description` describes the packages and the service;
 - `service` registers the service with the system: systemd on Linux, launchd on macOS, a Windows service on Windows. The
   installation enables and starts it, an upgrade restarts it, and the removal stops and disables it;
-- `service.env` is the environment of the service, written to its environment file (section 10);
+- `service.env` is the service's environment, written to its environment file (section 10);
 - `restart: "always"` restarts the service whenever it ends; the default, `on-failure`, restarts it only when it fails;
 - the service runs as `telemetry`, a system user that the installation creates, in its working directory,
   `/var/lib/telemetry`, where it can write its data;
 - `linux.targets` lists the Linux packages: deb (Debian, Ubuntu, Raspberry Pi OS), rpm (Fedora, Red Hat) and a tar.gz
-  archive, which holds only the application, without the service.
+  archive, which contains only the application, without the service.
 
-The packages take their maintainer from `lakutata.installer.maintainer`, or else from the `author` of the
-`package.json`; without one, the tool warns.
+The packages take their maintainer from `lakutata.installer.maintainer`, or else from the `author` field in
+`package.json`; without one, the tool prints a warning.
 
 ## 8. Run it
 
@@ -437,13 +438,13 @@ curl 'localhost:8080/readings?limit=abc'
 # {"errno":"E_INVALID_VALUE","errMsg":"\"limit\" must be a number","data":null}
 ```
 
-The first reading is taken at startup, then one every 2 seconds. The temperature is `null` here because the service ran
-on a Mac; on a Linux machine with a thermal zone, it is the temperature of its CPU in degrees Celsius.
+The first reading is taken at launch, then one every 2 seconds. The temperature is `null` here because the service ran
+on a Mac; on a Linux machine with a thermal zone, it is the machine's CPU temperature in degrees Celsius.
 
 ## 9. Test it
 
-The test of the template is replaced by a test of the readings. It writes its own thermal zone, a file that reads
-42.5 degrees, and starts the service with a reading every 200 milliseconds, keeping 3 readings:
+The template's test is replaced by a test of the readings. It writes its own thermal zone, a file that reads 42.5
+degrees, and launches the service with a reading every 200 milliseconds, keeping 3 readings:
 
 **`packages/app/src/tests/App.spec.ts`**
 
@@ -524,9 +525,8 @@ describe('telemetry', (): void => {
 })
 ```
 
-The options are imported only after `SAMPLE_EVERY` is set, because the interval is read when the module of the
-controller is loaded. `node --test` runs each test file in its own process, so the variables that a file sets do not
-reach the others.
+The options are imported only after `SAMPLE_EVERY` is set, because the interval is read when the controller's module is
+loaded. `node --test` runs each test file in its own process, so variables that a file sets do not reach the others.
 
 ```bash
 npm test
@@ -543,17 +543,17 @@ app │ ℹ pass 4
 
 ## 10. Install it on the device
 
-The installers hold an executable that embeds Node.js, built for the system and the architecture of the machine that
-makes them ([Packaging](../Packaging.md)). The two scripts of the `installer` feature write the installers to
+The installers contain an executable that embeds Node.js, built for the system and architecture of the machine that
+builds them ([Packaging](../Packaging.md)). The `installer` feature's two scripts write the installers to
 `dist/installer`:
 
-- `npm run package:linux` makes the Linux packages in a Docker container (`Dockerfile.installer`), on macOS and Windows
-  too, for the architecture of Docker: arm64 on a Mac with Apple silicon, which is also the architecture of a
-  Raspberry Pi 4 or 5 running a 64-bit system. The file names hold the name of the package, its version and its
-  architecture: `telemetry_0.0.1_arm64.deb`, `telemetry-0.0.1-1.aarch64.rpm` and `telemetry-0.0.1-linux-arm64.tar.gz`.
-  For x64 machines, give Docker their platform:
+- `npm run package:linux` builds the Linux packages in a Docker container (`Dockerfile.installer`), on macOS and Windows
+  too, for Docker's architecture: arm64 on a Mac with Apple silicon, which is also the architecture of a Raspberry Pi 4
+  or 5 running a 64-bit system. The file names contain the package name, version and architecture:
+  `telemetry_0.0.1_arm64.deb`, `telemetry-0.0.1-1.aarch64.rpm` and `telemetry-0.0.1-linux-arm64.tar.gz`. For x64
+  machines, pass their platform to Docker:
   `docker buildx build --platform linux/amd64 --file Dockerfile.installer --output type=local,dest=dist/installer .`
-- `npm run package:host` makes the installers for the machine it runs on: the same packages on Linux; on macOS, a `pkg`
+- `npm run package:host` builds the installers for the machine it runs on: the same packages on Linux; on macOS, a `pkg`
   package (a launchd service) and a tar.gz archive; on Windows, the NSIS and MSI installers (a Windows service) and a
   zip archive.
 
@@ -566,8 +566,8 @@ journalctl -u telemetry -f                    # its log
 curl 'localhost:8080/readings?limit=1'
 ```
 
-The environment file of the service, `/etc/telemetry/telemetry.env`, holds `MODE=production` and the `service.env` of
-the `package.json`:
+The service's environment file, `/etc/telemetry/telemetry.env`, contains `MODE=production` and the `service.env` from
+`package.json`:
 
 ```
 # The environment of the service telemetry, read when it starts (systemctl restart telemetry)
@@ -577,7 +577,7 @@ SAMPLE_EVERY="10s"
 READINGS_KEPT="360"
 ```
 
-To change the configuration of the service, edit the file, then restart the service:
+To change the service's configuration, edit the file, then restart the service:
 
 ```bash
 sudoedit /etc/telemetry/telemetry.env         # SAMPLE_EVERY="30s", API_TOKEN="…"
@@ -590,10 +590,10 @@ working directory.
 
 ## 11. Next steps
 
-- To keep the readings across restarts, store them in a SQLite database in the working directory of the service, with a
-  relative path (once installed, `readings.sqlite` is `/var/lib/telemetry/readings.sqlite`), as in
-  [A REST API with a database](RestAPI.md). Its driver, better-sqlite3, is a native addon, which the installers ship
-  next to the executable ([Packaging](../Packaging.md), section 3).
+- To keep the readings across restarts, store them in a SQLite database in the service's working directory, with a
+  relative path (once installed, `readings.sqlite` is `/var/lib/telemetry/readings.sqlite`), as in [A REST API with a
+  database](RestAPI.md). Its driver, better-sqlite3, is a native addon, which the installers ship next to the executable
+  ([Packaging](../Packaging.md), section 3).
 - To send the readings to a server, publish them from `sample()` over [NATS](../NATS.md), or add them to a
   [queue](../Queue.md).
 - On a Linux device, the service can also work with the system: call system services over [D-Bus](../DBus.md), or run

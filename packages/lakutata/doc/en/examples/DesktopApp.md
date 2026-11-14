@@ -1,17 +1,17 @@
 # A desktop application
 
-This example builds a desktop notes application: the notes are Markdown files in a folder that the user chooses, and
-the window lists, opens, saves and deletes them. It starts from the `electron-react` template and shows both sides of
-an Electron application made with Lakutata: the main process, whose actions read and write the files, open a system
-dialog and push an event when the folder changes; and the React renderer, which calls these actions over IPC. It also
-shows tests of the main process that run without Electron.
+This example builds a desktop notes application: the notes are Markdown files in a folder that the user chooses, and the
+window lists, opens, saves and deletes them. It starts from the `electron-react` template and shows both sides of an
+Electron application built with Lakutata: the main process, whose actions read and write the files, open a system dialog
+and push an event when the folder changes; and the React renderer, which calls these actions over IPC. It also shows
+main-process tests that run without Electron.
 
 | Message | What it does |
 |---|---|
-| `{cmd: 'folder.get'}` | Gives the notes folder, `null` before one is chosen |
+| `{cmd: 'folder.get'}` | Returns the notes folder, `null` before one is chosen |
 | `{cmd: 'folder.choose'}` | Asks the user for a folder in a system dialog, and remembers it |
 | `{cmd: 'notes.list'}` | Lists the notes, the most recently modified first |
-| `{cmd: 'notes.read', name: 'Shopping'}` | Gives the text of a note |
+| `{cmd: 'notes.read', name: 'Shopping'}` | Returns a note's text |
 | `{cmd: 'notes.save', name: 'Shopping', text: '- bread'}` | Writes a note to the file `Shopping.md` |
 | `{cmd: 'notes.delete', name: 'Shopping'}` | Deletes it |
 | `{cmd: 'notes.reveal', name: 'Shopping'}` | Shows its file in the file manager (Finder, Explorer…) |
@@ -28,8 +28,8 @@ rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/Greet
 
 The project is a workspace ([Project Structure](../ProjectStructure.md)): `packages/app` is the main process, a Lakutata
 application; `packages/ui` is the renderer, a React page built by Vite; `packages/resources` holds the icon. The
-application needs no other package: it reads the files with `node:fs`, and its dialogs come from Electron. The example
-controller of the template is removed.
+application needs no other package: it reads the files with `node:fs`, and its dialogs come from Electron. The
+template's example controller is removed.
 
 ## 2. The input
 
@@ -58,12 +58,12 @@ export class SaveNoteDTO extends NoteNameDTO {
 
 Each action validates its input with a DTO before it runs ([DTO and Validation](../DTOValidation.md)):
 
-- a note is a file `<name>.md` in the folder: the pattern refuses slashes and the characters that Windows does not
-  allow in file names, so a name cannot lead out of the folder. The second argument of `.pattern()` names the pattern
-  in the error message: `"name" with value "a/b" fails to match the file name pattern`;
+- a note is a file `<name>.md` in the folder: the pattern refuses slashes and characters that Windows does not allow in
+  file names, so a name cannot lead out of the folder. The second argument to `.pattern()` names the pattern in the
+  error message: `"name" with value "a/b" fails to match the file name pattern`;
 - `.allow('')` accepts an empty note;
-- a message is JSON, so its values keep their types: no `.strict(false)` is needed, unlike the query string of an HTTP
-  request ([Service Calls](../ServiceCalls.md), section 2).
+- a message is JSON, so its values keep their types: no `.strict(false)` is needed, unlike an HTTP request's query
+  string ([Service Calls](../ServiceCalls.md), section 2).
 
 ## 3. The exceptions
 
@@ -89,8 +89,8 @@ export class NoteNotFoundException extends Exception {
 
 An exception has an `errno`, the code that the renderer checks ([Exceptions](../Exceptions.md)). Over IPC, the error is
 sent with all its properties ([Service Calls](../ServiceCalls.md), section 3), so the renderer receives it as it was
-thrown: `error.errno` is `'E_NOTE_NOT_FOUND'`. The service transports always answer with an envelope, whatever the
-status of the error, so these exceptions need no `statusCode`.
+thrown: `error.errno` is `'E_NOTE_NOT_FOUND'`. The service transports always respond with an envelope, whatever the
+error's status, so these exceptions need no `statusCode`.
 
 ## 4. The notes
 
@@ -245,12 +245,12 @@ export class Notes extends Component {
 - A component is created once and shared by the whole application ([Objects and Lifetimes](../Objects.md)). It keeps the
   folder, which outlives the requests: a controller lives for one request only ([Controllers and
   Actions](../Controllers.md), section 2).
-- `settings`, the file where the folder is remembered, is an option of the component: `@Configurable` declares it, and
-  the options of the application give its value ([Dependency Injection](../Injection.md)). `init()` reads the file when
-  the application starts.
+- `settings`, the file where the folder is remembered, is a component option: `@Configurable` declares it, and the
+  application's options provide its value ([Dependency Injection](../Injection.md)). `init()` reads the file when the
+  application launches.
 - `watch()` from `node:fs` watches the folder. When its files change, whether the application or another program (an
-  editor, a sync tool) saved them, `this.entrypoint.broadcast()` pushes `notes.changed` to every window
-  ([Service Calls](../ServiceCalls.md), section 5). The timer waits for the changes to settle, as one save often causes
+  editor, a sync tool) saved them, `this.entrypoint.broadcast()` pushes `notes.changed` to every window ([Service
+  Calls](../ServiceCalls.md), section 5). The timer waits for the changes to settle, because one save often causes
   several of them.
 - `destroy()` stops watching when the application stops.
 
@@ -349,14 +349,13 @@ export class NoteController extends Controller {
 - Each `@ServiceAction` is called by a message: `{cmd: 'notes.save', name: 'Shopping', text: '- bread'}` calls `save()`
   with `{name: 'Shopping', text: '- bread'}`, validated by `SaveNoteDTO` ([Service Calls](../ServiceCalls.md),
   section 2). The actions are short: the work is done by the `notes` component, which the controller injects.
-- `folder.choose` and `notes.reveal` use APIs that only the main process has: `dialog` and `shell`. Like the
-  `MainWindow` of the template, they import Electron only when they run, so the tests, which run with Node.js, never
-  load it.
-- `ipcEventOfContext()` gives the IPC event of the request. Its `sender` is the page that called, and
-  `BrowserWindow.fromWebContents()` gives the window of that page, which the dialog belongs to (on macOS, a sheet
-  attached to the window). When the action is called over the HTTP entrypoint for development (section 9), there is no
+- `folder.choose` and `notes.reveal` use APIs that only the main process has: `dialog` and `shell`. Like the template's
+  `MainWindow`, they import Electron only when they run, so the tests, which run with Node.js, never load it.
+- `ipcEventOfContext()` returns the request's IPC event. Its `sender` is the page that called, and
+  `BrowserWindow.fromWebContents()` returns that page's window, which the dialog belongs to (on macOS, a sheet attached
+  to the window). When the action is called over the HTTP service adapter used in development (section 9), there is no
   IPC event, and the dialog belongs to no window.
-- An action that returns nothing, such as `remove()`, answers `{success: true, error: null}`.
+- An action that returns nothing, such as `remove()`, responds with `{success: true, error: null}`.
 
 ## 6. The options of the application
 
@@ -436,12 +435,12 @@ export function config(options: ConfigOptions): ApplicationOptions {
 }
 ```
 
-This is the `Config.ts` of the template, with:
+This is the template's `Config.ts`, with:
 
 - the required `settings` option, the settings file;
 - the `notes` component, which receives that file, and the `NoteController` instead of the example controller;
 - `bootstrap: ['entrypoint', 'notes', 'window']`: the actions are served and the folder is watched before the window
-  loads the renderer. The tests start the application without its window (`window: false`), with their own `ipcMain`.
+  loads the renderer. The tests launch the application without its window (`window: false`), with their own `ipcMain`.
 
 ## 7. The main process
 
@@ -488,13 +487,13 @@ if (!electron.app.requestSingleInstanceLock()) {
 }
 ```
 
-One option is added to the `App.ts` of the template: `settings`, the file that remembers the notes folder, in the data
-directory of the application (`app.getPath('userData')`). That directory is named after the `productName` of
-`packages/app/package.json` (`notes`), in development as in the packaged application:
+One option is added to the template's `App.ts`: `settings`, the file that remembers the notes folder, in the
+application's data directory (`app.getPath('userData')`). That directory is named after the `productName` in
+`packages/app/package.json` (`notes`), both in development and in the packaged application:
 `~/Library/Application Support/notes` on macOS, `%APPDATA%\notes` on Windows and `~/.config/notes` on Linux.
 
-The preload script of the template (`packages/app/src/preload.cts`) stays as it is: it gives the renderer the IPC
-channel for the actions and the events, and nothing else from Electron or Node.js.
+The template's preload script (`packages/app/src/preload.cts`) is unchanged: it provides the renderer with the IPC
+channel for actions and events, and nothing else from Electron or Node.js.
 
 ## 8. The window
 
@@ -618,8 +617,8 @@ export function App() {
 ```
 
 - `window.ipc` comes from the template (`packages/ui/src/ipc.ts`), through the preload script. `invoke()` sends a
-  message and returns the result of the action, or throws its error, `errno` included; `on()` and `off()` listen to
-  the events of the main process ([Service Calls](../ServiceCalls.md), section 4).
+  message and returns the action's result, or throws its error, including its `errno`; `on()` and `off()` listen to
+  events from the main process ([Service Calls](../ServiceCalls.md), section 4).
 - The renderer is isolated from Node.js and Electron: it reads no files and opens no dialogs itself, but calls the
   actions that do.
 - On `notes.changed`, it lists the notes again: a note saved by an editor appears in the window.
@@ -637,9 +636,9 @@ Electron, whose window loads the renderer with its DevTools open. The main proce
 folder remembered in the settings.
 
 In development, the actions are also served over HTTP on port 9000 (`DEV_PORT`), so you can try them with curl or
-Postman: `POST /` sends a message, and `GET /events` streams the events of a client as Server-Sent Events
-([Service Calls](../ServiceCalls.md), section 4). Once a folder is chosen in the window (here, one that already holds a
-note `Ideas`), run in another terminal:
+Postman: `POST /` sends a message, and `GET /events` streams a client's events as Server-Sent Events ([Service
+Calls](../ServiceCalls.md), section 4). Once a folder is chosen in the window (here, one that already contains an
+`Ideas` note), run in another terminal:
 
 ```bash
 curl -N 'localhost:9000/events?id=me' &
@@ -658,14 +657,14 @@ curl -X POST localhost:9000/ -H 'Content-Type: application/json' -d '{"cmd": "no
 # {"success":false,"error":{…,"message":"The note Lunch does not exist","errMsg":"The note Lunch does not exist","err":"NoteNotFoundException","errno":"E_NOTE_NOT_FOUND"},"payload":null}
 ```
 
-The window shows the new note at once, as the event reached it too. The error carries all the properties of the
-exception, including its stack (left out here).
+The window shows the new note immediately, because the event reached it too. The error carries all the exception's
+properties, including its stack (omitted here).
 
 ## 10. Test it
 
-The test of the template is replaced by a test of the notes. Like the test of the template, it runs the main process
-with Node.js, without Electron or a window: its own `ipcMain` stands in for Electron's, and the test calls the actions
-through it as the renderer does. The settings of the test remember a folder in a temporary directory.
+The template's test is replaced by a test of the notes. Like the template's test, it runs the main process with Node.js,
+without Electron or a window: its own `ipcMain` stands in for Electron's, and the test calls the actions through it as
+the renderer does. The test's settings remember a folder in a temporary directory.
 
 **`packages/app/src/tests/App.spec.ts`**
 
@@ -786,19 +785,19 @@ app │ ℹ pass 5
 ✔ test ran in app
 ```
 
-`npm test` builds the packages, the renderer included, then runs the tests. The two actions that use Electron, the
+`npm test` builds the packages, including the renderer, then runs the tests. The two actions that use Electron, the
 dialog and the file manager, are tried out in the window.
 
 ## 11. Package it
 
-- `npm run package:host` builds the packages, then makes the installers for the platform it runs on, in
+- `npm run package:host` builds the packages, then builds the installers for the platform it runs on, in
   `dist/installer`: a `dmg` on macOS, a `deb` on Linux, an `nsis` installer and a portable executable on Windows.
-  `npm run package:linux` makes the Linux ones in Docker, from any platform. They are made by electron-builder, from
+  `npm run package:linux` builds the Linux ones in Docker, from any platform. They are built by electron-builder, from
   `lakutata.installer` in `packages/app/package.json` ([Installers](../Installers.md), section 8).
-- The main process is bundled with its dependencies. The built renderer and the preload script go into the resources of
-  Electron (`lakutata.resources` in `packages/app/package.json`), where `resourcesPath()` finds them
+- The main process is bundled with its dependencies. The built renderer and the preload script go into Electron's
+  resources (`lakutata.resources` in `packages/app/package.json`), where `resourcesPath()` finds them
   ([Packaging](../Packaging.md), section 6).
-- The packaged application has no HTTP entrypoint (`devPort` is given only when `app.isPackaged` is false), and keeps
+- The packaged application has no HTTP service adapter (`devPort` is set only when `app.isPackaged` is false), and keeps
   its settings in the same data directory.
 
 <!--

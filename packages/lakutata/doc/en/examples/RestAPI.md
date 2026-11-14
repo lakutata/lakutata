@@ -1,14 +1,14 @@
 # A REST API with a database
 
-This example builds a service that keeps a list of tasks: an HTTP API to create tasks, list them a page at a time,
-mark them done and delete them, stored in a SQLite database. It starts from the `service` template and shows the
-everyday parts of a Lakutata service: an entity and its migration, the DTOs that validate the input, an exception with
-its HTTP status, a controller, and the tests.
+This example builds a service that keeps a list of tasks in a SQLite database, with an HTTP API to create tasks, list
+them one page at a time, mark them done and delete them. It starts from the `service` template and shows the everyday
+parts of a Lakutata service: an entity and its migration, DTOs that validate input, an exception with its HTTP status, a
+controller, and tests.
 
 | Method | Route | What it does |
 |---|---|---|
-| `GET` | `/tasks?done=false&limit=10&offset=0` | Lists the tasks, a page at a time, the done ones or the others |
-| `GET` | `/tasks/:id` | Gives a task |
+| `GET` | `/tasks?done=false&limit=10&offset=0` | Lists the tasks one page at a time: all of them, or only those that are done or not done |
+| `GET` | `/tasks/:id` | Returns a task |
 | `POST` | `/tasks` | Creates a task: `{"title": "Write the report"}` |
 | `PATCH` | `/tasks/:id` | Changes its title or marks it done: `{"done": true}` |
 | `DELETE` | `/tasks/:id` | Deletes it |
@@ -24,9 +24,9 @@ echo '*.sqlite' >> .gitignore
 ```
 
 The project is a workspace whose service is `packages/app` ([Project Structure](../ProjectStructure.md)). The service
-uses SQLite through the `better-sqlite3` driver, installed here; any other database of
-[Database Drivers](../DatabaseDrivers.md) works the same, with its own driver and options. The example controller of the
-template is removed, and the database file is kept out of git.
+uses SQLite through the `better-sqlite3` driver, installed here; any other database listed in [Database
+Drivers](../DatabaseDrivers.md) works the same way, with its own driver and options. The template's example controller
+is removed, and the database file is kept out of git.
 
 ## 2. The entity
 
@@ -54,8 +54,8 @@ export class Task {
 }
 ```
 
-An entity is a class whose decorators (from `lakutata/decorator/orm`) describe its table: `tasks`, with an id given by
-the database, a title, whether it is done, and the date it was created on ([Entities, Queries and
+An entity is a class whose decorators (from `lakutata/decorator/orm`) describe its table: `tasks`, with an ID assigned
+by the database, a title, whether the task is done, and its creation date ([Entities, Queries and
 Transactions](../Entities.md)).
 
 ## 3. The input
@@ -106,9 +106,9 @@ export class TaskSearchDTO extends PaginationSearchDTO {
 Each action validates its input with a DTO before it runs, and refuses invalid input with a 400 error
 ([DTO and Validation](../DTOValidation.md)):
 
-- the input of an HTTP action merges the route parameters, the body and the query string;
-- the route parameters and the query string are text: `.strict(false)` converts `'1'` to the number 1 and `'false'` to
-  the boolean, which the schemas otherwise refuse;
+- an HTTP action's input merges the route parameters, the body and the query string;
+- route parameters and the query string are text: `.strict(false)` converts `'1'` to the number 1 and `'false'` to the
+  boolean, which the schemas would otherwise refuse;
 - `.trim()` removes the spaces around the title only with `.strict(false)`: a strict schema refuses them instead;
 - `TaskSearchDTO` extends `PaginationSearchDTO` (from `lakutata/dtos`), whose `limit` (10 by default) and `offset` (0)
   select a page.
@@ -130,8 +130,8 @@ export class TaskNotFoundException extends Exception {
 }
 ```
 
-An exception has an `errno`, the code that clients test, and the HTTP status it is answered with
-([Exceptions](../Exceptions.md)). Its message is given when it is thrown.
+An exception has an `errno`, the code that clients test, and the HTTP status that the response carries
+([Exceptions](../Exceptions.md)). Its message is provided when it is thrown.
 
 ## 5. The controller
 
@@ -232,13 +232,13 @@ export class TaskController extends Controller {
 }
 ```
 
-- `@Prefix({route: '/tasks'})` puts the routes of the controller under `/tasks`; each action has its verb, its route
-  and its DTO ([HTTP](../HTTP.md)).
-- `@Inject('database')` gives the controller the `database` component of the service: a TypeORM connection, whose
-  repositories read and write the entities ([Databases](../Database.md)).
+- `@Prefix({route: '/tasks'})` puts the controller's routes under `/tasks`; each action has its own verb, route and DTO
+  ([HTTP](../HTTP.md)).
+- `@Inject('database')` injects the service's `database` component into the controller: a TypeORM connection, whose
+  repositories read and write entities ([Databases](../Database.md)).
 - `paginator()` (from `lakutata/dtos`) builds the page: the items, and `meta` with their count, the total, the limit
   and the offset.
-- An action returns its result; a thrown exception is the error of the request.
+- An action returns its result; a thrown exception becomes the request's error.
 
 ## 6. The options of the service
 
@@ -295,17 +295,17 @@ export function config(port: number = Number(process.env.PORT ?? 8080), database
 }
 ```
 
-This is the `Config.ts` of the template, with:
+This is the template's `Config.ts`, with:
 
 - the `database` component: the SQLite file (`tasks.sqlite` in the directory the service runs in, or the `DATABASE`
   environment variable), its entities, and its migrations, run when it connects;
 - the `TaskController` instead of the example controller;
-- `jsonEnvelope()` without `errorStatus`: the results and the errors are `{errno, errMsg, data}`, and the errors keep
-  their status (400, 401, 404), which REST clients expect;
-- a body of 1 MB at most (the template allows 100 MB), more than a task needs;
+- `jsonEnvelope()` without `errorStatus`: results and errors are `{errno, errMsg, data}`, and errors keep their status
+  (400, 401, 404), as REST clients expect;
+- a body limit of 1 MB (the template allows 100 MB), more than a task needs;
 - `bootstrap: ['database', 'entrypoint']`: the database is connected and migrated before the HTTP server listens.
 
-The template's middleware `Authenticate.ts` stays: when the `API_TOKEN` environment variable is set, the requests must
+The template's `Authenticate.ts` middleware is kept: when the `API_TOKEN` environment variable is set, requests must
 carry `Authorization: Bearer <API_TOKEN>`.
 
 ## 7. The migration
@@ -320,8 +320,8 @@ npm run migration:generate
 ✔ Migrations generated: packages/app/src/migrations/1792247417843-database.ts
 ```
 
-The command builds and starts the service, compares its entities with the database, and writes the migration (its
-name holds the time it is generated):
+The command builds and launches the service, compares its entities with the database, and writes the migration (its name
+contains the time at which it was generated):
 
 ```typescript
 import { MigrationInterface, QueryRunner } from "lakutata/orm";
@@ -349,8 +349,8 @@ export class Migrations1792247417843 implements MigrationInterface {
 }
 ```
 
-It is compiled with the service, and run when the service connects to a database that has not run it. After a change
-of the entities, generate the next one the same way ([Migrations](../Migrations.md)).
+It is compiled with the service, and run when the service connects to a database that has not yet run it. After changing
+the entities, generate the next migration the same way ([Migrations](../Migrations.md)).
 
 ## 8. Run it
 
@@ -381,8 +381,8 @@ curl -i -X POST localhost:8080/tasks -H 'Content-Type: application/json' -d '{"t
 
 ## 9. Test it
 
-The test of the template is replaced by a test of the tasks. It starts the service with a database in memory, migrated
-when it starts, and calls its routes:
+The template's test is replaced by a test of the tasks. It launches the service with an in-memory database, migrated at
+launch, and calls its routes:
 
 **`packages/app/src/tests/App.spec.ts`**
 
@@ -475,11 +475,11 @@ app │ ℹ pass 4
 
 ## 10. In production
 
-- `npm start` runs the built service (`NODE_ENV=production` sets its mode), and `npm run docker:build` makes its image
-  (the template's `Dockerfile`). Give `DATABASE` a path on a volume, so that the tasks outlive the container.
-- The `installer` feature of the template (`lakutata create --with installer`) makes installers that run the service at
-  the start of the system ([Installers](../Installers.md)).
-- Another database is another driver and other options of `buildDatabaseOptions()`; generate the migrations against
+- `npm start` runs the built service (`NODE_ENV=production` sets its mode), and `npm run docker:build` builds its image
+  (the template's `Dockerfile`). Set `DATABASE` to a path on a volume, so that the tasks outlive the container.
+- The template's `installer` feature (`lakutata create --with installer`) builds installers that run the service at
+  system startup ([Installers](../Installers.md)).
+- Another database means another driver and other options for `buildDatabaseOptions()`; generate the migrations against
   it.
 
 <!--

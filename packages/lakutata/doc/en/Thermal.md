@@ -1,18 +1,18 @@
 # Lakutata Thermal Printers
 
 Receipts, labels and wristbands are written in HTML and CSS, rendered to the printer's own dots, and sent as its
-commands. Three packages do it:
+commands. Three packages do this:
 
 - [`@lakutata/thermal`](https://github.com/lakutata/lakutata/tree/main/packages/thermal), the engine: `render()` lays
-  the HTML out at the width of the paper and draws it in black and white dots (a native addon with litehtml, FreeType
-  and a bundled Chinese font); `encode()` turns the dots into ESC/POS, TSPL or ZPL commands. The rendering is the print
-  preview: `toPNG()` gives the very dots the printer prints.
+  out the HTML at the paper width and draws it in black and white dots (a native addon with litehtml, FreeType and a
+  bundled Chinese font); `encode()` turns the dots into ESC/POS, TSPL or ZPL commands. The rendering is the print
+  preview: `toPNG()` returns exactly the dots the printer prints.
 - [`@lakutata/thermal-printer`](https://github.com/lakutata/lakutata/tree/main/packages/thermal-printer), the
-  component: `ThermalPrinterManager` finds the printers, opens them from definitions an application saves as JSON, and
-  gives a `ThermalPrinter` for each, which prints in the order of the calls over the network, a print queue of the
-  system, USB, a serial port or Bluetooth.
+  component: `ThermalPrinterManager` finds printers, opens them from definitions an application saves as JSON, and
+  provides a `ThermalPrinter` for each, which prints in call order over the network, a system print queue, USB, a
+  serial port or Bluetooth.
 - [`@lakutata/serial`](https://github.com/lakutata/lakutata/tree/main/packages/serial): serial ports and classic
-  Bluetooth devices, for the printers on them (and for any other serial device).
+  Bluetooth devices, for printers on them (and for any other serial device).
 
 The `lakutata` package does not re-export them: install the ones the application uses.
 
@@ -22,7 +22,7 @@ npm install @lakutata/serial                   # for serial and Bluetooth printe
 ```
 
 The engine and the serial package compile a native addon when they are installed (Python 3 and a C++ compiler on the
-machine); the component compiles a small one on macOS and Windows only.
+machine); the component compiles a small one only on macOS and Windows.
 
 ## 1. Printing
 
@@ -55,10 +55,10 @@ Application.run(() => ({
 ```
 
 - A printer is a **definition**: its `connection`, its media (`model`, `paper`, `label`, `width`, `dpi`, `rotate`,
-  `page`) and its `commands` (cut, feed, cash drawer…). The printers of the configuration open when they are first used.
-- `print()` renders the HTML at the printer's media, encodes it as its commands and sends them. It resolves once the
-  commands are handed to the connection. A printer's prints go out one after the other, in the order of the calls.
-- `print()` also takes a rendering of `render()`, or raw commands as a `Buffer`, sent as they are.
+  `page`) and its `commands` (cut, feed, cash drawer…). Printers in the configuration open when they are first used.
+- `print()` renders the HTML for the printer's media, encodes it as the printer's commands and sends them. It resolves
+  once the commands are handed to the connection. A printer's prints go out one after another, in call order.
+- `print()` also takes a rendering from `render()`, or raw commands as a `Buffer`, sent unchanged.
 
 ## 2. Choosing a printer while the application runs
 
@@ -81,17 +81,17 @@ async function restore(manager: ThermalPrinterManager): Promise<void> {
 }
 ```
 
-- `discover()` finds USB printers (with the IEEE 1284 id they report, the model of the table it names and their
-  command language), the print queues of the system, and the serial and Bluetooth ports. Network printers are not
-  found this way: their address is entered.
-- `open()` creates a `ThermalPrinter` once for each device: opening the same device again gives the same object, so
-  that two queues never mix their data on one printer. `get(name)` gives it back by name, `close()` closes it.
+- `discover()` finds USB printers (with the IEEE 1284 ID they report, the model it names in the table and their
+  command language), system print queues, and serial and Bluetooth ports. Network printers are not found this way: their
+  address is entered.
+- `open()` creates a `ThermalPrinter` once for each device: opening the same device again returns the same object, so
+  that two queues never mix their data on one printer. `get(name)` returns it by name, and `close()` closes it.
 - `printer.definition` is the JSON to save; `validatePrinterDefinition()` checks a saved one.
 
 ## 3. Writing a receipt in HTML
 
-The page is the width the printer prints: 48 mm on 58 mm paper (384 dots at 203 dpi), 72 mm on 80 mm paper (576
-dots), the width of a label or of a wristband. The HTML is laid out at that width as a browser would lay it out:
+The page has the width the printer prints: 48 mm on 58 mm paper (384 dots at 203 dpi), 72 mm on 80 mm paper (576
+dots), the width of a label or wristband. The HTML is laid out at that width as a browser would lay it out:
 
 ```typescript
 import {render} from '@lakutata/thermal'
@@ -112,18 +112,18 @@ const wide = await render(html, {paper: 80})
 console.log(narrow.width, wide.width)
 ```
 
-- **Widths adapt**: percentages, `max-width`, tables, the wrapping of text. Chinese and Japanese text breaks by the
-  rules of UAX #14 (no closing punctuation at the start of a line), and long words and addresses break too.
+- **Widths adapt**: percentages, `max-width`, tables, text wrapping. Chinese and Japanese text breaks by UAX #14 rules
+  (no closing punctuation at the start of a line), and long words and addresses also break.
 - **Media queries** see the print width: one template lays out 58 mm and 80 mm receipts differently.
 - **Units**: `mm`, `pt`, `px` (1/96 inch, as in CSS), `%` and `em` become the printer's dots, so a template prints the
-  same size at 180, 203 and 300 dpi. The default text is 12px, about 3 mm.
+  same size at 180, 203 and 300 dpi. The default text size is 12px, about 3 mm.
 - **CSS**: the box model, `display` (block, inline, inline-block, flex, table), floats, `position`, rounded borders,
   linear and radial gradients, `::before` and `::after`, counters, `var()`, `@media`, `white-space`. Not supported:
   `calc()`, grid, `transform`, `opacity`, `box-shadow`, `letter-spacing`, `@font-face`.
 - **Black and white**: text prints black, unless its color is nearly white. Gradients and photos are dithered, and
   SVG and barcodes are thresholded to solid black.
-- **Fonts**: Noto Sans SC (regular and bold, the OFL license) is bundled and covers Chinese, Japanese kana, Latin
-  and digits. `registerFont()` adds others, and `font-family` chooses them.
+- **Fonts**: Noto Sans SC (regular and bold, under the OFL license) is bundled and covers Chinese, Japanese kana, Latin
+  and digits. `registerFont()` adds others, and `font-family` selects them.
 
 ### Pictures, barcodes and QR codes
 
@@ -141,25 +141,25 @@ async function label(printer: ThermalPrinter, barcode: Barcode): Promise<void> {
 }
 ```
 
-- `data:` URLs (PNG, JPEG, GIF, BMP, SVG), inline `<svg>` elements, and the files under the printer's `baseDir`
-  (never outside it). Remote URLs are refused.
-- `qrcode:<text>` draws a QR code with its modules on whole dots: the sharpest.
-- A barcode as a PNG wants `#threshold` after its URL, so that its bars stay solid.
+- `data:` URLs (PNG, JPEG, GIF, BMP, SVG), inline `<svg>` elements, and files under the printer's `baseDir` (never
+  outside it). Remote URLs are refused.
+- `qrcode:<text>` draws a QR code with its modules on whole dots: the sharpest result.
+- A PNG barcode needs `#threshold` after its URL, so that its bars stay solid.
 
 ## 4. Media
 
 | Option | For | Example |
 |---|---|---|
 | `paper` | A roll of receipt paper, 58 or 80 mm, at 203 dpi | `{paper: 80}` |
-| `model` | A printer of the table (`printerModels()`): its resolution, width, language and habits | `{model: 'TM-T88VI'}` |
+| `model` | A printer from the table (`printerModels()`): its resolution, width, language and habits | `{model: 'TM-T88VI'}` |
 | `label` | Labels or wristbands: their width and length in millimetres, with `dpi` or a label printer's `model` | `{model: 'HC100', label: {width: 25, height: 250}}` |
-| `width`, `dpi` | Any other paper: the width printed in millimetres and the resolution | `{width: 24, dpi: 300}` |
-| `rotate` | Printed turned (90, 180, 270): a wristband printed along its length | `{rotate: 90}` |
+| `width`, `dpi` | Any other paper: the printed width in millimetres, and the resolution | `{width: 24, dpi: 300}` |
+| `rotate` | Printed rotated (90, 180, 270): a wristband printed along its length | `{rotate: 90}` |
 | `page` | A fixed page length on a roll, and what happens to the rest (`overflow`) | `{paper: 58, page: {length: 100}}` |
 
 ## 5. What the printer is told
 
-`commands` gives the options of `encode()`, in the definition (every print) or in a print (that print only):
+`commands` specifies `encode()` options, in the definition (every print) or in a print (that print only):
 
 | Option | What it does |
 |---|---|
@@ -168,7 +168,7 @@ async function label(printer: ThermalPrinter, barcode: Barcode): Promise<void> {
 | `drawer` | ESC/POS: open the cash drawer after the last page |
 | `skipBlank` | ESC/POS and TSPL: blank stretches of a millimetre or more are not sent (ESC/POS feeds the paper over them), so a receipt takes fewer bytes. On by default; `false` for a printer whose gaps come out too short or too long |
 | `language` | The command language when there is no `model`: `'escpos'`, `'tspl'`, `'zpl'` |
-| `copies`, `sensor`, `gap`, `density`, `speed` | Label printers: copies, how labels are found (gap, black mark, continuous), darkness, speed |
+| `copies`, `sensor`, `gap`, `density`, `speed` | Label printers: copies, how labels are detected (gap, black mark, continuous), darkness, speed |
 
 ```typescript
 import type {ThermalPrinter} from '@lakutata/thermal-printer'
@@ -184,20 +184,20 @@ async function ticket(printer: ThermalPrinter): Promise<void> {
 | `type` | How |
 |---|---|
 | `network` | `host` and `port` (9100): a TCP connection to the raw printing port, opened for each print |
-| `queue` | A print queue of the system: CUPS (`lp -o raw`) on macOS and Linux, the spooler on Windows (raw documents) |
-| `usb` | A USB printer: `/dev/usb/lpN` on Linux, its ids on macOS, its printer interface on Windows (the system's own driver) |
+| `queue` | A system print queue: CUPS (`lp -o raw`) on macOS and Linux, the spooler on Windows (raw documents) |
+| `usb` | A USB printer: `/dev/usb/lpN` on Linux, its IDs on macOS, its printer interface on Windows (the system's own driver) |
 | `serial` | A serial port (`@lakutata/serial`): `path`, `baudRate`, `flowControl` (`'rts/cts'`, `'dtr/dsr'`, `'xon/xoff'`) |
 | `bluetooth` | A classic Bluetooth printer, paired with the system first (`@lakutata/serial`): its `address` |
 
-- USB, serial and Bluetooth printers keep their connection open while their object lives; network printers and print
+- USB, serial and Bluetooth printers keep their connection open while their object exists; network printers and print
   queues are connected for each print.
-- `stallTimeout` (10 seconds by default) fails a print when the printer stops taking data: out of paper, its cover
-  open, offline. `bytesPerSecond` paces a slow link.
-- `/dev/usb/lp0` is a USB printer, not a serial port: give it as a `usb` connection.
+- A print fails after `stallTimeout` (10 seconds by default) when the printer stops accepting data: out of paper, with
+  its cover open, offline. `bytesPerSecond` paces a slow link.
+- `/dev/usb/lp0` is a USB printer, not a serial port: specify it as a `usb` connection.
 
 ## 7. The engine alone
 
-The engine needs no application: render, preview, encode, send the bytes yourself.
+The engine needs no application: render, preview, encode, and send the bytes yourself.
 
 ```typescript
 import {writeFile} from 'node:fs/promises'
@@ -211,7 +211,7 @@ console.log(escpos.length)
 
 ## 8. Serial ports and Bluetooth devices
 
-`@lakutata/serial` opens a port as a stream, for printers and any other serial device (its own guide is
+`@lakutata/serial` opens a port as a stream, for printers and any other serial device (it has its own guide,
 [Serial](Serial.md)):
 
 ```typescript
@@ -228,20 +228,19 @@ async function serial(): Promise<void> {
 }
 ```
 
-- Each port has a thread of its own: open ports do not slow down the rest of Node.js, and an unplugged adapter is
-  reported (`'error'`, `disconnected: true`) even while nothing is read or written.
-- Every wait has a bound: `stallTimeout` for the writes and the drains, `close({stallTimeout})` (10 seconds) for the
-  closing.
-- Bluetooth: an RFCOMM socket on Linux; on macOS and Windows, the serial port the system made for the paired device.
+- Each port has its own thread: open ports do not slow down the rest of Node.js, and an unplugged adapter is reported
+  (`'error'`, `disconnected: true`) even while nothing is read or written.
+- Every wait is bounded: `stallTimeout` for writes and drains, `close({stallTimeout})` (10 seconds) for closing.
+- Bluetooth: an RFCOMM socket on Linux; on macOS and Windows, the serial port the system created for the paired device.
 
 ## 9. Platforms and packaging
 
 - Node.js 18.10 and later, Bun, Electron and NW.js, on macOS, Linux and Windows. The addons are built on Node-API, so
-  the same build loads in Electron and NW.js without being built again.
-- `lakutata package` (bundles, executables of Node.js and of Bun, Electron applications) ships the addons and the
-  fonts with the application.
-- In mobile applications, the builder compiles the engine's addon as it compiles any other native addon, and the
-  printers are reached over the network.
+  the same build loads in Electron and NW.js without being rebuilt.
+- `lakutata package` (bundles, Node.js and Bun executables, Electron applications) ships the addons and the fonts with
+  the application.
+- In mobile applications, the builder compiles the engine's addon as it compiles any other native addon, and printers
+  are reached over the network.
 
 ## 10. What is not done
 
@@ -258,6 +257,6 @@ async function serial(): Promise<void> {
 | `ThermalContentException` | HTML it cannot render: a picture that cannot be read, a file outside `baseDir` |
 | `ThermalFontException` | A font it cannot use |
 | `ThermalTimeoutException`, `ThermalCancelledException` | A rendering past its `timeout`, or canceled by its `signal` |
-| `ThermalPrinterConnectionException` | A printer that cannot be reached, or takes no data for its stall timeout |
-| `ThermalPrinterOptionException` | A printer definition that is not one |
+| `ThermalPrinterConnectionException` | A printer that cannot be reached, or accepts no data for its stall timeout |
+| `ThermalPrinterOptionException` | An invalid printer definition |
 | `SerialException` | A serial port or Bluetooth device that fails; its `code` names the error, `disconnected` an unplugged device |

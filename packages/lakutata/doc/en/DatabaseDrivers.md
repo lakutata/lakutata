@@ -1,7 +1,7 @@
 # Lakutata Database Drivers
 
-The `type` option of a database chooses its driver. The driver packages are not installed with `lakutata`: install the
-one for your database alongside it.
+A database's `type` option selects its driver. Driver packages are not installed with `lakutata`: install the one for
+your database alongside it.
 
 | Database | `type` | Install |
 |---|---|---|
@@ -23,17 +23,17 @@ npm install lakutata pg
 ```
 
 There is no `sqlite` type: SQLite files use `better-sqlite3`, or `sqljs` where a native module cannot run. TypeORM also
-has drivers for the JavaScript of the mobile platforms (`capacitor`, `cordova`, `expo`, `nativescript`, `react-native`);
-Lakutata does not use them. A mobile application of the `mobile-react` template runs the Lakutata application in a
-Node.js instead, with the drivers of this page (see [The mobile applications](#the-mobile-applications)).
+has drivers for JavaScript on mobile platforms (`capacitor`, `cordova`, `expo`, `nativescript`, `react-native`);
+Lakutata does not use them. Instead, a mobile application built from the `mobile-react` template runs the Lakutata
+application in Node.js, with the drivers in this guide (see [The mobile applications](#the-mobile-applications)).
 
 ## What applies to every driver
 
-- The connection options go to TypeORM as they are, and TypeORM does not check them: a missing host or password
-  is reported by the driver when the database connects.
-- `extra` is passed to the client of the driver (its pool, its connection), after the other options: it reaches the
-  settings that TypeORM has no option for.
-- `driver` gives the driver module itself (`driver: require('pg')`), instead of letting Lakutata load the package.
+- Connection options are passed to TypeORM unchanged, and TypeORM does not check them: the driver reports a missing host
+  or password when the database connects.
+- `extra` is passed to the driver's client (its pool, its connection), after the other options: it reaches settings
+  that TypeORM has no option for.
+- `driver` provides the driver module itself (`driver: require('pg')`), instead of letting Lakutata load the package.
 - Every example below declares a `Database` component. The options are the same for the `Database` provider (see
   [Databases](Database.md)).
 
@@ -58,23 +58,23 @@ export const db = buildDatabaseOptions({
 |---|---|---|
 | `url` | | The connection URL, instead of the options below |
 | `host`, `port`, `username`, `password`, `database` | | The server and the database; `password` can be a function, sync or async, to read a rotating secret |
-| `ssl` | | `true`, or the TLS options of Node.js (`{ca, rejectUnauthorized}`) |
-| `schema` | The `search_path` of the server (usually `public`) | The schema of the tables |
-| `poolSize` | 10 (the default of `pg`) | The connections of the pool |
+| `ssl` | | `true`, or Node.js TLS options (`{ca, rejectUnauthorized}`) |
+| `schema` | The server's `search_path` (usually `public`) | The schema of the tables |
+| `poolSize` | 10 (the `pg` default) | The maximum number of connections in the pool |
 | `connectTimeoutMS` | No limit | The time allowed to connect |
-| `applicationName` | | The name shown in the activity of the server |
-| `uuidExtension` | `'uuid-ossp'` | The extension of the UUID columns: `'uuid-ossp'` or `'pgcrypto'` |
-| `replication` | | `{master, slaves}`: the reads go to the replicas |
+| `applicationName` | | The name shown in the server's activity |
+| `uuidExtension` | `'uuid-ossp'` | The extension for UUID columns: `'uuid-ossp'` or `'pgcrypto'` |
+| `replication` | | `{master, slaves}`: reads go to the replicas |
 
-- **`bigint` and `numeric` columns come back as strings**, to keep their precision (`'9007199254740993'`, `'12.50'`).
-  Convert them with a column `transformer` where a number is enough. `parseInt8: true` returns the `bigint` columns as
-  numbers, but it changes this setting of `pg` for the whole process.
-- With `pg-native` installed, the native client of `pg` is used. Streams (`stream()` of the query builders) need
+- **`bigint` and `numeric` columns are returned as strings**, to keep their precision (`'9007199254740993'`,
+  `'12.50'`). Convert them with a column `transformer` where a number is enough. `parseInt8: true` returns `bigint`
+  columns as numbers, but it changes this `pg` setting for the whole process.
+- With `pg-native` installed, the `pg` native client is used. Streams (`stream()` on query builders) require
   `pg-query-stream`.
 
-**CockroachDB** uses the same driver with `type: 'cockroachdb'` and the same connection options. Its option
-`timeTravelQueries` (whether the reads use follower reads) must be given; a transaction failing on a conflict is
-retried 5 times (`maxTransactionRetries`).
+**CockroachDB** uses the same driver with `type: 'cockroachdb'` and the same connection options. Its
+`timeTravelQueries` option (whether reads use follower reads) must be specified; a transaction that fails on a conflict
+is retried 5 times (`maxTransactionRetries`).
 
 ## MySQL and MariaDB
 
@@ -97,18 +97,18 @@ export const db = buildDatabaseOptions({
 |---|---|---|
 | `url`, `host`, `port`, `username`, `password` | | The server |
 | `database` | | The database. Required, unless every entity names its own |
-| `socketPath` | | A unix socket, instead of the host and the port |
-| `ssl` | | The TLS options, or the name of a TLS profile |
-| `charset` | `'UTF8_GENERAL_CI'` | The character set and collation: use `'utf8mb4'` for the full Unicode (emoji) |
-| `timezone` | `'local'` | How the dates are read and written: `'local'`, `'Z'` or an offset (`'+08:00'`) |
-| `poolSize` | 10 (the default of `mysql2`) | The connections of the pool |
-| `connectTimeout`, `acquireTimeout` | `10000` | The time allowed to connect, and to get a connection of the pool |
-| `replication` | | `{master, slaves}`: the reads go to the replicas |
+| `socketPath` | | A unix socket, instead of the host and port |
+| `ssl` | | TLS options, or a TLS profile name |
+| `charset` | `'UTF8_GENERAL_CI'` | The character set and collation: use `'utf8mb4'` for full Unicode (emoji) |
+| `timezone` | `'local'` | How dates are read and written: `'local'`, `'Z'` or an offset (`'+08:00'`) |
+| `poolSize` | 10 (the `mysql2` default) | The maximum number of connections in the pool |
+| `connectTimeout`, `acquireTimeout` | `10000` | The time allowed to connect, and to obtain a connection from the pool |
+| `replication` | | `{master, slaves}`: reads go to the replicas |
 
-- Use `type: 'mariadb'` for MariaDB: the options are the same. MariaDB has the `uuid` column type from 10.7.
-- **`bigint` and `decimal` columns come back as strings**, as with PostgreSQL.
+- Use `type: 'mariadb'` for MariaDB: the options are the same. MariaDB has the `uuid` column type from version 10.7.
+- **`bigint` and `decimal` columns are returned as strings**, as with PostgreSQL.
 - A table has at most one auto-increment column. MySQL has no check constraint in TypeORM's schema synchronization.
-- Only `mysql2` is supported: the old package `mysql` is not.
+- Only `mysql2` is supported: the old `mysql` package is not.
 
 ## SQLite: better-sqlite3
 
@@ -126,30 +126,30 @@ export const db = buildDatabaseOptions({
 
 | Option | Default | Meaning |
 |---|---|---|
-| `database` | Required | The file of the database, or `':memory:'` |
-| `enableWAL` | `false` | The write-ahead log: the reads no longer wait for the writes |
+| `database` | Required | The database file, or `':memory:'` |
+| `enableWAL` | `false` | The write-ahead log: reads no longer wait for writes |
 | `timeout` | `5000` | How long a statement waits for a database locked by another connection, in milliseconds |
 | `readonly`, `fileMustExist` | `false` | Open the file read-only; fail when it does not exist |
-| `key` | | The encryption key, for a build of SQLite with SQLCipher |
-| `prepareDatabase` | | `(db) => …`, called with the connection of better-sqlite3 once it is open: pragmas, functions |
-| `nativeBinding` | | The path of the compiled module `better_sqlite3.node` |
+| `key` | | The encryption key, for a SQLite build with SQLCipher |
+| `prepareDatabase` | | `(db) => …`, called with the better-sqlite3 connection once it is open: pragmas, functions |
+| `nativeBinding` | | The path to the compiled module `better_sqlite3.node` |
 
-- The foreign keys are enforced (`PRAGMA foreign_keys = ON`). There is one connection: `poolSize` is not supported.
-- **`bigint` columns come back as numbers**: values beyond 2^53 lose precision. Keep such values in a text column.
-- `better-sqlite3` is a native module, compiled for one version of Node.js. An Electron application needs the build of
-  its Electron (`electron-rebuild`, or the prebuilt binaries of better-sqlite3 for Electron); an NW.js application has
-  it built again with the headers of NW.js (0.111.3 or later: use `sqljs` with the earlier releases); Bun cannot load it
-  (use `sqljs` there).
-- Built from its sources against the headers of Node.js 24.19 or later, it aborts the process when the garbage collector
-  frees one of its objects (`Assertion failed: (env) != nullptr`, in `RemoveEnvironmentCleanupHook`:
+- Foreign keys are enforced (`PRAGMA foreign_keys = ON`). There is one connection: `poolSize` is not supported.
+- **`bigint` columns are returned as numbers**: values beyond 2^53 lose precision. Keep such values in a text column.
+- `better-sqlite3` is a native module, compiled for one Node.js version. An Electron application needs a build for its
+  Electron version (`electron-rebuild`, or better-sqlite3's prebuilt binaries for Electron); an NW.js application has
+  it rebuilt with the NW.js headers (0.111.3 or later: use `sqljs` with earlier releases); Bun cannot load it (use
+  `sqljs` there).
+- When it is built from source against the headers of Node.js 24.19 or later, it aborts the process when the garbage
+  collector frees one of its objects (`Assertion failed: (env) != nullptr`, in `RemoveEnvironmentCleanupHook`:
   [nodejs/node#65446](https://github.com/nodejs/node/issues/65446)), as every addon built on `node::ObjectWrap` does.
-  Its prebuilt binaries are built against earlier headers; `lakutata mobile stage` builds the addons for the mobile
-  systems without the cleanup hooks of `node::ObjectWrap` that cause it.
+  Its prebuilt binaries are built against earlier headers; `lakutata mobile stage` builds the addons for mobile systems
+  without the `node::ObjectWrap` cleanup hooks that cause the abort.
 
 ## SQLite: sql.js
 
-`sql.js` is SQLite compiled to WebAssembly: no native module, so it runs the same in Node.js, Bun, Electron and the
-browsers. The whole database is held in memory, and written to its file when it changes.
+`sql.js` is SQLite compiled to WebAssembly: no native module, so it runs the same way in Node.js, Bun, Electron and
+browsers. The whole database is held in memory and written to its file when it changes.
 
 ```typescript
 import {buildDatabaseOptions} from 'lakutata/com/database'
@@ -165,18 +165,18 @@ export const db = buildDatabaseOptions({
 
 | Option | Default | Meaning |
 |---|---|---|
-| `location` | | The file to load and to save (in a browser, the key of `localStorage`) |
-| `autoSave` | `false` | Save after each change. It needs `location` or `autoSaveCallback` |
+| `location` | | The file to load and save (in a browser, the `localStorage` key) |
+| `autoSave` | `false` | Save after each change. It requires `location` or `autoSaveCallback` |
 | `autoSaveCallback` | | `(data: Uint8Array) => …`, called instead of writing `location` |
-| `database` | | The content of a database to load (a `Uint8Array`), instead of `location` |
+| `database` | | The database content to load (a `Uint8Array`), instead of `location` |
 | `useLocalForage` | `false` | In a browser, save to IndexedDB (through `localforage`) instead of `localStorage` |
-| `sqlJsConfig` | | The options of the initialization of sql.js (`locateFile` of its `.wasm` file) |
-| `driver` | | A build of sql.js to use instead of the package's: its asm.js build (`sql.js/dist/sql-asm.js`) needs no WebAssembly |
+| `sqlJsConfig` | | The sql.js initialization options (`locateFile` for its `.wasm` file) |
+| `driver` | | A sql.js build to use instead of the package's: its asm.js build (`sql.js/dist/sql-asm.js`) needs no WebAssembly |
 
-- Without `autoSave`, nothing is written to disk until `saveDatabase()` of the entity manager (`SqljsEntityManager`)
-  is called. With `autoSave`, the changes of a transaction are saved once it is committed.
-- The file is written as a whole at each save: sql.js suits small databases.
-- As with better-sqlite3, the foreign keys are enforced and `bigint` columns come back as numbers.
+- Without `autoSave`, nothing is written to disk until the entity manager's `saveDatabase()` (`SqljsEntityManager`)
+  is called. With `autoSave`, a transaction's changes are saved once it is committed.
+- The whole file is written on each save: sql.js suits small databases.
+- As with better-sqlite3, foreign keys are enforced and `bigint` columns are returned as numbers.
 
 ## Microsoft SQL Server
 
@@ -201,16 +201,16 @@ export const db = buildDatabaseOptions({
 | Option | Default | Meaning |
 |---|---|---|
 | `url`, `host`, `port`, `username`, `password`, `database` | | The server and the database |
-| `authentication` | | Another authentication than the user and password: `{type: 'ntlm', ...}`, `{type: 'azure-active-directory-default', ...}`… |
-| `schema` | The default schema of the user | The schema of the tables |
+| `authentication` | | Authentication other than user and password: `{type: 'ntlm', ...}`, `{type: 'azure-active-directory-default', ...}`… |
+| `schema` | The user's default schema | The schema of the tables |
 | `options.encrypt` | `true` | Encrypt the connection |
 | `options.trustServerCertificate` | `false` | Accept a certificate not signed by a trusted authority |
 | `options.instanceName` | | A named instance |
-| `pool` | | The pool of connections: `max`, `min`, `idleTimeoutMillis` (30000 by default)… (`poolSize` is not supported) |
+| `pool` | | The connection pool: `max`, `min`, `idleTimeoutMillis` (30000 by default)… (`poolSize` is not supported) |
 | `connectionTimeout`, `requestTimeout` | `15000` | The time allowed to connect, and to run a query |
 
-- Since `encrypt` is on, a server with a self-signed certificate (a local server, a container) refuses the connection
-  unless `trustServerCertificate` is `true`.
+- Because `encrypt` is on, the connection to a server with a self-signed certificate (a local server, a container) is
+  refused unless `trustServerCertificate` is `true`.
 - Transactions cannot be nested.
 
 ## Oracle
@@ -234,14 +234,13 @@ export const db = buildDatabaseOptions({
 | `host`, `port`, `username`, `password` | | The server |
 | `serviceName` or `sid` | | The database service |
 | `connectString` | Built from the options above | A connect string (`'localhost:1521/FREEPDB1'`, a TNS entry), instead of them |
-| `thickMode` | `false` | The thick mode of `oracledb` (with the Oracle Client libraries): `true`, or `{libDir, configDir}` |
-| `useUTC` | `false` | Read and write the dates in UTC |
-| `poolSize` | | The connections of the pool |
+| `thickMode` | `false` | The `oracledb` thick mode (with the Oracle Client libraries): `true`, or `{libDir, configDir}` |
+| `useUTC` | `false` | Read and write dates in UTC |
+| `poolSize` | | The maximum number of connections in the pool |
 
-- `oracledb` 6 and later run in thin mode by default, with no Oracle Client. Set `thickMode` for the features that
-  need it.
-- The tables are in the schema of the user. `useUTC` sets the time zone of the sessions of the whole process (the
-  variable `ORA_SDTZ`).
+- `oracledb` 6 and later run in thin mode by default, with no Oracle Client. Set `thickMode` for features that need it.
+- Tables are in the user's schema. `useUTC` sets the session time zone for the whole process (the `ORA_SDTZ`
+  variable).
 
 ## MongoDB
 
@@ -270,35 +269,35 @@ export const db = buildDatabaseOptions({
 |---|---|---|
 | `url` | | The connection URL |
 | `host`, `port`, `username`, `password`, `database` | `127.0.0.1`, `27017` | The server, when there is no `url` |
-| `authSource`, `replicaSet`, `tls`, `readPreference`, `writeConcern`… | | The options of the client of MongoDB |
-| `poolSize` | | The largest number of connections (`maxPoolSize`) |
+| `authSource`, `replicaSet`, `tls`, `readPreference`, `writeConcern`… | | MongoDB client options |
+| `poolSize` | | The maximum number of connections (`maxPoolSize`) |
 
-- An entity has an `@ObjectIdColumn()`, its `_id`. Its type is the `ObjectId` of `lakutata/orm`: an
-  `import {ObjectId} from 'bson'` in an ES module is another class, whose instances are not the ids of the entities.
-- `getRepository()` returns a `MongoRepository`, with the methods of MongoDB (`find` with the MongoDB operators,
-  `aggregate`, `createCursor`…).
-- TypeORM does not support for MongoDB: the query builders, `query()`, the relations and the cascades, the tree
-  repositories, the streams. **`transaction()` runs its function without a transaction**: the writes of a failed
-  function stay written.
-- `synchronize` only creates the indices. The migrations are written by hand (see [Migrations](Migrations.md)).
+- An entity has an `@ObjectIdColumn()`, its `_id`. Its type is the `ObjectId` from `lakutata/orm`: an
+  `import {ObjectId} from 'bson'` in an ES module is a different class, whose instances are not entity IDs.
+- `getRepository()` returns a `MongoRepository`, with MongoDB's methods (`find` with MongoDB operators, `aggregate`,
+  `createCursor`…).
+- TypeORM does not support the following for MongoDB: query builders, `query()`, relations and cascades, tree
+  repositories, streams. **`transaction()` runs its function without a transaction**: the writes of a failed function
+  remain written.
+- `synchronize` only creates the indices. Migrations are written manually (see [Migrations](Migrations.md)).
 
 ## SAP HANA, Google Cloud Spanner and Amazon Aurora
 
-These drivers come from TypeORM as they are:
+These drivers come from TypeORM unchanged:
 
 - **SAP HANA** (`sap`): `host`, `port`, `username`, `password`, `database`, `schema`, `encrypt` with `key`, `cert`,
   `ca`, and `pool` (`maxConnectedOrPooled`, 10 by default).
 - **Google Cloud Spanner** (`spanner`): `projectId`, `instanceId`, `databaseId`, and `credentials` (`client_email`,
-  `private_key`) unless the credentials of the environment are used. The other options of its type, copied from
-  MySQL, are not read.
+  `private_key`) unless the environment's credentials are used. The other options in its type, copied from MySQL, are
+  not read.
 - **Amazon Aurora through the Data API** (`aurora-mysql`, `aurora-postgres`): `region`, `secretArn`, `resourceArn` and
-  `database` are required; the queries go through the HTTP API of AWS, not through a connection.
+  `database` are required; queries go through the AWS HTTP API, not through a connection.
 
 ## The mobile applications
 
-A mobile application of the `mobile-react` template runs its Lakutata application in the Node.js it embeds (Node.js
-24.20), where the drivers of this page work as on a computer. The table gives what was verified on the emulators of
-Android (API 36), iOS (27.2) and HarmonyOS: a database written, closed, then opened again.
+A mobile application built from the `mobile-react` template runs its Lakutata application in the Node.js it embeds
+(Node.js 24.20), where the drivers in this guide work as they do on a computer. The table shows what was verified on the
+Android (API 36), iOS (27.2) and HarmonyOS emulators: a database written, closed, then opened again.
 
 | Driver | Android | iOS | HarmonyOS |
 |---|---|---|---|
@@ -310,16 +309,16 @@ Android (API 36), iOS (27.2) and HarmonyOS: a database written, closed, then ope
 
 SQL Server and Oracle have not been checked there.
 
-- `lakutata mobile stage` builds `better-sqlite3` and `@lakutata/mongo-embedded` from their sources for each system,
-  with the NDK, Xcode or DevEco Studio (see the `lakutata mobile` commands in the README of `@lakutata/cli`).
-- The file of a database has to last, and `os.tmpdir()` is the cache of the application, which the system may empty. The
-  `App.ts` of the template declares the data directory of the application as the alias `@data`: the `files` directory of
-  the application on Android, `Library/Application Support` on iOS, `/data/storage/el2/base/files` on HarmonyOS, and
-  `packages/app/data` on the computer of the development. The options of the database name a file there as
-  `@data/app.sqlite`: the alias is resolved when the database connects.
-- The asm.js build of sql.js is SQLite compiled to JavaScript: no WebAssembly and no other file, so it runs the same on
-  the three systems. The Node.js of HarmonyOS has no WebAssembly, and the one of iOS has only the polyfill of
-  nodejs-mobile, which is much slower:
+- `lakutata mobile stage` builds `better-sqlite3` and `@lakutata/mongo-embedded` from source for each system, with the
+  NDK, Xcode or DevEco Studio (see the `lakutata mobile` commands in the `@lakutata/cli` README).
+- A database file must persist, and `os.tmpdir()` is the application's cache, which the system may empty. The template's
+  `App.ts` declares the application's data directory as the alias `@data`: its `files` directory on Android,
+  `Library/Application Support` on iOS, `/data/storage/el2/base/files` on HarmonyOS, and `packages/app/data` on the
+  development computer. The database options name a file there as `@data/app.sqlite`: the alias is resolved when the
+  database connects.
+- The asm.js build of sql.js is SQLite compiled to JavaScript: no WebAssembly and no other file, so it runs the same way
+  on all three systems. The Node.js on HarmonyOS has no WebAssembly, and the one on iOS has only the nodejs-mobile
+  polyfill, which is much slower:
 
 ```typescript
 import type {ApplicationOptions} from 'lakutata'
@@ -348,11 +347,11 @@ export function config(): ApplicationOptions {
 ```
 
 - sql.js 1.15 marks its asm.js build as deprecated: the build prints a warning each time it is loaded, and the authors
-  ask the users who cannot leave it to say so ([sql-js/sql.js#635](https://github.com/sql-js/sql.js/issues/635)). The
-  build they recommend instead, `sql-wasm-inline.js`, needs WebAssembly, which the Node.js of HarmonyOS does not have.
-  For a database that the application keeps, `better-sqlite3`, which works on the three systems, is the better choice.
-- The WebAssembly of sql.js is read from `sql-wasm.wasm`, next to its module, which the bundle of the application does
-  not keep: declare the file as a resource in `lakutata.resources` (its `from` is where npm installed `sql.js` in the
-  workspace), and give its path among the resources to `sqlJsConfig.locateFile` ([Packaging](Packaging.md), section 6).
-- A database server is reached over the network of the device; from an emulator, the computer is reached through
+  ask users who cannot move away from it to say so ([sql-js/sql.js#635](https://github.com/sql-js/sql.js/issues/635)).
+  The build they recommend instead, `sql-wasm-inline.js`, requires WebAssembly, which the Node.js on HarmonyOS lacks.
+  For a database that the application keeps, `better-sqlite3`, which works on all three systems, is the better choice.
+- sql.js reads its WebAssembly from `sql-wasm.wasm`, next to its module, which the application bundle does not keep:
+  declare the file as a resource in `lakutata.resources` (its `from` is where npm installed `sql.js` in the workspace),
+  and pass its path among the resources to `sqlJsConfig.locateFile` ([Packaging](Packaging.md), section 6).
+- A database server is reached over the device's network; from an emulator, the computer is reached through
   `adb reverse` (Android) or `hdc rport` (HarmonyOS).

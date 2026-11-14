@@ -1,38 +1,38 @@
 # Lakutata Math
 
-The package `@lakutata/math` does mathematics in Node.js, both symbolic and numeric: algebra and calculus on formulas,
-equations and inequalities, decimals of any precision, matrices, statistics and probability distributions, numeric
-solutions, units, number theory. It is not part of `lakutata`, and it needs no application: its functions are imported
-and called anywhere. What it is like:
+The `@lakutata/math` package provides both symbolic and numeric mathematics in Node.js: algebra and calculus on
+formulas, equations and inequalities, decimals of any precision, matrices, statistics and probability distributions,
+numeric solutions, units, number theory. It is not part of `lakutata`, and it needs no application: its functions can be
+imported and called anywhere. Its main features:
 
-- **Formulas are written as on paper**: `x^2 - 5x + 6`, `2(x + 1)`, `5!`, `sin(pi/6)`. A result is written the same
-  way, so it can be read back, and in TeX for display.
+- **Formulas are written as on paper**: `x^2 - 5x + 6`, `2(x + 1)`, `5!`, `sin(pi/6)`. A result is written the same way,
+  so it can be read back, and also in TeX for display.
 - **Results are exact**: `0.1 + 0.2` is `3/10`, `sqrt(8)` is `2sqrt(2)`, the roots of `x^2 - 2` are `-sqrt(2)` and
-  `sqrt(2)`. A number is computed only when one is asked for: a double, or as many correct decimal digits as wanted.
-- **Symbolic and numeric in one package**: when an operation has no exact answer (an integral, the roots of a polynomial
-  of degree five), the numeric methods take the same formula.
+  `sqrt(2)`. A number is computed only when one is requested: a double, or as many correct decimal digits as required.
+- **Symbolic and numeric in one package**: when an operation has no exact result (an integral, the roots of a
+  fifth-degree polynomial), the numeric methods accept the same formula.
 - **A native addon** does the work, built on SymEngine, Boost, Eigen and mpdecimal: it is compiled code, so it is fast.
-  The long operations run in its own threads, with a time limit and a cancellation, so the event loop stays free.
+  Long operations run in its own threads, with a time limit and cancellation, so the event loop stays free.
 
-The README of `@lakutata/math` describes every function and its options; this guide goes through what the package
-computes, with an example of each kind.
+The `@lakutata/math` README describes every function and its options; this guide describes what the package computes,
+with an example of each kind.
 
 ```bash
 npm install @lakutata/math
 ```
 
 The addon is compiled when the package is installed, so the machine needs Python 3 and a C++17 compiler (the README
-lists them for each system); it takes from about half a minute to a few minutes. The package manager has to run the
-install script of the package: npm runs it, and may warn that the script is "not yet covered by allowScripts"
-(`npm install-scripts approve @lakutata/math` records that you allow it); Bun and pnpm run it only for the packages they
-are told to trust (`trustedDependencies` in the package.json for Bun, `pnpm approve-builds` for pnpm). Without the
-addon, loading the package throws an error that tells how to build it.
+lists them for each system); compilation takes from about half a minute to a few minutes. The package manager has to run
+the package's install script: npm runs it, and may warn that the script is "not yet covered by allowScripts"
+(`npm install-scripts approve @lakutata/math` records that you allow it); Bun and pnpm run it only for packages they are
+told to trust (`trustedDependencies` in the package.json for Bun, `pnpm approve-builds` for pnpm). Without the addon,
+loading the package throws an error that explains how to build it.
 
 ## 1. Formulas and results
 
 `expression()` reads a formula. A number next to a name or a parenthesis multiplies it (`2x`, `3(x + 1)`), `^` is a
-power, and the constants (`pi`, `e`, `i`, `inf`) and the functions (`sin`, `ln`, `sqrt`, `gamma`, `erf`, `zeta`…) have
-their usual names; the README lists them all. An expression does not change: each operation gives a new one.
+power, and constants (`pi`, `e`, `i`, `inf`) and functions (`sin`, `ln`, `sqrt`, `gamma`, `erf`, `zeta`…) have their
+usual names; the README lists them all. An expression is immutable: each operation returns a new one.
 
 ```typescript
 import {createMath, expression} from '@lakutata/math'
@@ -48,14 +48,14 @@ console.log(finance.expression('net(113)').toString())           //100
 console.log(finance.expression('p - net(p)').diff('p').toString()) //13/113
 ```
 
-- `toString()` gives a formula that `expression()` reads back, `toTeX()` its TeX (for KaTeX or MathJax).
-- `toNumber()` gives the nearest double. It is computed from the decimals of the exact value, so all its digits are
-  right, even where doubles have none: as a double, `1e30` is not exactly 10^30, and `Math.cos(1e30)` is the cosine of
-  another number. `toDecimal(digits)` gives that many correct significant digits, as a string.
-- `substitute({x: 2})` puts values in for the variables; the result stays exact.
-- `createMath({definitions})` makes a scope of functions and constants written as formulas, with the same functions
-  as the package. A formula sees through its definitions: derivatives and equations use them. The functions the package
-  exports belong to `math`, a scope with no definitions.
+- `toString()` returns a formula that `expression()` reads back, and `toTeX()` its TeX (for KaTeX or MathJax).
+- `toNumber()` returns the nearest double. It is computed from the exact value's decimals, so all its digits are
+  correct, even where doubles have none: as a double, `1e30` is not exactly 10^30, and `Math.cos(1e30)` is the cosine of
+  a different number. `toDecimal(digits)` returns that many correct significant digits, as a string.
+- `substitute({x: 2})` substitutes values for the variables; the result remains exact.
+- `createMath({definitions})` creates a scope of functions and constants written as formulas, which provides the same
+  functions as the package. A formula expands its definitions: derivatives and equations use them. The functions that
+  the package exports belong to `math`, a scope with no definitions.
 
 ## 2. Algebra and calculus
 
@@ -76,14 +76,15 @@ console.log(expression('t^2*e^(-3t)').laplace('t', 's').toString())             
 
 - **Polynomials and fractions**: `expand`, `factor` (over the rationals, in any number of variables), `cancel`,
   `together`, `apart` (partial fractions) and `completeSquare`.
-- **Simplification**: `simplify()` looks for a shorter form, by identities that hold for every value of the variables
-  (trigonometric, hyperbolic, exponential, nested roots); nothing that depends on the signs of the variables, so
-  `sqrt(x^2)` stays as it is.
-- **Integrals**: by partial fractions, a table, substitution, integration by parts, and the special functions of
-  integrals (`sin(x)/x` gives `Si(x)`). Each antiderivative is checked by its derivative before it is returned. A
-  definite integral is split at the poles inside its interval; it is `inf` where it grows without bound.
-- **Limits** by Gruntz's algorithm, from both sides or from one, at a point or at infinity, with the indeterminate
-  forms (`0/0`, `1^inf`, `inf - inf`…).
+- **Simplification**: `simplify()` looks for a shorter form, using identities that hold for every value of the variables
+  (trigonometric, hyperbolic, exponential, nested roots); it applies nothing that depends on the signs of the variables,
+  so `sqrt(x^2)` stays unchanged.
+- **Integrals**: by partial fractions, a table, substitution, integration by parts, and the integral special functions
+  (`Si`, `Ci`, `Shi`, `Chi`, `Ei`, `li` and the Fresnel integrals: `sin(x)/x` yields `Si(x)`). Each antiderivative is
+  verified by differentiation before it is returned. A definite integral is split at the poles inside its interval; it
+  is `inf` where it grows without bound.
+- **Limits** by Gruntz's algorithm, from both sides or from one side, at a point or at infinity, including the
+  indeterminate forms (`0/0`, `1^inf`, `inf - inf`…).
 - **Series** (`series(variable, point, order)`), **sums and products** in closed form (`sum(1/k^2, k, 1, inf)` is
   `pi^2/6`), **piecewise** expressions (`piecewise(x^2, x < 0, x)`), and the **Laplace transform** and its inverse.
 
@@ -105,16 +106,17 @@ console.log((parse('(x + 1)/(x - 2) >= 0') as Inequality).solve('x').set.toStrin
 
 - A polynomial equation is factored first, so its roots come out simple (1, 2, 3, not the radicals of Cardano's
   formula); the factors are solved exactly up to degree four, and `a x^n + b` of any degree. The solutions are complex
-  numbers unless `{domain: 'real'}` is given.
+  numbers unless `{domain: 'real'}` is specified.
 - `solve(equations, variables)` solves a system of linear equations, in terms of the free variables when it has
   infinitely many solutions.
-- An inequality of fractions of polynomials gives its real solutions as a set of intervals and values (`MathSet`), with
-  union, intersection, complement and membership.
+- An inequality of fractions of polynomials returns its real solutions as a set of intervals and values (`MathSet`),
+  which supports union, intersection, complement and membership.
 
 ## 4. Decimals
 
-`decimal()` gives a decimal number with a chosen precision (32 significant digits by default, up to 100000): for amounts
-of money, or for values that need many digits. Each operation rounds its result correctly, halves to even.
+`decimal()` creates a decimal number with a chosen precision (32 significant digits by default, up to 100000): for
+monetary amounts, or for values that need many digits. Each operation rounds its result correctly, with halves rounded
+to even.
 
 ```typescript
 import {decimal, expression} from '@lakutata/math'
@@ -127,17 +129,18 @@ console.log(expression('gamma(1/3)').toDecimal(40))            //2.6789385347077
 console.log(expression('e^(pi*sqrt(163))').toDecimal(40))      //262537412640768743.9999999999992500725972
 ```
 
-- A number is read as it is written (`0.1` is one tenth, not the binary value of the double), a string as a decimal
-  number (`'19.99'`), a bigint exactly.
-- Besides the arithmetic, decimals have roots, `exp` and the logarithms, the trigonometric and hyperbolic functions,
-  `gamma`, `erf`, `zeta`, `lambertw` and the rounding functions. `toDecimal()` of an expression computes the same
-  functions and more special ones (`polygamma`, `beta`, `Si`, `Ei`…).
-- `toDecimal()` computes the value again with more digits until two results agree, so every digit it gives is right:
-  `e^(pi*sqrt(163))` is not an integer, though its first twelve decimals are nines.
+- A number is read as it is written (`0.1` is one tenth, not the double's binary value), a string as a decimal number
+  (`'19.99'`), and a bigint exactly.
+- Besides arithmetic, decimals support roots, `exp` and logarithms, trigonometric and hyperbolic functions, `gamma`,
+  `erf`, `zeta`, `lambertw` and rounding functions. On an expression, `toDecimal()` computes the same functions and
+  additional special ones (`polygamma`, `beta`, `Si`, `Ei`…).
+- `toDecimal()` recomputes the value with more digits until two results agree, so every digit it returns is correct:
+  `e^(pi*sqrt(163))` is not an integer, although its first twelve decimals are nines.
 
 ## 5. Matrices
 
-There are two kinds of matrices: of numbers, for computing, and of expressions, for exact linear algebra.
+There are two kinds of matrices: matrices of numbers, for computation, and matrices of expressions, for exact linear
+algebra.
 
 ```typescript
 import {expressionMatrix, linalg, matrix} from '@lakutata/math'
@@ -152,10 +155,10 @@ console.log(expressionMatrix('[2, 1; 1, 2]').eigenvalues().map(({value, multipli
 ```
 
 - `matrix()` holds doubles in a `Float64Array`, and `linalg` computes with Eigen: systems, least squares, inverses,
-  determinants, the decompositions (LU, QR, SVD, Cholesky, eigenvalues, Schur), the exponential and the square root of
-  a matrix, Sylvester and Lyapunov equations, and sparse matrices with their direct and iterative solvers.
+  determinants, decompositions (LU, QR, SVD, Cholesky, eigenvalues, Schur), matrix exponentials and matrix square roots,
+  Sylvester and Lyapunov equations, and sparse matrices with their direct and iterative solvers.
 - `expressionMatrix()` holds expressions: determinants, inverses, systems, reduced row echelon forms, null spaces,
-  characteristic polynomials, eigenvalues and eigenvectors, all exact, also with variables. `jacobian()` gives the
+  characteristic polynomials, eigenvalues and eigenvectors, all exact, even with variables. `jacobian()` returns the
   Jacobian matrix of expressions.
 
 ## 6. Statistics and probability
@@ -173,17 +176,18 @@ console.log(stats.binomial({trials: 10, probability: 0.3}).pdf(3)) //0.266827931
 console.log(stats.random(42).integers(5, 1, 7))                    //Float64Array(5) [1, 1, 6, 6, 5]
 ```
 
-- The statistics of values: sums (compensated for their roundings), means, medians, modes, variances (of a population
-  by default, of a sample with `{normalization: 'unbiased'}`), quantiles, covariances, correlations, z-scores.
+- Statistics of values: sums (compensated for rounding errors), means, medians, modes, variances (of a population by
+  default, of a sample with `{normalization: 'unbiased'}`), quantiles, covariances, correlations, z-scores.
 - 24 probability distributions, computed by Boost.Math, with their density, cdf, quantiles, moments and samples. Their
-  parameters are given by name (`{shape, scale}`), since libraries parameterize them differently; the README gives the
-  equivalents in SciPy.
-- `stats.random(seed)` gives a generator (xoshiro256**): from the same seed, it draws the same uniform numbers and
-  integers, on every platform. It is not meant for cryptography.
+  parameters are specified by name (`{shape, scale}`), since libraries parameterize them differently; the README lists
+  the SciPy equivalents.
+- `stats.random(seed)` returns a generator (xoshiro256**): from the same seed, it draws the same uniform numbers and
+  integers on every platform. It is not intended for cryptography.
 
 ## 7. Numeric solutions
 
-When an equation or an integral has no exact solution, or numbers are enough, `numeric` takes the same formulas:
+When an equation or an integral has no exact solution, or when numbers are sufficient, `numeric` accepts the same
+formulas:
 
 ```typescript
 import {numeric} from '@lakutata/math'
@@ -197,13 +201,13 @@ const decay = numeric.solveODE({derivatives: '-2y', states: 'y', span: [0, 1], i
 console.log(decay.y.data)                                                         //Float64Array(2) [0.3678795037443847, 0.13533535227865426]
 ```
 
-- `polynomialRoots` gives all the roots of a polynomial, complex ones too; `findRoot` a root in a bracket or from a
-  guess; `solveSystem` a solution of nonlinear equations.
-- `integrate` computes a definite integral by QUADPACK's method (as SciPy's `quad`), on infinite intervals too, and
-  with singularities at the ends or at given points.
-- `solveODE` solves ordinary differential equations and systems of them, by an explicit Runge-Kutta method (as SciPy's
-  RK45) or, for stiff equations, by Radau IIA.
-- When a method does not converge, its result says so (`converged`, `completed`) instead of throwing.
+- `polynomialRoots` returns all the roots of a polynomial, including complex ones; `findRoot` a root in a bracket or
+  from an initial guess; `solveSystem` a solution of nonlinear equations.
+- `integrate` computes a definite integral with QUADPACK's method (like SciPy's `quad`), including on infinite intervals
+  and with singularities at the endpoints or at specified points.
+- `solveODE` solves ordinary differential equations and systems of them, with an explicit Runge-Kutta method (like
+  SciPy's RK45) or, for stiff equations, with Radau IIA.
+- When a method does not converge, its result indicates this (`converged`, `completed`) instead of throwing.
 
 ## 8. Units and physical constants
 
@@ -217,9 +221,9 @@ console.log(unit('1.5 h').split(['h', 'min']).map(String))             //['1 h',
 console.log(constant('boltzmann').mul('300 K').to('eV').toDecimal(6))  //0.025852 eV
 ```
 
-The table of units is that of mathjs (251 units, with their prefixes), with exact values: `1 inch` is exactly `2.54 cm`.
-Values of different dimensions cannot be added or converted. `constant()` gives the 52 physical constants of mathjs,
-with the values of CODATA 2022, and `createMath({units})` adds units of your own.
+The unit table is that of mathjs (251 units, with their prefixes), with exact values: `1 inch` is exactly `2.54 cm`.
+Values of different dimensions cannot be added or converted. `constant()` provides the 52 mathjs physical constants,
+with CODATA 2022 values, and `createMath({units})` adds custom units.
 
 ## 9. Number theory and polynomials
 
@@ -239,7 +243,7 @@ greatest common divisors and least common multiples, resultants, discriminants a
 
 ## 10. Formulas as functions
 
-An expression evaluated many times is compiled into a function of numbers, or written as code:
+An expression evaluated many times is compiled into a numeric function, or written as code:
 
 ```typescript
 import {expression} from '@lakutata/math'
@@ -252,14 +256,15 @@ console.log(expression('sqrt(x^2 + y^2)').toC())          //sqrt(pow(x, 2.0) + p
 ```
 
 `batch()` evaluates many rows of values in one call. `cse()` finds the parts that expressions share, so that the code
-written from them computes each part once.
+generated from them computes each part only once.
 
 ## 11. Long operations
 
-The operations run in the thread of JavaScript, and some of them can take long: the expansion of a large power, an
-integral, thousands of digits, the factors of a large number. While one runs, the event loop waits. The operations that
-can take long have an asynchronous version (`expandAsync()`, `simplifyAsync()`, `integrateAsync()`, `solveAsync()`,
-`toDecimalAsync()`… and those of `linalg`, `ntheory`, `poly` and `numeric`), which runs in the threads of the addon:
+Operations run in the JavaScript thread, and some of them can take a long time: the expansion of a large power, an
+integral, thousands of digits, the factorization of a large number. While one runs, the event loop waits. Operations
+that can take a long time have an asynchronous version (`expandAsync()`, `simplifyAsync()`, `integrateAsync()`,
+`solveAsync()`, `toDecimalAsync()`… and those of `linalg`, `ntheory`, `poly` and `numeric`), which runs in the addon's
+threads:
 
 ```typescript
 import {createMath, MathTimeoutException} from '@lakutata/math'
@@ -277,22 +282,22 @@ setTimeout((): void => controller.abort(), 50)
 await scope.expression('(x + y + z + 1)^500').expandAsync({signal: controller.signal}).catch((error: Error): void => console.log(error.name)) //MathCancelledException
 ```
 
-- The addon has as many threads as the processor has cores, minus one, or the number in the environment variable
-  `LAKUTATA_MATH_THREADS`. They are not the thread pool of libuv, so the files and the DNS lookups of the program do not
-  wait for them.
-- `timeout` (an option of `createMath()`, or of one call; none by default) rejects the operation with
-  `MathTimeoutException`, and an aborted `signal` with `MathCancelledException`. The time spent waiting for a free
-  thread does not count.
-- A canceled operation stops at the next point where it checks for a cancellation, between the steps of its work. A
-  single step (a decomposition of a matrix by Eigen, a derivative by SymEngine) runs to its end, and the thread is free
-  only then: the promise is rejected at the time limit, while the work may go on for a while.
-- `concurrency` (an option of `createMath()`) limits how many operations of a scope run at the same time; the others
+- The addon has as many threads as the processor has cores, minus one, or the number in the `LAKUTATA_MATH_THREADS`
+  environment variable. They are not libuv's thread pool, so the program's file operations and DNS lookups do not wait
+  for them.
+- `timeout` (an option of `createMath()`, or of a single call; none by default) rejects the operation with
+  `MathTimeoutException`, and an aborted `signal` rejects it with `MathCancelledException`. Time spent waiting for a
+  free thread does not count.
+- A canceled operation stops at the next point where it checks for cancellation, between the steps of its work. A single
+  step (a matrix decomposition by Eigen, a derivative by SymEngine) runs to completion, and only then is the thread
+  free: the promise is rejected at the time limit, while the work may continue for a while.
+- `concurrency` (an option of `createMath()`) limits how many of a scope's operations run at the same time; the others
   wait their turn.
 
 ## 12. In an application
 
-A controller calls the package as any other code does. With a formula from a client, use an asynchronous operation and
-the `signal` of the request: when the client leaves, the operation is canceled.
+A controller calls the package as any other code does. For a formula received from a client, use an asynchronous
+operation and the request's `signal`: when the client disconnects, the operation is canceled.
 
 ```typescript
 import {Application, DTO} from 'lakutata'
@@ -337,58 +342,59 @@ $ curl -X POST localhost:8080/solve -H 'Content-Type: application/json' -d '{"eq
 {"errno":"E_MATH_SYNTAX","errMsg":"Unexpected *"}
 ```
 
-- The exceptions of the package have no `statusCode`, so the wrong formula above is answered with the status 500 and
-  `{"errno": "E_MATH_SYNTAX", …}`. To answer the errors in the formulas of the clients with 400, catch `MathException`
-  in the action and throw an exception of the application (see [Exceptions](Exceptions.md)); leave `E_MATH_INTERNAL`, an
-  internal error of the addon, as it is.
-- The length of a formula does not bound the work it takes: `(x + 1)^100000` is short. The time limit does.
-- The values of the package become JSON through their `toJSON()`: an expression, an equation, a decimal and a value
-  with units give their text, solutions an array of texts, a matrix its rows. A vector is a `Float64Array`, which
+- The package's exceptions have no `statusCode`, so the server responds to the malformed formula above with the status
+  500 and `{"errno": "E_MATH_SYNTAX", …}`. To respond to errors in clients' formulas with 400, catch `MathException` in
+  the action and throw an application exception (see [Exceptions](Exceptions.md)); leave `E_MATH_INTERNAL`, an internal
+  error of the addon, unchanged.
+- A formula's length does not bound the work it requires: `(x + 1)^100000` is short. The time limit does.
+- The package's values are converted to JSON through their `toJSON()`: an expression, an equation, a decimal and a value
+  with units produce their text, solutions an array of texts, a matrix its rows. A vector is a `Float64Array`, which
   `JSON.stringify()` writes as an object (`{"0": 1, "1": 1}`): send `Array.from(vector)`.
-- The bundles, the executables and the installers made by `lakutata package` carry the compiled addon
-  (`build/Release/math.node`). Build them on each target platform, after installing the package there; the rules of
-  the native addons apply (see [Packaging](Packaging.md) and [Native Addons](NativeAddons.md)).
-- The package runs in Node.js `>=18.10.0`, in Bun and in the main process of Electron, which load the
-  addon compiled for Node.js; not in the renderers of Electron nor in the browsers. In Bun, terminating a worker thread
-  while operations of the addon still run in it ends the whole process with a fatal error of Node-API (a bug of Bun
-  1.4).
+- Bundles, executables and installers made by `lakutata package` include the compiled addon (`build/Release/math.node`).
+  Build them on each target platform, after installing the package there; the rules for native addons apply (see
+  [Packaging](Packaging.md) and [Native Addons](NativeAddons.md)).
+- The package runs in Node.js `>=18.10.0`, in Bun and in Electron's main process, which load the addon compiled for
+  Node.js; not in Electron's renderers or in browsers. In Bun, terminating a worker thread while addon operations are
+  still running in it ends the whole process with a fatal Node-API error (a Bun 1.4 bug).
 
 ## 13. How it is checked, and what it does not do
 
-The tests of the package compare its results on about 2500 cases with those of SymPy and mpmath (the formulas, the
-decimals, the units), of NumPy and SciPy (the matrices, the statistics, the distributions, the numeric solutions), and
-of mathjs and nerdamer; they run on macOS (arm64: Node.js 24, Bun 1.4, Electron 44), on Linux (arm64, glibc and musl:
-Node.js 24, Bun 1.4) and on Windows 11 (arm64: Node.js 24).
+The package's tests compare its results on about 2500 cases with those of SymPy and mpmath (formulas, decimals, units),
+NumPy and SciPy (matrices, statistics, distributions, numeric solutions), and mathjs and nerdamer; they run on macOS
+(arm64: Node.js 24, Bun 1.4, Electron 44), on Linux (arm64, glibc and musl: Node.js 24, Bun 1.4) and on Windows 11
+(arm64: Node.js 24).
 
 What it does not do, whether by design or not yet:
 
 - An integral whose fraction needs algebraic numbers to factor its denominator (`1/(x^4 + 1)`), or whose antiderivative
-  is neither elementary nor one of the special functions of integrals, throws `MathNotSupportedException`; it is not
-  kept as an unevaluated integral. `numeric.integrate()` computes the definite integral.
-- `solve()` solves one equation, or a system of linear equations; a system of nonlinear equations is for
-  `numeric.solveSystem()`. An equation with infinitely many solutions, such as `sin(x) = 0`, gives no array of them: its
-  `set` only describes them (`{2pi*n + pi | n integer} or {2pi*n | n integer}`), and the operations of the sets do not
-  take it.
+  cannot be written with elementary functions and the special functions the package knows, throws
+  `MathNotSupportedException`; it is not kept as an unevaluated integral. `numeric.integrate()` computes the definite
+  integral.
+- `solve()` solves one equation, or a system of linear equations; a system of nonlinear equations requires
+  `numeric.solveSystem()`. An equation with infinitely many solutions, such as `sin(x) = 0`, returns no array of them:
+  its `set` only describes them (`{2pi*n + pi | n integer} or {2pi*n | n integer}`), and set operations do not accept
+  it.
 - An inequality must be made of fractions of polynomials with rational coefficients.
-- The exact eigenvalues of a matrix of expressions are found up to degree four; `linalg.eigen()` gives them as numbers.
-- Nothing that depends on the signs of the variables: `sqrt(x^2)` is not `abs(x)`, and a limit that depends on the
-  sign of a parameter (`exp(a*x)` at `inf`) is not found.
+- The exact eigenvalues of a matrix of expressions are found up to degree four; `linalg.eigen()` returns them as
+  numbers.
+- Nothing that depends on the signs of the variables: `sqrt(x^2)` is not `abs(x)`, and a limit that depends on a
+  parameter's sign (`exp(a*x)` at `inf`) is not found.
 - Exact numbers have at most about 315000 digits: a larger power stays a power (`2^(10^7)`).
 
 ## 14. Exceptions
 
-All of them extend `MathException`. The errors in a formula carry the `position` of the character where they are found.
-The README of the package lists every case.
+All of them extend `MathException`. Errors in a formula carry the `position` of the character where they are found. The
+package README lists every case.
 
 | Exception | `errno` | When |
 |---|---|---|
-| `MathSyntaxException` | `E_MATH_SYNTAX` | A formula is not written correctly, an equation is given where an expression is expected, or the other way round |
+| `MathSyntaxException` | `E_MATH_SYNTAX` | A formula is not written correctly, an equation is provided where an expression is expected, or vice versa |
 | `MathUnknownFunctionException` | `E_MATH_UNKNOWN_FUNCTION` | A formula calls a function that is neither built in nor defined |
-| `MathDefinitionException` | `E_MATH_DEFINITION` | A definition or a unit of `createMath()` is not valid |
-| `MathUnitException` | `E_MATH_UNIT` | Units of different dimensions added, compared or converted; a unit that is not known |
-| `MathDomainException` | `E_MATH_DOMAIN` | A value outside the domain of a function: a complex value asked as a number, a singular matrix inverted, a limit that does not exist |
+| `MathDefinitionException` | `E_MATH_DEFINITION` | A definition or a unit passed to `createMath()` is not valid |
+| `MathUnitException` | `E_MATH_UNIT` | Adding, comparing or converting units of different dimensions; an unknown unit |
+| `MathDomainException` | `E_MATH_DOMAIN` | A value outside a function's domain: a complex value requested as a number, an attempt to invert a singular matrix, a limit that does not exist |
 | `MathDivisionByZeroException` | `E_MATH_DIVISION_BY_ZERO` | A division by zero while computing decimals, a modulus of 0 |
 | `MathNotSupportedException` | `E_MATH_NOT_SUPPORTED` | An operation the package does not do for this formula (section 13) |
-| `MathArgumentException` | `E_MATH_ARGUMENT` | An argument that is not valid: variables left where a number is asked, matrices of the wrong dimensions |
+| `MathArgumentException` | `E_MATH_ARGUMENT` | An invalid argument: variables left where a number is required, matrices of the wrong dimensions |
 | `MathTimeoutException`, `MathCancelledException` | `E_MATH_TIMEOUT`, `E_MATH_CANCELLED` | An asynchronous operation past its time limit, or canceled |
 | `MathException` | `E_MATH_INTERNAL` | An internal error of the addon |

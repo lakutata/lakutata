@@ -8,8 +8,8 @@ and products, inequalities and piecewise functions; numeric matrices and linear 
 distributions, numeric roots. The work is done by a native addon built on
 [SymEngine](https://github.com/symengine/symengine), [Boost](https://www.boost.org),
 [Eigen](https://eigen.tuxfamily.org) and [mpdecimal](https://www.bytereef.org/mpdecimal/), compiled when the package is
-installed. The long operations can run in the addon's own threads, with a time limit and a cancellation. It belongs to
-the [Lakutata](https://github.com/lakutata/lakutata) family but needs no Lakutata application. Its functions work on
+installed. Long operations can run in the addon's own threads, with a time limit and cancellation. It belongs to the
+[Lakutata](https://github.com/lakutata/lakutata) family but requires no Lakutata application. Its functions work on
 their own: import them from `@lakutata/math` and call them.
 
 ## Installation
@@ -18,18 +18,18 @@ their own: import them from `@lakutata/math` and call them.
 npm install @lakutata/math
 ```
 
-- The addon is compiled during the installation (node-gyp), so the machine needs Python 3 and a C++17 compiler: the
-  Command Line Tools of Xcode on macOS, `build-essential` (Debian, Ubuntu) or `build-base` (Alpine) on Linux, the Build
-  Tools of Visual Studio ("Desktop development with C++") on Windows. Compiling takes from about half a minute to a few
-  minutes. If it fails, the installation fails.
-- The package manager has to run the install script of the package. npm runs it, and may warn that the script is "not
-  yet covered by allowScripts": `npm install-scripts approve @lakutata/math` records that you allow it. Bun and pnpm run
-  it only for the dependencies they are told to trust (`trustedDependencies` in the package.json for Bun,
-  `pnpm approve-builds` for pnpm); without it, loading the package throws an error telling how to build the addon.
+- The addon is compiled during the installation (node-gyp), so the machine requires Python 3 and a C++17 compiler: the
+  Xcode Command Line Tools on macOS, `build-essential` (Debian, Ubuntu) or `build-base` (Alpine) on Linux, and the
+  Visual Studio Build Tools ("Desktop development with C++") on Windows. Compiling takes from about half a minute to a
+  few minutes. If it fails, the installation fails.
+- The package manager has to run the package's install script. npm runs it, and may warn that the script is "not yet
+  covered by allowScripts": `npm install-scripts approve @lakutata/math` records that you allow it. Bun and pnpm run it
+  only for dependencies they are told to trust (`trustedDependencies` in the package.json for Bun, `pnpm approve-builds`
+  for pnpm); without it, loading the package throws an error that explains how to build the addon.
 - Node.js `>=18.10.0`.
-- The addon uses Node-API, so Bun and the main process of Electron load the addon node-gyp built for Node.js, without a
-  rebuild. In Bun, terminating a worker thread while operations of the addon are still running in it ends the whole
-  process with a fatal error of Node-API (a bug of Bun 1.4); Node.js and Electron drop those operations.
+- The addon uses Node-API, so Bun and Electron's main process load the addon that node-gyp built for Node.js, without a
+  rebuild. In Bun, terminating a worker thread while addon operations are still running in it ends the whole process
+  with a fatal Node-API error (a Bun 1.4 bug); Node.js and Electron drop those operations.
 
 ## Usage
 
@@ -38,7 +38,7 @@ npm install @lakutata/math
 The package exports its functions ready to use: `parse`, `expression`, `equation`, `decimal`, `matrix`,
 `expressionMatrix`, `jacobian`, `unit`, `constant`, `solve` and `cse`, with the namespaces `ntheory` (number theory),
 `poly` (polynomials), `linalg` (linear algebra), `stats` (statistics and probability) and `numeric` (numeric solutions,
-integrals and differential equations). They belong to `math`, the scope made with the default options.
+integrals and differential equations). They belong to `math`, the scope created with the default options.
 
 ```typescript
 import {decimal, equation, expression, linalg, stats} from '@lakutata/math'
@@ -54,11 +54,11 @@ console.log(stats.mean([2, 4, 4, 4, 5, 5, 7, 9]))                  //5
 
 ### Options
 
-`createMath(options)` makes a `MathScope` with other options and the same functions: its `definitions` (functions and
+`createMath(options)` creates a `MathScope` with other options and the same functions: its `definitions` (functions and
 constants written as formulas, none by default), the `precision` of its decimals (32 significant digits by default), the
-`timeout` of its asynchronous operations (milliseconds, 0 for none by default), their `concurrency` (all the threads of
-the addon by default) and its `units` (units added to the table, none by default). Every option has a default value, so
-`createMath()` alone is the same as `math`. A program may make several, for several sets of definitions.
+`timeout` for its asynchronous operations (milliseconds, 0 for none by default), their `concurrency` (all the addon's
+threads by default) and its `units` (units added to the table, none by default). Every option has a default value, so
+`createMath()` alone is the same as `math`. A program may create several, for several sets of definitions.
 
 ```typescript
 import {createMath, type Equation, type Expression, type MathScope} from '@lakutata/math'
@@ -83,30 +83,30 @@ console.log(expanded.variables())                   //['x', 'y']
 | `0.1`, `1.5e3` | Exact decimals: `0.1` is `1/10` |
 | `pi`, `e`, `i`, `inf` (or `oo`), `nan`, `phi` (golden ratio), `tau` (`2pi`), `EulerGamma`, `Catalan` | Constants |
 | `sin`, `cos`, `tan`, `asin`, `sinh`…, `exp`, `ln`, `log(x)` (natural), `log(x, b)`, `log10`, `log2`, `expm1`, `log1p`, `sqrt`, `cbrt`, `root(x, n)`, `hypot` | Functions |
-| `abs`, `sign`, `floor`, `ceil`, `trunc`, `round`, `mod(a, b)`, `min`, `max`, `gcd`, `lcm`, `re`, `im`, `arg`, `conj` | Rounding, remainders, extrema, the parts of complex numbers |
+| `abs`, `sign`, `floor`, `ceil`, `trunc`, `round`, `mod(a, b)`, `min`, `max`, `gcd`, `lcm`, `re`, `im`, `arg`, `conj` | Rounding, remainders, extrema, complex number parts |
 | `gamma`, `loggamma`, `digamma`, `polygamma`, `lowergamma`, `uppergamma`, `beta`, `erf`, `erfc`, `zeta`, `lambertw`, `sinc`, `binomial`, `factorial` | Special functions |
-| `Si`, `Ci`, `Shi`, `Chi`, `Ei`, `li`, `fresnelS`, `fresnelC` | The special functions of integrals: the sine, cosine, hyperbolic sine and hyperbolic cosine integrals, the exponential and logarithmic integrals, the Fresnel integrals; computed in doubles, and as decimals for real arguments |
+| `Si`, `Ci`, `Shi`, `Chi`, `Ei`, `li`, `fresnelS`, `fresnelC` | Integral special functions: the sine, cosine, hyperbolic sine and hyperbolic cosine integrals, the exponential and logarithmic integrals, the Fresnel integrals; computed in doubles, and as decimals for real arguments |
 | `piecewise(x^2, x < 0, x)`, `step`, `rect`, `tri` | A piecewise expression: values with their conditions, then the value where none holds; `step`, `rect` and `tri` are written as one |
 | `sum(k^2, k, 1, n)`, `product(k, k, 1, n)` | A sum, a product: the term, its variable, the first and the last value (integers, `-inf` or `inf`) |
 | `x^2 = 4` | An equation (`equation()`, or `parse()`) |
 | `x < 1`, `x >= 0` | An inequality, read by `parse()` |
-| `[1, 2; 3, 4]`, `[x; y]` | A matrix: its rows separated by `;`, its elements by `,` (`parse()` gives an `ExpressionMatrix`). Matrices are added, multiplied (`[1, 2; 3, 4] * [x; y]`, `2[1, 2]`), divided by a number and raised to integer powers; `det`, `inv`, `transpose` and `trace` take a matrix |
+| `[1, 2; 3, 4]`, `[x; y]` | A matrix: its rows separated by `;`, its elements by `,` (`parse()` returns an `ExpressionMatrix`). Matrices are added, multiplied (`[1, 2; 3, 4] * [x; y]`, `2[1, 2]`), divided by a number and raised to integer powers; `det`, `inv`, `transpose` and `trace` take a matrix |
 
-`cbrt(x)` and `root(x, n)` with an odd `n` give the real root of a negative real number (`cbrt(-8)` is `-2`, as
-`Math.cbrt`); a fractional power gives the principal value (`(-8)^(1/3)` is `1 + sqrt(3)i`, as SymPy). `round` rounds
-the halves away from zero (`round(-2.5)` is `-3`), `mod(a, b)` has the sign of `b` (`mod(-7, 3)` is `2`), `gcd` and
-`lcm` take integers. A variable may be a complex number, so `re(x)` stays as written.
+`cbrt(x)` and `root(x, n)` with an odd `n` yield the real root of a negative real number (`cbrt(-8)` is `-2`, as
+`Math.cbrt`); a fractional power yields the principal value (`(-8)^(1/3)` is `1 + sqrt(3)i`, as SymPy). `round` rounds
+halves away from zero (`round(-2.5)` is `-3`), `mod(a, b)` has the sign of `b` (`mod(-7, 3)` is `2`), `gcd` and `lcm`
+take integers. A variable may be a complex number, so `re(x)` stays as written.
 
 In `piecewise(v1, c1, v2, c2, …, v)`, each value applies where its condition holds and no earlier one does; the last
 value, after the conditions, applies where no condition holds, and without it the expression is undefined there (`nan`).
 A condition compares values (`<`, `<=`, `>`, `>=`, `=`, `!=`; `0 <= x < 1` is `0 <= x and x < 1`), with `and`, `or`,
-`not` and parentheses; these three words cannot be variables. The comparisons of constants are decided exactly
+`not` and parentheses; these three words cannot be variables. Comparisons of constants are decided exactly
 (`piecewise(1, sqrt(2) < 3/2, 2)` is `1`), comparisons with variables are decided once the variables have values
 (`substitute()`); a complex value in a comparison throws `MathDomainException`. `step(x)` is 0 below 0, 1/2 at 0 and 1
 above (SymPy's `Heaviside`), `rect(x)` is 1 for `|x| < 1/2`, 1/2 at `|x| = 1/2` and 0 beyond, and `tri(x)` is `1 - |x|`
-for `|x| < 1` and 0 beyond — nerdamer's definitions. A piecewise expression is derived case by case (the derivative of
-`step(x)` is 0: there is no Dirac delta), compiled, written in LaTeX with `cases` and in JavaScript and C with
-conditional expressions; `numeric.integrate()` splits the interval where the case changes.
+for `|x| < 1` and 0 beyond — nerdamer's definitions. A piecewise expression is differentiated case by case (the
+derivative of `step(x)` is 0: there is no Dirac delta), compiled, written in LaTeX with `cases` and in JavaScript and C
+with conditional expressions; `numeric.integrate()` splits the interval where the case changes.
 
 ```typescript
 import {expression} from '@lakutata/math'
@@ -119,9 +119,10 @@ console.log(f.toTeX())                        //\begin{cases} x^{2} & \text{for}
 
 `sum(f, k, a, b)` and `product(f, k, a, b)` are the sum and the product of `f` for `k` from `a` to `b`; `a` and `b` are
 integers, `-inf` or `inf`, or expressions of other variables. `k` is bound: it is not a variable of the expression, and
-`substitute()` and `diff()` leave it alone. As in SymPy, `b = a - 1` gives 0 (1 for a product), and `b < a - 1` the sum
-from `b + 1` to `a - 1` with the sign changed (the reciprocal of the product). Between integers at most 1000 apart, the
-terms are computed one by one, exactly. Otherwise a closed form is looked for: the sum of a polynomial in `k` (`sum(k^2,
+`substitute()` and `diff()` leave it unchanged. As in SymPy, `b = a - 1` yields 0 (1 for a product), and `b < a - 1` the
+sum from `b + 1` to `a - 1` with the sign changed (the reciprocal of the product). Between integers at most 1000 apart,
+the terms are computed one by one, exactly. Otherwise, a closed form is sought: the sum of a polynomial in `k`
+(`sum(k^2,
 k, 1, n)` is `n^3/3 + n^2/2 + n/6`), of a geometric series (`sum(x^k, k, 0, n)` is `piecewise(n + 1, x = 1,
 (-x^(n + 1) + 1)/(-x + 1))`; to `inf`, its value where `abs(x) < 1`), of a power of `1/(k + q)` (with `zeta` and
 `polygamma`: `sum(1/k^2, k, 1, inf)` is `pi^2/6`), of a hypergeometric term, by Gosper's algorithm (`sum(k*2^k, k, 1,
@@ -142,17 +143,17 @@ console.log(expression('product(1 - 1/k^2, k, 2, n)').toString())    //(n + 1)/(
 console.log(expression('sum(sin(k*x), k, 1, n)').diff('x').toTeX()) //\sum_{k = 1}^{n} k \cos\left(k x\right)
 ```
 
-Without parentheses, the name of a function is a variable (`gamma`, `beta`, `re`, `mod` are common names of
-quantities), except the ones often written without parentheses by mistake — the trigonometric and hyperbolic
-functions, `exp`, `ln`, `log` and its variants, `sqrt`, `cbrt`: `sin x` is an error, write `sin(x)`.
+Without parentheses, a function name is a variable (`gamma`, `beta`, `re`, `mod` are common quantity names), except
+those often written without parentheses by mistake — the trigonometric and hyperbolic functions, `exp`, `ln`, `log` and
+its variants, `sqrt`, `cbrt`: `sin x` is an error, write `sin(x)`.
 
-The results are written the same way: `toString()` gives a formula that `expression()` reads back, and `toTeX()`
-gives its LaTeX. A syntax error is a `MathSyntaxException` with the `position` of the character where it is found.
+Results are written the same way: `toString()` returns a formula that `expression()` reads back, and `toTeX()` returns
+its LaTeX. A syntax error is a `MathSyntaxException` with the `position` of the character where it is found.
 
 ### Definitions
 
 The `definitions` of `createMath()` are functions and constants written as formulas. They do not change once the scope
-is made, so every part of a program that uses it sees the same ones. `with()` adds more for a while, without changing
+is created, so every part of a program that uses it sees the same ones. `with()` adds more temporarily, without changing
 it:
 
 ```typescript
@@ -166,41 +167,43 @@ Definitions are expanded when a formula is read, so derivatives and equations se
 
 ### Exact results and numbers
 
-A formula gives exact results: `0.1 + 0.2` is `3/10`, `sin(pi/6)` is `1/2`, `sqrt(8)` is `2sqrt(2)`. A number times a
+A formula yields exact results: `0.1 + 0.2` is `3/10`, `sin(pi/6)` is `1/2`, `sqrt(8)` is `2sqrt(2)`. A number times a
 sum is multiplied out (`2(x + 1)` is `2x + 2`), and integers to the same rational power are multiplied together
 (`sqrt(2)*sqrt(3)` is `sqrt(6)`), as in SymPy. Exact numbers are computed up to about 315,000 digits: a larger power
 stays a power (`2^(10^7)`), and a factorial above `20000!` stays as `gamma(n + 1)`. Then:
 
-- `toNumber()` gives a number of JavaScript (`MathDomainException` for a complex value), `toComplex()` gives `{re, im}`.
-  They compute the values from their decimals where `toDecimal()` or `toComplexDecimal()` computes them, so that all the
-  digits of a number are right, also where doubles have none (`cos(10^30)`, `e^(i*10^30)`). Both compute the special
-  functions (gamma, zeta, Lambert W, polygamma, erf…) of complex arguments too, in doubles, while the rest of the
-  expression stays in decimals.
-- `toDecimal(digits)` gives a string with that many significant digits, correctly rounded (the `precision` of the scope
-  by default), written as `Decimal` writes its digits (see below): `3`, not `3.000…`. The value is computed again with
-  more digits until two results agree. It computes the arithmetic, powers and roots, `exp` and `ln`, the trigonometric
-  and hyperbolic functions and their inverses, the rounding functions, the constants, and the special functions of real
+- `toNumber()` returns a JavaScript number (`MathDomainException` for a complex value), `toComplex()` returns
+  `{re, im}`. They compute the values from their decimals where `toDecimal()` or `toComplexDecimal()` computes them, so
+  that all of a number's digits are correct, even where doubles have none (`cos(10^30)`, `e^(i*10^30)`). Both also
+  compute the special functions (gamma, zeta, Lambert W, polygamma, erf…) of complex arguments, in doubles, while the
+  rest of the expression stays in decimals.
+- `toDecimal(digits)` returns a string with that many significant digits, correctly rounded (the scope's `precision` by
+  default), written as `Decimal` writes its digits (see below): `3`, not `3.000…`. The value is recomputed with more
+  digits until two results agree. It computes the arithmetic, powers and roots, `exp` and `ln`, the trigonometric and
+  hyperbolic functions and their inverses, the rounding functions, the constants, and the special functions of real
   arguments: `gamma`, `loggamma`, `digamma`, `polygamma`, `beta`, `erf`, `erfc`, `zeta` (Riemann's and Hurwitz's),
-  `lowergamma`, `uppergamma`, `lambertw`, and the special functions of integrals `Si`, `Ci`, `Shi`, `Chi`, `Ei`, `li`,
-  `fresnelS` and `fresnelC`. A value that cannot be told from 0, even with 640 more digits, is `0` (`ln(6) - ln(2) -
-  ln(3)`); a value whose argument is too large for the digits is computed with as many more digits as it needs, up to
-  50000 (`sin(10^(10^4))` needs 10^4); a value exactly halfway between two decimals of that many digits is rounded to
-  the even one (`ln(8)/ln(4)`, which is 1.5, gives `2` to one digit). A real value with complex parts (`e^(i*pi)`,
-  `-i*asinh(i)`) is the real part of `toComplexDecimal()`; a complex value throws `MathDomainException`.
-- `toComplexDecimal(digits)` gives the two parts of a complex value, `{re, im}`, as strings rounded as `toDecimal()`
-  rounds, each part to that many significant digits of its own: the parts of `(1 + i/10^25)^2 - 1` are `-1e-50` and
-  `2e-25`. It computes the functions `toDecimal()` computes, of complex arguments too, with their principal branches; on
-  a branch cut, a value takes the side SymPy gives it (`asin(2)` is `pi/2 - 1.3169…i`). Its special functions take real
-  arguments only.
+  `lowergamma`, `uppergamma`, `lambertw`, and the integral special functions `Si`, `Ci`, `Shi`, `Chi`, `Ei`, `li`,
+  `fresnelS` and `fresnelC`. A value that cannot be distinguished from 0, even with 640 more digits, is `0`
+  (`ln(6) - ln(2) -
+  ln(3)`); a value whose argument is too large for the digits is computed with as many additional digits as it requires,
+  up to 50000 (`sin(10^(10^4))` requires 10^4); a value exactly halfway between two decimals of that many digits is
+  rounded to the even one (`ln(8)/ln(4)`, which is 1.5, yields `2` to one digit). A real value with complex parts
+  (`e^(i*pi)`, `-i*asinh(i)`) is the real part of `toComplexDecimal()`; a complex value throws `MathDomainException`.
+- `toComplexDecimal(digits)` returns the two parts of a complex value, `{re, im}`, as strings rounded as `toDecimal()`
+  rounds them, each part separately to that many significant digits: the parts of `(1 + i/10^25)^2 - 1` are `-1e-50` and
+  `2e-25`. It computes the functions that `toDecimal()` computes, also of complex arguments, with their principal
+  branches; on a branch cut, a value takes the side that SymPy assigns it (`asin(2)` is `pi/2 - 1.3169…i`). Its special
+  functions take real arguments only.
 - `compile()` computes in doubles, for speed: where doubles have no digit of a value, the compiled function has none
   either. The parts without variables are computed once from their exact decimals: `ln(erf(5))` has all its digits,
   while computing it from the double of `erf(5)` would leave 4 of them. Its special functions of real arguments are
-  computed by Boost.Math (those of integrals but `Ei` by the series and continued fractions of the package), within a
-  few units of the last place, with the same code on every platform (each C library has a gamma function of its own).
-- `toRectangular()` gives the real and the imaginary parts of an expression (`{real, imaginary}`), `toPolar()` its
-  modulus and its argument (`{modulus, argument}`): for `e^(i*pi/3)`, the parts are `1/2` and `sqrt(3)/2`, the modulus
-  `1` and the argument `pi/3`. The variables are complex numbers, so the parts of `x` are `re(x)` and `im(x)`.
-- `compile(variables)` turns an expression into a function of numbers, for evaluating it many times, with `batch()`
+  computed by Boost.Math (the integral special functions other than `Ei` by the package's own series and continued
+  fractions), within a few units of the last place, with the same code on every platform (each C library has its own
+  gamma function).
+- `toRectangular()` returns an expression's real and imaginary parts (`{real, imaginary}`), `toPolar()` its modulus and
+  argument (`{modulus, argument}`): for `e^(i*pi/3)`, the parts are `1/2` and `sqrt(3)/2`, the modulus `1` and the
+  argument `pi/3`. Variables are complex numbers, so the parts of `x` are `re(x)` and `im(x)`.
+- `compile(variables)` turns an expression into a numeric function, for evaluating it many times, with `batch()`
   for many rows in one call:
 
 ```typescript
@@ -213,15 +216,15 @@ console.log(f.batch(Float64Array.of(1, 0, 2, 0, 3, 0)))   //Float64Array [1, 4, 
 
 ### Decimals
 
-`decimal(value, {precision})` gives a `Decimal`: a decimal number with at most `precision` significant digits
-(by default the `precision` of the scope, 32), for amounts of money, or for values that need many digits. Each
-operation rounds its result correctly to that precision: to the nearest decimal with that many digits, halves to even.
-A decimal does not change: each operation gives a new one.
+`decimal(value, {precision})` creates a `Decimal`: a decimal number with at most `precision` significant digits (by
+default the scope's `precision`, 32), for monetary amounts, or for values that require many digits. Each operation
+rounds its result correctly to that precision: to the nearest decimal with that many digits, halves to even. A decimal
+is immutable: each operation returns a new one.
 
-- Values are read as they are written: a number by its shortest representation (`0.1` is 0.1, not the binary value of
-  the double), a string as a decimal number (`'19.99'`, `'1.5e-7'`), a bigint exactly. An expression without variables
-  is computed, as `toDecimal()` does: `decimal(expression('pi'), {precision: 50})`.
-- A result has the precision of the decimal it is computed from: `a.add(b)` has the precision of `a`. The values given
+- Values are read as they are written: a number by its shortest representation (`0.1` is 0.1, not the double's binary
+  value), a string as a decimal number (`'19.99'`, `'1.5e-7'`), and a bigint exactly. An expression without variables is
+  computed, as `toDecimal()` does: `decimal(expression('pi'), {precision: 50})`.
+- A result has the precision of the decimal it is computed from: `a.add(b)` has the precision of `a`. The values passed
   to an operation are read with all their digits.
 - The operations: `add`, `sub`, `mul`, `div`, `mod` (with the sign of the divisor, as `mod()` in formulas), `pow`,
   `neg`, `abs`, `sqrt`, `cbrt`, `root(n)`, `exp`, `ln`, `log10`, `log(base)`, the trigonometric and hyperbolic
@@ -230,11 +233,11 @@ A decimal does not change: each operation gives a new one.
   `isZero`, `isPositive`, `isNegative`, `isInteger`.
 - `toString()` writes the digits without trailing zeros, in fixed-point notation when the first digit is between the
   10^-6 place and the 10^(precision - 1) place, in scientific notation otherwise (`1.5`, `0.000025`, `1.5e+25`, `1e-7`).
-  `toFixed(places)` writes a given number of places after the point (`toFixed(2)` of 1.5 is `1.50`), and `toNumber()`
-  gives the nearest number. A decimal is also an exact value in formulas: `expression(decimal)`.
-- The operations run on the JavaScript thread, without a time limit. Arithmetic is fast at any precision, but the
+  `toFixed(places)` writes a specified number of places after the point (`toFixed(2)` of 1.5 is `1.50`), and
+  `toNumber()` returns the nearest number. A decimal is also an exact value in formulas: `expression(decimal)`.
+- Operations run on the JavaScript thread, without a time limit. Arithmetic is fast at any precision, but the
   functions take seconds at tens of thousands of digits, and the special functions (`zeta`, `gamma`) at thousands: for
-  those, compute an expression with `toDecimalAsync()`, which has a time limit, and make a decimal of its result.
+  those, compute an expression with `toDecimalAsync()`, which has a time limit, and create a decimal from its result.
 
 ```typescript
 import {decimal} from '@lakutata/math'
@@ -252,7 +255,7 @@ console.log(decimal(2, {precision: 40}).sqrt().toString())   //1.414213562373095
   The code computes in double precision, with real numbers only: wherever part of the expression has a complex value,
   the result is NaN (`compile()` computes such parts in the complex numbers). A function the language does not have
   (such as `gamma` and `erf` in JavaScript, `zeta` and `lambertw` in both), a complex number such as `2i`, or a variable
-  whose name is a reserved word of the language or a name the code uses (`new`, `Math`, `pow`) throws
+  whose name is a reserved word in the language or a name the code uses (`new`, `Math`, `pow`) throws
   `MathNotSupportedException`.
 - `cse(expressions)` finds the parts that the expressions repeat or share (common subexpression elimination). It
   returns them as `replacements`, each with a name (`x0`, `x1`…, skipping names the variables already use) and a value
@@ -270,29 +273,30 @@ console.log(lines.join('\n'))
 
 ### Solving
 
-- `solve(variable)` on an equation or an expression (equal to zero) gives the solutions as an array of expressions, with
-  their `kind` (`finite`, `empty`, `all`, `intervals`, or `unsolved`/`other` for a set the package does not solve, which
-  its `text` describes) and all of them as a set (`set`, see below). A polynomial in the variable of degree two or more
-  is factored first: a linear factor gives its root at once, and the others are solved exactly to degree four (`x^3 -
-  6x^2 + 11x - 6 = 0` gives 1, 2 and 3, not the radicals of Cardano's formula; `x^2 - (a + b)x + a*b = 0` gives a and
-  b), and a binomial `a x^n + b` of any degree (`x^5 = 2` gives `2^(1/5)` times the fifth roots of 1). `{domain:
+- `solve(variable)` on an equation or an expression (equal to zero) returns the solutions as an array of expressions,
+  with their `kind` (`finite`, `empty`, `all`, `intervals`, or `unsolved`/`other` for a set the package does not solve,
+  which its `text` describes) and all of them as a set (`set`, see below). A polynomial in the variable of degree two or
+  more is factored first: a linear factor yields its root immediately, and the others are solved exactly to degree four
+  (`x^3 -
+  6x^2 + 11x - 6 = 0` yields 1, 2 and 3, not the radicals of Cardano's formula; `x^2 - (a + b)x + a*b = 0` yields a and
+  b), and a binomial `a x^n + b` of any degree (`x^5 = 2` yields `2^(1/5)` times the fifth roots of 1). `{domain:
   'real'}` keeps the real solutions.
 - `solve(equations, variables)` solves a system of linear equations: an empty array when it has no solution,
   otherwise one solution with the value of each variable it determines (in terms of the others when there are
   infinitely many).
-- `solve(variable)` on an inequality (`parse('x^2 < 4')`) gives its real solutions as a set of intervals and values
-  (`x^2*(x + 1) <= 0` gives `(-inf, -1] ∪ {0}`); the array holds the values outside the intervals (`0`). Both sides must
-  be fractions of polynomials in the variable with rational coefficients; a zero of a denominator is never a solution
+- `solve(variable)` on an inequality (`parse('x^2 < 4')`) returns its real solutions as a set of intervals and values
+  (`x^2*(x + 1) <= 0` yields `(-inf, -1] ∪ {0}`); the array holds the values outside the intervals (`0`). Both sides
+  must be fractions of polynomials in the variable with rational coefficients; a denominator's zero is never a solution
   (`1/(1 + 1/x) > 0` excludes `-1` and `0`). The real roots of each irreducible factor are isolated by Descartes' rule
   of signs, then matched with the exact roots found for it; a root without an exact form (`x^5 - x - 1`), a coefficient
   that is not rational (`sqrt(2)*x < 1`), another variable or another function throws `MathNotSupportedException`
-  (`numeric.polynomialRoots()` gives the values of the roots).
+  (`numeric.polynomialRoots()` returns the values of the roots).
 - A set of numbers (`MathSet`) holds intervals of real numbers with exact ends, and values: `interval(start, end,
-  {startOpen, endOpen})` and `finiteSet(values)` make one, and the `set` of solutions is one. It has `union`,
+  {startOpen, endOpen})` and `finiteSet(values)` create one, and the `set` of solutions is one. It has `union`,
   `intersect`, `complement` (in the real numbers), `difference`, `contains` (`undefined` when not known), `equals`,
   `isEmpty`, `toString` (`[0, 2) ∪ {3}`) and `toTeX`. The ends are compared exactly (`compare()`); ends that cannot be
-  ordered, as those with variables, throw `MathNotSupportedException`. The set of the solutions of an equation the
-  package does not solve (`sin(x) = 0`) has the kind `other`, which the operations do not take.
+  ordered, such as those with variables, throw `MathNotSupportedException`. The solution set of an equation that the
+  package does not solve (`sin(x) = 0`) has the kind `other`, which the operations do not accept.
 
 ```typescript
 import {expression, finiteSet, type Inequality, interval, parse, solve} from '@lakutata/math'
@@ -307,21 +311,21 @@ console.log(set.complement().toString(), set.contains('sqrt(2)')) //(-inf, 0) �
 
 ### Limits
 
-`limit(variable, point)` gives the limit of an expression by Gruntz's algorithm (after SymPy's `gruntz`). The point is a
+`limit(variable, point)` returns an expression's limit by Gruntz's algorithm (after SymPy's `gruntz`). The point is a
 number, an expression, `inf` or `-inf`. At a finite point, the limit is taken from both sides by default, and
 `{direction: '+'}` or `{direction: '-'}` takes it from above or from below. The result can be `inf` or `-inf`. When the
 two sides differ, or the expression keeps oscillating (`sin(x)` at `inf`), there is no limit, and a
-`MathDomainException` says why.
+`MathDomainException` explains why.
 
 The algorithm handles exponentials, logarithms, powers such as `x^x`, and the trigonometric and hyperbolic functions and
 their inverses, in the indeterminate forms (`0/0`, `inf/inf`, `0*inf`, `1^inf`, `inf - inf`). `abs`, `sign`, `max`,
 `min`, `floor`, `ceil` and `piecewise` are decided on the side the variable comes from. `sin` and `cos` of an argument
-going to infinity stay between -1 and 1, so `sin(x)/x` at `inf` is 0. The special functions of integrals are expanded in
-series at the point their argument goes to (`Si(x)/x` at 0 is 1; `Ci`, `Chi` and `Ei` keep their logarithm at 0); `Ei`,
-`Shi`, `Chi` and `li` with an argument going to infinity use the asymptotic series of `Ei` (`x*e^(-x)*Ei(x)` at `inf` is
-1), and `Si`, `Ci` and the Fresnel integrals at infinity take their values there. A `MathNotSupportedException` is
-thrown when the limit is not found: the limit depends on the sign of a parameter (`exp(a*x)` at `inf`), the algorithm
-does not know how a function behaves at infinity (`gamma(x + 1)/x` at `inf`), or a sum or a product is left as a call.
+going to infinity stay between -1 and 1, so `sin(x)/x` at `inf` is 0. The integral special functions are expanded in
+series at the point their argument approaches (`Si(x)/x` at 0 is 1; `Ci`, `Chi` and `Ei` keep their logarithm at 0);
+`Ei`, `Shi`, `Chi` and `li` with an argument going to infinity use the asymptotic series of `Ei` (`x*e^(-x)*Ei(x)` at
+`inf` is 1), and `Si`, `Ci` and the Fresnel integrals at infinity take their values there. A `MathNotSupportedException`
+is thrown when the limit is not found: the limit depends on a parameter's sign (`exp(a*x)` at `inf`), the algorithm does
+not know how a function behaves at infinity (`gamma(x + 1)/x` at `inf`), or a sum or a product is left as a call.
 
 ```typescript
 import {expression} from '@lakutata/math'
@@ -335,37 +339,37 @@ expression('1/x').limit('x', 0) //MathDomainException: 1/x has no limit at x = 0
 
 ### Integrals
 
-`integrate(variable)` gives an antiderivative, without a constant, and `integrate(variable, from, to)` a definite
+`integrate(variable)` returns an antiderivative, without a constant, and `integrate(variable, from, to)` a definite
 integral; the ends can be `inf` and `-inf`. As in SymPy, `1/x` integrates to `ln(x)`, without an absolute value. The
 antiderivatives come from:
 
-- the partial fractions of fractions of polynomials (logarithms, `atan`, `atanh`: `1/(x^2 + 2x + 5)` gives
+- the partial fractions of fractions of polynomials (logarithms, `atan`, `atanh`: `1/(x^2 + 2x + 5)` yields
   `atan((x + 1)/2)/2`);
 - a table of the elementary functions of a linear argument, of polynomials over square roots of quadratics
-  (`x^2/sqrt(x^2 + 1)` gives `(-asinh(x) + x*sqrt(x^2 + 1))/2`) and of `e^(-x^2)` (by `erf`);
-- substitution (`2x*e^(x^2)` gives `e^(x^2)`), integration by parts (`x*e^x` gives `e^x*(x - 1)`), the powers and
+  (`x^2/sqrt(x^2 + 1)` yields `(-asinh(x) + x*sqrt(x^2 + 1))/2`) and of `e^(-x^2)` (by `erf`);
+- substitution (`2x*e^(x^2)` yields `e^(x^2)`), integration by parts (`x*e^x` yields `e^x*(x - 1)`), the powers and
   products of sines and cosines, and the substitution `t = tan(x/2)` for fractions of sines and cosines;
-- the special functions of integrals: `sin(x)/x` gives `Si(x)`, `e^x/x` gives `Ei(x)`, `1/ln(x)` gives `li(x)`, and
-  `sin(x^2)` gives a Fresnel integral (see the table of formulas).
+- the integral special functions: `sin(x)/x` yields `Si(x)`, `e^x/x` yields `Ei(x)`, `1/ln(x)` yields `li(x)`, and
+  `sin(x^2)` yields a Fresnel integral (see the formula table).
 
-Each antiderivative is checked by its derivative before it is returned. A definite integral uses the limits of the
-antiderivative at the ends. It is split at the poles of the integrand inside the interval, and where the antiderivative
-jumps (the `tan(x/2)` of a substitution: `1/(2 + cos(x))` on `[0, 2pi]` is `2pi*sqrt(3)/3`), and a result that is a
-number is checked against `numeric.integrate()`. It is `inf` or `-inf` where it grows without bound (`1/x` on `[0,
+Each antiderivative is verified by differentiation before it is returned. A definite integral uses the antiderivative's
+limits at the ends. It is split at the integrand's poles inside the interval, and where the antiderivative jumps (the
+`tan(x/2)` of a substitution: `1/(2 + cos(x))` on `[0, 2pi]` is `2pi*sqrt(3)/3`), and a result that is a number is
+checked against `numeric.integrate()`. It is `inf` or `-inf` where it grows without bound (`1/x` on `[0,
 1]`), and a `MathDomainException` is thrown where it has no value (`1/x` on `[-1, 1]`).
 
 A `MathNotSupportedException` is thrown where no antiderivative is found: fractions whose denominators factor only with
 algebraic numbers (`1/(x^4 + 1)`), functions whose antiderivatives are not elementary and are not among the special
 functions above, and some sums whose terms cannot be integrated one by one. Unlike SymPy, an integral that is not found
-is not kept as an unevaluated call: it would need a bound variable, as `sum(…)` has. `numeric.integrate()` computes a
+is not kept as an unevaluated call: it would require a bound variable, as `sum(…)` has. `numeric.integrate()` computes a
 definite integral numerically, whatever the function.
 
-`laplace('t', 's')` gives the Laplace transform, the integral of `f(t) e^(-s t)` from 0 to `inf`, without the conditions
-on `s` under which it converges (as SymPy's `noconds`). It uses a table (powers of `t`, exponentials, sines and cosines
-and the hyperbolic functions) and the rules for sums, for `e^(a t)` factors (a shift in `s`) and for `t^n` factors
-(derivatives in `s`). `inverseLaplace('s', 't')` gives the inverse for `t > 0`: of fractions of polynomials through
-their partial fractions, of powers of `s - a` with `gamma`, and of `e^(-c s) F(s)` as a piecewise expression that is 0
-before `t = c`. Each inverse is checked by transforming it again.
+`laplace('t', 's')` returns the Laplace transform, the integral of `f(t) e^(-s t)` from 0 to `inf`, without the
+conditions on `s` under which it converges (as SymPy's `noconds`). It uses a table (powers of `t`, exponentials, sines
+and cosines and the hyperbolic functions) and the rules for sums, for `e^(a t)` factors (a shift in `s`) and for `t^n`
+factors (derivatives in `s`). `inverseLaplace('s', 't')` returns the inverse for `t > 0`: of fractions of polynomials
+through their partial fractions, of powers of `s - a` with `gamma`, and of `e^(-c s) F(s)` as a piecewise expression
+that is 0 before `t = c`. Each inverse is verified by transforming it again.
 
 ```typescript
 import {expression} from '@lakutata/math'
@@ -392,22 +396,22 @@ console.log(expression('1/(s^2 + 2s + 5)').inverseLaplace('s', 't').toString()) 
   `multinomial(counts)`, `bell(n)` (the partitions of a set of n items), `catalan(n)`, `stirlingSecondKind(n, k)` (its
   partitions into k blocks) and `compositions(n, k)` (the ways to write n as an ordered sum of k positive integers).
   Where there is nothing to count (k of n items with `k > n`), the count is 0 (mathjs throws).
-- Continued fractions: `continuedFraction(value, {terms})` gives the terms of the continued fraction of a real number,
-  `a0 + 1/(a1 + 1/(a2 + …))`: all of them for a rational number (a number of JavaScript is the decimal it prints as:
-  `0.1` is 1/10), the last one above 1, as SymPy; the first terms of another value, as many as `terms` asks (20 by
+- Continued fractions: `continuedFraction(value, {terms})` returns the terms of a real number's continued fraction,
+  `a0 + 1/(a1 + 1/(a2 + …))`: all of them for a rational number (a JavaScript number is the decimal it prints as; `0.1`
+  is 1/10), the last one above 1, as SymPy; the first terms of another value, as many as `terms` requests (20 by
   default) (`sqrt(2)`, `pi`), each one certain, computed from its decimals with more digits until they settle each one.
-  A value that cannot be told from an integer even with thousands of digits ends the continued fraction there.
-  `fromContinuedFraction(terms)` gives the value of a list of terms, and `convergents(terms)` the values of its first
+  A value that cannot be distinguished from an integer even with thousands of digits ends the continued fraction there.
+  `fromContinuedFraction(terms)` returns the value of a list of terms, and `convergents(terms)` the values of its first
   terms, one by one (`22/7`, `355/113` for pi), the best rational approximations of the value; both are exact fractions
   (expressions).
 
 When a value does not exist (`modInverse` of a number with no inverse, `primitiveRoot` of a modulus with none, `crt` of
-congruences with no common solution), the result is `undefined`. An argument outside the domain of a function
-(`totient(0)`, `legendre(a, 9)`) throws `MathDomainException`.
+congruences with no common solution), the result is `undefined`. An argument outside a function's domain (`totient(0)`,
+`legendre(a, 9)`) throws `MathDomainException`.
 
-`factor` finds small factors at once and factors numbers of up to about 20 digits quickly, but a number with two large
-prime factors can take days: use `factorAsync` with a time limit. `isPrime`, `nextPrime`, `totient`, `mobius` and
-`primitiveRoot` have asynchronous versions too. `factorial` computes up to about `71000!`, while in a formula
+`factor` finds small factors immediately and factors numbers of up to about 20 digits quickly, but a number with two
+large prime factors can take days: use `factorAsync` with a time limit. `isPrime`, `nextPrime`, `totient`, `mobius` and
+`primitiveRoot` also have asynchronous versions. `factorial` computes up to about `71000!`, while in a formula
 `factorial(n)` above 20000 stays `gamma(n + 1)`, so that the expression can still be printed.
 
 ```typescript
@@ -425,28 +429,28 @@ console.log(await ntheory.factorAsync(2n ** 64n + 1n, {timeout: 5000}))
 
 `poly` (`MathScope.poly`) works on polynomials exactly, in any number of variables: `gcd(...values)` and
 `lcm(...values)`, `resultant(a, b, variable)` and `discriminant(p, variable)`, `factorList(p)` and `sqfList(p)`, and
-their asynchronous versions; `factor()` and `sqf()` of an expression give its factored form. A polynomial is an
+their asynchronous versions; `factor()` and `sqf()` on an expression return its factored form. A polynomial is an
 expression or a formula. Its generators are its symbols and its factors that are not polynomials themselves: `sin(x)`,
 `sqrt(2)`, `exp(x)` (`x^(3/2)` is the cube of `sqrt(x)`, `exp(2x)` the square of `exp(x)`). They are independent of each
 other: `sqrt(2)^2` is not read as 2. An expression with a negative power, or with a coefficient that is complex or not
-exact, is not a polynomial (`MathNotSupportedException`); fractions of polynomials have the operations of the next
-section.
+exact, is not a polynomial (`MathNotSupportedException`); fractions of polynomials have the operations described in the
+next section.
 
 - The results are over the integers when every coefficient is an integer, with the gcd of the contents in a gcd
   (`gcd(2x + 2, 4x + 4)` is `2x + 2`), and over the rationals otherwise (monic: `gcd(x/2 + 1/2, x + 1)` is `x + 1`).
   Their leading coefficients are positive, as in SymPy. Numbers alone have the gcd and the lcm of numbers (`gcd(1/2,
   1/3)` is `1/6`).
-- `factorList` gives the rational coefficient and the irreducible factors over the rationals with their multiplicities
-  (`factorList('6x^2 - 6')` is 6, `x - 1` and `x + 1`); `sqfList` gives the square-free decomposition (Yun's algorithm).
-  `factor()` writes them as a product with the coefficient in front (`3x*y + 6x + 3y + 6` is `3(x + 1)(y + 2)`); a
-  fraction has its numerator and its denominator factored. An operation on the result gives the usual form of the
-  formulas again (`2(x + 1)` plus 1 is `2x + 3`).
-- The algorithms are SymPy's, written again in C++: the heuristic gcd (GCDHEU), and the subresultant PRS when it fails;
-  the resultant by the subresultant PRS; the factorization by Zassenhaus' algorithm in one variable (the cyclotomic
-  factors of `x^n - 1` and `x^n + 1` at once) and Wang's in several. A polynomial with many factors modulo every prime
-  (Swinnerton-Dyer's) takes a time exponential in their number: factor it with `factorAsync()` or `factorListAsync()`
-  and a time limit. When the first polynomial has the lower degree, the resultant has the sign (-1)^(mn) that SymPy
-  leaves out (`resultant(x, x^3 + 1, x)` is 1, not SymPy's -1).
+- `factorList` returns the rational coefficient and the irreducible factors over the rationals with their multiplicities
+  (`factorList('6x^2 - 6')` is 6, `x - 1` and `x + 1`); `sqfList` returns the square-free decomposition (Yun's
+  algorithm). `factor()` writes them as a product with the coefficient in front (`3x*y + 6x + 3y + 6` is
+  `3(x + 1)(y + 2)`); a fraction has its numerator and denominator factored. An operation on the result restores the
+  usual form of formulas (`2(x + 1)` plus 1 is `2x + 3`).
+- The algorithms are SymPy's, rewritten in C++: the heuristic gcd (GCDHEU), and the subresultant PRS when it fails; the
+  resultant by the subresultant PRS; the factorization by Zassenhaus' algorithm in one variable (`x^n - 1` and `x^n + 1`
+  are split directly into their cyclotomic factors) and Wang's in several. A polynomial with many factors modulo every
+  prime (Swinnerton-Dyer's) takes time exponential in their number: factor it with `factorAsync()` or
+  `factorListAsync()` and a time limit. When the first polynomial has the lower degree, the resultant has the sign
+  (-1)^(mn) that SymPy leaves out (`resultant(x, x^3 + 1, x)` is 1, not SymPy's -1).
 - A polynomial is held in its dense form: the product over its variables of its degree plus one is at most 10^6 (`x^2000
   y^2000 + 1` throws `MathNotSupportedException`).
 
@@ -464,7 +468,7 @@ console.log(expression('x^6 - y^6').factor().toString())                //(x^2 -
 
 ### Fractions of polynomials
 
-`cancel()`, `together()`, `apart(variable)` and `completeSquare(variable)` of an expression work on fractions of
+`cancel()`, `together()`, `apart(variable)` and `completeSquare(variable)` on an expression work on fractions of
 polynomials, with the generators of `poly`:
 
 - `cancel()` divides the numerator and the denominator by their gcd. Both are expanded, with positive leading
@@ -472,20 +476,20 @@ polynomials, with the generators of `poly`:
   `-(x + 1)/(x - 1)`); a denominator that is a number is multiplied in, as in SymPy (`(x^2 - 1)/2` is `x^2/2 - 1/2`).
 - `together()` writes the expression over one denominator: each base of the denominators to its greatest power, and the
   lcm of their numbers (`1/(2x) + 1/(3y)` is `(2x + 3y)/(6x*y)`), with the numerator expanded. It does not look for
-  common factors (that is `cancel()`), and it does not go into the arguments of functions.
-- `apart(variable)` gives the partial fractions in a variable, as SymPy's `apart()`: the polynomial part, then, for each
-  irreducible factor `q` of the denominator to the power `k`, the fractions `h/q^j` (`j` from 1 to `k`) with numerators
-  of lower degree than `q`, each one factored (`1/(x^3 + 1)` is `-(x - 2)/(3(x^2 - x + 1)) + 1/(3(x + 1))`). The other
-  variables are parameters (`1/((x + a)(x + b))` is `-1/((a + x)(a - b)) + 1/((a - b)(b + x))`); a function of the
-  variable (`sin(x)/x`) throws `MathNotSupportedException`. The numerators come from a linear system in their
+  common factors (that is `cancel()`), and it does not go into function arguments.
+- `apart(variable)` returns the partial fractions in a variable, as SymPy's `apart()`: the polynomial part, then, for
+  each irreducible factor `q` of the denominator to the power `k`, the fractions `h/q^j` (`j` from 1 to `k`) with
+  numerators of lower degree than `q`, each one factored (`1/(x^3 + 1)` is `-(x - 2)/(3(x^2 - x + 1)) + 1/(3(x + 1))`).
+  The other variables are parameters (`1/((x + a)(x + b))` is `-1/((a + x)(a - b)) + 1/((a - b)(b + x))`); a function of
+  the variable (`sin(x)/x`) throws `MathNotSupportedException`. The numerators come from a linear system in their
   coefficients, solved without fractions (Bareiss' elimination).
 - `completeSquare(variable)` writes `a x^2 + b x + c` as `a(x + b/(2a))^2 + c - b^2/(4a)` (`2x^2 + 4x + 1` is `2(x +
   1)^2 - 1`); a polynomial of another degree throws `MathNotSupportedException`.
 - The terms of a result of `apart()` or `completeSquare()` keep their written form when terms are added to it; otherwise
-  an operation on a result (a product by a number, `expand()`) gives the usual form of the formulas again. `equals()`
-  puts the fractions of a difference over one denominator, so that it proves identities between fractions (`(x^2 -
+  an operation on a result (a product by a number, `expand()`) restores the usual form of formulas. `equals()` puts the
+  fractions of a difference over one denominator, so that it proves identities between fractions (`(x^2 -
   1)/(x - 1)` equals `x + 1`). `cancel()` and `apart()` have asynchronous versions: a gcd or a factorization in several
-  variables can take long.
+  variables can take a long time.
 
 ```typescript
 import {expression} from '@lakutata/math'
@@ -498,7 +502,7 @@ console.log(expression('x^2 - 6x + 10').completeSquare('x').toString())  //(x - 
 
 ### Simplification
 
-`simplify()` looks for a shorter form of an expression, by identities that hold for all values of the variables, and
+`simplify()` looks for a shorter form of an expression, using identities that hold for all values of the variables, and
 returns the expression itself when no form is shorter. Shorter means fewer operations, counted as SymPy's `count_ops`
 counts them (each addition, subtraction, product, division, sign, power and function), with ties broken by the shorter
 text. The forms it tries:
@@ -512,17 +516,17 @@ text. The forms it tries:
   `tan(x)`; sums of angles expanded (`sin(x + y) - sin(x)cos(y)` is `cos(x)*sin(y)`);
 - the hyperbolic functions reduced by `cosh^2 - sinh^2 = 1`, and exchanged with exponentials: `cosh(x) + sinh(x)` is
   `e^x`, `(e^x + e^(-x))/2` is `cosh(x)`;
-- nested square roots of numbers taken apart, and square roots of numbers taken out of denominators: `sqrt(3 +
+- nested square roots of numbers denested, and square roots of numbers taken out of denominators: `sqrt(3 +
   2sqrt(2))` is `sqrt(2) + 1`, `1/(1 + sqrt(2))` is `sqrt(2) - 1`;
 - logarithms of positive rationals combined: `ln(2) + ln(3)` is `ln(6)`.
 
 The arguments of functions and the values of piecewise expressions are simplified first (`e^(sin(x)^2 + cos(x)^2)` is
-`e`); the conditions of piecewise expressions, and sums and products left as calls, stay as they are. An expression with
+`e`); the conditions of piecewise expressions, and sums and products left as calls, stay unchanged. An expression with
 an integer power of a sum above 16, or with a power whose exponent has a numerator above 256 (`e^(6561/256)`), is not
 expanded, and the fraction forms are not tried on it. Nothing that depends on the signs of the variables is done:
-`sqrt(x^2)` and `ln(x*y)` stay as they are (`sqrt(x^2)` is `abs(x)` only for real `x`). As in SymPy, a canceled
-fraction may have a value where the expression had none (`x + 1` at 1). The result is not always the shortest form there
-is, and it can differ from SymPy's; simplified again, it stays the same.
+`sqrt(x^2)` and `ln(x*y)` stay unchanged (`sqrt(x^2)` is `abs(x)` only for real `x`). As in SymPy, a canceled fraction
+may have a value where the expression had none (`x + 1` at 1). The result is not always the shortest form there is, and
+it can differ from SymPy's; simplified again, it stays the same.
 
 ```typescript
 import {expression} from '@lakutata/math'
@@ -535,8 +539,8 @@ console.log(expression('1/(sqrt(3) - sqrt(2))').simplify().toString())     //sqr
 
 ### Matrices and linear algebra
 
-`matrix(rows)` gives a `Matrix` of numbers (doubles). Its elements are in a `Float64Array`, row by row (`data`),
-which the addon reads in place. Its methods give new matrices: `get`, `set` (which changes the matrix), `row`, `column`,
+`matrix(rows)` creates a `Matrix` of numbers (doubles). Its elements are in a `Float64Array`, row by row (`data`), which
+the addon reads in place. Its methods return new matrices: `get`, `set` (which changes the matrix), `row`, `column`,
 `diagonal`, `submatrix`, `reshape`, `transpose`, `add`, `sub`, `mul`, `div`, `neg`, `multiplyElements`,
 `divideElements`, `powElements`, `map`, `trace`, `kron`, `equals`, `toArray` and `toString` (`[1, 2; 3, 4]`).
 
@@ -547,35 +551,35 @@ which the addon reads in place. Its methods give new matrices: `get`, `set` (whi
 - Vectors (`Float64Array`s, or arrays of numbers): `dot`, `cross`, `outer`, `norm`.
 - `multiply`, `solve` (by LU decomposition with partial pivoting), `solveTriangular`, `leastSquares` (the solution of
   least norm, as NumPy's `lstsq`), `inverse`, `determinant`, `singularValues`, `rank` (the singular values above
-  NumPy's default tolerance), `condition`, and the norms of matrices (`'fro'`, 1, 2, `Infinity`).
+  NumPy's default tolerance), `condition`, and matrix norms (`'fro'`, 1, 2, `Infinity`).
 - Decompositions: `lu` (`P A = L U`; `permutation[i]` is the row of A that becomes row i of `P A`), `qr` and `svd` (both
   thin, with `min(rows, columns)` columns), `cholesky`, `eigen` (complex eigenvalues and eigenvectors, as real and
   imaginary parts), `symmetricEigen`, `schur` (the real Schur form), and `pseudoInverse`. `cholesky` and
-  `symmetricEigen` read only the lower triangle of the matrix, as NumPy does. The signs of the columns of Q, of the
-  singular vectors and of the eigenvectors are Eigen's: another library may negate them.
-- Functions of matrices and matrix equations: `exponential` (`e^A`, as mathjs's `expm`), `squareRoot` (the principal
+  `symmetricEigen` read only the matrix's lower triangle, as NumPy does. The signs of the columns of Q, the singular
+  vectors and the eigenvectors are Eigen's: another library may negate them.
+- Matrix functions and matrix equations: `exponential` (`e^A`, as mathjs's `expm`), `squareRoot` (the principal
   square root, where it is real), `sylvester` (the X of `A X + X B = C`) and `lyapunov` (the P of `A P + P Aᵀ + Q = 0`,
   as mathjs's `lyap` and MATLAB's; SciPy's `solve_continuous_lyapunov` solves `A X + X Aᴴ = Q`, so this P is its
   solution for `-Q`).
 
-A vector given as the right side gives a vector: `solve(a, [5, 5])` is a `Float64Array`, while a matrix (one right side
-per column) gives a matrix. For `solve` and `inverse`, a matrix is singular when its LU decomposition meets a pivot of
-exactly 0, as in NumPy: a nearly singular matrix gives large values instead, and `condition()` shows how close to
-singular it is.
+A vector passed as the right side yields a vector: `solve(a, [5, 5])` is a `Float64Array`, while a matrix (one right
+side per column) yields a matrix. For `solve` and `inverse`, a matrix is singular when its LU decomposition meets a
+pivot of exactly 0, as in NumPy: a nearly singular matrix yields large values instead, and `condition()` shows how close
+to singular it is.
 
-`linalg.sparse(rows, columns, entries)` makes a `SparseMatrix` of the entries given, `[row, column, value]` (the
-entries at the same place are added up), and `linalg.sparse(matrix)` one from the elements of a dense matrix that
+`linalg.sparse(rows, columns, entries)` creates a `SparseMatrix` from the specified entries, `[row, column, value]`
+(entries at the same position are added up), and `linalg.sparse(matrix)` creates one from a dense matrix's elements that
 are not 0. A `SparseMatrix` stores its entries in compressed rows (CSR: `rowPointers`, `columnIndices`, `values`). Its
 methods are `get`, `transpose`, `add`, `sub`, `neg`, `mul` (by a number, a vector, a dense matrix, or a sparse matrix,
-the last computed by Eigen), `toDense` and `toEntries`. `solve` with a sparse matrix uses the sparse LU decomposition of
-Eigen (`SparseLU`, with the COLAMD ordering): a matrix it cannot factorize, such as one with a row of zeros, is
+the last computed by Eigen), `toDense` and `toEntries`. `solve` with a sparse matrix uses Eigen's sparse LU
+decomposition (`SparseLU`, with the COLAMD ordering): a matrix it cannot factorize, such as one with a row of zeros, is
 singular. `conjugateGradient` (for a symmetric positive definite matrix, not checked) and
 `biconjugateGradientStabilized` (BiCGSTAB, for any square matrix) iterate until the relative residual `‖b - A x‖ / ‖b‖`
-falls to `tolerance` (1e-10 by default), within `maxIterations` iterations (10 times the size of the system by default);
-`converged` tells whether they did, and a `guess` lets a call go on from the solution of an earlier one.
+falls to `tolerance` (1e-10 by default), within `maxIterations` iterations (10 times the system's size by default);
+`converged` indicates whether they did, and a `guess` lets a call continue from an earlier call's solution.
 
-The operations that take long on large matrices have asynchronous versions (`solveAsync()`, `inverseAsync()`,
-`multiplyAsync()`…), which copy their arguments when they are called. A computation of Eigen cannot be interrupted: past
+Operations that take a long time on large matrices have asynchronous versions (`solveAsync()`, `inverseAsync()`,
+`multiplyAsync()`…), which copy their arguments when they are called. An Eigen computation cannot be interrupted: past
 the time limit or when the operation is canceled, the promise is rejected, but its thread finishes the computation it
 is in before it is free again. An operation made of several of them (`inverse()`, `leastSquares()`, `exponential()`)
 stops between two of them.
@@ -599,29 +603,29 @@ console.log(linalg.conjugateGradient(sparse, [1, 1, 2]).converged)   //true
 
 ### Matrices of expressions
 
-`expressionMatrix(value)` gives an `ExpressionMatrix`, a matrix whose elements are expressions: of its rows (`[['a',
-'b'], ['c', 'd']]`), of a formula (`'[1, x; x^2, 2]'`, which `parse()` reads too), or of a matrix of numbers. Like an
-expression, it does not change: `with(row, column, value)` gives a matrix with an element replaced; `withRow()` and
-`withColumn()` give one with a row or a column replaced.
+`expressionMatrix(value)` creates an `ExpressionMatrix`, a matrix whose elements are expressions, from its rows (`[['a',
+'b'], ['c', 'd']]`), from a formula (`'[1, x; x^2, 2]'`, which `parse()` also reads), or from a matrix of numbers. Like
+an expression, it is immutable: `with(row, column, value)` returns a matrix with an element replaced; `withRow()` and
+`withColumn()` return one with a row or a column replaced.
 
 - Its elements and its arithmetic: `get`, `toArray`, `row`, `column`, `submatrix`, `transpose`, `add`, `sub`, `mul` (by
-  a matrix or an expression), `div` (by an expression), `multiplyElements`, `pow` (to an integer; a negative one gives a
-  power of the inverse) and `trace`, with `diff`, `substitute`, `expand`, `simplify` and `cancel` element by element.
-  `toMatrix()` gives the matrix of numbers of its values, `toString()` its formula, `toTeX()` a `bmatrix`.
-  `jacobian(expressions, variables)` gives the Jacobian matrix of expressions.
+  a matrix or an expression), `div` (by an expression), `multiplyElements`, `pow` (to an integer; a negative one yields
+  a power of the inverse) and `trace`, with `diff`, `substitute`, `expand`, `simplify` and `cancel` element by element.
+  `toMatrix()` returns the numeric matrix of its values, `toString()` its formula, `toTeX()` a `bmatrix`.
+  `jacobian(expressions, variables)` returns the Jacobian matrix of expressions.
 - Its linear algebra is exact: `determinant`, `inverse` and `solve` of a square matrix that is not singular
-  (`MathDomainException` otherwise), `rref` (the reduced row echelon form and the columns of its pivots), `rank`,
+  (`MathDomainException` otherwise), `rref` (the reduced row echelon form and its pivot columns), `rank`,
   `nullspace`, `characteristicPolynomial`, `eigenvalues` (with their multiplicities) and `eigenvectors`. A matrix of
   numbers is eliminated with exact rationals. For a matrix with variables, the determinant and the characteristic
   polynomial come from Berkowitz's algorithm and the inverse from the adjugate, so that each element is a single
   fraction of polynomials, whose common factors are not canceled: `cancel()` cancels them, and `equals()` compares
   fractions (the inverse times the matrix equals the identity).
-- An element counts as 0 when it is 0 once expanded; as a constant, when its decimals cannot tell it from 0; with
+- An element counts as 0 when it is 0 once expanded; as a constant, when its decimals cannot distinguish it from 0; with
   variables, when it is 0 for every value of them (it is computed exactly at two values). As in SymPy, a pivot that is 0
   only for some values of the variables counts as not 0. The eigenvalues are the roots of the characteristic polynomial:
-  the elements of the diagonal that are roots first, then the roots of what is left, factored (`[a, b; b, a]` has `a +
-  b` and `a - b`) and exact to degree four; other eigenvalues throw `MathNotSupportedException`, and `linalg.eigen()`
-  gives them as numbers.
+  the diagonal elements that are roots first, then the roots of the remaining polynomial, factored (`[a, b; b, a]` has
+  `a + b` and `a - b`) and exact to degree four; other eigenvalues throw `MathNotSupportedException`, and
+  `linalg.eigen()` returns them as numbers.
 
 ```typescript
 import {expressionMatrix, jacobian, parse} from '@lakutata/math'
@@ -637,33 +641,33 @@ console.log(jacobian(['x^2*y', 'x + sin(y)'], ['x', 'y']).toString()) //[2x*y, x
 
 ### Units
 
-`unit(value)` gives a `Unit`, a value with units: of a formula of units (`'5 cm + 2 inch'`, `'9.8 m/s^2'`), or of a
-number and its units (`unit(5, 'cm')`). The names of a formula of units are units, with their prefixes (`km`, `mA`,
-`kilometer`), and `pi`, `e` and `i`; a number followed by units is a quantity in those units, and names one after the
-other are multiplied (`kg m^2/s^2`). These formulas are kept apart from those of `parse()`, where `m`, `s` and `g` are
-variables. The table of units is mathjs's (251 units with their prefixes), with its values written exactly;
+`unit(value)` creates a `Unit`, a value with units, from a unit formula (`'5 cm + 2 inch'`, `'9.8 m/s^2'`), or from a
+number and its units (`unit(5, 'cm')`). The names in a unit formula are units, with their prefixes (`km`, `mA`,
+`kilometer`), and `pi`, `e` and `i`; a number followed by units is a quantity in those units, and consecutive names are
+multiplied (`kg m^2/s^2`). These formulas are kept separate from those of `parse()`, where `m`, `s` and `g` are
+variables. The unit table is mathjs's (251 units with their prefixes), with its values written exactly;
 `createMath({units})` adds others.
 
-- The number of a value (`value`) is an exact expression, and so are the values of the units: `unit('1 inch').to('cm')`
-  is exactly `2.54 cm`, `unit('90 deg').to('rad')` is `(pi/2) rad`. `toNumber(units?)` gives it as a number,
+- A value's number (`value`) is an exact expression, and so are the values of the units: `unit('1 inch').to('cm')`
+  is exactly `2.54 cm`, `unit('90 deg').to('rad')` is `(pi/2) rad`. `toNumber(units?)` returns it as a number,
   `toDecimal()` as decimals, `toString()` as `unit()` reads it.
-- `to(units)` converts to units of the same dimensions; `toSI()` gives the SI unit of the quantity (`J`, `Pa`), or else
-  each unit in SI units; `toBest(units?)` the unit that reads best, among the units given or the prefixes of its unit
-  (`5000 m` is `5 km`); `split(units)` the integer part in each unit but the last (`1.5 h` is `1 h` and `30 min`).
-- `add` and `sub` give the result in the units of the left value. `mul` and `div` multiply the units, a unit on the
-  right being converted to the unit of the same quantity on the left (`5 cm * 2 m` is `1000 cm^2`), and give a number
-  without units when the dimensions cancel. There are also `pow` (to a number that keeps the powers of the dimensions
-  integers), `sqrt`, `neg`, `abs`, `equals` and `compare`. The formulas of units know `sqrt`, `sin`, `cos` and `tan` (of
-  angles or numbers), `exp`, `log` and `ln` (of numbers). Values of dimensions that differ cannot be added or converted:
+- `to(units)` converts to units of the same dimensions; `toSI()` returns the quantity's SI unit (`J`, `Pa`), or else
+  each unit in SI units; `toBest(units?)` the unit that reads best, among the specified units or its unit's prefixes
+  (`5000 m` is `5 km`); `split(units)` the integer part in each unit except the last (`1.5 h` is `1 h` and `30 min`).
+- `add` and `sub` return the result in the left value's units. `mul` and `div` multiply the units, converting a unit on
+  the right to the unit of the same quantity on the left (`5 cm * 2 m` is `1000 cm^2`), and return a number without
+  units when the dimensions cancel. There are also `pow` (to a number that keeps the powers of the dimensions integers),
+  `sqrt`, `neg`, `abs`, `equals` and `compare`. Unit formulas support `sqrt`, `sin`, `cos` and `tan` (of angles or
+  numbers), `exp`, `log` and `ln` (of numbers). Values of different dimensions cannot be added or converted:
   `MathUnitException`.
 - A temperature with an offset (`degC`, `degF`) is converted and compared, but not added, multiplied or divided: convert
-  it to `K` first (`MathUnitException` otherwise). In compound units (`degC/m`) it is a difference of temperatures,
-  without the offset. A prefix applies to its number: `1 mdegC` is 0.001 degC.
-- `constant(name)` gives a physical constant with its units: the 52 constants of mathjs, with the values of CODATA 2022.
+  it to `K` first (`MathUnitException` otherwise). In compound units (`degC/m`) it is a temperature difference, without
+  the offset. A prefix applies to its number: `1 mdegC` is 0.001 degC.
+- `constant(name)` returns a physical constant with its units: the 52 mathjs constants, with CODATA 2022 values.
   Those that the SI defines exactly, and those computed from them, are exact (`reducedPlanckConstant` is `h/(2pi)`).
 - Unlike mathjs, a value keeps its units: no other prefix is chosen when it is printed (`toBest()` chooses one), and
-  units are not replaced by a derived unit (`N m` stays `N m`; `toSI()` gives `J`). Temperatures with an offset are not
-  added, and the units whose values mathjs rounds or takes from an earlier definition (`eV`, `hp`, `psi`, `torr`,
+  units are not replaced by a derived unit (`N m` stays `N m`; `toSI()` returns `J`). Temperatures with an offset are
+  not added, and units whose values mathjs rounds or takes from an earlier definition (`eV`, `hp`, `psi`, `torr`,
   `mmHg`, `acre`, `kip`) have the values of their definitions.
 
 ```typescript
@@ -681,18 +685,19 @@ console.log(nautical.unit('20 knots').to('km/h').toString())          //37.04 km
 ### Statistics
 
 `stats` computes statistics of values (arrays of numbers, or `Float64Array`s) in the addon: `sum` (compensated for
-its roundings: the sum of `[1e16, 1, -1e16]` is 1), `product`, `cumulativeSum`, `differences`, `mean`, `median`, `mode`
-(all the values that occur most often, ascending), `min`, `max`, `variance`, `standardDeviation`,
+rounding errors: the sum of `[1e16, 1, -1e16]` is 1), `product`, `cumulativeSum`, `differences`, `mean`, `median`,
+`mode` (all values that occur most often, ascending), `min`, `max`, `variance`, `standardDeviation`,
 `medianAbsoluteDeviation`, `quantile`, `covariance`, `correlation` (Pearson's), `zScores` and `klDivergence` (the
 Kullback-Leibler divergence, with the natural logarithm, of distributions that are first scaled to sums of 1).
 
 A variance divides the sum of the squared deviations from the mean by n by default: the values are the whole population,
-as in NumPy. `{normalization: 'unbiased'}` divides it by n - 1 (the values are a sample, the default of mathjs), and
-`'biased'` by n + 1; `standardDeviation`, `covariance` and `zScores` take the same option. Variances and covariances are
-computed in two passes, so they keep their digits under a large offset: the variance of `[1e9 + 4, 1e9 + 7, 1e9 + 13,
+as in NumPy. `{normalization: 'unbiased'}` divides it by n - 1 (the values are a sample; mathjs's default), and
+`'biased'` by n + 1; `standardDeviation`, `covariance` and `zScores` accept the same option. Variances and covariances
+are computed in two passes, so they keep their digits under a large offset: the variance of
+`[1e9 + 4, 1e9 + 7, 1e9 + 13,
 1e9 + 16]` is 22.5. A quantile interpolates linearly between the two values around it, as NumPy's default method and
-mathjs's `quantileSeq` do. A NaN among the values gives NaN. Of no values, the statistics that have none (the mean, the
-median, the variance…) throw `MathArgumentException`, while the sum is 0 and the product 1.
+mathjs's `quantileSeq` do. A NaN among the values yields NaN. With no values, the statistics that have none (the mean,
+the median, the variance…) throw `MathArgumentException`, while the sum is 0 and the product 1.
 
 ```typescript
 import {stats} from '@lakutata/math'
@@ -707,11 +712,11 @@ console.log(stats.correlation(values, [1, 3, 2, 5, 4, 6, 8, 7]))            //0.
 
 ### Probability distributions
 
-`stats` also has 24 probability distributions, computed by Boost.Math, each built from its parameters, given by
-their names: `stats.gamma({shape: 2.5, scale: 1.5})`. Libraries parameterize them differently, so the names say
-which parameters are meant; the table gives the equivalents in SciPy. A `Distribution` has `pdf` (the probability mass
-of a discrete distribution), `cdf`, `survival`, `quantile` and `survivalQuantile` (SciPy's `isf`), each taking a value
-or values; `mean`, `variance`, `standardDeviation`, `median`, `mode`, `skewness`, `excessKurtosis` and `support`; and
+`stats` also has 24 probability distributions, computed by Boost.Math, each built from its parameters, specified by
+name: `stats.gamma({shape: 2.5, scale: 1.5})`. Libraries parameterize them differently, so the names indicate which
+parameters are meant; the table lists the SciPy equivalents. A `Distribution` has `pdf` (the probability mass of a
+discrete distribution), `cdf`, `survival`, `quantile` and `survivalQuantile` (SciPy's `isf`), each taking a value or
+values; `mean`, `variance`, `standardDeviation`, `median`, `mode`, `skewness`, `excessKurtosis` and `support`; and
 `sample`.
 
 | Distribution | Parameters (default) | SciPy |
@@ -741,16 +746,15 @@ or values; `mean`, `variance`, `standardDeviation`, `median`, `mode`, `skewness`
 The distributions follow SciPy: outside its support, a distribution has a density of 0 and a cdf of 0 or 1; a discrete
 one has a mass of 0 between its integers, and there its cdf is that of the integer below; its quantile of p is the
 smallest integer k with `cdf(k) >= p`. A discrete distribution's quantile of 0 and its survival quantile of 1 are the
-lower bound of its support (SciPy gives one below it). A mean or a variance that diverges is `Infinity` (the variance of
-Student's t with 2 degrees of freedom); a skewness or an excess kurtosis that diverges is NaN, as a moment that does not
-exist (the mean of Cauchy's). Parameters that are not valid throw `MathArgumentException`.
+lower bound of its support (SciPy returns one below it). A mean or a variance that diverges is `Infinity` (the variance
+of Student's t with 2 degrees of freedom); a skewness or an excess kurtosis that diverges is NaN, as a moment that does
+not exist (the mean of Cauchy's). Invalid parameters throw `MathArgumentException`.
 
-`stats.random(seed)` gives a `RandomGenerator` (xoshiro256**) with `next()`, `uniform(count)`, `integers(count,
+`stats.random(seed)` returns a `RandomGenerator` (xoshiro256**) with `next()`, `uniform(count)`, `integers(count,
 lower, upper)` (of `[lower, upper)`) and `clone()`; `sample(count, random)` draws by inverting the cdf at its uniform
 numbers. A seed draws the same sequence each time. Its uniform numbers and integers are the same on every platform,
-while the samples of a distribution go through functions of the C library and may differ in their last digits from one
-platform to another. Without a seed, the generator takes one from the random numbers of the system. It is not meant for
-cryptography.
+while a distribution's samples go through C library functions and may differ in their last digits from one platform to
+another. Without a seed, the generator takes one from the system's random numbers. It is not intended for cryptography.
 
 ```typescript
 import {stats} from '@lakutata/math'
@@ -768,10 +772,10 @@ console.log(random.integers(5, 1, 7))   //five dice
 
 ### Numeric solutions
 
-`numeric` finds the solutions of equations as numbers, where `solve()` has no exact solution or where numbers are
-enough. The addon compiles the expressions to doubles, with the derivatives the methods need.
+`numeric` finds numeric solutions of equations, where `solve()` has no exact solution or where numbers are sufficient.
+The addon compiles the expressions to doubles, with the derivatives that the methods require.
 
-- `polynomialRoots(polynomial, variable)` gives all the roots of a polynomial in the complex numbers, as `{re, im}`,
+- `polynomialRoots(polynomial, variable)` returns all the roots of a polynomial in the complex numbers, as `{re, im}`,
   with their multiplicities, sorted by their real parts, then by their imaginary parts: the eigenvalues of its companion
   matrix, refined by Newton's method (as NumPy's `roots`). The polynomial is an expression, or its coefficients from the
   constant term up, as mathjs's `polynomialRoot` (NumPy's `roots` takes them from the highest power down). A root of
@@ -781,13 +785,14 @@ enough. The addon compiles the expressions to doubles, with the derivatives the 
   bracket), or from a `guess`, by Newton's method. A bracket where the sign does not change, or where the function is
   not real, throws `MathDomainException`.
 - `solveSystem(equations, variables, guess, options)` solves a system of nonlinear equations from a guess, by Newton's
-  method with a line search, and by the steps of Levenberg and Marquardt where Newton's steps fail. With more equations
+  method with a line search, and by Levenberg-Marquardt steps where Newton's steps fail. With more equations
   than variables, it finds the point where the residuals are smallest (least squares).
 
 The iterative methods stop when a step becomes smaller than the `tolerance` (1e-12 by default) relative to the solution,
 as SciPy's `fsolve` does, or after `maxIterations` (100 by default). They do not throw when they do not converge: the
-result says so (`converged`), with the number of `iterations` and the `residual` (the absolute value of the function at
-the root, the norm of the residuals of a system). Each operation has an asynchronous version (`findRootAsync()`…).
+result indicates this (`converged`), with the number of `iterations` and the `residual` (the absolute value of the
+function at the root, or the norm of a system's residuals). Each operation has an asynchronous version
+(`findRootAsync()`…).
 
 ```typescript
 import {numeric} from '@lakutata/math'
@@ -803,32 +808,32 @@ console.log(solution, converged)                                               /
 
 ### Numeric integrals
 
-`numeric.integrate(function, variable, [a, b], options)` gives the integral of a function over an interval, as `{value,
+`numeric.integrate(function, variable, [a, b], options)` returns a function's integral over an interval, as `{value,
 error, converged}`. The ends may be infinite (`-Infinity`, `Infinity`); with its ends reversed (`[3, 0]`), it is
 negated.
 
-- It is computed by QUADPACK's QAGS, as SciPy's `quad` computes it: the Gauss-Kronrod rule of 21 points on intervals
-  halved where the error is largest, the results extrapolated near a singularity, a half line or the real line mapped
-  onto a finite interval. Unless that reaches the roundings, a double-exponential quadrature (tanh-sinh, exp-sinh,
-  sinh-sinh) computes it too, and the more accurate result is kept. Next to an end that is not 0, the function is
-  rewritten in terms of its distance from it (`1 - x^2` at `x = 1 - u` is `2u - u^2`), so that a singularity there
-  (`1/sqrt(1 - x^2)` on `[-1, 1]`) is computed to the roundings.
-- `points` gives the points inside the interval where the function is singular or jumps: the interval is split there.
-  The extrapolation often finds such a point by itself, but giving it makes the integral faster and more accurate, and
-  its error estimate reliable: for a singularity inside the interval, the extrapolation's error estimate may be too
-  small, as in QUADPACK. Where the function is infinite at a point where the rules evaluate it, the interval is split
-  there anyway. The interval is also split at each real root, inside it, of a factor of the denominator of the function
-  that is a polynomial, where the function grows toward the root (not where the singularity is removable, as for
+- It is computed by QUADPACK's QAGS, as SciPy's `quad` computes it: the 21-point Gauss-Kronrod rule on intervals halved
+  where the error is largest, extrapolation of the results near a singularity, and a mapping of a half line or the real
+  line onto a finite interval. Unless that reaches rounding precision, a double-exponential quadrature (tanh-sinh,
+  exp-sinh, sinh-sinh) also computes it, and the more accurate result is kept. Next to an end that is not 0, the
+  function is rewritten in terms of its distance from it (`1 - x^2` at `x = 1 - u` is `2u - u^2`), so that a singularity
+  there (`1/sqrt(1 - x^2)` on `[-1, 1]`) is computed to rounding precision.
+- `points` specifies the points inside the interval where the function is singular or jumps: the interval is split
+  there. The extrapolation often finds such a point by itself, but specifying it makes the integral faster and more
+  accurate, and its error estimate reliable: for a singularity inside the interval, the extrapolation's error estimate
+  may be too small, as in QUADPACK. Where the function is infinite at a point where the rules evaluate it, the interval
+  is split there anyway. The interval is also split at each real root, inside it, of a polynomial factor of the
+  function's denominator, where the function grows toward the root (not where the singularity is removable, as for
   `sin(x)/x` at 0): an integral across a pole diverges, and is not converged, instead of being taken as its principal
   value (`1/x` on `[-1, 2]`). Next to a root of a factor of degree 1 or 2 with rational coefficients, inside the
   interval or at one of its ends, the function is computed at its exact distance from the root, which a decimal may not
-  give (the root -1/14 of `cbrt(x + 1/14)/(x + 1/14)`). A fraction of polynomials in the variable has its common factors
-  canceled first: `(x^2 - 1)/(x - 1)` on `[0, 2]` is 4, where the rules would meet 0/0 at 1.
-- `tolerance` bounds the estimate of the error, relative to the integral of `|f|`: about 1.5e-8 by default (the square
-  root of the machine epsilon, as in SciPy), and the result is usually much more accurate than its estimate. An integral
-  that diverges, that oscillates without end, or that doubles cannot resolve gives its best estimate with `converged:
+  represent (the root -1/14 of `cbrt(x + 1/14)/(x + 1/14)`). A fraction of polynomials in the variable has its common
+  factors canceled first: `(x^2 - 1)/(x - 1)` on `[0, 2]` is 4, where the rules would meet 0/0 at 1.
+- `tolerance` bounds the error estimate, relative to the integral of `|f|`: about 1.5e-8 by default (the square root of
+  the machine epsilon, as in SciPy), and the result is usually much more accurate than its estimate. An integral that
+  diverges, that oscillates without end, or that doubles cannot resolve returns its best estimate with `converged:
   false`; a function that is not real inside the interval throws `MathDomainException`. `integrateAsync()` runs in the
-  threads of the addon.
+  addon's threads.
 
 ```typescript
 import {numeric} from '@lakutata/math'
@@ -845,21 +850,21 @@ console.log(numeric.integrate('sin(x)/x', 'x', [0, Infinity]).converged)        
 `numeric.solveODE({derivatives, states, time, span, initial}, options)` solves an ordinary differential equation, or a
 system of them, y' = f(t, y): the derivatives of the states are expressions of the time (`t` by default) and of the
 states; the states are followed from their values at the start of the span to its end (backward when the end is before
-the start). An equation of a higher order is written as a system: x'' = -x is x' = v, v' = -x.
+the start). A higher-order equation is written as a system: x'' = -x is x' = v, v' = -x.
 
-- `method: 'rk45'` (by default) is Dormand and Prince's explicit Runge-Kutta method of order 5, as SciPy's RK45 and
+- `method: 'rk45'` (the default) is Dormand and Prince's explicit Runge-Kutta method of order 5, as SciPy's RK45 and
   MATLAB's ode45. `method: 'radau'` is the implicit method Radau IIA of order 5, as SciPy's Radau, for stiff equations
   (where components decay at very different rates, such as a chemical reaction or Van der Pol's oscillator with a large
-  mu): it takes the exact Jacobian of the derivatives, and needs far fewer steps on such equations.
-- The step is chosen from the error of the last one, as SciPy's `solve_ivp` chooses it, to keep the error of each step
-  within `relativeTolerance` (1e-6 by default) times the states plus `absoluteTolerance` (1e-9). SciPy and MATLAB
-  default to 1e-3 and 1e-6, which leave about three correct digits; the error at the end of a long span can be larger
-  than the tolerance of a step.
-- The result has the times `t` (every step from the start, or the `points` asked) and the states `y`, a `Matrix` with a
-  row for each time and a column for each state; the solution at the `points` is computed by the continuous extensions
-  of the steps, without shortening them. Where the solution stops before the end of the span (it grows without bound, so
-  the step becomes too small; more than `maxSteps` steps, 100000 by default), `completed` is false, `message` says why,
-  and the solution is given up to there. `solveODEAsync()` runs in the threads of the addon.
+  mu): it uses the exact Jacobian of the derivatives, and requires far fewer steps on such equations.
+- The step is chosen from the previous step's error, as SciPy's `solve_ivp` chooses it, to keep each step's error within
+  `relativeTolerance` (1e-6 by default) times the states plus `absoluteTolerance` (1e-9). SciPy and MATLAB default to
+  1e-3 and 1e-6, which leave about three correct digits; the error at the end of a long span can be larger than a step's
+  tolerance.
+- The result has the times `t` (every step from the start, or the requested `points`) and the states `y`, a `Matrix`
+  with a row for each time and a column for each state; the solution at the `points` is computed by the steps'
+  continuous extensions, without shortening them. Where the solution stops before the span's end (it grows without
+  bound, so the step becomes too small; more than `maxSteps` steps, 100000 by default), `completed` is false, `message`
+  explains why, and the solution is returned up to that point. `solveODEAsync()` runs in the addon's threads.
 
 ```typescript
 import {numeric} from '@lakutata/math'
@@ -876,28 +881,28 @@ console.log(blowUp.completed, blowUp.message)                  //false The step 
 
 ### Asynchronous operations
 
-The operations that can take long have an asynchronous version: `expandAsync()`, `simplifyAsync()`, `diffAsync()`,
+Operations that can take a long time have an asynchronous version: `expandAsync()`, `simplifyAsync()`, `diffAsync()`,
 `seriesAsync()`, `limitAsync()`, `integrateAsync()`, `laplaceAsync()`, `inverseLaplaceAsync()`, `solveAsync()`,
-`toDecimalAsync()`, `toComplexDecimalAsync()` of the expressions, `solveAsync()` and `cseAsync()`, and those of the
-number theory, of the linear algebra and of the numeric solutions. They run in the threads of the addon, not in the
-thread pool of libuv: as many threads as the processor has cores, minus one, or the number in the environment variable
-`LAKUTATA_MATH_THREADS`. Their options are `timeout` (milliseconds) and `signal` (an `AbortSignal`):
+`toDecimalAsync()`, `toComplexDecimalAsync()` of expressions, `solveAsync()` and `cseAsync()`, and those for number
+theory, linear algebra and numeric solutions. They run in the addon's threads, not in libuv's thread pool: as many
+threads as the processor has cores, minus one, or the number in the `LAKUTATA_MATH_THREADS` environment variable. Their
+options are `timeout` (milliseconds) and `signal` (an `AbortSignal`):
 
 - At the time limit the promise is rejected with `MathTimeoutException`, and with `MathCancelledException` when the
-  signal aborts. The operation stops at its next checkpoint: the algorithms of the addon check for a cancellation
-  between their steps (the terms of an expansion or of the series of a decimal, the columns of an elimination, the
-  iterations of the numeric methods and of the number theory, the attempts of a simplification, of a limit or of an
-  integral…). A single step runs to its end before the thread is free again: a computation of Eigen (a decomposition, a
-  product of matrices), an operation of SymEngine other than an expansion (a derivative, a series).
-- A scope of `createMath()` limits how many of its operations run at the same time (`concurrency`): the others wait
-  their turn. If the program exits while some are running, their results are dropped.
+  signal aborts. The operation stops at its next checkpoint: the addon's algorithms check for cancellation between their
+  steps (the terms of an expansion or of the series of a decimal, the columns of an elimination, the iterations of the
+  numeric methods and of the number theory, the attempts of a simplification, of a limit or of an integral…). A single
+  step runs to completion before the thread is free again: an Eigen computation (a decomposition, a matrix product), a
+  SymEngine operation other than an expansion (a derivative, a series).
+- A `createMath()` scope limits how many of its operations run at the same time (`concurrency`); the others wait their
+  turn. If the program exits while some are running, their results are dropped.
 
-The expressions are nested 1000 levels deep at most: a deeper formula is refused with `MathNotSupportedException`
+Expressions are nested at most 1000 levels deep: a deeper formula is refused with `MathNotSupportedException`
 before its operations could overflow the stack.
 
 ### Packaging
 
-The bundles, the executables and the installers made by `lakutata package` carry the compiled addon
+Bundles, executables and installers made by `lakutata package` include the compiled addon
 (`build/Release/math.node`): build them on each target platform, after installing the package there.
 
 ## API
@@ -905,32 +910,32 @@ The bundles, the executables and the installers made by `lakutata package` carry
 | Export | What it is |
 |---|---|
 | `parse`, `expression`, `equation`, `decimal`, `matrix`, `expressionMatrix`, `jacobian`, `interval`, `finiteSet`, `unit`, `constant`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `poly`, `linalg`, `stats`, `numeric` | The functions and the namespaces of `math`, ready to use |
-| `math`, `createMath`, `MathOptions` | The scope of the default options; a scope of other options (`definitions`, `precision`, `timeout`, `concurrency`, `units`), and its options |
-| `MathScope`, `MathDefinitions` | A scope of definitions and settings (`createMath()`, `with()`): `parse`, `expression`, `equation`, `decimal`, `matrix`, `expressionMatrix`, `jacobian`, `interval`, `finiteSet`, `unit`, `constant`, `with`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `poly`, `linalg`, `stats`, `numeric`; the definitions (a body by signature) |
+| `math`, `createMath`, `MathOptions` | The scope with the default options; a scope with other options (`definitions`, `precision`, `timeout`, `concurrency`, `units`), and its options |
+| `MathScope`, `MathDefinitions` | A scope with definitions and settings (`createMath()`, `with()`): `parse`, `expression`, `equation`, `decimal`, `matrix`, `expressionMatrix`, `jacobian`, `interval`, `finiteSet`, `unit`, `constant`, `with`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `poly`, `linalg`, `stats`, `numeric`; the definitions (a body per signature) |
 | `Expression` | An expression: `toString`, `toTeX`, `toNumber`, `toComplex`, `toDecimal`, `toComplexDecimal`, `variables`, `equals`, `add`, `sub`, `mul`, `div`, `pow`, `neg`, `expand`, `simplify`, `diff`, `series`, `limit`, `integrate`, `laplace`, `inverseLaplace`, `substitute`, `evaluate`, `solve`, `compile`, the polynomials (`coefficients`, `degree`, `leadingCoefficient`, `divide`), `factor`, `sqf`, the fractions (`cancel`, `together`, `apart`, `completeSquare`), `numerator`, `denominator`, `rewrite` (`exp`, `sin`, `cos`), the predicates (`isZero`, `isPositive`, `isNegative`, `isInteger`, `isRational`, `isReal`, `isFinite`: `undefined` when not known), `compare`, `toJavaScript`, `toC`, `toPolar`, `toRectangular`, and the asynchronous versions |
-| `Decimal`, `DecimalValue`, `DecimalOptions` | A decimal of a precision (`decimal()`): `precision`, `add`, `sub`, `mul`, `div`, `mod`, `pow`, `neg`, `abs`, `sqrt`, `cbrt`, `root`, `exp`, `ln`, `log10`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `gamma`, `loggamma`, `digamma`, `erf`, `erfc`, `zeta`, `lambertw`, `floor`, `ceil`, `trunc`, `round`, `compare`, `equals`, `isZero`, `isPositive`, `isNegative`, `isInteger`, `toString`, `toFixed`, `toNumber`, `toJSON`; what is given where a decimal is expected (a decimal, a number, a bigint, a decimal number written as a string); the option of `decimal()` (`precision`) |
-| `Matrix`, `MatrixValue`, `VectorValue` | A matrix of numbers (`matrix()`): `rows`, `columns`, `data`, `get`, `set`, `row`, `column`, `diagonal`, `submatrix`, `reshape`, `transpose`, `add`, `sub`, `mul`, `div`, `neg`, `multiplyElements`, `divideElements`, `powElements`, `map`, `trace`, `kron`, `equals`, `clone`, `toArray`, `toJSON`, `toString`; what is given where a matrix is expected (a matrix, or its rows); where a vector is (a `Float64Array`, or an array of numbers) |
-| `ExpressionMatrix`, `ExpressionMatrixValue`, `RowEchelonForm`, `Eigenvector` | A matrix of expressions (`expressionMatrix()`, `parse()`): `rows`, `columns`, `get`, `toArray`, `with`, `withRow`, `withColumn`, `row`, `column`, `submatrix`, `transpose`, `neg`, `add`, `sub`, `mul`, `div`, `multiplyElements`, `pow`, `trace`, `determinant`, `inverse`, `solve`, `rref`, `rank`, `nullspace`, `characteristicPolynomial`, `eigenvalues`, `eigenvectors`, `diff`, `substitute`, `expand`, `simplify`, `cancel`, `equals`, `toMatrix`, `toString`, `toTeX`, and `determinantAsync`, `inverseAsync`, `solveAsync`, `eigenvectorsAsync`; what is given for one; a reduced row echelon form and its pivots; an eigenvalue, its multiplicity and its eigenvectors |
-| `Unit`, `UnitValue`, `UnitDimensions`, `CustomUnit`, `CustomUnits`, `PhysicalConstant` | A value with units (`unit()`, `constant()`): `value`, `units`, `dimensions`, `hasDimensionsOf`, `to`, `toSI`, `toBest`, `split`, `add`, `sub`, `mul`, `div`, `pow`, `sqrt`, `neg`, `abs`, `equals`, `compare`, `toNumber`, `toDecimal`, `toString`, `toJSON`, `toTeX`; what is given for one; the powers of its base quantities; a unit of `createMath()` (`definition`, `prefixes`, `aliases`, `offset`) and the units of its option; the names of the physical constants |
-| `LinearAlgebra`, `NormKind` | The linear algebra (`linalg`): `zeros`, `ones`, `identity`, `diagonal`, `fromRows`, `fromColumns`, `fromFunction`, `concat`, `rotation`, `dot`, `cross`, `outer`, `norm`, `multiply`, `solve`, `solveTriangular`, `leastSquares`, `inverse`, `determinant`, `singularValues`, `rank`, `condition`, `lu`, `qr`, `cholesky`, `svd`, `eigen`, `symmetricEigen`, `schur`, `pseudoInverse`, `exponential`, `squareRoot`, `sylvester`, `lyapunov`, `sparse`, `conjugateGradient`, `biconjugateGradientStabilized`, and the asynchronous versions; the kinds of norms |
-| `Statistics`, `Normalization`, `NormalizationOptions` | The statistics (`stats`): `sum`, `product`, `cumulativeSum`, `differences`, `mean`, `median`, `mode`, `min`, `max`, `variance`, `standardDeviation`, `medianAbsoluteDeviation`, `quantile`, `covariance`, `correlation`, `zScores`, `klDivergence`, the distributions (`normal` … `hypergeometric`, `distribution`) and `random`; the divisors of a variance (`'uncorrected'`, `'unbiased'`, `'biased'`) and the option that chooses one |
-| `Distribution`, `DistributionName`, `DistributionParameters` | A probability distribution: `pdf`, `cdf`, `survival`, `quantile`, `survivalQuantile`, `sample`, `parameters`, `kind`, `support`, `mean`, `variance`, `standardDeviation`, `median`, `mode`, `skewness`, `excessKurtosis`; the names of the distributions; their parameters by their names |
-| `RandomGenerator` | A generator of random numbers (xoshiro256**) of a seed: `next`, `uniform`, `integers`, `clone` |
+| `Decimal`, `DecimalValue`, `DecimalOptions` | A decimal with a precision (`decimal()`): `precision`, `add`, `sub`, `mul`, `div`, `mod`, `pow`, `neg`, `abs`, `sqrt`, `cbrt`, `root`, `exp`, `ln`, `log10`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `gamma`, `loggamma`, `digamma`, `erf`, `erfc`, `zeta`, `lambertw`, `floor`, `ceil`, `trunc`, `round`, `compare`, `equals`, `isZero`, `isPositive`, `isNegative`, `isInteger`, `toString`, `toFixed`, `toNumber`, `toJSON`; what is accepted where a decimal is expected (a decimal, a number, a bigint, a decimal number written as a string); the option of `decimal()` (`precision`) |
+| `Matrix`, `MatrixValue`, `VectorValue` | A matrix of numbers (`matrix()`): `rows`, `columns`, `data`, `get`, `set`, `row`, `column`, `diagonal`, `submatrix`, `reshape`, `transpose`, `add`, `sub`, `mul`, `div`, `neg`, `multiplyElements`, `divideElements`, `powElements`, `map`, `trace`, `kron`, `equals`, `clone`, `toArray`, `toJSON`, `toString`; what is accepted where a matrix is expected (a matrix, or its rows); where a vector is expected (a `Float64Array`, or an array of numbers) |
+| `ExpressionMatrix`, `ExpressionMatrixValue`, `RowEchelonForm`, `Eigenvector` | A matrix of expressions (`expressionMatrix()`, `parse()`): `rows`, `columns`, `get`, `toArray`, `with`, `withRow`, `withColumn`, `row`, `column`, `submatrix`, `transpose`, `neg`, `add`, `sub`, `mul`, `div`, `multiplyElements`, `pow`, `trace`, `determinant`, `inverse`, `solve`, `rref`, `rank`, `nullspace`, `characteristicPolynomial`, `eigenvalues`, `eigenvectors`, `diff`, `substitute`, `expand`, `simplify`, `cancel`, `equals`, `toMatrix`, `toString`, `toTeX`, and `determinantAsync`, `inverseAsync`, `solveAsync`, `eigenvectorsAsync`; what is accepted for one; a reduced row echelon form and its pivots; an eigenvalue, its multiplicity and its eigenvectors |
+| `Unit`, `UnitValue`, `UnitDimensions`, `CustomUnit`, `CustomUnits`, `PhysicalConstant` | A value with units (`unit()`, `constant()`): `value`, `units`, `dimensions`, `hasDimensionsOf`, `to`, `toSI`, `toBest`, `split`, `add`, `sub`, `mul`, `div`, `pow`, `sqrt`, `neg`, `abs`, `equals`, `compare`, `toNumber`, `toDecimal`, `toString`, `toJSON`, `toTeX`; what is accepted for one; the powers of its base quantities; a unit of `createMath()` (`definition`, `prefixes`, `aliases`, `offset`) and the units of its option; the physical constant names |
+| `LinearAlgebra`, `NormKind` | The linear algebra (`linalg`): `zeros`, `ones`, `identity`, `diagonal`, `fromRows`, `fromColumns`, `fromFunction`, `concat`, `rotation`, `dot`, `cross`, `outer`, `norm`, `multiply`, `solve`, `solveTriangular`, `leastSquares`, `inverse`, `determinant`, `singularValues`, `rank`, `condition`, `lu`, `qr`, `cholesky`, `svd`, `eigen`, `symmetricEigen`, `schur`, `pseudoInverse`, `exponential`, `squareRoot`, `sylvester`, `lyapunov`, `sparse`, `conjugateGradient`, `biconjugateGradientStabilized`, and the asynchronous versions; the norm kinds |
+| `Statistics`, `Normalization`, `NormalizationOptions` | The statistics (`stats`): `sum`, `product`, `cumulativeSum`, `differences`, `mean`, `median`, `mode`, `min`, `max`, `variance`, `standardDeviation`, `medianAbsoluteDeviation`, `quantile`, `covariance`, `correlation`, `zScores`, `klDivergence`, the distributions (`normal` … `hypergeometric`, `distribution`) and `random`; the variance divisors (`'uncorrected'`, `'unbiased'`, `'biased'`) and the option that selects one |
+| `Distribution`, `DistributionName`, `DistributionParameters` | A probability distribution: `pdf`, `cdf`, `survival`, `quantile`, `survivalQuantile`, `sample`, `parameters`, `kind`, `support`, `mean`, `variance`, `standardDeviation`, `median`, `mode`, `skewness`, `excessKurtosis`; the distribution names; their parameters by name |
+| `RandomGenerator` | A random number generator (xoshiro256**) from a seed: `next`, `uniform`, `integers`, `clone` |
 | `SparseMatrix`, `SparseEntry` | A sparse matrix in compressed rows (`linalg.sparse()`): `rowPointers`, `columnIndices`, `values`, `nonZeros`, `get`, `transpose`, `add`, `sub`, `neg`, `mul`, `toDense`, `toEntries`; an entry `[row, column, value]` |
 | `IterativeOptions`, `IterativeSolution` | The options of the iterative solvers (`tolerance`, `maxIterations`, `guess`) and their result (`solution`, `iterations`, `error`, `converged`) |
-| `LuDecomposition`, `QrDecomposition`, `SingularValueDecomposition`, `EigenDecomposition`, `SymmetricEigenDecomposition`, `SchurDecomposition`, `ComplexVector`, `ComplexMatrix` | The results of the decompositions: `{lower, upper, permutation}`, `{q, r}`, `{u, singularValues, v}`, `{values, vectors}` (complex: `{re, im}`), `{values, vectors}`, `{u, t}` |
+| `LuDecomposition`, `QrDecomposition`, `SingularValueDecomposition`, `EigenDecomposition`, `SymmetricEigenDecomposition`, `SchurDecomposition`, `ComplexVector`, `ComplexMatrix` | The decompositions' results: `{lower, upper, permutation}`, `{q, r}`, `{u, singularValues, v}`, `{values, vectors}` (complex: `{re, im}`), `{values, vectors}`, `{u, t}` |
 | `CommonSubexpressions`, `CseOptions` | The result of `cse()` (`replacements`, `expressions`) and its option (`prefix`) |
 | `PolarForm`, `RectangularForm` | The polar form (`modulus`, `argument`) and the rectangular form (`real`, `imaginary`) of a complex value |
 | `Equation`, `Inequality`, `InequalityRelation` | An equation (`left`, `right`, `difference`, `substitute`, `solve`, `solveAsync`), an inequality (`left`, `right`, `relation`, `solve`, `solveAsync`) |
-| `Solutions`, `SolutionsKind`, `SolveOptions` | The solutions of an equation or of an inequality: an array of expressions with their `kind`, their `set` and `text`; the `domain` of the solutions |
-| `MathSet`, `MathSetKind`, `SetInterval`, `IntervalOptions` | A set of numbers (`interval()`, `finiteSet()`, the `set` of solutions): `kind`, `values`, `intervals`, `text`, `union`, `intersect`, `complement`, `difference`, `contains`, `equals`, `isEmpty`, `toString`, `toTeX`; what it is; an interval of it; whether the ends of an interval are excluded |
-| `SystemSolution`, `SystemEquation` | A solution of a system (an expression by variable), an equation of a system |
-| `CompiledFunction` | A compiled expression: a function of numbers, its `variables`, `batch` |
-| `NumberTheory`, `IntegerValue`, `ContinuedFractionOptions`, `PrimeFactor`, `ExtendedGcd`, `Congruence` | The number theory (`ntheory`): `gcd`, `lcm`, `extendedGcd`, `mod`, `modInverse`, `powMod`, `isPrime`, `nextPrime`, `factor`, `totient`, `mobius`, `primitiveRoot`, `legendre`, `jacobi`, `crt`, `fibonacci`, `lucas`, `binomial`, `factorial`, `doubleFactorial`, `bernoulli`, `harmonic`, `permutations`, `combinationsWithRepetition`, `multinomial`, `bell`, `catalan`, `stirlingSecondKind`, `compositions`, `continuedFraction`, `fromContinuedFraction`, `convergents`, and the asynchronous versions; an integer (a bigint, or a number that is a safe integer); a prime factor and its exponent; the result of `extendedGcd`; the result of `crt`; the largest number of terms of a continued fraction |
+| `Solutions`, `SolutionsKind`, `SolveOptions` | The solutions of an equation or an inequality: an array of expressions with their `kind`, their `set` and `text`; the solutions' `domain` |
+| `MathSet`, `MathSetKind`, `SetInterval`, `IntervalOptions` | A set of numbers (`interval()`, `finiteSet()`, the `set` of solutions): `kind`, `values`, `intervals`, `text`, `union`, `intersect`, `complement`, `difference`, `contains`, `equals`, `isEmpty`, `toString`, `toTeX`; what it is; an interval of it; whether an interval's ends are excluded |
+| `SystemSolution`, `SystemEquation` | A solution of a system (an expression per variable), an equation of a system |
+| `CompiledFunction` | A compiled expression: a numeric function, its `variables`, `batch` |
+| `NumberTheory`, `IntegerValue`, `ContinuedFractionOptions`, `PrimeFactor`, `ExtendedGcd`, `Congruence` | The number theory (`ntheory`): `gcd`, `lcm`, `extendedGcd`, `mod`, `modInverse`, `powMod`, `isPrime`, `nextPrime`, `factor`, `totient`, `mobius`, `primitiveRoot`, `legendre`, `jacobi`, `crt`, `fibonacci`, `lucas`, `binomial`, `factorial`, `doubleFactorial`, `bernoulli`, `harmonic`, `permutations`, `combinationsWithRepetition`, `multinomial`, `bell`, `catalan`, `stirlingSecondKind`, `compositions`, `continuedFraction`, `fromContinuedFraction`, `convergents`, and the asynchronous versions; an integer (a bigint, or a number that is a safe integer); a prime factor and its exponent; the result of `extendedGcd`; the result of `crt`; the maximum number of terms in a continued fraction |
 | `Polynomials`, `FactorList`, `PolynomialFactor` | The polynomials (`poly`): `gcd`, `lcm`, `resultant`, `discriminant`, `factorList`, `sqfList`, and the asynchronous versions; a polynomial as a coefficient times factors, a factor and its multiplicity |
 | `Numeric`, `FindRootOptions`, `IterationOptions`, `RootResult`, `SystemRootResult`, `IntegrateOptions`, `IntegralResult` | The numeric solutions and integrals (`numeric`): `polynomialRoots`, `findRoot`, `solveSystem`, `integrate` and their asynchronous versions; their options (`bracket`, `guess`, `tolerance`, `maxIterations`, `points`) and their results (`root` or `solution`, `converged`, `iterations`, `residual`; `value`, `error`, `converged`) |
 | `ODEProblem`, `ODEOptions`, `ODEResult` | The differential equations (`numeric.solveODE`, `solveODEAsync`): the derivatives, the states, the time, the span and the initial values; the method (`rk45`, `radau`), the tolerances, `maxStep`, `points`, `maxSteps`; the times `t`, the states `y`, `steps`, `rejected`, `evaluations`, `jacobians`, `completed`, `message` |
-| `AsyncOptions`, `Value` | The options of the asynchronous operations (`timeout`, `signal`); what is given where an expression is expected (an expression, a number, a bigint, a decimal, a formula) |
+| `AsyncOptions`, `Value` | The asynchronous operations' options (`timeout`, `signal`); what is accepted where an expression is expected (an expression, a number, a bigint, a decimal, a formula) |
 
 The typings document every declaration, with examples.
 
@@ -938,16 +943,16 @@ The typings document every declaration, with examples.
 
 | Error | When |
 |---|---|
-| `MathSyntaxException` | A formula is not written correctly (with the `position` of the error), an equation or a matrix is given where an expression is expected, or the other way round, a matrix and a number added, a matrix where a function takes numbers |
-| `MathUnitException` | Values with units of dimensions that differ added, compared or converted, a unit that is not known (with its `position`), a temperature with an offset added, multiplied or divided, a power that leaves the powers of the dimensions not integers, `sin()` of a value that is neither an angle nor a number |
+| `MathSyntaxException` | A formula is not written correctly (with the `position` of the error), an equation or a matrix is passed where an expression is expected, or vice versa, a matrix and a number added, a matrix where a function takes numbers |
+| `MathUnitException` | Values with units of different dimensions added, compared or converted, an unknown unit (with its `position`), a temperature with an offset added, multiplied or divided, a power that leaves the powers of the dimensions not integers, `sin()` of a value that is neither an angle nor a number |
 | `MathUnknownFunctionException` | A formula calls a function that is neither built in nor defined, or a constant written as a call (`g(2)`), with its `position` |
-| `MathDefinitionException` | A definition is not valid: a built-in name, a parameter given twice, definitions referring to each other in a cycle, a definition nested too deep, a definition that is a matrix; a unit of `createMath()` that is not valid: a name that is already a unit, alone or with a prefix, a definition of unknown units, units defined in terms of each other in a cycle |
-| `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero, also by a value not shown to differ from 0 in `toNumber()`), an integer outside the domain of a function of the number theory (`totient(0)`), a singular matrix where an inverse is needed (`solve()`, `inverse()`), a matrix given to `cholesky()` that is not positive definite, a matrix given to `squareRoot()` whose principal square root is not real or does not exist, a Sylvester or Lyapunov equation without a unique solution, a decimal outside the domain of a function (the square root of a negative decimal, `asin()` of 2, a negative decimal to a non-integer power), a bracket of `findRoot()` where the function does not change its sign or is not real, a function or equations that are not real at the guess of `findRoot()` or `solveSystem()`, a function that is not real inside the interval of `integrate()`, derivatives that are not real at the start of `solveODE()`, the continued fraction of a complex value, a matrix of expressions that is singular (`inverse()`, `solve()`, `inv()`), an expression without a limit at a point (two sides that differ, an oscillation), a definite integral without a value (`1/x` on `[-1, 1]`) |
+| `MathDefinitionException` | An invalid definition: a built-in name, a parameter specified twice, definitions referring to each other in a cycle, a definition nested too deep, a definition that is a matrix; an invalid unit of `createMath()`: a name that is already a unit, alone or with a prefix, a definition of unknown units, units defined in terms of each other in a cycle |
+| `MathDomainException` | A complex value requested as a number, the value of an infinity or of `complexInfinity` (a division by zero, also by a value not shown to differ from 0 in `toNumber()`), an integer outside the domain of a function of the number theory (`totient(0)`), a singular matrix where an inverse is required (`solve()`, `inverse()`), a matrix passed to `cholesky()` that is not positive definite, a matrix passed to `squareRoot()` whose principal square root is not real or does not exist, a Sylvester or Lyapunov equation without a unique solution, a decimal outside the domain of a function (the square root of a negative decimal, `asin()` of 2, a negative decimal to a non-integer power), a bracket of `findRoot()` where the function does not change its sign or is not real, a function or equations that are not real at the guess of `findRoot()` or `solveSystem()`, a function that is not real inside the interval of `integrate()`, derivatives that are not real at the start of `solveODE()`, the continued fraction of a complex value, a matrix of expressions that is singular (`inverse()`, `solve()`, `inv()`), an expression without a limit at a point (two sides that differ, an oscillation), a definite integral without a value (`1/x` on `[-1, 1]`) |
 | `MathDivisionByZeroException` | A division by zero met while computing decimals (also by a value not shown to differ from 0, the logarithm of 0, 0 to a negative power, a logarithm in base 1, a function at one of its poles: `gamma()` of -2, `zeta()` of 1), a modulus of 0, terms of a continued fraction that divide by zero |
-| `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation, `gcd` or `lcm` of numbers that are not integers, a result of the number theory of more than 2^20 bits, `bernoulli(n)` and `bell(n)` above 2000, `harmonic(n)` above 50000, `stirlingSecondKind(n, k)` with `n` above 50000 or `n k` above 6250000, code with a function the language does not have, a complex number such as `2i`, a variable named like a reserved word of the language, eigenvalues whose computation does not converge, the decimals of `polygamma(n, x)` when `n` is not an integer, a decimal whose exponent is beyond the range of decimals (about ±10^18, ±4.25 × 10^8 on 32-bit systems: `exp()` of 10^19, also in `toDecimal()`), or a decimal value that needs more than 50000 digits beyond the ones asked (`sin(10^(10^6))`), the eigenvalues of a matrix of expressions that are not found exactly, a matrix raised to a power that is not an integer, an equation or an inequality of matrices, a polynomial of `poly` with a negative power, a complex or inexact coefficient, or degrees too high together for its dense form, a limit that is not found, an integral, a Laplace transform or an inverse one that is not found, the decimals of a special function of integrals whose value is complex (`Ci(-1)`), the decimals of a function of a complex number that `toComplexDecimal()` does not compute (`gamma(1 + i)`; also in `toDecimal()`, even where the value is real: `re(gamma(1 + i))`) |
-| `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked, a value that is not a decimal number where one is asked, a precision outside 1 to 100000, an interval, points or a tolerance of `integrate()` that are not valid, a problem or options of `solveODE()` that are not valid, a continued fraction of a value with variables, terms that are not integers, matrices or vectors of the wrong dimensions, a sparse matrix whose structure is not valid (also when its arrays were changed after it was made), no values where a statistic has none, parameters of a distribution that are not valid, a probability of a quantile outside 0 to 1, negative probabilities for `klDivergence`, the gcd or the lcm of no polynomial, a variable of `poly` that is not a name, a number where units alone are expected (`to('2 cm')`), the name of a physical constant that is not one, the options of `createMath()` that are not valid |
+| `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation, `gcd` or `lcm` of numbers that are not integers, a result of the number theory of more than 2^20 bits, `bernoulli(n)` and `bell(n)` above 2000, `harmonic(n)` above 50000, `stirlingSecondKind(n, k)` with `n` above 50000 or `n k` above 6250000, code with a function the language does not have, a complex number such as `2i`, a variable named like a reserved word of the language, eigenvalues whose computation does not converge, the decimals of `polygamma(n, x)` when `n` is not an integer, a decimal whose exponent is beyond the range of decimals (about ±10^18, ±4.25 × 10^8 on 32-bit systems: `exp()` of 10^19, also in `toDecimal()`), or a decimal value that requires more than 50000 digits beyond those requested (`sin(10^(10^6))`), the eigenvalues of a matrix of expressions that are not found exactly, a matrix raised to a power that is not an integer, an equation or an inequality of matrices, a polynomial of `poly` with a negative power, a complex or inexact coefficient, or degrees too high together for its dense form, a limit that is not found, an integral, a Laplace transform or an inverse one that is not found, the decimals of an integral special function whose value is complex (`Ci(-1)`), the decimals of a function of a complex number that `toComplexDecimal()` does not compute (`gamma(1 + i)`; also in `toDecimal()`, even where the value is real: `re(gamma(1 + i))`) |
+| `MathArgumentException` | An invalid argument: variables left where a number is expected, a name that is not a variable, the wrong number of values, a value that is not an integer where one is expected, a value that is not a decimal number where one is expected, a precision outside 1 to 100000, an interval, points or a tolerance of `integrate()` that are not valid, a problem or options of `solveODE()` that are not valid, a continued fraction of a value with variables, terms that are not integers, matrices or vectors of the wrong dimensions, a sparse matrix whose structure is not valid (also when its arrays were changed after it was made), no values where a statistic has none, parameters of a distribution that are not valid, a probability of a quantile outside 0 to 1, negative probabilities for `klDivergence`, the gcd or the lcm of no polynomial, a variable of `poly` that is not a name, a number where units alone are expected (`to('2 cm')`), the name of a physical constant that is not one, invalid `createMath()` options |
 | `MathTimeoutException`, `MathCancelledException` | An asynchronous operation past its time limit, or canceled |
-| `MathException` | The base of all of them; its `errno` is `E_MATH_INTERNAL` for an internal error of the addon |
+| `MathException` | The base of all of them; its `errno` is `E_MATH_INTERNAL` for an internal addon error |
 
 ## See also
 

@@ -2,14 +2,14 @@
 
 Lakutata 1.x was a family of packages: `@lakutata/core` 1.x, the modules `@lakutata-module/*` (`service`, `api`), the
 components `@lakutata-component/*` (`typeorm`, `cacher`…) and `@lakutata/cli` 1.0. Lakutata 3 is a different framework
-with a different API, so a 1.x project is ported to it rather than upgraded in place. This page gives the way to port
+with a different API, so a 1.x project is ported to it rather than upgraded in place. This guide describes how to port
 it and what each part of 1.x becomes.
 
-It is for the projects that depend on `@lakutata/core` at version 1. A project that depends on the package `lakutata` at
-version 2 follows [Upgrading from Lakutata 2.x](UpgradingFrom2.md), not this page. The 1.x packages covered are those
+It is for projects that depend on `@lakutata/core` at version 1. A project that depends on the `lakutata` package at
+version 2 follows [Upgrading from Lakutata 2.x](UpgradingFrom2.md), not this guide. The 1.x packages covered are those
 published on npm (`@lakutata/core` 1.0.60, `@lakutata-module/service` 1.2.7, `@lakutata-module/api` 1.0.29,
 `@lakutata-component/typeorm` 1.1.19, `@lakutata-component/cacher` 1.0.15, `@lakutata/cli` 1.0.37); builds of these
-packages obtained elsewhere may have APIs that this page does not cover.
+packages obtained elsewhere may have APIs that this guide does not cover.
 
 ## 1. Telling 1.x apart
 
@@ -19,18 +19,18 @@ packages obtained elsewhere may have APIs that this page does not cover.
 | `src/App.ts` | `createApp(Config(true)).then(…)` | `Application.run(config)` |
 | Modules | CommonJS: imports without extensions, `__dirname` | ES modules: relative imports ending in `.js` |
 | Service actions | `@Controller({_ctrl: …})` and `@PATTERN({_act: …})` from `@lakutata-module/service` | `@ServiceAction({…})` from `lakutata/decorator/ctrl` |
-| Validation | `Validator` schemas (yup) given to `@Accept` | DTO classes with `@Expect` |
+| Validation | `Validator` schemas (yup) passed to `@Accept` | DTO classes with `@Expect` |
 | Node.js | `>=14.15.1` (`@lakutata/core` 1.0.60) | `>=18.10.0` |
 
 **`@lakutata/core` 3 is not a new version of the 1.x library.** It is the core of Lakutata 3, a different API under the
-same name. `npm install @lakutata/core@latest`, or a range such as `*`, in a 1.x project puts it in place of the 1.x
-core and breaks the build. Never upgrade the 1.x packages one by one: the ported application depends on `lakutata` 3,
-which brings its own `@lakutata/core`.
+same name. In a 1.x project, `npm install @lakutata/core@latest`, or a range such as `*`, replaces the 1.x core with it
+and breaks the build. Never upgrade the 1.x packages one by one: the ported application depends on `lakutata` 3, which
+brings its own `@lakutata/core`.
 
 ## 2. The way to port
 
-1. **Create a 3.x project** next to the 1.x one, from the template of its kind: `service` for a service or a gateway
-   (an HTTP API, a health check, a `Dockerfile`), `cli` for a command-line tool
+1. **Create a 3.x project** next to the 1.x one, from the template for its kind. Use `service` for a service or a
+   gateway (an HTTP API, a health check, a `Dockerfile`) and `cli` for a command-line tool
    ([Getting Started](GettingStarted.md)):
 
    ```bash
@@ -40,15 +40,15 @@ which brings its own `@lakutata/core`.
 2. **Port it area by area**, building and testing after each: the database and its entities (section 8), the inputs as
    DTOs (section 7), the components (section 3), the service actions and their callers (section 5), the HTTP API
    (section 6), the configuration (section 9), the tests (section 10).
-3. **Keep the contracts of the clients**: the patterns of the service actions and their keys, the `errno` codes, the
-   HTTP routes and the shape of their responses, the names of the events. Then the callers, the user interfaces and the
-   devices do not change with the port.
-4. **Plan the order of the services.** The service module of 1.x and the service transports of 3.x do not talk to each
-   other: a 3.x service cannot answer the `invoke()` of a 1.x service, nor call one. Move the services that call each
-   other together, or keep a 1.x service as a bridge until its callers are ported.
+3. **Keep the clients' contracts**: the service action patterns and their keys, the `errno` codes, the HTTP routes and
+   their response shapes, the event names. The callers, the user interfaces and the devices then do not change with the
+   port.
+4. **Plan the order of the services.** The 1.x service module and the 3.x service transports do not communicate with
+   each other: a 3.x service can neither respond to the `invoke()` of a 1.x service nor call one. Move services that
+   call each other together, or keep a 1.x service as a bridge until its callers are ported.
 
-Editing the 1.x project in place does not work: the module system, the container, the validation and the transports
-all change at once.
+Editing the 1.x project in place does not work: the module system, the container, the validation and the transports all
+change at the same time.
 
 ## 3. The application and its objects
 
@@ -56,13 +56,13 @@ See [Application](Application.md), [Objects and Lifetimes](Objects.md) and [Depe
 
 | 1.x | 3.x |
 |---|---|
-| `createApp(Config(isProd))`, a promise of the application | `Application.run(config).onLaunched(…)` |
+| `createApp(Config(isProd))`, a promise that resolves to the application | `Application.run(config).onLaunched(…)` |
 | The options `id`, `name`, `timezone`, `components: {name: {class, …}}` | The same options |
 | `modules: {name: {class, …}}` | `components`: a long-lived object is a `Component` |
-| `plugins: [{class, scope, …}]`, reached as `app.<ClassName>` | `providers` (`@Singleton()` for a shared client) or `components`, injected by name |
-| `processes`, `threads`, `workflows`, `onModulesLoaded`, `onComponentsLoaded` | None: `bootstrap` steps, and `child_process` or `worker_threads` of Node.js in a component |
-| `initialize()` | `init()`; 3.x adds `destroy()`, run at the teardown |
-| `app.on('ready', …)` in a component | The `launched()` hook of the component, or `onLaunched` of the application |
+| `plugins: [{class, scope, …}]`, accessed as `app.<ClassName>` | `providers` (`@Singleton()` for a shared client) or `components`, injected by name |
+| `processes`, `threads`, `workflows`, `onModulesLoaded`, `onComponentsLoaded` | None: `bootstrap` steps, and Node.js `child_process` or `worker_threads` in a component |
+| `initialize()` | `init()`; 3.x adds `destroy()`, run during teardown |
+| `app.on('ready', …)` in a component | The component's `launched()` hook, or the application's `onLaunched` |
 | `@Inject('name')`, `@Inject(Application)` | The same, from `lakutata/decorator/di` |
 | `app.Components.get<T>('name')`, `app.Modules.service`, and the `declare module` that types them | `@Inject('name')` on a typed property; `await app.getObject<T>('name')` outside the objects; no augmentation |
 | `@Configurable()` | `@Configurable(schema)`: the schema validates the option at launch (without one, any value is accepted) |
@@ -74,10 +74,10 @@ See [Application](Application.md), [Objects and Lifetimes](Objects.md) and [Depe
 | `app.Security.encryptByPassword()`, `encryptByKey()` and their `decrypt…` | The same functions, from `lakutata/security` ([Security](Security.md)) |
 | `app.Security.generatePasswordHash()`, `validatePassword()` | The `PasswordHash` provider, from `lakutata/provider/passwordHash` |
 | `app.Formatter.asTimestamp()`, `asDateText()` | `Time`, from `lakutata` ([Time](Time.md)) |
-| `app.JSON`, `app.MessagePack`, `app.HttpRequest`, `app.Shell` | `JSON`, `MessagePack` from `lakutata/utils`, `fetch()`, `child_process` of Node.js |
+| `app.JSON`, `app.MessagePack`, `app.HttpRequest`, `app.Shell` | `JSON`, `MessagePack` from `lakutata/utils`, `fetch()`, Node.js `child_process` |
 | `delay()` | `delay()` from `lakutata/utils` |
 | `app.emit()`, `app.on()` as an event bus | A component is an event emitter: inject it and use its `emit()` and `on()` |
-| `throw this.generateException(OrderNotFoundException, 'Order', 'not found')` | `throw new OrderNotFoundException('Order {id} not found', {id})`; the exceptions have no `district` |
+| `throw this.generateException(OrderNotFoundException, 'Order', 'not found')` | `throw new OrderNotFoundException('Order {id} not found', {id})`; exceptions have no `district` |
 
 A 1.x component:
 
@@ -136,10 +136,10 @@ export class Orders extends Component {
 }
 ```
 
-- The `errno` of the exceptions stays, so the clients that test it keep working. 3.x adds `statusCode`, the HTTP status
-  of the error, and builds the message from a template ([Exceptions](Exceptions.md)).
-- One class may still be declared several times under different names with different options (several caches, two
-  HTTP servers): each declaration is its own instance, injected by its name.
+- Exceptions keep their `errno`, so clients that test it keep working. 3.x adds `statusCode`, the error's HTTP status,
+  and builds the message from a template ([Exceptions](Exceptions.md)).
+- One class may still be declared several times under different names with different options (several caches, two HTTP
+  servers): each declaration is a separate instance, injected by its name.
 
 ## 4. The packages
 
@@ -153,22 +153,22 @@ export class Orders extends Component {
 | `@lakutata/cli` 1.0 (`lakutata`, `lakutata-deploy`) | `@lakutata/cli` 3: `lakutata create`, `run`, `migration`, `package`… ([Command-Line Tool](Command.md)); no deploy command |
 | The other `@lakutata-component/*` packages | No counterpart: keep what they did in the application, or use another library |
 
-Import only from these subpaths: 3.x does not support imports from the files inside a package (1.x projects sometimes
-imported from `/distro/…`, `/src/…` or `/build/…` of a package).
+Import only from these subpaths: 3.x does not support imports from files inside a package (1.x projects sometimes
+imported from a package's `/distro/…`, `/src/…` or `/build/…`).
 
 ## 5. Service calls
 
 In 1.x, each application had a `service` module: it registered its controllers with a registry application (backed by
-Redis), and called the actions of the others with `invoke({serviceId, data, timeout})`; its channels carried events
-between the services. In 3.x there is no registry application: the `entrypoint` component serves the service actions
-over a transport, and a proxy calls them ([Service Calls](ServiceCalls.md)):
+Redis), and called other applications' actions with `invoke({serviceId, data, timeout})`; its channels carried events
+between services. In 3.x there is no registry application. The `entrypoint` component serves service actions over a
+transport, and a proxy calls them ([Service Calls](ServiceCalls.md)):
 
-- **NATS** ([NATS](NATS.md)) is the closest to the 1.x model: the services share one NATS server, address each other
-  by their application id (as the `serviceId` of 1.x), balance the calls between the instances of a service, and
-  publish events. Its `ServiceProxy` calls another service; the NATS server replaces the registry application.
+- **NATS** ([NATS](NATS.md)) is the closest to the 1.x model: services share one NATS server, address each other by
+  their application ID (like the 1.x `serviceId`), balance calls between a service's instances, and publish events. Its
+  `ServiceProxy` calls another service; the NATS server replaces the registry application.
 - **The HTTP service** with `HTTPServiceProxy`, or **gRPC** ([gRPC](GRPC.md)), call a service at a known address.
 
-A 1.x controller of the service module:
+A controller of the 1.x service module:
 
 ```text
 //1.x
@@ -227,39 +227,38 @@ Application.run(() => ({
 ```
 
 - **The patterns.** `@Prefix({pattern})` plus `@ServiceAction` replace `@Controller` plus `@PATTERN`, with the same
-  keys, so the messages of the callers do not change (`_action` instead of `_act` works the same way). Extra keys of a
-  pattern still select another action: `{_act: 'query', batch: true}` and `{_act: 'query', batch: false}` are two
-  actions. A key that the prefix and an action give different values is an error in 3.x (in 1.x, the controller's
-  value won).
-- **The input.** The action receives the message without the keys of its pattern: a method that read `inp.batch` or
+  keys, so callers' messages do not change (`_action` instead of `_act` works the same way). Extra keys in a pattern
+  still select another action: `{_act: 'query', batch: true}` and `{_act: 'query', batch: false}` are two actions. A key
+  that the prefix and an action set to different values is an error in 3.x (in 1.x, the controller's value won).
+- **The input.** The action receives the message without its pattern's keys: a method that read `inp.batch` or
   `inp._act` reads them from `this.context.input`, the whole message. Fields that a gateway added to every message (the
-  id of the user, of the organization) stay ordinary fields of the DTOs, or move to a middleware
+  user ID, the organization ID) remain ordinary DTO fields, or move to a middleware
   ([Middlewares and Access Control](Middlewares.md)).
 - **Calls.** `this.app.Modules.service.invoke({serviceId, data, timeout})` becomes `this.users.invoke(message, timeout)`
-  on an injected proxy. A failed action throws a `ServiceInvokeException` that carries the `errno` and the other
-  properties of the remote error. The `transform` option and the chains of several invoke objects have no counterpart:
-  write them as code; `service.parallel(…)` becomes `Promise.all()` of the calls. A 1.x call waited 60 seconds by
-  default, a 3.x proxy 10 minutes: give the calls their timeout.
-- **Events.** A channel's `triggerAll(event, …args)` becomes `nats.emitServiceEvent(event, …args)` of the NATS
+  on an injected proxy. A failed action throws a `ServiceInvokeException` that carries the remote error's `errno` and
+  other properties. The `transform` option and chains of several invoke objects have no counterpart; write them as code.
+  `service.parallel(…)` becomes `Promise.all()` over the calls. A 1.x call waited 60 seconds by default, whereas a 3.x
+  proxy waits 10 minutes by default, so specify a timeout for the calls.
+- **Events.** A channel's `triggerAll(event, …args)` becomes `nats.emitServiceEvent(event, …args)` on the NATS
   component, received by `proxy.on(event, listener)` or `nats.onServiceEvent(serviceId, event, listener)` in every
-  instance. For `triggerOne`, where one instance of each service receives the event, publish on a subject of your own
-  (`nats.publish(subject, payload)`) and subscribe with the id of the service as the queue group
-  (`nats.subscribe(subject, handler, {queue: app.appId})`): the instances of a service share the group.
-- **Work shared by the instances.** A job that one instance of a service must take, such as the processing of a
-  stream of data, fits a message queue ([Queues](Queue.md)): the instances of a group share its messages, with retries.
+  instance. For `triggerOne`, where one instance of each service receives the event, publish on a custom subject
+  (`nats.publish(subject, payload)`) and subscribe with the service's ID as the queue group
+  (`nats.subscribe(subject, handler, {queue: app.appId})`): a service's instances share the group.
+- **Work shared by the instances.** A job that one instance of a service must take, such as processing a data stream,
+  fits a message queue ([Queues](Queue.md)): the instances in a group share its messages, with retries.
 - **A clock service.** An application that published timer ticks to the others is replaced by `@Schedule` in each
-  service, with `exclusive` for the jobs that must run in one instance only ([Scheduled Jobs](Schedules.md)).
+  service, with `exclusive` for jobs that must run in only one instance ([Scheduled Jobs](Schedules.md)).
 
 ## 6. The HTTP API
 
-The `api` module of 1.x becomes the HTTP adapter of the entrypoint, `expressHTTPEntrypoint()` or
-`fastifyHTTPEntrypoint()` ([HTTP](HTTP.md)). A route is a controller method with `@GET`, `@POST`…; its input is one
-object, the query and the body with the route parameters over them, validated by its DTO. The parameter decorators of
-1.x (the body, the query, a header, the request and the response) are replaced by the DTO and by `this.context`, an
-`HTTPContext` with `request` and `response`.
+The 1.x `api` module becomes the entrypoint's HTTP adapter, `expressHTTPEntrypoint()` or `fastifyHTTPEntrypoint()`
+([HTTP](HTTP.md)). A route is a controller method with `@GET`, `@POST`…; its input is one object, the query and the body
+with the route parameters over them, validated by its DTO. The 1.x parameter decorators (the body, the query, a header,
+the request and the response) are replaced by the DTO and by `this.context`, an `HTTPContext` with `request` and
+`response`.
 
-The clients keep working when the responses keep their shape. A responder of your own writes them as the 1.x
-clients expect, for example `{code, payload}` with `code` 0 for a result:
+Clients keep working when the responses keep their shape. A custom responder writes them as the 1.x clients expect, for
+example `{code, payload}` with `code` 0 for a result:
 
 ```typescript
 import {Application, DTO} from 'lakutata'
@@ -307,21 +306,21 @@ Application.run(() => ({
 }))
 ```
 
-- `statusOfError()` and `describeError()` give the status and the `{errno, errMsg}` that the adapter would send; the
-  responder chooses the shape. The `api` module of 1.x answered `{statusCode, code, error, payload, timestamp, server}`
-  (or what its `responseFormatter` made of it): write the fields that the clients read. `jsonEnvelope()` gives the
-  envelope of 3.x, `{errno, errMsg, data}`, instead.
+- `statusOfError()` and `describeError()` return the status and the `{errno, errMsg}` that the adapter would send; the
+  responder chooses the shape. The 1.x `api` module responded with
+  `{statusCode, code, error, payload, timestamp, server}` (or what its `responseFormatter` made of it): write the fields
+  that the clients read. `jsonEnvelope()` produces the 3.x envelope, `{errno, errMsg, data}`, instead.
 - The `api` module allowed any origin (CORS) and signed its responses (the `x-signature` headers). The 3.x adapters
   send no CORS headers unless a middleware adds them ([HTTP](HTTP.md), section 7); a client that checks the signatures
   needs a middleware that adds them.
 - A server that a 1.x component started itself (an HTTP server for Socket.IO, another web framework) can stay in a
-  component, started in `startup()` and closed in `destroy()`. A `socketIOServiceEntrypoint()` can also share the
-  server of the HTTP adapter and serve the service actions over Socket.IO ([Service Calls](ServiceCalls.md), section 4).
+  component, started in `startup()` and stopped in `destroy()`. A `socketIOServiceEntrypoint()` can also share the HTTP
+  adapter's server and serve the service actions over Socket.IO ([Service Calls](ServiceCalls.md), section 4).
 
 ## 7. Validation
 
-The `Validator` of 1.x builds yup schemas; 3.x validates with DTO classes, whose schemas have the API of joi
-([DTO and Validation](DTOValidation.md)). A 1.x pair of a schema and a type becomes one DTO class:
+The 1.x `Validator` builds yup schemas; 3.x validates with DTO classes, whose schemas have joi's API
+([DTO and Validation](DTOValidation.md)). A 1.x schema-and-type pair becomes one DTO class:
 
 | 1.x (`Validator`, yup) | 3.x (`DTO`) |
 |---|---|
@@ -334,20 +333,20 @@ The `Validator` of 1.x builds yup schemas; 3.x validates with DTO classes, whose
 | `.oneOf([…])` | `.valid(…)` |
 | `.matches(regex)` | `.pattern(regex)` |
 | `.test(fn)` | `.custom(fn)` |
-| `.when(…)` | `.when(…)` (the options of joi) |
+| `.when(…)` | `.when(…)` (joi's options) |
 | `schema.concat(other)` | A DTO that extends another, or `.concat()` |
-| `@Accept(schema, {stripUnknown})` on a method | `@Accept(DTO)` on a method, or the DTO of an action |
+| `@Accept(schema, {stripUnknown})` on a method | `@Accept(DTO)` on a method, or an action's DTO |
 
-- **Conversion.** The `@Accept` of 1.x converted the values by default (yup's `strict: false`): `'5'` became 5 on every
-  validated method. The 3.x schemas are strict: a value of the wrong type is refused, not converted. An input that
+- **Conversion.** The 1.x `@Accept` converted values by default (yup's `strict: false`): `'5'` became 5 on every
+  validated method. The 3.x schemas are strict: a value of the wrong type is rejected, not converted. An input that
   relied on the conversion (numbers, booleans or dates arriving as text, from a query string, a route parameter or any
   other source) declares it with `.strict(false)` on its schema.
-- The unknown keys are removed by default; a DTO that keeps them extends `FlexibleDTO` (`lakutata/dtos`).
+- Unknown keys are removed by default; a DTO that keeps them extends `FlexibleDTO` (`lakutata/dtos`).
 - An invalid input fails with an `InvalidValueException` (`E_INVALID_VALUE`, HTTP status 400).
 
 ## 8. Databases and caches
 
-**The database.** The `TypeOrmComponent` of 1.x becomes the `Database` component, declared with `buildDatabaseOptions()`
+**The database.** The 1.x `TypeOrmComponent` becomes the `Database` component, declared with `buildDatabaseOptions()`
 ([Databases](Database.md), [Entities, Queries and Transactions](Entities.md)). The ORM is TypeORM 1.1 (1.x used 0.3):
 
 | 1.x | 3.x |
@@ -357,55 +356,55 @@ The `Validator` of 1.x builds yup schemas; 3.x validates with DTO classes, whose
 | The decorators, operators and types imported from `@lakutata-component/typeorm` or `typeorm` | `lakutata/decorator/orm` (decorators) and `lakutata/orm` (operators such as `In`, `Like`, and the types); no `typeorm` package |
 | `relations: ['customer']`, `select: ['id']` | `relations: {customer: true}`, `select: {id: true}` |
 | `ConnectionOptions` | `MysqlDataSourceOptions`… (the `ConnectionOptions` names are deprecated aliases) |
-| `this.db.queryData(options, Entity)` and its query language | No counterpart: keep the query language as a component of the application, on top of the find options of TypeORM, and `paginator` (`lakutata/dtos`) for the pages |
+| `this.db.queryData(options, Entity)` and its query language | No counterpart: keep the query language as an application component, built on TypeORM's find options, with `paginator` (`lakutata/dtos`) for the pages |
 
-- **`synchronize: true` in production** changed the tables at every start. Turn it off and use migrations
+- **`synchronize: true` in production** changed the tables at every launch. Turn it off and use migrations
   ([Migrations](Migrations.md)): generate a first migration against a copy of the production database (it should be
-  empty when the entities match the tables), then let `migrationsRun` apply the next ones at startup.
+  empty when the entities match the tables), then let `migrationsRun` apply the next ones at launch.
 - **Globs with `__dirname`** do not exist in ES modules: list the entity classes, and build the migration paths with
   `import.meta.dirname`.
 
-**The caches.** The `CacherComponent` of 1.x becomes the `Cacher` component, declared with `buildCacherOptions()`
-([Cache](Cache.md)). `get(key)`, `set(key, value, ttl)` and `del(key)` keep their names (the time to live, given only
-by the options in 1.x, may be given to each `set`), and `wrap(key, fn)` reads through the cache. A missing key gives
-`undefined`, where 1.x gave `null` (on a failing store too), and `null` and `false` can be cached as values. The keys
-are built differently, so the entries that 1.x wrote are not found: start with an empty cache.
+**The caches.** The 1.x `CacherComponent` becomes the `Cacher` component, declared with `buildCacherOptions()`
+([Cache](Cache.md)). `get(key)`, `set(key, value, ttl)` and `del(key)` keep their names (the time to live, configured
+only in the options in 1.x, may be specified for each `set`), and `wrap(key, fn)` reads through the cache. A missing key
+returns `undefined`, where 1.x returned `null` (on a failing store too), and `null` and `false` can be cached as values.
+Keys are built differently, so entries that 1.x wrote are not found: start with an empty cache.
 
 ## 9. Configuration, mode and entries
 
 - **One configuration.** 1.x chose production or development by the entry file (`App.ts` called `Config(true)`, the
   development entry `Config(false)`). In 3.x, `config()` is one function, and the mode comes from the environment:
-  `MODE`, else `NODE_ENV`, else the `mode` option; `app.mode()` gives it ([Application](Application.md)).
-- **The values** come from the environment variables, read in `config()` or given as defaults to the `@Configurable`
-  properties. A declaration that is invalid stops the launch with an `InvalidObjectOptionsException` listing every
-  invalid option, so a missing variable fails at once rather than at the first use.
+  `MODE`, otherwise `NODE_ENV`, otherwise the `mode` option; `app.mode()` returns it ([Application](Application.md)).
+- **The values** come from environment variables, read in `config()` or used as defaults for the `@Configurable`
+  properties. When a declaration is invalid, the launch fails with an `InvalidObjectOptionsException` listing every
+  invalid option, so a missing variable fails immediately rather than at first use.
 - **Functions in the options** that received the application to reach other components become injections: the
   component injects what it needs.
-- **Credentials** in the code of the configuration move to environment variables or secrets of the deployment.
+- **Credentials** in the configuration code move to environment variables or deployment secrets.
 
 ## 10. Tests, build and deployment
 
-- **Tests.** A 1.x `npm test` that booted the application against shared development servers becomes `node --test` on
-  the compiled tests: each test file starts the application with `Application.run(config(port))` on a port of its
-  own, calls it, and disposes of it; a component is tested alone in a `Container`; another service is replaced by a
+- **Tests.** A 1.x `npm test` that launched the application against shared development servers becomes `node --test` on
+  the compiled tests: each test file launches the application with `Application.run(config(port))` on its own port,
+  calls it, and disposes of it; a component is tested alone in a `Container`; another service is replaced by a
   stand-in ([examples](examples/README.md)).
-- **The `lakutata` field of `package.json`** told the 1.x tool the kind of the project (`type`), its directories and
-  its configuration file. In 3.x the field has another meaning (the `resources` and the `installer` of a packed
-  application, [Packaging](Packaging.md)): remove the 1.x one.
+- **The `lakutata` field of `package.json`** told the 1.x tool the project's kind (`type`), its directories and its
+  configuration file. In 3.x the field has another meaning (the `resources` and `installer` of a packed application,
+  [Packaging](Packaging.md)): remove the 1.x one.
 - **Node.js, TypeScript and modules.** Node.js `>=18.10.0`, TypeScript 6 as in the templates, ES modules
   (`"type": "module"`, relative imports ending in `.js`), `tsconfig.json` extending `lakutata/tsconfig.json`.
-- **Ports.** The service module listened on a port of its own (6912 by default) and the registry on another (6911).
-  The 3.x adapters listen on the ports of their options, and a service on NATS only connects out to the NATS server:
-  the `Dockerfile` exposes those ports instead.
+- **Ports.** The service module listened on its own port (6912 by default) and the registry on another (6911). The 3.x
+  adapters listen on the ports set in their options, and a service on NATS only connects out to the NATS server. The
+  `Dockerfile` exposes the adapters' ports instead.
 - **Scripts.** The template's scripts replace `shx rm -rf ./build` (`lakutata clean`), `prepare` compiling on install,
   and the development entry; `lakutata-deploy` has no counterpart: the `service` template has a `Dockerfile` and a
   `docker:build` script, and the image is pushed by the deployment's own tools.
 
 ## 11. User interfaces
 
-The web interfaces of a 1.x system, built apart and calling a gateway over HTTP, do not use Lakutata and do not change,
-as long as the gateway keeps its routes and the shape of its responses (section 6), the patterns that they name, and
-the `errno` codes that they test. Their WebSocket clients keep working when the server keeps its path and its events.
+The web interfaces of a 1.x system, built separately and calling a gateway over HTTP, do not use Lakutata and do not
+change, as long as the gateway keeps its routes and response shapes (section 6), the patterns that they name, and the
+`errno` codes that they test. Their WebSocket clients keep working when the server keeps its path and events.
 
 ## 12. Checking the port
 
@@ -417,19 +416,19 @@ npm test
 MODE=production npm start        # the launch log, then Ctrl+C: the application stops gracefully
 ```
 
-- The `grep` lists the 1.x code left. Check each line it finds.
-- The callers and the interfaces get the same answers as from the 1.x service: the same patterns, `errno` codes and
-  shapes of response.
+- The `grep` lists the remaining 1.x code. Check each line it finds.
+- The callers and the interfaces receive the same responses as from the 1.x service: the same patterns, `errno` codes
+  and response shapes.
 - The database: `lakutata migration generate` against a copy of production generates no change.
 
 ## 13. Common mistakes
 
 - Upgrading `@lakutata/core` in the 1.x project: version 3 is another library (section 1).
-- Reading the keys of the pattern from the input of an action: they are removed from it (section 5).
-- Inputs that relied on the conversion of 1.x (`'5'` for 5): the 3.x schemas refuse them without `.strict(false)`
-  (section 7).
+- Reading the pattern's keys from an action's input: they are removed from it (section 5).
+- Inputs that relied on the 1.x conversion (`'5'` for 5): the 3.x schemas reject them without `.strict(false)` (section
+  7).
 - Testing `=== null` for a missing cache entry: a miss is `undefined` (section 8).
 - `app.Logger.warning(…)`: the method is `warn`.
-- Leaving `synchronize: true` on for production after the port: changes of entities then alter the tables at startup.
+- Leaving `synchronize: true` on for production after the port: entity changes then alter the tables at launch.
 - Mixing the two frameworks in one process, or a 1.x service calling a 3.x one: their service transports do not
   understand each other (section 2).

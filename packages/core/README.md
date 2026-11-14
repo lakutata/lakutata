@@ -4,8 +4,8 @@ English | [中文](README.zh-CN.md)
 
 The core of the Lakutata framework: the IoC container and dependency injection, the object model (`BaseObject`,
 `Component`, `Provider`, `Application`) with its asynchronous construction and destruction, and schema validation
-(`DTO`, a validation engine with the API of joi), which the `@Configurable`, `@Expect`, `@Accept` and `@Return`
-decorators use.
+(`DTO`, a validation engine with joi's API), which the `@Configurable`, `@Expect`, `@Accept` and `@Return` decorators
+use.
 
 Most applications install the umbrella package `lakutata`, which re-exports this package (`lakutata`,
 `lakutata/decorator/di`, `lakutata/decorator/dto`, `lakutata/decorator/asst`, `lakutata/dtos`) and presets the `log`
@@ -19,8 +19,8 @@ npm install lakutata          # the framework
 npm install @lakutata/core    # or the core only
 ```
 
-The package needs Node.js 18.10 or later (`>=18.10.0`). Projects use ES modules (`"type": "module"`); the package also
-ships CommonJS builds. The decorators need these TypeScript options:
+The package requires Node.js 18.10 or later (`>=18.10.0`). Projects use ES modules (`"type": "module"`); the package
+also ships CommonJS builds. The decorators require these TypeScript options:
 
 ```json
 {
@@ -155,21 +155,21 @@ await container.destroy()
 | Export | Subpath | What it is |
 |---|---|---|
 | `Application` | `lakutata` | The application: `run()`, `env()`, `alias()`, `onLaunched()`, `onDone()`, `onFatalException()`, `getObject()`, `exit()` |
-| `Module` | `lakutata` | A component that declares its own components, providers and objects, which the other objects of the application cannot inject; also the base class of `Application` |
+| `Module` | `lakutata` | A component that declares its own components, providers and objects, which the application's other objects cannot inject; also the base class of `Application` |
 | `Component` | `lakutata` | A singleton service with events (`emit`, `on`…) |
 | `Provider` | `lakutata` | A scoped object (one per scope) |
 | `BaseObject` | `lakutata` | The root class: asynchronous construction (`init`), destruction (`destroy`), `getObject` |
 | `Container` | `lakutata` | The IoC container: `set`, `get`, `getShared`, `register`, `createScope`, `destroy` |
-| `DTO` | `lakutata` | Validated data classes and the schema builders |
-| `Exception` | `lakutata` | The base of the exceptions of the framework (`errno`, `statusCode`) |
+| `DTO` | `lakutata` | Validated data classes and schema builders |
+| `Exception` | `lakutata` | The base of the framework's exceptions (`errno`, `statusCode`) |
 | `isPackaged`, `resourcesPath` | `lakutata` | Whether the application runs packed, and its resources directory |
-| `registerValidationMessages`, `runInValidationLanguage`… | `lakutata` | The languages of the validation messages |
+| `registerValidationMessages`, `runInValidationLanguage`… | `lakutata` | Validation message languages |
 | `Inject`, `Configurable`, `Autoload`, `Singleton`, `Scoped`, `Transient`, `Lifetime` | `lakutata/decorator/di` | Dependency injection and lifetimes |
 | `Expect`, `Accept`, `Return`, `IndexSignature` | `lakutata/decorator/dto` | DTO fields, method argument and return validation |
 | `Before`, `After` | `lakutata/decorator/asst` | Functions run before and after a method |
 | `PaginationSearchDTO`, `PaginationResultDTO`, `paginator`, `FlexibleDTO`, `toJsonSchema`, `fromJsonSchema` | `lakutata/dtos` | Pagination, open DTOs and JSON Schema conversion |
 | `ConsoleLogger`, `ILogger` | `@lakutata/core/com/logger` | The logger interface and its console implementation |
-| `IInterfaceListening`, `IInterfaceListener`, `IInterfaceListenOptions`, `IListeningAddress`, `NetworkInterfaceSelector` | `lakutata` | The contract of the listening on network interfaces, which the entrypoints use for their `interface` option and `@lakutata/netif` implements (types only) |
+| `IInterfaceListening`, `IInterfaceListener`, `IInterfaceListenOptions`, `IListeningAddress`, `NetworkInterfaceSelector` | `lakutata` | The contract for listening on network interfaces, which entrypoints use for their `interface` option and `@lakutata/netif` implements (types only) |
 
 The typings document each declaration with examples.
 
@@ -178,10 +178,10 @@ The typings document each declaration with examples.
 | Exception | Thrown when |
 |---|---|
 | `InvalidValueException` | A value does not match its schema (`DTO.validate`, `@Configurable`, `@Expect`) |
-| `InvalidMethodAcceptException`, `InvalidMethodReturnException` | The arguments (`@Accept`) or the result (`@Return`) of a method are invalid |
+| `InvalidMethodAcceptException`, `InvalidMethodReturnException` | A method's arguments (`@Accept`) or result (`@Return`) are invalid |
 | `DependencyInjectionException` | An injected object cannot be resolved |
-| `InvalidObjectOptionsException`, `InvalidObjectTypeException` | The options or the class of a declared object are invalid |
-| `LifetimeLockedException` | The lifetime of a class is changed after it was locked |
+| `InvalidObjectOptionsException`, `InvalidObjectTypeException` | A declared object's options or class are invalid |
+| `LifetimeLockedException` | A class's lifetime is changed after it was locked |
 | `ObjectDestroyedException` | A destroyed object is used |
 | `AliasExistsException`, `AliasNotFoundException`, `InvalidAliasNameException` | A path alias is declared twice, missing, or invalid |
 | `MethodNotFoundException` | A method called by name does not exist |
@@ -193,5 +193,5 @@ The typings document each declaration with examples.
   [DTO and Validation](https://lakutata.com/guide/DTOValidation).
 - The guides `doc/en/Application.md`, `doc/en/Objects.md`, `doc/en/Injection.md`, `doc/en/DTOValidation.md` and
   `doc/en/Decorator.md` in the `lakutata` package (Chinese in `doc/zh`).
-- `@lakutata/entrypoint`: the controllers and their HTTP, CLI and service transports.
+- `@lakutata/entrypoint`: controllers and their HTTP, CLI and service transports.
 - `@lakutata/logger`: the logger that `lakutata` presets as `log` (pino-compatible JSON lines).

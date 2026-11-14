@@ -1,11 +1,11 @@
 # Lakutata Service Calls
 
 A service action (`@ServiceAction`) is called with a message rather than a URL: an object whose keys select the action,
-its **pattern**, and whose other keys are the input. The same actions can be served over several transports at once:
-plain HTTP, Socket.IO, JSON-RPC 2.0 (over HTTP, WebSocket or the standard input and output), the IPC of Electron, the
-windows of NW.js and the user interface of a mobile application of React Native, as this guide describes, and gRPC, NATS
-and the data channels of WebRTC, which have their own guides. The controllers and their actions are described in
-[Controllers and Actions](Controllers.md), the entrypoint and its adapters in [Entrypoint](Entrypoint.md).
+its **pattern**, and whose other keys are the input. The same actions can be served over several transports at the same
+time: plain HTTP, Socket.IO, JSON-RPC 2.0 (over HTTP, WebSocket or standard input and output), Electron IPC, NW.js
+windows and the user interface of a React Native mobile application, as this guide describes, and gRPC, NATS and WebRTC
+data channels, which have their own guides. Controllers and their actions are described in [Controllers and
+Actions](Controllers.md), the entrypoint and its adapters in [Entrypoint](Entrypoint.md).
 
 ## 1. A first service
 
@@ -75,12 +75,12 @@ $ curl localhost:3000 -H 'Content-Type: application/json' -d '{"resource": "orde
 {"success":false,"error":{…,"message":"Order 9 not found","errMsg":"Order 9 not found","err":"OrderNotFoundException","errno":"E_ORDER_NOT_FOUND"},"payload":null}
 ```
 
-The error carries all the properties of the exception (section 3).
+The error carries all the exception's properties (section 3).
 
 ## 2. Patterns
 
-A message matches a pattern when it holds the keys of the pattern with the same values. The keys of the pattern are
-then removed from the message, and the rest is the input of the action. With the actions below:
+A message matches a pattern when it contains the pattern's keys with the same values. The pattern's keys are then
+removed from the message, and the rest is the action's input. With the actions below:
 
 ```typescript
 import {Controller} from 'lakutata/com/entrypoint'
@@ -125,36 +125,35 @@ class OrderController extends Controller {
 | `{resource: 'invoice'}` | None: `ControllerActionNotFoundException` | |
 
 - When several patterns match, the most specific one wins: the one with the most keys.
-- A string value of a pattern may be a glob: `*` matches any characters, `?` one character.
-- The values are compared as text: the pattern `{version: 2}` matches `version: '2'`.
+- A string value in a pattern may be a glob: `*` matches any characters, `?` one character.
+- Values are compared as text: the pattern `{version: 2}` matches `version: '2'`.
 - A pattern may nest objects, two levels at most; their keys are compared one by one.
-- `@Prefix({pattern})` merges a pattern into the patterns of all the actions of a controller (see
-  [Controllers and Actions](Controllers.md), section 6).
+- `@Prefix({pattern})` merges a pattern into the patterns of every action in a controller (see [Controllers and
+  Actions](Controllers.md), section 6).
 - A message that no pattern matches fails with `ControllerActionNotFoundException` (`E_CONTROLLER_ACTION_NOT_FOUND`).
-- A message is JSON, so its values keep their types: unlike the query of an HTTP request, `"2"` is not converted for a
-  schema that expects a number.
+- A message is JSON, so its values keep their types: unlike an HTTP request's query, `"2"` is not converted for a schema
+  that expects a number.
 
 ## 3. The response
 
-The HTTP service, Socket.IO, Electron, NW.js and React Native answer with an envelope; JSON-RPC answers with its own
-responses (section 4).
+The HTTP service, Socket.IO, Electron, NW.js and React Native respond with an envelope; JSON-RPC uses its own response
+format (section 4).
 
 ```text
 {"success": true, "error": null, "payload": <the result>}
 {"success": false, "error": <the error>, "payload": null}
 ```
 
-- An action that returns nothing gives no `payload`: `{"success": true, "error": null}`.
-- `error` is a copy of all the own properties of the error: `message`, `stack`, `errno`, `errMsg`, `statusCode`, `err`
-  (the name of its class), `appId`, `appName`, and those of the exception's own class. The client gets the whole error
-  as the action threw it.
+- An action that returns nothing produces no `payload`: `{"success": true, "error": null}`.
+- `error` is a copy of all the error's own properties: `message`, `stack`, `errno`, `errMsg`, `statusCode`, `err` (its
+  class name), `appId`, `appName`, and those of the exception's own class. The client receives the whole error as the
+  action threw it.
 - `Result.status(status, data)` sends its data. A file or an event stream (`Result.file()`, `Result.events()`) cannot
   be sent: the call fails.
 
-The applications that call a service read the envelope through a proxy: `HTTPServiceProxy` for the HTTP service
-(section 4), and the proxies of the NATS and gRPC transports. A proxy returns the `payload`, or throws a
-`ServiceInvokeException` that carries the properties of the remote error. Other clients, such as the pages of a
-browser, read the envelope themselves, for example:
+Applications that call a service read the envelope through a proxy: `HTTPServiceProxy` for the HTTP service (section 4),
+and the NATS and gRPC proxies. A proxy returns the `payload`, or throws a `ServiceInvokeException` that carries the
+remote error's properties. Other clients, such as browser pages, read the envelope themselves, for example:
 
 ```typescript
 type Envelope<T> = { success: boolean, error: { message?: string, errno?: string } | null, payload: T }
@@ -177,40 +176,40 @@ export async function call<T>(message: Record<string, unknown>): Promise<T> {
 | Adapter | Imported from | To install | A request is | Events pushed |
 |---|---|---|---|---|
 | `httpServiceEntrypoint()` | `lakutata/com/entrypoint` | | A `POST` of the message as JSON | Server-Sent Events |
-| `socketIOServiceEntrypoint()` | `lakutata/adapter/socket.io` | `socket.io` (`socket.io-client` on the clients) | An emit with an acknowledgement | Socket.IO events |
+| `socketIOServiceEntrypoint()` | `lakutata/adapter/socket.io` | `socket.io` (`socket.io-client` on clients) | An emit with an acknowledgement | Socket.IO events |
 | `jsonRPCServiceEntrypoint()` | `lakutata/adapter/jsonrpc` | `ws`, for WebSocket | A JSON-RPC 2.0 request | Notifications (WebSocket, stdio) |
 | `electronIPCServiceEntrypoint()` | `lakutata/adapter/electron` | (Electron) | `ipcRenderer.invoke()` | IPC messages |
-| `nwjsServiceEntrypoint()` | `lakutata/adapter/nwjs` | (NW.js) | A call of its bridge, by the host page of a window | Calls of the function the host page gives |
+| `nwjsServiceEntrypoint()` | `lakutata/adapter/nwjs` | (NW.js) | A call to its bridge from a window's host page | Calls to the function the host page provides |
 | `reactNativeServiceEntrypoint()` | `lakutata/adapter/react-native` | | A line of JSON from the host | Lines of JSON |
 | `grpcServiceEntrypoint()` | `@lakutata/grpc/service` | `@lakutata/grpc` | See [gRPC](GRPC.md) | gRPC streams |
 | `natsServiceEntrypoint()` | `@lakutata/nats` | `@lakutata/nats` | See [NATS](NATS.md) | NATS messages |
 | `webrtcServiceEntrypoint()` | `@lakutata/webrtc` | `@lakutata/webrtc` | A JSON-RPC 2.0 request on a data channel, see [WebRTC](WebRTC.md) | Notifications |
 
-Each adapter also takes `name`, to tell several adapters apart, and `middlewares`, run after those of the entrypoint
-(see [Middlewares and Access Control](Middlewares.md)).
+Each adapter also takes `name`, to distinguish several adapters, and `middlewares`, run after the entrypoint's (see
+[Middlewares and Access Control](Middlewares.md)).
 
 ### HTTP service
 
-`httpServiceEntrypoint()` serves the actions over plain HTTP: it suits the tools (curl, Postman), the scripts, and the
-pages of a web UI during its development. The Electron templates add it in development for that.
+`httpServiceEntrypoint()` serves the actions over plain HTTP: it suits tools (curl, Postman), scripts, and a web UI's
+pages during development. The Electron templates add it in development for this purpose.
 
 | Option | Default | Meaning |
 |---|---|---|
 | `port` | `3000` | The port; `0` picks a free port |
-| `host` | all the interfaces | The address to listen on |
-| `path` | `'/'` | The path of the requests; the events are under it, at `<path>/events` |
+| `host` | all interfaces | The address to listen on |
+| `path` | `'/'` | The request path; events are under it, at `<path>/events` |
 | `limit` | `10485760` (10 MiB) | The largest body, in bytes |
 | `listening` | | `(server, listeners) => …`, called once the server listens (`listeners`, with `interface`: see below) |
 
-- A request is a `POST` to `path`, its body the message as JSON. It is answered with 200 and the envelope, whatever the
-  result of the action. A body that is not JSON is answered with 400, a body over `limit` with 413, another method or
-  path with 404; these responses carry an envelope too.
+- A request is a `POST` to `path`, whose body is the message as JSON. The response is a 200 with the envelope, whatever
+  the action's result. A body that is not JSON receives a 400 response, a body over `limit` a 413, and another method or
+  path a 404; these responses carry an envelope too.
 - The CORS headers allow any origin, the methods `GET`, `POST` and `OPTIONS`, and any request header, such as
   `Authorization`.
-- The client gives its id in the `id` header, or in the `id` query parameter (section 5).
-- `GET <path>/events` streams the events pushed to the client, as Server-Sent Events. The first event, `client`, gives
-  the id of the client (a random one when the request gives none); then each event has its name, and the JSON array of
-  its arguments as its data. A comment keeps the stream alive every 15 seconds.
+- The client provides its ID in the `id` header, or in the `id` query parameter (section 5).
+- `GET <path>/events` streams the events pushed to the client, as Server-Sent Events. The first event, `client`, carries
+  the client's ID (a random one when the request provides none); then each event has its name, and the JSON array of its
+  arguments as its data. A comment keeps the stream alive every 15 seconds.
 
 ```text
 event: client
@@ -228,7 +227,7 @@ events.addEventListener('progress', (event: MessageEvent): void => console.log(J
 ```
 
 Another application calls the service through an `HTTPServiceProxy`, a component registered with
-`buildHTTPServiceProxy()`. Here it calls the orders service of section 1:
+`buildHTTPServiceProxy()`. Here it calls the orders service from section 1:
 
 ```typescript
 import {Application} from 'lakutata'
@@ -258,35 +257,34 @@ Application
 
 | Option | Default | Meaning |
 |---|---|---|
-| `url` | | The address of the service, with the `path` of its adapter |
+| `url` | | The service's address, with its adapter's `path` |
 | `headers` | | The headers sent with each call and with the event stream, such as `Authorization` |
-| `clientId` | a random UUID | The id of this client (section 5) |
-| `reconnectDelay` | `1000` | The delay, in milliseconds, before the event stream is opened again |
+| `clientId` | a random UUID | This client's ID (section 5) |
+| `reconnectDelay` | `1000` | The delay, in milliseconds, before the event stream is reopened |
 
 - `invoke(message, timeout)` posts the message and returns the `payload`. The timeout is 10 minutes by default; when it
-  passes, the call is abandoned and the service aborts the signal of the action.
-- An action that fails throws a `ServiceInvokeException` with the properties of its error (section 3). A service that
-  gives no response throws a `ServiceUnavailableException` (`E_SERVICE_UNAVAILABLE`, status 503): it cannot be
-  reached, it does not answer within the timeout, or its answer is not an envelope (the error page of a proxy in front
-  of it).
+  expires, the call is abandoned and the service aborts the action's signal.
+- When an action fails, the call throws a `ServiceInvokeException` with the error's properties (section 3). When the
+  service sends no response, the call throws a `ServiceUnavailableException` (`E_SERVICE_UNAVAILABLE`, status 503): the
+  service cannot be reached, does not respond within the timeout, or its response is not an envelope (such as the error
+  page of a proxy in front of it).
 - `on(event, listener)`, `once()` and `off()` listen to the events that the service pushes to this client. The first
-  listener opens the event stream. When the stream drops, it is opened again after `reconnectDelay`; the events pushed
-  in the meantime are lost.
+  listener opens the event stream. When the stream drops, it is reopened after `reconnectDelay`; events pushed in the
+  meantime are lost.
 
 ### Socket.IO
 
-`socketIOServiceEntrypoint()` serves the actions over Socket.IO: it suits the browsers and the clients that stay
-connected.
+`socketIOServiceEntrypoint()` serves the actions over Socket.IO: it suits browsers and clients that stay connected.
 
 | Option | Default | Meaning |
 |---|---|---|
-| `port` | `3000` | The port of its own server; `0` picks a free port |
-| `host` | all the interfaces | The address of its own server |
-| `event` | `'message'` | The event of the requests |
-| `namespace` | `'/'` | The namespace of the requests |
-| `options` | | The options of the Socket.IO server: `cors`, `path`, `maxHttpBufferSize`… |
+| `port` | `3000` | The port for its own server; `0` picks a free port |
+| `host` | all interfaces | The address for its own server |
+| `event` | `'message'` | The request event |
+| `namespace` | `'/'` | The request namespace |
+| `options` | | Socket.IO server options: `cors`, `path`, `maxHttpBufferSize`… |
 | `server` | | An HTTP server to share, or a function returning it (below) |
-| `io` | | An existing Socket.IO server, used as it is |
+| `io` | | An existing Socket.IO server, used unchanged |
 | `listening` | | `(io, server, listeners) => …`, called once the adapter is ready |
 
 ```typescript
@@ -301,11 +299,11 @@ console.log(await socket.timeout(5000).emitWithAck('message', {resource: 'order'
 
 - A request is an emit of `event` with the message, and a callback that receives the envelope. An emit without a
   callback still runs the action.
-- The browsers of another origin need `options: {cors: {origin: …}}`.
-- `socketOfContext(this.context)`, from `lakutata/adapter/socket.io`, gives the socket of a request, to join it to a
-  room for example.
+- Browsers on another origin need `options: {cors: {origin: …}}`.
+- `socketOfContext(this.context)`, from `lakutata/adapter/socket.io`, returns a request's socket, for example to join it
+  to a room.
 
-Socket.IO can share the port of the HTTP adapter: give it the server that the `before` hook of `expressHTTPEntrypoint`
+Socket.IO can share the HTTP adapter's port: pass it the server that the `before` hook of `expressHTTPEntrypoint`
 receives. The adapters start in the order of the options, so declare `http` before `service`:
 
 ```typescript
@@ -328,24 +326,24 @@ When it stops, the adapter disconnects the sockets and leaves the shared server 
 
 ### JSON-RPC 2.0
 
-`jsonRPCServiceEntrypoint()` serves the actions over JSON-RPC 2.0: it suits the clients written in other languages,
-the tools that speak the protocol, and the parent processes over the standard input and output.
+`jsonRPCServiceEntrypoint()` serves the actions over JSON-RPC 2.0: it suits clients written in other languages, tools
+that speak the protocol, and parent processes over standard input and output.
 
 | Option | Default | Meaning |
 |---|---|---|
 | `transport` | `'http'` | `'http'` (a `POST` per message), `'websocket'` (needs `ws`) or `'stdio'` |
-| `port`, `host`, `path` | `3000`, all the interfaces, `'/'` | The server of HTTP or WebSocket |
+| `port`, `host`, `path` | `3000`, all interfaces, `'/'` | The HTTP or WebSocket server |
 | `limit` | `10485760` (10 MiB) | The largest message, in bytes |
-| `methodField` | `'method'` | The key of the pattern that receives the method |
-| `positionalParams` | | The key of the input that receives the params given as an array; without it, they are refused |
+| `methodField` | `'method'` | The pattern key that receives the method |
+| `positionalParams` | | The input key that receives params passed as an array; without it, they are refused |
 | `toPattern` | | `(method, params) => message`: builds the message itself, replacing the two options above |
-| `framing` | `'newline'` | On stdio: one message per line, or `'content-length'` (headers, as the Language Server Protocol) |
-| `input`, `output` | `process.stdin`, `process.stdout` | The streams of stdio |
-| `end` | `'application'` | When the input of stdio ends: `'application'` exits the application once the requests in progress are answered, `'none'` does nothing, or a function |
-| `heartbeat` | `30000` | The interval of the pings of WebSocket, in milliseconds; `0` sends none |
-| `listening` | | `(server, listeners) => …`, called once the server of HTTP or WebSocket listens |
+| `framing` | `'newline'` | On stdio: one message per line, or `'content-length'` (headers, as in the Language Server Protocol) |
+| `input`, `output` | `process.stdin`, `process.stdout` | The stdio streams |
+| `end` | `'application'` | When the stdio input ends: `'application'` exits the application once the responses to the requests in progress are sent, `'none'` does nothing, or a function |
+| `heartbeat` | `30000` | The WebSocket ping interval, in milliseconds; `0` sends none |
+| `listening` | | `(server, listeners) => …`, called once the HTTP or WebSocket server listens |
 
-The method and the params of a request make the message: `{"method": "order.get", "params": {"id": 1}}` is the message
+A request's method and params form the message. `{"method": "order.get", "params": {"id": 1}}` is the message
 `{method: 'order.get', id: 1}`, so the action declares the method in its pattern:
 
 ```typescript
@@ -361,9 +359,9 @@ class OrderRPCController extends Controller {
 }
 ```
 
-- The result is the `result` of the response, `null` when the action returns nothing.
-- A request without `id` is a notification: the action runs, and nothing is answered (204 over HTTP). A batch, an array
-  of requests, is answered with an array of responses.
+- The result is the response's `result`, `null` when the action returns nothing.
+- A request without `id` is a notification: the action runs, and no response is sent (204 over HTTP). A batch, an array
+  of requests, receives an array of responses.
 - An error is an `error` with a code:
 
   | Code | When |
@@ -371,18 +369,18 @@ class OrderRPCController extends Controller {
   | `-32700` | The message is not JSON |
   | `-32600` | The message is not a JSON-RPC 2.0 request, or the batch is empty |
   | `-32601` | No action matches the request |
-  | `-32602` | The input fails the validation of the DTO, or the params are an array without `positionalParams` |
-  | `-32000` | Any other error of the action, the whole error being its `data` |
+  | `-32602` | The input fails DTO validation, or the params are an array without `positionalParams` |
+  | `-32000` | Any other action error, with the whole error as its `data` |
   | `-32001` | The application is stopping |
 
-- Over HTTP, the requests are `POST`s to `path`, answered with 200; another method or path is answered with 404. The
-  CORS headers allow any origin and any request header.
-- Over WebSocket, each text frame is a message. The events pushed to the client are sent as notifications:
+- Over HTTP, requests are `POST`s to `path`, and the response status is 200; another method or path receives a 404
+  response. The CORS headers allow any origin and any request header.
+- Over WebSocket, each text frame is a message. Events pushed to the client are sent as notifications:
   `{"jsonrpc": "2.0", "method": "<event>", "params": [<arguments>]}`.
 
-**Over stdio**, the application is a child process: its parent writes the requests on its standard input and reads the
-responses and the events on its standard output. The standard output belongs to the protocol: write the logs of the
-application to the standard error, and never call `console.log()`.
+**Over stdio**, the application is a child process: its parent writes requests to its standard input and reads responses
+and events from its standard output. The standard output belongs to the protocol: write the application's logs to
+standard error, and never call `console.log()`.
 
 ```typescript
 import {Application} from 'lakutata'
@@ -418,15 +416,15 @@ $ echo '{"jsonrpc": "2.0", "id": 1, "method": "sum", "params": {"values": [1, 2,
 {"jsonrpc":"2.0","id":1,"result":6}
 ```
 
-The application exits once its input ends and its requests are answered (`end`).
+The application exits once its input ends and the responses to its requests are sent (`end`).
 
 ### On a network interface
 
 `httpServiceEntrypoint()`, `socketIOServiceEntrypoint()` with its own server, and `jsonRPCServiceEntrypoint()` over HTTP
-or WebSocket can listen on a network interface instead of an address, whatever its addresses, with the package
-`@lakutata/netif` installed apart. They take the options `interface`, `family`, `strict`, `onError` and
-`interfaceListening` of the HTTP adapters (see [HTTP](HTTP.md), section 2), and their `listening` callback gets the
-listeners of the interface as its last argument:
+or WebSocket can listen on a network interface instead of an address, whatever its addresses, with the `@lakutata/netif`
+package installed separately. They take the same `interface`, `family`, `strict`, `onError` and `interfaceListening`
+options as the HTTP adapters (see [HTTP](HTTP.md), section 2), and their `listening` callback receives the interface's
+listeners as its last argument:
 
 ```typescript
 import {httpServiceEntrypoint} from 'lakutata/com/entrypoint'
@@ -435,20 +433,20 @@ import {httpServiceEntrypoint} from 'lakutata/com/entrypoint'
 export const service = httpServiceEntrypoint({port: 3000, interface: 'eth1'})
 ```
 
-In Bun, a connection given to a server cannot be upgraded to a WebSocket (seen with Bun 1.4). There the start fails for
-JSON-RPC over WebSocket, and for Socket.IO unless it uses polling only (`options: {transports: ['polling']}`, and the
-same on the clients).
+In Bun, a connection passed to a server cannot be upgraded to a WebSocket (seen with Bun 1.4). JSON-RPC over WebSocket
+therefore fails to start in Bun, and so does Socket.IO unless it uses polling only
+(`options: {transports: ['polling']}`, and the same on the clients).
 
 ### Electron
 
-`electronIPCServiceEntrypoint()` serves the actions to the windows of an Electron application, in its main process.
+`electronIPCServiceEntrypoint()` serves the actions to an Electron application's windows, in its main process.
 
 | Option | Default | Meaning |
 |---|---|---|
-| `channel` | `'lakutata:service'` | The IPC channel of the requests; the events use `<channel>:event`, the subscriptions `<channel>:subscribe` |
-| `ipcMain` | the `ipcMain` of Electron | The `ipcMain` to serve, or a stand-in in the tests |
+| `channel` | `'lakutata:service'` | The IPC channel for requests; events use `<channel>:event`, subscriptions `<channel>:subscribe` |
+| `ipcMain` | Electron's `ipcMain` | The `ipcMain` to serve, or a stand-in in tests |
 
-The pages call the main process through the preload script of their window:
+Pages call the main process through their window's preload script:
 
 ```typescript
 import {contextBridge, ipcRenderer, type IpcRendererEvent} from 'electron'
@@ -464,34 +462,34 @@ contextBridge.exposeInMainWorld('service', {
 })
 ```
 
-- Each page gives its own client id (`crypto.randomUUID()`) when it subscribes and when it invokes; a page reloaded in
-  its window replaces its previous id. A page without an id receives no event.
-- `ipcEventOfContext(this.context)`, from `lakutata/adapter/electron`, gives the IPC event of a request, to reach the
+- Each page provides its own client ID (`crypto.randomUUID()`) when it subscribes and when it invokes; a page reloaded
+  in its window replaces its previous ID. A page without an ID receives no events.
+- `ipcEventOfContext(this.context)`, from `lakutata/adapter/electron`, returns a request's IPC event, to reach the
   window that sent it.
-- The Electron templates of `lakutata create` contain a preload script of this shape, and a `window.ipc` for the pages,
-  whose `invoke()` returns the payload or throws the error.
+- The Electron templates from `lakutata create` contain a preload script like this one, and a `window.ipc` for the
+  pages, whose `invoke()` returns the payload or throws the error.
 
 ### NW.js
 
-`nwjsServiceEntrypoint()` serves the actions to the windows of an NW.js application, in its background script (its
-Node.js context). NW.js gives Node.js to the pages of its windows, and an iframe of such a page does not keep Node.js
-from its content (its sandbox is ignored): the user interface runs in a `<webview>`, without Node.js, held by a trusted
-page of the window (its host page). The adapter puts a bridge on the global object that NW.js shares with its windows,
-`global[Symbol.for(key)]`; the host page forwards the requests of the interface to it, and gives it the function that
-pushes the events to the interface.
+`nwjsServiceEntrypoint()` serves the actions to an NW.js application's windows, in its background script (its Node.js
+context). NW.js exposes Node.js to the pages in its windows, and an iframe in such a page does not keep Node.js
+away from its content (its sandbox is ignored): the user interface runs in a `<webview>`, without Node.js, held by a
+trusted page in the window (its host page). The adapter places a bridge on the global object that NW.js shares with its
+windows, `global[Symbol.for(key)]`; the host page forwards the interface's requests to it, and provides it with the
+function that pushes events to the interface.
 
 | Option | Default | Meaning |
 |---|---|---|
-| `key` | `'lakutata:service'` (`NWJS_SERVICE_BRIDGE`) | The key of the bridge on the global object |
-| `global` | the global object of NW.js | The object the bridge is put on, or a stand-in in the tests |
+| `key` | `'lakutata:service'` (`NWJS_SERVICE_BRIDGE`) | The bridge's key on the global object |
+| `global` | the NW.js global object | The object the bridge is placed on, or a stand-in in tests |
 
-| Method of the bridge | Meaning |
+| Bridge method | Meaning |
 |---|---|
 | `invoke(message, clientId)` | Invokes an action: resolves to the envelope, never rejects |
-| `subscribe(clientId, push)` | Makes a page a client: the events pushed to it are given to `push(event, args)` |
-| `unsubscribe(clientId)` | Removes a client, when its page is loaded again or its window closed: its requests in progress are aborted |
+| `subscribe(clientId, push)` | Registers a page as a client: events pushed to it are passed to `push(event, args)` |
+| `unsubscribe(clientId)` | Removes a client, when its page is reloaded or its window closed: its requests in progress are aborted |
 
-The host page forwards the messages of the interface, from the page loaded in its `<webview>` only:
+The host page forwards the interface's messages, only from the page loaded in its `<webview>`:
 
 ```javascript
 const view = document.querySelector('webview')
@@ -506,61 +504,61 @@ window.addEventListener('message', async (event) => {
 })
 ```
 
-- The `<webview>` loads the files of the application when its partition is declared in the manifest of NW.js:
+- The `<webview>` loads the application's files when its partition is declared in the NW.js manifest:
   `"webview": {"partitions": [{"name": "trusted", "accessible_resources": ["<all_urls>"]}]}` (the builder writes it).
-- A page loaded again in the `<webview>` is a new client: the host page unsubscribes the previous one.
-- The NW.js templates of `lakutata create` contain such a host page (`packages/app/host`), and a `window.ipc` for the
-  interface like the one of the Electron templates.
+- A page reloaded in the `<webview>` is a new client: the host page unsubscribes the previous one.
+- The NW.js templates from `lakutata create` contain such a host page (`packages/app/host`), and a `window.ipc` for the
+  interface like the one in the Electron templates.
 
 ### React Native
 
-`reactNativeServiceEntrypoint()` serves the actions to the user interface of a mobile application of React Native
-(Android, iOS, HarmonyOS), in the Node.js that the application embeds. The native module of the application starts
-Node.js and gives it one end of a socket, whose file descriptor is in the environment variable `LAKUTATA_NODE_FD`. The
-adapter reads the messages of the host on that socket and writes its responses and events there, one JSON object per
-line. The values arrive as JSON carries them: a `Date` arrives as its string, a `Buffer` as `{type, data}`, `undefined`
-is left out, and a result that JSON cannot hold (a `bigint`, a cycle) is answered with an error.
+`reactNativeServiceEntrypoint()` serves the actions to the user interface of a React Native mobile application (Android,
+iOS, HarmonyOS), in the Node.js runtime that the application embeds. The application's native module starts Node.js and
+passes it one end of a socket, whose file descriptor is in the `LAKUTATA_NODE_FD` environment variable. The adapter
+reads the host's messages on that socket and writes its responses and events there, one JSON object per line. Values
+arrive as JSON carries them: a `Date` arrives as its string, a `Buffer` as `{type, data}`, `undefined` is omitted, and a
+result that JSON cannot represent (a `bigint`, a cycle) produces an error response.
 
 | Option | Default | Meaning |
 |---|---|---|
-| `socket` | a socket on the file descriptor in `LAKUTATA_NODE_FD` | The connection to the host, or a stand-in in the tests |
+| `socket` | a socket on the file descriptor in `LAKUTATA_NODE_FD` | The connection to the host, or a stand-in in tests |
 | `pause` | | Called when the application goes to the background, before the host is told that the application is ready for it |
 | `resume` | | Called when the application comes back from the background |
 
-| The host writes | The adapter answers |
+| The host writes | The adapter responds |
 |---|---|
 | `{"type":"invoke","id":1,"clientId":"ui","data":{"cmd":"greet","name":"you"}}` | `{"type":"response","id":1,"response":{"success":true,"error":null,"payload":…}}` |
 | `{"type":"subscribe","clientId":"ui"}` | `{"type":"subscribed","clientId":"ui"}`, then the events pushed to the client |
-| `{"type":"unsubscribe","clientId":"ui"}` | Nothing; the requests of the client in progress are aborted |
+| `{"type":"unsubscribe","clientId":"ui"}` | Nothing; the client's requests in progress are aborted |
 | `{"type":"pause"}` | `{"type":"paused"}`, once the `pause` option has run |
 | `{"type":"resume"}` | Nothing; the `resume` option runs |
 
-- The lines that the host writes before the application listens wait in the socket: none is lost. The answer to the
+- Lines that the host writes before the application listens wait in the socket: none is lost. The response to the
   subscription tells the interface that the application is ready.
 - On iOS, the host asks the system for time to finish before the application is suspended, sends `pause`, and lets the
-  application be suspended once `paused` comes (or when the time runs out).
-- When Node.js ends (`process.exit()`, an uncaught exception), the mobile application keeps running: the native module
+  application be suspended once `paused` arrives (or when the time runs out).
+- When Node.js exits (`process.exit()`, an uncaught exception), the mobile application keeps running: the native module
   reports the exit code and can start Node.js again.
-- The `mobile-react` template of `lakutata create` contains such a native module, and an `ipc` for the interface like
-  the one of the Electron templates, both in its package `packages/ipc`.
+- The `mobile-react` template from `lakutata create` contains such a native module, and an `ipc` for the interface like
+  the one in the Electron templates, both in its `packages/ipc` package.
 
 ## 5. Clients and events
 
-The transports that keep their clients connected can push events to them. A client is identified by the id it gives:
+Transports that keep their clients connected can push events to them. A client is identified by the ID it provides:
 
-| Transport | Client id |
+| Transport | Client ID |
 |---|---|
-| HTTP service | The `id` header or `id` query parameter of the request; for the event stream, a random id when it gives none |
-| Socket.IO | The `auth.id` of the connection, else its `id` header, else its `id` query parameter, else the id of the socket |
-| JSON-RPC over HTTP | The `id` header or `id` query parameter of the request; it receives no event |
-| JSON-RPC over WebSocket | The `id` header or `id` query parameter of the connection, else a random id |
+| HTTP service | The request's `id` header or `id` query parameter; for the event stream, a random ID when it provides none |
+| Socket.IO | The connection's `auth.id`, else its `id` header, else its `id` query parameter, else the socket's ID |
+| JSON-RPC over HTTP | The request's `id` header or `id` query parameter; it receives no events |
+| JSON-RPC over WebSocket | The connection's `id` header or `id` query parameter, else a random ID |
 | JSON-RPC over stdio | `'stdio'` |
-| Electron | The id the page gives when it subscribes or invokes |
-| NW.js | The id the host page gives to the bridge for its page |
-| React Native | The id the user interface gives when it subscribes or invokes |
-| WebRTC | The member id of the caller in its room |
+| Electron | The ID the page provides when it subscribes or invokes |
+| NW.js | The ID the host page provides to the bridge for its page |
+| React Native | The ID the user interface provides when it subscribes or invokes |
+| WebRTC | The caller's member ID in its room |
 
-An action reads the id of its client in `this.context.clientId`. The `entrypoint` component pushes the events:
+An action reads its client's ID from `this.context.clientId`. The `entrypoint` component pushes events:
 
 - `notify(clientId, event, ...args)` sends an event to a client, on every transport where it is connected, and returns
   whether it reached it;
@@ -592,16 +590,16 @@ A client receives `notify(clientId, 'progress', 50, 'half')` as:
 | HTTP service | `event: progress` and `data: [50,"half"]` on its event stream |
 | Socket.IO | `socket.on('progress', (percent, label) => …)` |
 | JSON-RPC (WebSocket, stdio) | `{"jsonrpc": "2.0", "method": "progress", "params": [50, "half"]}` |
-| Electron | `('progress', [50, 'half'])`, through the `subscribe` of the preload script above |
-| NW.js | `('progress', [50, 'half'])`, given to the function of the `subscribe` of the bridge |
+| Electron | `('progress', [50, 'half'])`, through the preload script's `subscribe` above |
+| NW.js | `('progress', [50, 'half'])`, passed to the function registered with the bridge's `subscribe` |
 | React Native | The line `{"type":"event","clientId":…,"event":"progress","args":[50,"half"]}`, which the host passes to the interface |
 | WebRTC | `proxy.on('progress', (percent, label) => …)` of a `PeerServiceProxy` |
 
 ## 6. Stopping and leaving
 
-- When the application stops, the new requests fail with `EntrypointStoppedException` (`E_ENTRYPOINT_STOPPED`; the
-  code `-32001` over JSON-RPC), and the requests in progress get the `shutdownTimeout` of the entrypoint (see
+- When the application stops, new requests fail with `EntrypointStoppedException` (`E_ENTRYPOINT_STOPPED`; code `-32001`
+  over JSON-RPC), and the requests in progress are given the entrypoint's `shutdownTimeout` (see
   [Entrypoint](Entrypoint.md), section 4).
-- When a client leaves before its response (a socket disconnected, a window closed, an HTTP connection closed, a data
-  channel closed), the `this.signal` of its request is aborted.
-- The transports set no time limit to the calls: a client sets its own, such as `socket.timeout(5000)` above.
+- When a client leaves before receiving its response (a socket disconnected, a window closed, an HTTP connection closed,
+  a data channel closed), the `this.signal` of its request is aborted.
+- The transports set no time limit on calls: a client sets its own, such as `socket.timeout(5000)` above.

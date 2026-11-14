@@ -15,12 +15,11 @@ An IoC application framework for Node.js and TypeScript
 
 </div>
 
-Lakutata gives web services, command line tools, desktop (Electron, NW.js) applications and embedded devices one
+Lakutata provides web services, command-line tools, desktop (Electron, NW.js) applications and embedded devices with one
 programming model. An application is a tree of objects (components, providers, controllers) that a container creates;
-DTOs validate the options of the objects and the input of the actions; and transports expose the controllers over HTTP
-(Express, Fastify), the command line (Commander), service calls (HTTP, Socket.IO, JSON-RPC 2.0, gRPC, NATS, Electron
-IPC, NW.js, React Native), MCP, D-Bus, schedules and message queues. One controller method can serve several of them at
-once.
+DTOs validate object options and action input; and transports expose the controllers over HTTP (Express, Fastify), the
+command line (Commander), service calls (HTTP, Socket.IO, JSON-RPC 2.0, gRPC, NATS, Electron IPC, NW.js, React Native),
+MCP, D-Bus, schedules and message queues. One controller method can serve several of them at the same time.
 
 ## Quick start
 
@@ -32,9 +31,9 @@ npm run dev
 curl 'http://localhost:8080/example?name=you'     # {"message":"Hello, you!"}
 ```
 
-Lakutata needs Node.js 18.10 or later (`>=18.10.0`). The templates of `lakutata create` give you a web service, a
-command line tool, an HTTP API with a React, Vue, Next.js or Nuxt interface, or an Electron or NW.js desktop
-application. An application written by hand looks like this:
+Lakutata requires Node.js 18.10 or later (`>=18.10.0`). The `lakutata create` templates provide a web service, a
+command-line tool, an HTTP API with a React, Vue, Next.js or Nuxt interface, or an Electron or NW.js desktop
+application. An application written manually looks like this:
 
 ```typescript
 import {Application, DTO} from 'lakutata'
@@ -94,13 +93,13 @@ Application.run(() => ({
 | [`@lakutata/nats`](packages/nats) | NATS messaging and service calls over NATS | no |
 | [`@lakutata/grpc`](packages/grpc) | A gRPC client and server, and service calls over gRPC | no |
 | [`@lakutata/dbus`](packages/dbus) | D-Bus services and clients | no |
-| [`@lakutata/mcp`](packages/mcp) | The tools, resources and prompts of the Model Context Protocol | no |
-| [`@lakutata/webrtc`](packages/webrtc) | WebRTC in TypeScript: the signaling, a TURN server, a media server (SFU), WHIP and WHEP, peer connections, service actions called through data channels, a browser client | no |
-| [`@lakutata/ffi`](packages/ffi) | Native libraries: the C functions of `.so`, `.dylib` and `.dll` files, declared with the C declarations of their headers | no |
+| [`@lakutata/mcp`](packages/mcp) | Model Context Protocol tools, resources and prompts | no |
+| [`@lakutata/webrtc`](packages/webrtc) | WebRTC in TypeScript: signaling, a TURN server, a media server (SFU), WHIP and WHEP, peer connections, service actions called through data channels, a browser client | no |
+| [`@lakutata/ffi`](packages/ffi) | Native libraries: the C functions in `.so`, `.dylib` and `.dll` files, declared with the C declarations from their headers | no |
 | [`@lakutata/math`](packages/math) | Mathematics: symbolic computation (equations, derivatives, integrals, limits, simplification) and numerical computation (matrices, statistics, decimals of any precision) in a native addon | no |
 | [`@lakutata/barcode`](packages/barcode) | Barcodes and QR codes: 32 formats generated (PNG, SVG, pixels) and read from images, in a native addon | no |
-| [`@lakutata/netif`](packages/netif) | Network interfaces: servers and UDP sockets listening on an interface whatever its addresses, the interfaces of the machine and their changes, in a native addon | no |
-| [`@lakutata/mongo-embedded`](packages/mongo-embedded) | An embedded MongoDB, the database of the `mongo-embedded` type of `lakutata/orm`: the semantics of MongoDB 8.0 on SQLite, in a native addon | no |
+| [`@lakutata/netif`](packages/netif) | Network interfaces: servers and UDP sockets listening on an interface regardless of its addresses, the machine's interfaces and their changes, in a native addon | no |
+| [`@lakutata/mongo-embedded`](packages/mongo-embedded) | An embedded MongoDB, the database for the `mongo-embedded` type in `lakutata/orm`: MongoDB 8.0 semantics on SQLite, in a native addon | no |
 | [`@lakutata/thermal`](packages/thermal) | Receipts, labels and wristbands written in HTML and CSS, rendered to a thermal printer's dots and encoded as ESC/POS, TSPL or ZPL, in a native addon | no |
 | [`@lakutata/thermal-printer`](packages/thermal-printer) | Thermal printers: a manager component that finds them and opens them from saved definitions, printing over the network, a print queue, USB, a serial port or Bluetooth | no |
 | [`@lakutata/serial`](packages/serial) | Serial ports and classic Bluetooth devices as streams, their lines and their listing, in a native addon | no |
@@ -109,17 +108,17 @@ Application.run(() => ({
 | [`@lakutata/cli`](packages/cli) | The `lakutata` command: projects, workspaces, migrations, packaging | no |
 | [`@lakutata/builder`](packages/builder) | Bundles, executables and installers, used by `lakutata package` | no |
 
-The templates of `lakutata create` are the `@lakutata/template-*` packages, listed by `@lakutata/templates`.
+The `lakutata create` templates are the `@lakutata/template-*` packages, listed by `@lakutata/templates`.
 
 ## Documentation
 
 - [lakutata.com](https://lakutata.com): the guides and the examples, in English and Chinese, and the API reference.
-  Their sources are [`packages/lakutata/doc`](packages/lakutata/doc) (`en`, `zh`, and their `examples`) and the type
-  declarations of the packages.
+  Their sources are [`packages/lakutata/doc`](packages/lakutata/doc) (`en`, `zh`, and their `examples`) and the
+  packages' type declarations.
 - Each package has a README with its options, API and errors.
-- [`plugins/lakutata`](plugins/lakutata): the Agent Skill of the framework, for AI coding assistants. Any assistant:
-  `npx skills add lakutata/lakutata`; Claude Code: `/plugin install lakutata --marketplace lakutata/lakutata`; the
-  others, and how the skill works: [its page](https://lakutata.com/skill/).
+- [`plugins/lakutata`](plugins/lakutata): the framework's Agent Skill, for AI coding assistants. For any assistant, run
+  `npx skills add lakutata/lakutata`; for Claude Code, `/plugin install lakutata --marketplace lakutata/lakutata`; for
+  the other assistants, and for how the skill works, see [its page](https://lakutata.com/skill/).
 
 ## Development
 
@@ -133,15 +132,15 @@ cd website && npm ci && npm run dev    # the website, once the packages are buil
 ```
 
 The repository holds the packages and the templates (`packages/`), the website (`website/`) and the build and
-documentation-check scripts (`scripts/`). [CONTRIBUTING.md](CONTRIBUTING.md) gives the naming rules and how
+documentation-check scripts (`scripts/`). [CONTRIBUTING.md](CONTRIBUTING.md) describes the naming rules and how
 the public API is documented.
 
 ## Lakutata 2.x
 
-Lakutata 3 brought the framework and its packages into this repository. The 2.x releases of `lakutata` are tagged here
+Lakutata 3 brought the framework and its packages into this repository. The `lakutata` 2.x releases are tagged here
 (`2.0.x`). The 2.x versions of `@lakutata/cli`, `@lakutata/dbus` and `@lakutata/nats` come from
-[lakutata-packages](https://github.com/lakutata/lakutata-packages), and the 2.x templates from the
-`lakutata-template-*` repositories. To bring a 2.x project to 3.x, see
+[lakutata-packages](https://github.com/lakutata/lakutata-packages), and the 2.x templates from the `lakutata-template-*`
+repositories. To upgrade a 2.x project to 3.x, see
 [Upgrading from Lakutata 2.x](https://lakutata.com/guide/UpgradingFrom2); a project on Lakutata 1.x (`@lakutata/core`
 1.x and the `@lakutata-module/*` and `@lakutata-component/*` packages) follows
 [Upgrading from Lakutata 1.x](https://lakutata.com/guide/UpgradingFrom1) instead.

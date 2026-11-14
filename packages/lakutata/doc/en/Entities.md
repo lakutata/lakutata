@@ -1,8 +1,8 @@
 # Lakutata Entities, Queries and Transactions
 
-The entities, the repositories, the queries and the transactions are the ones of [TypeORM](https://typeorm.io) 1: the
-decorators come from `lakutata/decorator/orm`, the rest of the API from `lakutata/orm`. This guide shows the common
-uses; the documentation of TypeORM describes every option.
+Entities, repositories, queries and transactions are those of [TypeORM](https://typeorm.io) 1: the decorators come from
+`lakutata/decorator/orm`, and the rest of the API from `lakutata/orm`. This guide describes the common uses; TypeORM's
+documentation covers every option.
 
 ## 1. Entities
 
@@ -66,22 +66,22 @@ export class OrderLine {
 
 | Decorators | Use |
 |---|---|
-| `@Entity(name)`, `@ViewEntity`, `@ChildEntity`, `@TableInheritance` | An entity, a view, the inheritance of tables |
-| `@PrimaryGeneratedColumn(strategy)`, `@PrimaryColumn` | The primary key: generated (`'increment'`, `'uuid'`, `'identity'`), or given |
+| `@Entity(name)`, `@ViewEntity`, `@ChildEntity`, `@TableInheritance` | An entity, a view, table inheritance |
+| `@PrimaryGeneratedColumn(strategy)`, `@PrimaryColumn` | The primary key: generated (`'increment'`, `'uuid'`, `'identity'`), or provided |
 | `@Column(type, options)` | A column: its type, `length`, `nullable`, `default`, `unique`, `transformer`… |
 | `@CreateDateColumn`, `@UpdateDateColumn`, `@DeleteDateColumn`, `@VersionColumn` | Columns set by TypeORM |
-| `@OneToOne`, `@OneToMany`, `@ManyToOne`, `@ManyToMany`, `@JoinColumn`, `@JoinTable` | The relations |
+| `@OneToOne`, `@OneToMany`, `@ManyToOne`, `@ManyToMany`, `@JoinColumn`, `@JoinTable` | Relations |
 | `@Index`, `@Unique`, `@Check` | Indices and constraints |
-| `@BeforeInsert`, `@AfterLoad`, `@BeforeUpdate`… | Methods run around the operations |
-| `@ObjectIdColumn` | The `_id` of the entities of MongoDB |
+| `@BeforeInsert`, `@AfterLoad`, `@BeforeUpdate`… | Methods run around operations |
+| `@ObjectIdColumn` | The `_id` of MongoDB entities |
 
 An entity is listed in the `entities` option of each database that uses it. An entity may also extend `BaseEntity` (from
-`lakutata/orm`) to save and find itself (`await Order.findOneBy({id})`, `await order.save()`): these use the last
-database connected with the entity.
+`lakutata/orm`) to save and find itself (`await Order.findOneBy({id})`, `await order.save()`): these methods use the
+last database connected with the entity.
 
 ## 2. Queries
 
-A repository (`db.getRepository(Order)`) reads and writes the entities of a table:
+A repository (`db.getRepository(Order)`) reads and writes a table's entities:
 
 ```typescript
 import {Component} from 'lakutata'
@@ -138,21 +138,21 @@ class Orders extends Component {
 
 - **Finding:** `find`, `findBy`, `findOne`, `findOneBy`, `findAndCount`, `count`, `exists`; `findOneByOrFail` throws
   an `EntityNotFoundError` when nothing is found.
-- **The find options** take objects: `where`, `relations: {lines: true}`, `select: {id: true, customer: true}`,
+- **Find options** take objects: `where`, `relations: {lines: true}`, `select: {id: true, customer: true}`,
   `order: {createdAt: 'DESC'}`, `skip` and `take`, `withDeleted`. A list of conditions in `where` is an `OR`.
-- **The find operators** of `lakutata/orm`: `In`, `Not`, `IsNull`, `Like`, `ILike`, `Between`, `MoreThan`,
+- **Find operators** from `lakutata/orm`: `In`, `Not`, `IsNull`, `Like`, `ILike`, `Between`, `MoreThan`,
   `MoreThanOrEqual`, `LessThan`, `LessThanOrEqual`, `Any`, `ArrayContains`, `Raw`…
-- **Writing:** `save` (inserts or updates, with the cascades of the relations), `insert`, `update`, `delete`,
-  `softDelete` and `restore` (with a `@DeleteDateColumn`), `increment`, `upsert`.
-- **A query builder** (`createQueryBuilder`) writes the queries the find options cannot: joins with conditions, groups,
-  subqueries. Its values (`:customer`) are passed as parameters, never put into the SQL text.
-- **SQL** (`query(sql, parameters)`) returns the rows of the driver as they are: a `COUNT(*)` of PostgreSQL is a string.
+- **Writing:** `save` (inserts or updates, with relation cascades), `insert`, `update`, `delete`, `softDelete` and
+  `restore` (with a `@DeleteDateColumn`), `increment`, `upsert`.
+- **A query builder** (`createQueryBuilder`) writes queries that the find options cannot express: joins with conditions,
+  groups, subqueries. Its values (`:customer`) are passed as parameters, never inserted into the SQL text.
+- **SQL** (`query(sql, parameters)`) returns the driver's rows unchanged: a PostgreSQL `COUNT(*)` is a string.
 
 ## 3. Transactions
 
-`transaction(fn)` runs a function in a transaction: committed when the function resolves, rolled back when it
-rejects, its error thrown again. Every operation of the transaction goes through the entity manager given to the
-function; the ones made through `db.manager` or `db.getRepository()` run outside of it.
+`transaction(fn)` runs a function in a transaction, which is committed when the function resolves and rolled back when
+it rejects; the error is then thrown again. Every operation in the transaction goes through the entity manager passed to
+the function; operations made through `db.manager` or `db.getRepository()` run outside it.
 
 ```typescript
 import {Component} from 'lakutata'
@@ -185,14 +185,14 @@ class Transfers extends Component {
 ```
 
 - The isolation level is optional: `'READ UNCOMMITTED'`, `'READ COMMITTED'`, `'REPEATABLE READ'`, `'SERIALIZABLE'`.
-- `createQueryRunner()` gives a connection of its own, to control a transaction by hand (`startTransaction()`,
+- `createQueryRunner()` returns a dedicated connection, to control a transaction manually (`startTransaction()`,
   `commitTransaction()`, `rollbackTransaction()`, then `release()`).
 - MongoDB has no transactions in TypeORM: there, `transaction()` runs the function without one. The embedded MongoDB
-  runs it in a transaction of its own (see section 4 of [Embedded MongoDB](MongoEmbedded.md)).
+  runs it in its own transaction (see section 4 of [Embedded MongoDB](MongoEmbedded.md)).
 
 ## 4. Values to watch
 
-- **Big numbers.** PostgreSQL and MySQL return the `bigint` and `decimal` columns as strings, to keep their precision.
+- **Big numbers.** PostgreSQL and MySQL return `bigint` and `decimal` columns as strings, to keep their precision.
   SQLite returns them as numbers, which lose precision beyond 2^53. A column `transformer` converts them where a
   number is enough:
 
@@ -215,20 +215,20 @@ class Transfers extends Component {
   }
   ```
 
-- **`null` and `undefined` in the conditions** are left out of the condition by default: `findOneBy({id: undefined})`
+- **`null` and `undefined` in conditions** are left out of the condition by default: `findOneBy({id: undefined})`
   finds the first row. See [Databases](Database.md), section 2.
-- **Dates.** Prefer the columns with a time zone (`timestamptz` on PostgreSQL). On MySQL, the `timezone` option of the
-  connection tells how the dates are written and read.
+- **Dates.** Prefer columns with a time zone (`timestamptz` on PostgreSQL). On MySQL, the connection's `timezone` option
+  determines how dates are written and read.
 
 ## 5. Errors
 
-The errors are the ones of TypeORM, exported by `lakutata/orm`:
+The errors come from TypeORM and are exported by `lakutata/orm`:
 
 | Error | When |
 |---|---|
-| `QueryFailedError` | The database refused a query. Its `driverError` is the error of the driver: on PostgreSQL, the code `23505` is a duplicate key, its `constraint` the name of the constraint |
+| `QueryFailedError` | The database refused a query. Its `driverError` is the driver's error: on PostgreSQL, code `23505` is a duplicate key, and its `constraint` is the name of the constraint |
 | `EntityNotFoundError` | `findOneByOrFail()` and `findOneOrFail()` found nothing |
-| `EntityMetadataNotFoundError` | An entity that is not in the `entities` of the database |
+| `EntityMetadataNotFoundError` | An entity that is not in the database's `entities` |
 | `OptimisticLockVersionMismatchError` | A `@VersionColumn` did not match the version expected by a lock |
 | `CannotExecuteNotConnectedError` | A query on a database that is not connected, or no longer is |
 

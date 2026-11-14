@@ -1,15 +1,15 @@
 # Background jobs
 
-This example builds a service that makes reports in the background: a request queues a report and gets its id at once,
-a queue action builds the report, and the client asks for its state until it is done. A scheduled job deletes the old
-reports, in one instance of the service at a time. It starts from the `service` template and shows the queue component
-and its actions, the retries and the dead-letter queue, a schedule, a lock shared by the instances, and the tests. No
-server is needed: the queue is in memory, and the reports and the locks are files.
+This example builds a service that produces reports in the background: a request queues a report and receives its ID
+immediately, a queue action builds the report, and the client requests its state until it is done. A scheduled job
+deletes old reports, in one service instance at a time. It starts from the `service` template and shows the queue
+component and its actions, retries and the dead-letter queue, a schedule, a lock shared by the instances, and tests. No
+server is needed: the queue is in memory, and the reports and locks are files.
 
 | Action | Name | What it does |
 |---|---|---|
-| `POST` | `/reports` | Queues the report of a month, `{"month": "2026-09"}`, and answers with its id |
-| `GET` | `/reports/:id` | Gives the state of a report (`queued`, `running`, `done`, `failed`) and its result |
+| `POST` | `/reports` | Queues a month's report, `{"month": "2026-09"}`, and responds with its ID |
+| `GET` | `/reports/:id` | Returns a report's state (`queued`, `running`, `done`, `failed`) and its result |
 | Queue | `report.build` | Builds a report: 2 at a time, 3 attempts |
 | Queue | `report.build.dead` | Marks the reports that used up their attempts as failed |
 | Schedule | `*/5 * * * *` | Deletes the reports finished more than a day ago, in one instance |
@@ -24,9 +24,9 @@ echo 'data/' >> .gitignore
 ```
 
 The project is a workspace whose service is `packages/app` ([Project Structure](../ProjectStructure.md)). The queues
-(`lakutata/com/queue`) and the locks (`lakutata/com/mutex`) come with the `lakutata` package, and their memory and file
-drivers need no other package, so nothing is installed. The example controller of the template is removed, and the
-`data` directory, which holds the reports and the locks, is kept out of git.
+(`lakutata/com/queue`) and locks (`lakutata/com/mutex`) come with the `lakutata` package, and their memory and file
+drivers need no other package, so nothing is installed. The template's example controller is removed, and the `data`
+directory, which holds the reports and locks, is kept out of git.
 
 ## 2. The input
 
@@ -61,10 +61,10 @@ export class BuildReportDTO extends CreateReportDTO {
 }
 ```
 
-- `CreateReportDTO` is the body of `POST /reports`. The second argument of `pattern()` names the pattern in the error
+- `CreateReportDTO` is the body of `POST /reports`. The second argument to `pattern()` names the pattern in the error
   message: `"month" with value "2026-13" fails to match the YYYY-MM pattern`.
-- `BuildReportDTO` is the message that the queue carries: the id of the report and its month. A queue action validates
-  its message with its DTO, as any action validates its input ([DTO and Validation](../DTOValidation.md)).
+- `BuildReportDTO` is the message that the queue carries: the report's ID and month. A queue action validates its
+  message with its DTO, as any action validates its input ([DTO and Validation](../DTOValidation.md)).
 
 ## 3. The reports
 
@@ -205,13 +205,13 @@ A report is `queued`, then `running`, and ends `done` with its result or `failed
 component keeps each report in a JSON file:
 
 - A component is created once and shared by the whole service: the HTTP actions, the queue actions and the schedule use
-  the same instance ([Objects and Lifetimes](../Objects.md)). Its `@Configurable` properties are its options, given in
-  `Config.ts`, and its `init()` creates the directory.
+  the same instance ([Objects and Lifetimes](../Objects.md)). Its `@Configurable` properties are its options, specified
+  in `Config.ts`, and its `init()` creates the directory.
 - A report is written to a temporary file, then renamed, so a request never reads half a report.
 - `clean()` deletes the reports that finished more than `keep` ago; it is what the schedule runs. It takes the current
   time as an argument, so that the test can run it as if it were tomorrow.
-- The instances of the service on one machine share the directory. In a service with a database, the reports would be
-  a table, behind the same methods.
+- Service instances on one machine share the directory. In a service with a database, the reports would be a table,
+  behind the same methods.
 
 ## 4. The sales
 
@@ -249,9 +249,9 @@ export class Sales extends Component {
 }
 ```
 
-A report counts the orders of a month and their revenue. Here the figures are made up, after a wait of half a second
-that stands for the slow queries of a real service. `summarize()` takes the job's signal, so that the wait stops when
-the job is aborted. Because `Sales` is a separate component, the tests can replace its `summarize()` to make a job fail.
+A report counts a month's orders and their revenue. Here the figures are made up, after a half-second wait that stands
+for a real service's slow queries. `summarize()` takes the job's signal, so that the wait stops when the job is aborted.
+Because `Sales` is a separate component, the tests can replace its `summarize()` to make a job fail.
 
 ## 5. The controller
 
@@ -354,26 +354,27 @@ export class ReportController extends Controller {
 }
 ```
 
-One controller holds the actions of three transports: HTTP, the queue and the schedule. Each request, message or run
-gets a new instance of the controller, with the components injected ([Controllers and Actions](../Controllers.md)).
+One controller holds actions for three transports: HTTP, the queue and the schedule. Each request, message or run
+receives a new controller instance, with the components injected ([Controllers and Actions](../Controllers.md)).
 
-- `create()` saves the report, adds a message to the queue `report.build` with `queue.add()`, and answers without
-  waiting for the build: `Result.status()` sends the status 202 (Accepted), the report, and a `Location` header that
-  points to it ([HTTP](../HTTP.md)). The `jobId` of the message is the id of the report.
-- `@QueueAction` makes `build()` the consumer of the queue `report.build` ([Queues](../Queue.md)). It processes 2
-  messages at a time (`concurrency`), each for at most 1 minute (`timeout`: after that, `this.signal` is aborted and
-  the message is retried). Its context, a `QueueContext`, gives the number of the current `attempt` (1 on the first
-  delivery) and the `attempts` allowed.
-- A message is acknowledged when its action returns, and the value the action returns becomes the result of the
-  message, which the queue keeps. When the action throws, `build()` puts the report back in the `queued` state with
-  the error, and the message is delivered again after the `backoff` (1 s, then 2 s), up to 3 attempts. After the third
-  failed attempt, it goes to the dead-letter queue `report.build.dead`, a queue like the others: `failed()` consumes
-  it and marks the report as failed.
+- `create()` saves the report, adds a message to the `report.build` queue with `queue.add()`, and responds without
+  waiting for the build: `Result.status()` sends status 202 (Accepted), the report, and a `Location` header that points
+  to it ([HTTP](../HTTP.md)). The message's `jobId` is the report's ID.
+- `@QueueAction` makes `build()` the consumer of the `report.build` queue ([Queues](../Queue.md)). It processes 2
+  messages at a time (`concurrency`), each for at most 1 minute (`timeout`: after that, `this.signal` is aborted and the
+  message is retried). Its context, a `QueueContext`, provides the current `attempt` number (1 on the first delivery)
+  and the `attempts` allowed.
+- A message is acknowledged when its action returns, and the returned value becomes the message's result, which the
+  queue keeps. When the action throws, `build()` puts the report back in the `queued` state with the error, and the
+  message is delivered again after the `backoff` (1 s, then 2 s), up to 3 attempts. After the third failed attempt, it
+  goes to the dead-letter queue `report.build.dead`, a queue like any other: `failed()` consumes it and marks the report
+  as failed.
 - A message is delivered at least once: after a crash, a server-backed driver delivers it again, and `build()` builds
   the same report a second time, which does no harm.
-- `@Schedule` runs `clean()` at the times of the cron expression, every 5 minutes ([Scheduled Jobs](../Schedules.md)).
-  With `exclusive: true`, each run first tries to get the lock `schedule:ReportController:clean` from the `mutex`
-  component; the instances that do not get it skip the run ([Mutex](../Mutex.md)).
+- `@Schedule` runs `clean()` at the times the cron expression specifies, every 5 minutes ([Scheduled
+  Jobs](../Schedules.md)). With `exclusive: true`, each run first tries to acquire the lock
+  `schedule:ReportController:clean` from the `mutex` component; instances that do not acquire it skip the run
+  ([Mutex](../Mutex.md)).
 
 ## 6. The options of the service
 
@@ -433,33 +434,33 @@ export function config(port: number = Number(process.env.PORT ?? 8080), data: st
 }
 ```
 
-This is the `Config.ts` of the template, with:
+This is the template's `Config.ts`, with:
 
-- the `queue` component, made by `buildQueueOptions()`: without a `driver`, the messages are kept in the memory of the
-  process. The queue keeps the results of the messages for an hour (a day by default): the test reads one of them,
-  while the service itself reads the reports from their files;
+- the `queue` component, built by `buildQueueOptions()`: without a `driver`, messages are kept in the process's memory.
+  The queue keeps message results for an hour (a day by default): the test reads one of them, while the service itself
+  reads the reports from their files;
 - the `mutex` component, with the `file` driver: a lock is a file in `data/locks`, shared by the processes on the
   machine that use this directory;
-- the `reports` and `sales` components of the example, with their options;
+- the example's `reports` and `sales` components, with their options;
 - the `ReportController` instead of the example controller;
-- two more entrypoint adapters: `queueEntrypoint('queue')` delivers the messages of the `queue` component to the
+- two more entrypoint adapters: `queueEntrypoint('queue')` delivers the `queue` component's messages to the
   `@QueueAction` actions, and `scheduleEntrypoint()` runs the `@Schedule` actions ([Entrypoint](../Entrypoint.md)).
   Without its adapter, a decorator has no effect;
-- `jsonEnvelope()` without `errorStatus`, so that the errors keep their status (400, 404), as REST clients expect.
+- `jsonEnvelope()` without `errorStatus`, so that errors keep their status (400, 404), as REST clients expect.
 
 `bootstrap: ['entrypoint']` creates the entrypoint at launch, and with it the queue: the actions start consuming once
-the service has launched. The template's middleware `Authenticate.ts` stays: it is a middleware of the HTTP adapter, so
-the queue messages and the scheduled runs do not go through it.
+the service has launched. The template's `Authenticate.ts` middleware is kept: it is a middleware of the HTTP
+adapter, so queue messages and scheduled runs do not pass through it.
 
 ## 7. Run it
 
-Run two instances of the service on this machine; they share the `data` directory:
+Run two service instances on this machine; they share the `data` directory:
 
 ```bash
 npm run dev
 ```
 
-In a second terminal, once the first instance has started:
+In a second terminal, once the first instance has launched:
 
 ```bash
 PORT=8081 npm start
@@ -490,20 +491,20 @@ curl -i localhost:8081/reports/5b0f8a52-2f4e-4a3c-9a55-0b1c3c4d5e6f
 
 The first instance, which received the request, builds the report in half a second; the second one reads its file.
 
-Every 5 minutes, at :00, :05, :10…, one of the two instances deletes the old reports. This time it was the first one,
-which wrote in its terminal:
+Every 5 minutes, at :00, :05, :10…, one of the two instances deletes old reports. This time it was the first one, which
+wrote to its terminal:
 
 ```
 app │ [23:05:00.009] INFO (reports/97338): 0 old reports deleted
 ```
 
-The second instance did not get the lock and skipped the run, without writing anything to its log. No report was
-deleted: the reports are kept for a day.
+The second instance did not acquire the lock and skipped the run, without writing anything to its log. No report was
+deleted: reports are kept for a day.
 
 ## 8. Test it
 
-The test of the template is replaced by a test of the reports. It starts the service with its reports and its locks in
-a temporary directory:
+The template's test is replaced by a test of the reports. It launches the service with its reports and locks in a
+temporary directory:
 
 **`packages/app/src/tests/App.spec.ts`**
 
@@ -626,12 +627,12 @@ describe('reports', (): void => {
 })
 ```
 
-- The first test reads the result of the job with `queue.result()`, which waits until the message has been processed,
-  then reads the report.
-- To make a job fail, the tests replace the `summarize()` method of the `sales` component with `t.mock.method()` from
-  `node:test`: for one call, to see the job succeed on its second attempt, then for every call, to see it fail after
-  its 3 attempts, which takes 3 seconds (the backoff). The component is shared, so the action calls the replaced
-  method, which is restored at the end of the test.
+- The first test reads the job's result with `queue.result()`, which waits until the message has been processed, then
+  reads the report.
+- To make a job fail, the tests replace the `sales` component's `summarize()` method with `t.mock.method()` from
+  `node:test`: for one call, to see the job succeed on its second attempt, then for every call, to see it fail after its
+  3 attempts, which takes 3 seconds (the backoff). The component is shared, so the action calls the replaced method,
+  which is restored at the end of the test.
 - The last test calls `clean()` directly, as if it were tomorrow, rather than waiting for the cron expression.
 
 ```bash
@@ -648,26 +649,25 @@ app │ ℹ pass 5
 ✔ test ran in app
 ```
 
-The service logs each failed attempt, with its error: `The queue action ReportController:build failed on the message
-<id> of report.build (attempt 1 of 3)`. `queueEntrypoint('queue', {onError})` replaces this log.
+The service logs each failed attempt, with its error:
+`The queue action ReportController:build failed on the message <id> of report.build (attempt 1 of 3)`.
+`queueEntrypoint('queue', {onError})` replaces this log.
 
 ## 9. With several machines
 
 The example runs its instances on one machine. On several machines, each part needs a driver that the machines share,
-and the code of the actions does not change:
+and the actions' code does not change:
 
-- The queue: the memory driver keeps the messages in one process. An instance builds only the reports it was asked
-  for, and the messages still waiting when it stops are lost: their reports stay `queued`, and the schedule never
-  deletes them. With Redis (`driver: {type: 'redis', url: process.env.REDIS_URL}`, and
-  `npm install bullmq ioredis -w app`), the messages survive restarts, any instance can process them, and the results
-  are shared ([Queues](../Queue.md)).
-- The locks: the file driver shares them only between the processes of one machine. Redis
-  (`driver: {type: 'redis', url}`, and `npm install redis -w app`) or PostgreSQL share them between machines
-  ([Mutex](../Mutex.md)).
+- The queue: the memory driver keeps messages in one process. An instance builds only the reports it was asked for, and
+  messages still waiting when it stops are lost: their reports stay `queued`, and the schedule never deletes them. With
+  Redis (`driver: {type: 'redis', url: process.env.REDIS_URL}`, and `npm install bullmq ioredis -w app`), messages
+  survive restarts, any instance can process them, and results are shared ([Queues](../Queue.md)).
+- The locks: the file driver shares them only between processes on one machine. Redis (`driver: {type: 'redis', url}`,
+  and `npm install redis -w app`) or PostgreSQL share them between machines ([Mutex](../Mutex.md)).
 - The reports: a database table ([A REST API with a database](RestAPI.md)), or a volume that every instance mounts as
   `DATA`.
 
-`npm start` runs the built service, and `npm run docker:build` makes its image (the template's `Dockerfile`).
+`npm start` runs the built service, and `npm run docker:build` builds its image (the template's `Dockerfile`).
 
 <!--
 check:

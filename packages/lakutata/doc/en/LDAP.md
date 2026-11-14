@@ -1,20 +1,20 @@
 # Lakutata LDAP
 
 An application signs its users in against a directory (OpenLDAP, Active Directory, 389 Directory Server…), reads and
-writes it, or serves a directory of its own to other software (SSSD, Keycloak, Gitea, Jenkins, Grafana, NAS devices…).
-Two packages do it:
+writes it, or serves its own directory to other software (SSSD, Keycloak, Gitea, Jenkins, Grafana, NAS devices…). Two
+packages provide this:
 
 - [`@lakutata/ldap-engine`](https://github.com/lakutata/lakutata/tree/main/packages/ldap-engine), the engine: the
   protocol, a client, and a server whose backends keep the entries. It needs no application; the
   [LDAP Engine](LDAPEngine.md) guide describes it.
 - [`@lakutata/ldap`](https://github.com/lakutata/lakutata/tree/main/packages/ldap), the components: `LDAPClient`,
-  `LDAPServer`, and the `DirectoryBackend`, which keeps the entries of a server in the application's database. It
-  re-exports the engine.
+  `LDAPServer`, and the `DirectoryBackend`, which keeps a server's entries in the application's database. It re-exports
+  the engine.
 
-This guide is about the components: registering them, injecting them, and what they add to the engine. What the client
-and the server do (paging, the schema checks, the access rules, the password policy, the plugins) is described in the
-LDAP Engine guide, which the sections below refer to. The `lakutata` package does not re-export these packages:
-install the one the application uses.
+This guide describes the components: registering them, injecting them, and what they add to the engine. What the client
+and the server do (paging, schema checks, access rules, the password policy, plugins) is described in the LDAP Engine
+guide, to which the sections below refer. The `lakutata` package does not re-export these packages: install the one the
+application uses.
 
 ```shell
 npm install @lakutata/ldap                     # the engine comes with it
@@ -23,8 +23,8 @@ npm install @lakutata/netif                    # to listen on network interfaces
 
 ## 1. Signing users in against a directory
 
-The `LDAPClient` component keeps a pool of connections bound as a service account. A controller or a component gets it
-with `@Inject`; `authenticate()` finds the user's entry and binds as the user on a connection of its own.
+The `LDAPClient` component keeps a pool of connections bound as a service account. A controller or a component obtains
+it with `@Inject`; `authenticate()` finds the user's entry and binds as the user on its own connection.
 
 ```typescript
 import {Application, DTO, Exception} from 'lakutata'
@@ -89,31 +89,32 @@ Application.run(() => ({
 }))
 ```
 
-- The connections open on the first operation and close with the application. The servers of `url` are tried in
-  order until one can be reached, or found in a DNS SRV record (`srv: '_ldap._tcp.dc._msdcs.example.com'`).
-- An empty password is refused before anything is sent: many servers take a bind with a name and no password as an
+- The connections open on the first operation and close with the application. The servers are listed in `url` or found
+  in a DNS SRV record (`srv: '_ldap._tcp.dc._msdcs.example.com'`), and tried in turn until one can be reached (`url` in
+  its order, the servers of an SRV record by priority and weight).
+- An empty password is refused before anything is sent: many servers treat a bind with a name and no password as an
   anonymous success.
-- `reason` says why a bind failed: `invalidCredentials`, `accountLocked`, `accountDisabled`, `passwordExpired`,
-  `mustChangePassword`…, read from the password policy control of OpenLDAP or the data codes of Active Directory.
+- `reason` states why a bind failed: `invalidCredentials`, `accountLocked`, `accountDisabled`, `passwordExpired`,
+  `mustChangePassword`…, read from OpenLDAP's password policy control or Active Directory's data codes.
   `timeBeforeExpiration` and `graceAuthNsRemaining` warn before a password expires.
-- Passwords are sent only over TLS (an `ldaps` URL or `startTLS: true`) or a local `ldapi` socket, unless
-  `requireTLS: false` is given.
-- `bindName` binds with a name made from the user name (`alice@example.com` for Active Directory) instead of searching
-  for the entry first. The rest of `authenticate()` is in section 4 of LDAP Engine.
+- `authenticate()` sends the user's password only over TLS (an `ldaps` URL or `startTLS: true`) or a local `ldapi`
+  socket, unless `requireTLS: false` is specified.
+- `bindName` binds with a name built from the user name (`alice@example.com` for Active Directory) instead of searching
+  for the entry first. The rest of `authenticate()` is described in section 4 of LDAP Engine.
 
 | Option | Default | What it is |
 |---|---|---|
 | `url` | | The LDAP URL of the server, or of several tried in order |
 | `srv` | | A DNS SRV record naming the servers, instead of `url` |
-| `bindDN`, `password` | anonymous | The identity of the pool |
-| `tls`, `startTLS` | | The options of TLS (`ca`, `cert`, `key`…), and StartTLS on each connection of an `ldap://` URL |
-| `poolSize` | `4` | The most connections of the pool |
+| `bindDN`, `password` | anonymous | The pool's identity |
+| `tls`, `startTLS` | | TLS options (`ca`, `cert`, `key`…), and StartTLS on each connection to an `ldap://` URL |
+| `poolSize` | `4` | The maximum number of connections in the pool |
 | `connectTimeout`, `timeout`, `idleTimeout` | 5 s, 30 s, 10 min | A connection, an operation, an idle connection |
-| `maxMessageSize`, `binaryAttributes` | 64 MiB | The largest message a server may send; more attributes whose values are bytes |
+| `maxMessageSize`, `binaryAttributes` | 64 MiB | The largest message a server may send; additional attributes whose values are bytes |
 
 ## 2. Reading and writing a directory
 
-The component has the operations of an LDAP connection: `search()`, `searchIterator()`, `compare()`, `add()`,
+The component provides the operations of an LDAP connection: `search()`, `searchIterator()`, `compare()`, `add()`,
 `modify()`, `delete()`, `modifyDN()`, `extended()`, `passwordModify()`, `whoAmI()`, and `readSchema()`.
 
 ```typescript
@@ -144,21 +145,21 @@ export class Staff extends Component {
 }
 ```
 
-- The template `filter` escapes the values written into it, so a value cannot change the filter.
-- Searches are paged (500 entries a page); `searchIterator()` gives the entries one by one; `sort` and `window` read a
-  window of the sorted entries.
+- The `filter` template tag escapes the values written into it, so a value cannot change the filter.
+- Searches are paged (500 entries per page); `searchIterator()` yields the entries one by one; `sort` and `window` read
+  a window of the sorted entries.
 - A result that is not a success throws its exception (`LDAPNoSuchObjectException`,
   `LDAPInsufficientAccessException`…).
-- An operation that takes longer than `timeout` is abandoned on the server. The pool gives that connection no more
-  operations: it closes once the operations still on it have ended, and the next operations use a new one.
-- `connect()` gives a connection outside the pool, with a session of its own (to bind as another user, or run
-  StartTLS).
-- The entries (text and bytes), filters, DNs, the values of Active Directory and the other operations are in sections
-  2 to 6 of LDAP Engine.
+- An operation that takes longer than `timeout` is abandoned on the server. The pool assigns no further operations to
+  that connection: it closes once the operations still in progress on it have ended, and subsequent operations use a new
+  one.
+- `connect()` returns a connection outside the pool, with its own session (to bind as another user, or run StartTLS).
+- Entries (text and bytes), filters, DNs, Active Directory values and the other operations are described in sections 2
+  to 6 of LDAP Engine.
 
 ## 3. Serving a directory
 
-The `LDAPServer` component serves the entries of its backends. With the `DirectoryBackend`, they are kept in the
+The `LDAPServer` component serves the entries that its backends keep. With the `DirectoryBackend`, they are kept in the
 application's database (PostgreSQL, MySQL or SQLite).
 
 ```typescript
@@ -189,27 +190,26 @@ Application.run(() => ({
 }))
 ```
 
-- `initialize` creates the entry of the suffix (made from it: `dcObject` and `organization` for `dc=example,dc=com`)
-  and the administrator on the first start, once, however many instances start together.
+- `initialize` creates the suffix entry (derived from the suffix: `dcObject` and `organization` for `dc=example,dc=com`)
+  and the administrator on the first start, once, however many instances start at the same time.
 - The server listens for LDAP on `port` (389; `0` for a free one, `false` for none), with StartTLS when `tls` is
-  given, and LDAPS on `ldapsPort`. `host` chooses the address; `interface: 'eth1'` listens on a network interface
-  whatever its addresses, with `@lakutata/netif` installed. `ldap.ports` gives the ports it listens on.
-- `ldapiPath` listens on a Unix socket as well (ldapi), for the clients on the same machine, which may send passwords
-  over it without TLS; `ldapiMode` decides who may connect (`0o666`: every user of the machine; by default, with the
-  usual umask, the user of the server's process alone). With `port: false` and the socket alone, only the machine's
-  own clients reach the server.
-- The migrations of the tables of the directory backend are the application's, as for its other entities: add
-  `directoryEntities(type)` to the entities of the database, then generate the migrations.
-- The other options are those of the server engine (sections 9, 11 and 12 of LDAP Engine): `access`, `limits`,
-  `bindThrottle`, `plaintextBind`, `passwords`, `passwordPolicy`, `sasl`, `extendedOperations`, what the root DSE
-  says.
+  specified, and LDAPS on `ldapsPort`. `host` selects the address; `interface: 'eth1'` listens on a network interface
+  regardless of its addresses, when `@lakutata/netif` is installed. `ldap.ports` lists the ports it listens on.
+- `ldapiPath` also listens on a Unix socket (ldapi), for clients on the same machine, which may send passwords over it
+  without TLS; `ldapiMode` determines who may connect (`0o666`: every user on the machine; by default, with the usual
+  umask, only the user that runs the server's process). With `port: false` and the socket as the only listener, only the
+  machine's own clients reach the server.
+- The migrations for the directory backend's tables belong to the application, as for its other entities: add
+  `directoryEntities(type)` to the database's entities, then generate the migrations.
+- The other options are the server engine's (sections 9, 11 and 12 of LDAP Engine): `access`, `limits`, `bindThrottle`,
+  `plaintextBind`, `passwords`, `passwordPolicy`, `sasl`, `extendedOperations`, and the contents of the root DSE.
 
 ## 4. The directory from the application
 
-The application reads and writes its directory through the component, without the network: `connect()` gives a
-connection with the operations of the client, under an identity of one's choosing, with no bind, and `directory()`
-manages users, groups and organizational units on such a connection. What they write goes through the same schema
-checks, password hashing and access control as the requests of the network.
+The application reads and writes its directory through the component, without going over the network: `connect()`
+returns a connection with the client's operations, under an identity you choose, with no bind, and `directory()` manages
+users, groups and organizational units on such a connection. What they write goes through the same schema checks,
+password hashing and access control as network requests.
 
 ```typescript
 import {Component} from 'lakutata'
@@ -238,13 +238,13 @@ export class Accounts extends Component {
 }
 ```
 
-The directory helper and its methods are in section 10 of LDAP Engine. It is made of LDAP operations, so
-`createDirectory(client)` manages a remote OpenLDAP the same way, as long as its profile fits the schema of that
-server. `ldap.engine` is the server engine itself: its `events` (`bind`, `operation`, `error`…) and its schema.
+The directory helper and its methods are described in section 10 of LDAP Engine. The helper consists of LDAP operations,
+so `createDirectory(client)` manages a remote OpenLDAP server the same way, as long as its profile fits that server's
+schema. `ldap.engine` is the server engine itself, with its `events` (`bind`, `operation`, `error`…) and its schema.
 
 ## 5. The schema
 
-The system schema is always loaded; the `schema` option of the component names the others:
+The system schema is always loaded; the component's `schema` option names the others:
 
 ```typescript
 import {buildLDAPServerOptions, MemoryBackend} from '@lakutata/ldap'
@@ -261,27 +261,26 @@ const options = buildLDAPServerOptions({
 })
 ```
 
-- `bundled` names the bundled schemas: core, cosine and inetorgperson by default; rfc2307bis (POSIX accounts and
-  groups, for SSSD and nslcd), openssh-lpk (SSH public keys) and ppolicy are loaded when named, and `[]` leaves the
-  system schema alone. The password policy brings ppolicy itself.
-- `files` adds schemas of one's own: paths, documents (of `parseSchemaFile()`, or imported from
-  `@lakutata/ldap/schemas`), or the text of a file as `{name, text}`. A file is the LDIF of OpenLDAP's `cn=config`, a
-  subschema entry, or the `.schema` form.
-- `directory` loads the files of a directory before them, the numbers in their names by value (`cn={2}nis.ldif` before
-  `cn={10}ppolicy.ldif`, as OpenLDAP numbers its files).
-- A name or an OID defined twice stops the server at its start, naming both files. When the directory holds some of
-  the standard files too, leave those out of `bundled` (or set it to `[]` when it holds them all); with the nis.schema
-  of OpenLDAP (RFC 2307), leave out rfc2307bis, which has the same OIDs.
+- `bundled` names the bundled schemas: core, cosine and inetorgperson by default; rfc2307bis (POSIX accounts and groups,
+  for SSSD and nslcd), openssh-lpk (SSH public keys) and ppolicy are loaded when named, and `[]` loads none of them (the
+  system schema is always loaded). The password policy loads ppolicy itself.
+- `files` adds custom schemas: paths, documents (from `parseSchemaFile()`, or imported from `@lakutata/ldap/schemas`),
+  or a file's text as `{name, text}`. A file is OpenLDAP's `cn=config` LDIF, a subschema entry, or the `.schema` format.
+- `directory` loads a directory's files before them, comparing the numbers in their names by value (`cn={2}nis.ldif`
+  before `cn={10}ppolicy.ldif`, as OpenLDAP numbers its files).
+- If a name or an OID is defined twice, the server fails to start with an error that names both files. When the
+  directory also holds some of the standard files, leave those out of `bundled` (or set it to `[]` when it holds all of
+  them); with OpenLDAP's nis.schema (RFC 2307), leave out rfc2307bis, which has the same OIDs.
 - `schemaConfigView: true` shows the files read-only at `cn={N}<name>,cn=schema,cn=config`, as OpenLDAP does; clients
   read the schema at `cn=Subschema`.
-- Schema files as documents, to edit or to convert at build time: section 7 of LDAP Engine.
+- For schema files as documents, to edit or convert at build time, see section 7 of LDAP Engine.
 
 ## 6. Access and passwords
 
-`access`, `plaintextBind`, `bindThrottle` and `limits` are the rules of the engine (section 11 of LDAP Engine): by
-default anonymous sessions read only the root DSE and the subschema, bound sessions read the directory except
-`userPassword`, the administrators write, and the password administrators change the passwords of the others.
-`passwords` and `passwordPolicy` are those of its section 12:
+`access`, `plaintextBind`, `bindThrottle` and `limits` are the engine's rules (section 11 of LDAP Engine): by default,
+anonymous sessions read only the root DSE and the subschema, bound sessions read the directory except `userPassword`,
+administrators write, and password administrators change the passwords of the others. `passwords` and `passwordPolicy`
+are described in its section 12:
 
 ```typescript
 import {buildLDAPServerOptions, DirectoryBackend} from '@lakutata/ldap'
@@ -301,63 +300,64 @@ const options = buildLDAPServerOptions({
 })
 ```
 
-- Passwords are written as `{PBKDF2-SHA512}`; a bind checks the other schemes of OpenLDAP too and hashes the password
-  again, so accounts imported from OpenLDAP keep working.
-- With the directory backend, the failed binds and the state of the password policy are in the database: the
-  instances of an application share the locks and the expirations. Two instances failing a bind in the same
-  millisecond, before either has written, can give the failure the same time; the directory backend keeps it once, so
-  the two count as one.
+- Passwords are written as `{PBKDF2-SHA512}`; a bind also checks OpenLDAP's other schemes and hashes the password again,
+  so accounts imported from OpenLDAP keep working.
+- With the directory backend, failed binds and the password policy state are kept in the database: an application's
+  instances share the locks and the expirations. When two instances fail a bind in the same millisecond, before either
+  has written, they can record the failure with the same time; the directory backend keeps it once, so the two count as
+  one.
 
 ## 7. The directory backend
 
-It keeps the entries of a suffix in the application's database, whatever their object classes: a table of entries and
-one row per value.
+It keeps a suffix's entries in the application's database, whatever their object classes: a table of entries and one row
+per value.
 
-- The searches run in the database: the filters become SQL on the forms of the values the matching rules compare by
-  (equality, substrings, integers and times); the server checks what SQL cannot decide exactly.
-- A sorted search is sorted by the backend, which reads only the entries of the window (`window`): a window by an offset
-  is ordered, counted and cut by the database on a sort key kept with each value; otherwise the backend reads the values
-  of the sort keys and orders the entries by them as the server would. After the schema changes the ordering rule of an
-  attribute, its values written before keep their old sort keys until they are written again. An entry without a value
-  of a sort key comes after the others, and before them in reverse (RFC 2891). With `access.check` (unless
-  `access.checkReads` is false, as for a check that does not decide reads), or an interceptor that removes entries from
-  searches, the server sorts and windows a virtual list view itself, within `limits.sortCandidates`, so that its counts
-  leave out what the session may not read.
-- The entries of a search come in a set order: an entry before the entries below it, siblings in the order they were
-  added (entryUUID is a UUID of version 7; an entry imported with its own entryUUID takes its place by that value).
-  Entries with equal sort keys keep this order.
-- The DN values (member, manager, seeAlso…) point at their entries: they follow a rename, and go when the entry is
+- Searches run in the database: filters become SQL on the forms of values that the matching rules compare by (equality,
+  substrings, integers and times); the server checks what SQL cannot decide exactly.
+- A sorted search is sorted by the backend, which reads only the entries in the window (`window`): an offset-based
+  window is ordered, counted and cut by the database on a sort key kept with each value; otherwise the backend reads the
+  values of the sort keys and orders the entries by them as the server would. After the schema changes an attribute's
+  ordering rule, its values written before the change keep their old sort keys until they are written again. An entry
+  with no value for a sort key comes after the others, and before them in reverse order (RFC 2891). With `access.check`
+  (unless `access.checkReads` is false, as for a check that does not decide reads), or an interceptor that removes
+  entries from searches, the server sorts and windows a virtual list view itself, within `limits.sortCandidates`, so
+  that its counts leave out what the session may not read.
+- A search's entries come in a fixed order: an entry before the entries below it, siblings in the order they were added
+  (entryUUID is a version 7 UUID; an entry imported with its own entryUUID takes its place by that value). Entries with
+  equal sort keys keep this order.
+- DN values (member, manager, seeAlso…) point to their entries: they follow a rename, and are removed when the entry is
   deleted; a required attribute left empty keeps a placeholder (the empty DN by default).
-- `memberOf` is computed when it is read, and a filter on it finds the members of a group (`nestedGroups` follows
-  nested groups). A schema that defines memberOf itself takes `memberOf: {name, oid}` or `memberOf: false`.
-- POSIX: uidNumber and gidNumber are allocated to the entries added without them (a uidNumber is unique, and so is the
-  gidNumber of a posixGroup among the groups); memberUid is computed for the posixGroup entries. The POSIX classes
-  come with rfc2307bis, which `schema.bundled` names.
-- `unique` keeps the values of attributes unique in the suffix; `authTimestamp` gives the time of the last bind with a
-  password, simple or SASL PLAIN (a bind made while a write holds the entry, or on SQLite while any write runs, does not
-  wait for it and leaves its time out; on MySQL before 8.0 and MariaDB before 10.6, which cannot skip a row another
-  write holds, the bind waits); `mailAlias` gives email as mail (Grafana reads email).
-- Each write runs in a transaction, with the interceptors' `beforeCommit()`. The writes to one entry take turns, also
+- `memberOf` is computed when it is read, and a filter on it finds a group's members (`nestedGroups` follows nested
+  groups). With a schema that defines memberOf itself, set `memberOf: {name, oid}` or `memberOf: false`.
+- POSIX: uidNumber and gidNumber are allocated to entries added without them (a uidNumber is unique, and so is a
+  posixGroup's gidNumber among the groups); memberUid is computed for posixGroup entries. The POSIX classes come with
+  rfc2307bis, which `schema.bundled` names.
+- `unique` keeps attribute values unique in the suffix; `authTimestamp` holds the time of the last successful bind with
+  a password, simple or SASL PLAIN (a bind made while a write holds the entry, or on SQLite while any write runs, does
+  not wait for it and omits its time; on MySQL before 8.0 and MariaDB before 10.6, which cannot skip a row another write
+  holds, the bind waits); `mailAlias` provides email with the values of mail (Grafana reads email).
+- Each write runs in a transaction, with the interceptors' `beforeCommit()`. Writes to one entry take turns, including
   when several instances share the database (on SQLite, every write to the file takes its turn), so two clients changing
   different values of an attribute at the same time both keep their changes.
-- The searches and writes that `beforeCommit()` makes through a server on the same Database component run in the write's
-  transaction: they see what it has written so far, and the writes are undone with it if it fails. A search made this
-  way reads all of its entries before it returns. While it reads, the write's other operations wait and its locks stay
-  held. A large search keeps every entry in memory, and its size limit bounds what it returns, not how much it reads.
-  Once its time limit passes, it stops reading and is answered timeLimitExceeded with no entries. On PostgreSQL, if the
-  database rejects one of these reads (a statement timeout, for example), the write fails as well, even if the
+- Searches and writes that `beforeCommit()` makes through a server on the same Database component run in the write's
+  transaction: they see what it has written so far, and the writes are rolled back with it if it fails. A search made
+  this way reads all of its entries before it returns. While it reads, the write's other operations wait and its locks
+  stay held. A large search keeps every entry in memory, and its size limit bounds what it returns, not how much it
+  reads. Once its time limit passes, it stops reading and fails with timeLimitExceeded, with no entries. On PostgreSQL,
+  if the database rejects one of these reads (a statement timeout, for example), the write fails as well, even if the
   interceptor catches the error.
 - When the database ends a write to break a deadlock, cannot serialize it, or gives up waiting for a lock (a lock
-  timeout set on the database, or on SQLite a file another process holds past the busy timeout), the write is answered
+  timeout set on the database, or on SQLite a file another process holds past the busy timeout), the write fails with
   busy (51) and leaves no changes; the client can send it again.
-- Configure a MariaDB server as `mariadb`: as `mysql`, the backend locks exclusively the rows it would otherwise share
-  (a parent, the entries that values name), so entries added under one parent, and values naming one entry, are written
-  one after another.
+- Configure a MariaDB server as `mariadb`: when it is configured as `mysql`, the backend locks exclusively the rows it
+  would otherwise lock in shared mode (a parent, the entries that values name), so entries added under one parent, and
+  values naming one entry, are written one after another.
 - On SQLite, a write that `beforeCommit()` makes through another Database component on the same file is refused
   (unwillingToPerform), because it would wait for the write it is made in. Make such writes through a server on the
   same Database component.
-- A DN value written at the same time as the entry it names is pointed at that entry once both writes are committed.
-  An error in that step is an `error` event of the server, which the component logs; the write itself is already done.
+- A DN value written at the same time as the entry it names is pointed at that entry once both writes are committed. An
+  error in that step is reported as an `error` event on the server, which the component logs; the write itself has
+  already completed.
 
 | Option | Default | What it is |
 |---|---|---|
@@ -369,14 +369,14 @@ one row per value.
 | `idAllocation` | from 10000 | The first uidNumber and gidNumber allocated, or `false` |
 | `lastBind`, `mailAlias` | `true`, `false` | authTimestamp, email |
 | `referencePlaceholder` | the empty DN | The value left in a required DN attribute whose last value named a deleted entry |
-| `sharedThrottle` | `true` | Keep the failed binds in the database |
+| `sharedThrottle` | `true` | Keep failed binds in the database |
 | `initialize` | | `root`, `ldif`, `admin`: what the first start creates |
 
 ## 8. Plugins, interceptors and backends
 
-The plugins and interceptors are those of the engine (section 13 of LDAP Engine: memberOf, referential integrity,
-unique values, the password policy, audit, constraints…). The component takes each as an object, or as a Lakutata
-class with its options, built in the component's container:
+The plugins and interceptors are the engine's (section 13 of LDAP Engine: memberOf, referential integrity, unique
+values, the password policy, audit, constraints…). The component accepts each as an object, or as a Lakutata class with
+its options, built in the component's container:
 
 ```typescript
 import {Component, DTO} from 'lakutata'
@@ -419,17 +419,18 @@ const options = buildLDAPServerOptions({
 - A plugin class extends `Component` and implements `LDAPPlugin`: its options are declared with `@Configurable`, and
   it may inject the application's components (a database, a logger).
 - The directory backend does the work of `MemberOfPlugin`, `ReferentialIntegrityPlugin`, `IdAllocationPlugin` and
-  `LastBindPlugin` itself, in the transaction of each write: these plugins leave its chain, and the others run for it.
-- `interceptors` takes interceptors alone: objects, placements, or Lakutata classes with their options.
-- A backend of one's own (section 14 of LDAP Engine) is an object, or a Lakutata class with its options,
-  `{class: DevicesBackend, suffix: 'ou=devices,dc=example,dc=com'}`, built in the container of the component: it may
-  inject the application's components, its database among them. Several backends serve several suffixes.
+  `LastBindPlugin` itself, in each write's transaction: these plugins are left out of its chain, and the others run for
+  it.
+- `interceptors` accepts standalone interceptors: objects, placements, or Lakutata classes with their options.
+- A custom backend (section 14 of LDAP Engine) is an object, or a Lakutata class with its options,
+  `{class: DevicesBackend, suffix: 'ou=devices,dc=example,dc=com'}`, built in the component's container: it may inject
+  the application's components, including its database. Several backends serve several suffixes.
 
 ## 9. Connecting other software
 
 - **SSSD and nslcd**: the server loads rfc2307bis (and openssh-lpk for the SSH keys), named in `schema.bundled`, and
-  they use `ldap_schema = rfc2307bis`; the groups are found by `member`, and memberUid is there for the `rfc2307`
-  mode. SSSD sends the password policy control with every bind, which the server answers. On the same machine they
+  they use `ldap_schema = rfc2307bis`; groups are found by `member`, and memberUid is available for the `rfc2307`
+  mode. SSSD sends the password policy control with every bind, to which the server responds. On the same machine they
   connect to the Unix socket of `ldapiPath` (SSSD 2.9 and later), and SSSD sends passwords over it without TLS. SSSD
   2.10 and later start TLS by default, which the socket does not need:
 
@@ -445,30 +446,29 @@ const options = buildLDAPServerOptions({
   ldap_id_use_start_tls = false
   ```
 
-  `ldapiMode` must let the user SSSD runs as connect. Over the network, give the server `tls`, and SSSD its CA
-  (`ldap_tls_cacert`).
+  `ldapiMode` must allow the user that SSSD runs as to connect. Over the network, configure `tls` on the server, and
+  provide SSSD with the CA of the server's certificate (`ldap_tls_cacert`).
 - **Keycloak**: user federation with the vendor "Other", `uid` as the user name and RDN, `entryUUID` as the UUID
-  attribute, "Use password modify extended operation" on; a group mapper on `groupOfNames` and `member`. Its service
-  account goes in `access.passwordAdmins` to set passwords.
+  attribute, "Use password modify extended operation" on; a group mapper on `groupOfNames` and `member`. Add its service
+  account to `access.passwordAdmins` to let it set passwords.
 - **Gitea**: an LDAP source (via BindDN) with `(&(objectClass=inetOrgPerson)(uid=%s))` as the user filter; an
   administrator filter on memberOf; the SSH keys in `sshPublicKey` (the server loads openssh-lpk).
-- **Grafana**: `mailAlias: true` gives the `email` it reads by default.
+- **Grafana**: `mailAlias: true` provides the `email` attribute it reads by default.
 
 ## 10. The engine alone
 
-Outside a Lakutata application, `@lakutata/ldap-engine` gives the same client and server as functions:
+Outside a Lakutata application, `@lakutata/ldap-engine` provides the same client and server as functions:
 `createLDAPClient()`, `connectLDAP()` and `createLDAPServer()`. The [LDAP Engine](LDAPEngine.md) guide describes them.
 
 ## 11. Platforms
 
-Node.js `>=18.10.0`, Bun, Electron and NW.js. The engine has no native code. The directory backend runs on the
-databases of `lakutata/orm`, with what their drivers need in Electron and Bun ([Database Drivers](DatabaseDrivers.md)):
-in Bun, where better-sqlite3 does not load, it runs on `sqljs`, PostgreSQL or MySQL.
+Node.js `>=18.10.0`, Bun, Electron and NW.js. The engine has no native code. The directory backend runs on the databases
+of `lakutata/orm`, with what their drivers require in Electron and Bun ([Database Drivers](DatabaseDrivers.md)): in Bun,
+where better-sqlite3 does not load, it runs on `sqljs`, PostgreSQL or MySQL.
 
 ## Exceptions
 
-The components throw the exceptions of the engine (section 17 of LDAP Engine): a result that is not a success throws
-an `LDAPResultException` subclass named after its result code (`LDAPInvalidCredentialsException`,
+The components throw the engine's exceptions (section 17 of LDAP Engine): a result that is not a success throws an
+`LDAPResultException` subclass named after its result code (`LDAPInvalidCredentialsException`,
 `LDAPNoSuchObjectException`…), a lost connection an `LDAPConnectionException`, an operation that takes too long an
-`LDAPTimeoutException`, and a schema that cannot be loaded stops the server at its start with an
-`LDAPSchemaException`.
+`LDAPTimeoutException`, and if a schema cannot be loaded, the server fails to start with an `LDAPSchemaException`.

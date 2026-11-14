@@ -2,16 +2,16 @@
 
 This example builds a shared shopping list: a web page that everyone in a household opens on a phone or a computer,
 where they all see the same list, add what is missing and remove what they have bought. It starts from the `web-react`
-template, a workspace of two packages: the application, which serves an HTTP API under `/api`, and a React page, built
-by Vite, which calls it. The example shows how the page reaches the API: through the Vite dev server during
-development, and directly once built, when the application serves the page itself. It also shows how a bundle carries
-the page among its resources, and how to test the API.
+template, a workspace with two packages: the application, which serves an HTTP API under `/api`, and a React page, built
+by Vite, which calls it. The example shows how the page reaches the API: through the Vite dev server during development,
+and directly once built, when the application serves the page itself. It also shows how a bundle carries the page among
+its resources, and how to test the API.
 
 | Method | Route | What it does |
 |---|---|---|
 | `GET` | `/api/items` | Lists the items |
-| `POST` | `/api/items` | Adds an item, `{"name": "Milk"}`, and answers with the list |
-| `DELETE` | `/api/items/:id` | Removes an item, and answers with the list |
+| `POST` | `/api/items` | Adds an item, `{"name": "Milk"}`, and responds with the list |
+| `DELETE` | `/api/items/:id` | Removes an item, and responds with the list |
 | `GET` | `/`, and any other page | The list page: the built `ui` package |
 
 ## 1. Create the project
@@ -24,9 +24,9 @@ rm packages/app/src/middlewares/Authenticate.ts
 ```
 
 The project is a workspace ([Project Structure](../ProjectStructure.md)): `packages/app` is the application, and
-`packages/ui` the React page. The example controller of the template is removed, and so is its middleware
-`Authenticate.ts`, which asks for a token that a page in a browser cannot keep secret. Anyone who can reach the
-application can use the list, which is fine on a home network; section 11 says what to do elsewhere.
+`packages/ui` the React page. The template's example controller is removed, and so is its `Authenticate.ts` middleware,
+which asks for a token that a page in a browser cannot keep secret. Anyone who can reach the application can use the
+list, which is acceptable on a home network; section 11 describes what to do elsewhere.
 
 ## 2. The list
 
@@ -111,7 +111,7 @@ Each action validates its input with a DTO, and refuses invalid input ([DTO and 
 
 - the schemas are strict: `.trim()` alone would refuse `'  Bread  '`. With `.strict(false)`, it removes the spaces, and
   a name made of spaces only is refused as empty;
-- the `:id` of the route is text: `.strict(false)` converts `'1'` to the number 1.
+- the route's `:id` is text: `.strict(false)` converts `'1'` to the number 1.
 
 ## 4. The controller
 
@@ -164,9 +164,9 @@ export class ItemController extends Controller {
 ```
 
 - `@Prefix({route: '/api/items'})` puts the actions under `/api/items` ([HTTP](../HTTP.md)). Keeping the API under
-  `/api` leaves the other paths to the pages of the application (section 5).
-- `@Inject('list')` gives the controller the `list` component of the options.
-- `POST` and `DELETE` answer with the whole list, so the page can show it at once, including the changes made by
+  `/api` leaves the other paths to the application's pages (section 5).
+- `@Inject('list')` injects the `list` component declared in the options into the controller.
+- `POST` and `DELETE` respond with the whole list, so the page can show it immediately, including changes made by
   others.
 - Removing an item that is already removed is not an error: two people may remove the same item at the same time.
 
@@ -232,17 +232,16 @@ export function config(port: number = Number(process.env.PORT ?? 8080)): Applica
 }
 ```
 
-This is the `Config.ts` of the template, with the `list` component, the `ItemController` instead of the example
-controller, and without the `authenticate` middleware. The code that serves the page comes from the template:
+This is the template's `Config.ts`, with the `list` component, the `ItemController` instead of the example controller,
+and without the `authenticate` middleware. The code that serves the page comes from the template:
 
-- `fallback` answers the requests that match no action route (`/api/…` and `/health`). `staticUI()` sends the files of
-  the built page, and its `index.html` for any page path, which the page's own router then handles
-  ([HTTP](../HTTP.md)).
-- `uiDirectory()` finds the built page: among the resources of a packed application (`resourcesPath()`, section 11),
-  otherwise in the `dist` directory of the `ui` package. Before the page is built, there is no fallback: in
-  development, Vite serves the page.
-- `jsonEnvelope({errorStatus: 200})` sends both the results and the errors as `{errno, errMsg, data}` with the status
-  200: the page tells them apart by their `errno`.
+- `fallback` responds to requests that match no action route (`/api/…` and `/health`). `staticUI()` sends the built
+  page's files, and its `index.html` for any page path, which the page's own router then handles ([HTTP](../HTTP.md)).
+- `uiDirectory()` finds the built page: among a packed application's resources (`resourcesPath()`, section 11),
+  otherwise in the `ui` package's `dist` directory. Before the page is built, there is no fallback: in development, Vite
+  serves the page.
+- `jsonEnvelope({errorStatus: 200})` sends both results and errors as `{errno, errMsg, data}` with status 200: the page
+  distinguishes them by their `errno`.
 
 ## 6. The calls to the API
 
@@ -282,10 +281,10 @@ export const addItem = (name: string): Promise<Item[]> => request('POST', '/item
 export const removeItem = (id: number): Promise<Item[]> => request('DELETE', `/items/${id}`)
 ```
 
-The page calls the API by its path only (`/api/items`), so the requests go to the origin the page came from: the Vite
-dev server during development, the application once built. The address of the API is configured nowhere, and the
-browser makes no cross-origin request, which would need CORS. `request()` returns the `data` of the envelope, or throws
-its error, whose message the page shows, such as `"name" is not allowed to be empty`.
+The page calls the API by its path only (`/api/items`), so requests go to the origin the page came from: the Vite dev
+server during development, the application once built. The API's address is configured nowhere, and the browser makes no
+cross-origin requests, which would need CORS. `request()` returns the envelope's `data`, or throws its error, whose
+message the page shows, such as `"name" is not allowed to be empty`.
 
 ## 7. The page
 
@@ -349,8 +348,8 @@ export function App() {
 ```
 
 - `show()` shows the list that the API returns, or its error.
-- The list is loaded when the page opens, then every 5 seconds, so the items added or removed on other phones appear.
-- The `main.tsx` of the template, which renders `App`, does not change.
+- The list is loaded when the page opens, then every 5 seconds, so items added or removed on other phones appear.
+- The template's `main.tsx`, which renders `App`, does not change.
 
 ## 8. Run it
 
@@ -358,10 +357,10 @@ export function App() {
 npm run dev
 ```
 
-This runs the `dev` scripts of both packages at once ([Workspaces](../Workspaces.md)): the application is built and
+This runs the `dev` scripts of both packages in parallel ([Workspaces](../Workspaces.md)): the application is built and
 listens on port 8080, and Vite serves the page from its sources on http://localhost:5173, reloading it in the browser
-when they change. Open http://localhost:5173. The `vite.config.ts` of the template forwards the requests under `/api`
-to the application:
+when they change. Open http://localhost:5173. The template's `vite.config.ts` forwards requests under `/api` to the
+application:
 
 ```typescript
 server: {
@@ -371,7 +370,7 @@ server: {
 }
 ```
 
-So the API can also be called through Vite, the way the page calls it:
+The API can therefore also be called through Vite, the way the page calls it:
 
 ```bash
 curl -X POST localhost:5173/api/items -H 'Content-Type: application/json' -d '{"name": "Milk"}'
@@ -388,14 +387,14 @@ curl -i -X POST localhost:5173/api/items -H 'Content-Type: application/json' -d 
 # {"errno":"E_INVALID_VALUE","errMsg":"\"name\" is not allowed to be empty","data":null}
 ```
 
-Changes to the page show at once. Changes to the application need `npm run dev` again, as its `dev` script builds it,
-then starts it. If `npm run build` has run before, the application also serves the page of that build on port 8080;
-during development, use the page from Vite, which is up to date.
+Changes to the page appear immediately. Changes to the application need `npm run dev` again, because its `dev` script
+builds it, then launches it. If `npm run build` has run before, the application also serves that build's page on port
+8080; during development, use the page from Vite, which is up to date.
 
 ## 9. Test it
 
-The test of the template is replaced by a test of the list. It starts the application on its own port, calls the API,
-then requests the page:
+The template's test is replaced by a test of the list. It launches the application on its own port, calls the API, then
+requests the page:
 
 **`packages/app/src/tests/App.spec.ts`**
 
@@ -471,8 +470,8 @@ app │ ℹ pass 3
 ✔ test ran in app
 ```
 
-`npm test` builds the packages first, so the built page is there for the last test. The tests cover the API, not the
-React code; `npm run typecheck -w ui` checks the types of the page, which the Vite build does not.
+`npm test` builds the packages first, so the built page is available for the last test. The tests cover the API, not the
+React code; `npm run typecheck -w ui` checks the page's types, which the Vite build does not.
 
 ## 10. Build it
 
@@ -488,15 +487,15 @@ app │ > tsc
 ✔ rebuild ran in ui, app
 ```
 
-The `ui` package is built first, as the application depends on it (`"ui": "^0.0.1"` in its `package.json`): Vite
+The `ui` package is built first, because the application depends on it (`"ui": "^0.0.1"` in its `package.json`): Vite
 writes the page into `packages/ui/dist`, then `tsc` compiles the application into `packages/app/build`.
 
 ```bash
 npm start
 ```
 
-The application now serves both the API and the page, from one process and one port: http://localhost:8080. It
-listens on all interfaces, so the phones on the network open the page at the computer's address, on port 8080.
+The application now serves both the API and the page, from one process and one port: http://localhost:8080. It listens
+on all interfaces, so phones on the network open the page at the computer's address, on port 8080.
 
 ```bash
 curl -i localhost:8080/ -H 'Accept: text/html'
@@ -515,12 +514,12 @@ curl -I localhost:8080/assets/index-D0SES_81.js
 # Content-Type: text/javascript; charset=utf-8
 ```
 
-Browsers check `index.html` again on each request, and keep the scripts for a year, as their names hold a hash of
-their content: a new build shows up at once.
+Browsers check `index.html` again on each request, and keep the scripts for a year, because their names contain a hash
+of their content. A new build therefore appears immediately.
 
 ## 11. Package it
 
-The `package.json` of the application, from the template, declares the built page as a resource:
+The application's `package.json`, from the template, declares the built page as a resource:
 
 ```json
 "lakutata": {
@@ -533,7 +532,7 @@ The `package.json` of the application, from the template, declares the built pag
 }
 ```
 
-A packed application carries its resources, and `resourcesPath()` gives their directory, where `uiDirectory()`
+A packed application carries its resources, and `resourcesPath()` returns their directory, where `uiDirectory()`
 (section 5) finds the page ([Packaging](../Packaging.md)). A bundle, for example:
 
 ```bash
@@ -551,11 +550,11 @@ npx lakutata package bundle
 `dist/app.cjs` and `dist/app.resources` are the whole application: copy them together to a machine with Node.js, and
 `node app.cjs` serves the API and the page, without `node_modules`.
 
-- `npm run docker:build` builds the image of the application with the `Dockerfile` of the template, page included.
+- `npm run docker:build` builds the application's image, including the page, with the template's `Dockerfile`.
 - The list is lost when the application stops: keep it in a database, as in
   [A REST API with a database](RestAPI.md).
 - Anyone who can reach the application can change the list. Outside a home network, put it behind a reverse proxy that
-  asks for a login, or authenticate the users in a middleware ([Middlewares and Access Control](../Middlewares.md)).
+  asks for a login, or authenticate users in a middleware ([Middlewares and Access Control](../Middlewares.md)).
 
 <!--
 check:

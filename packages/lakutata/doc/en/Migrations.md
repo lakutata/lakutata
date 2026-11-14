@@ -1,8 +1,9 @@
 # Lakutata Migrations
 
-`synchronize: true` changes the tables to match the entities each time the database connects: handy in development, but
-unsafe in production, where a renamed column would be dropped with its data. In production the schema changes through
-**migrations**: classes that each make one change, run in order, and recorded in the database so that each runs once.
+`synchronize: true` changes the tables to match the entities each time the database connects. This is convenient in
+development but unsafe in production, where a renamed column would be dropped with its data. In production, the schema
+changes through **migrations**: classes that each make one change, run in order, and are recorded in the database so
+that each one runs once.
 
 ## 1. A migration
 
@@ -24,10 +25,10 @@ export class AddBookAuthor1792161460658 implements MigrationInterface {
 }
 ```
 
-- The name of a migration ends with a timestamp in milliseconds (13 digits): the migrations run in the order of their
-  timestamps. Two migrations with the same name are an error.
-- The `migrations` option of the database lists them: the classes, or globs of their compiled files, relative to the
-  working directory.
+- A migration's name ends with a timestamp in milliseconds (13 digits): migrations run in timestamp order. Two
+  migrations with the same name are an error.
+- The database's `migrations` option lists them: the classes, or globs of their compiled files, relative to the working
+  directory.
 
   ```typescript
   import {buildDatabaseOptions} from 'lakutata/com/database'
@@ -40,12 +41,12 @@ export class AddBookAuthor1792161460658 implements MigrationInterface {
   })
   ```
 
-- The migrations run are recorded in a table named `migrations` (`migrationsTableName` changes its name). A
+- Migrations that have run are recorded in a table named `migrations` (`migrationsTableName` changes its name). A
   migration is run once, even if its timestamp is older than the last one run.
 
 ## 2. The `lakutata` command
 
-The projects created by `lakutata` have scripts for the migrations:
+Projects created by `lakutata` have migration scripts:
 
 ```bash
 npm run migration:generate          # a migration of the changes of the entities
@@ -59,30 +60,30 @@ They call `lakutata migration <action>`:
 
 | Option | Default | Meaning |
 |---|---|---|
-| `--dir` | `src/migrations` | The directory of the migrations written (`generate`, `create`) |
-| `--script` | `dev` | The npm script that builds and starts the application |
-| `--database` | Every database | The database of the command; required to revert with several databases |
-| `--transaction` | The `migrationsTransactionMode` of the database | `all`, `each` or `none` (section 6) |
+| `--dir` | `src/migrations` | The directory where migrations are written (`generate`, `create`) |
+| `--script` | `dev` | The npm script that builds and runs the application |
+| `--database` | Every database | The database the command works on; required to revert when there are several databases |
+| `--transaction` | The database's `migrationsTransactionMode` | `all`, `each` or `none` (section 6) |
 | `--fake` | `false` | Record the migrations as run (or reverted) without running them |
-| `--package` | The current directory | The package of the workspace to run the command in |
+| `--package` | The current directory | The workspace package to run the command in |
 
-`create` writes an empty migration without starting the application. The other actions run the npm script of the
-application with the environment variables of section 3: the application itself does the command.
+`create` writes an empty migration without running the application. The other actions run the application's npm script
+with the environment variables listed in section 3: the application itself executes the command.
 
 ## 3. The commands of the application
 
-An application started with one of these environment variables does the command instead of launching: it reads its
-options, connects to its databases, does the command, and exits. Its `bootstrap` and its `onLaunched` handlers do not
-run, and no server starts.
+When an application is run with one of these environment variables, it executes the command instead of launching: it
+reads its options, connects to its databases, executes the command, and exits. Its `bootstrap` and its `onLaunched`
+handlers do not run, and no server starts.
 
 | Variable | Command |
 |---|---|
-| `MIGRATION_GENERATE=<directory>` | Write a migration of the differences between the entities and the tables (section 4) |
+| `MIGRATION_GENERATE=<directory>` | Write a migration for the differences between the entities and the tables (section 4) |
 | `MIGRATION_RUN=1` | Run the pending migrations |
 | `MIGRATION_REVERT=1` | Revert the last migration run |
-| `MIGRATION_SHOW=1` | List the migrations of the options, run (`[X]`) and pending (`[ ]`) |
-| `MIGRATION_DATABASE=<name>` | The database of the command: the name of its component or provider (every database by default) |
-| `MIGRATION_TRANSACTION=all\|each\|none` | The transactions of `MIGRATION_RUN` and `MIGRATION_REVERT` (section 6) |
+| `MIGRATION_SHOW=1` | List the migrations in the options, run (`[X]`) and pending (`[ ]`) |
+| `MIGRATION_DATABASE=<name>` | The database the command works on: its component or provider name (every database by default) |
+| `MIGRATION_TRANSACTION=all\|each\|none` | How `MIGRATION_RUN` and `MIGRATION_REVERT` use transactions (section 6) |
 | `MIGRATION_FAKE=1` | Record the migrations as run (or reverted) without running them |
 
 ```text
@@ -95,15 +96,15 @@ $ MIGRATION_REVERT=1 node build/App.js
 [db] Migration Migrations1792161460658 has been reverted
 ```
 
-- A flag is set by `1`, `true` or `yes`: `MIGRATION_RUN=0` starts the application as usual.
-- The commands work on the `Database` components and providers declared at the top of the options (`components`,
-  `providers`), each named by its key.
-- The exit code is 0 when the command succeeded, 1 when it failed. With several databases, `MIGRATION_REVERT` needs
+- A flag is set by `1`, `true` or `yes`: `MIGRATION_RUN=0` launches the application as usual.
+- The commands work on the `Database` components and providers declared at the top level of the options
+  (`components`, `providers`), each named by its key.
+- The exit code is 0 when the command succeeds and 1 when it fails. With several databases, `MIGRATION_REVERT` requires
   `MIGRATION_DATABASE`.
 
 ## 4. Generating a migration
 
-`MIGRATION_GENERATE` compares the entities with the tables of the database, and writes the SQL of the differences as a
+`MIGRATION_GENERATE` compares the entities with the database's tables, and writes the SQL for the differences as a
 migration:
 
 ```text
@@ -139,21 +140,23 @@ export class Migrations1792161460658 implements MigrationInterface {
 - The database must be reachable, and up to date with the migrations already written: the differences are computed
   from its tables.
 - The file is `<directory>/<timestamp>-<database name>.ts`, a TypeScript class named after the directory
-  (`src/migrations` gives `Migrations<timestamp>`). Build it with the application: the `migrations` option lists the
+  (`src/migrations` produces `Migrations<timestamp>`). Build it with the application: the `migrations` option lists the
   compiled files.
-- Read the migration before running it: a renamed property becomes a column dropped and a column added, with the data
-  of the old one lost. Edit the SQL when needed.
-- When nothing changed, the command writes nothing, says so (`No changes in database schema were found`) and exits with
-  the code 0.
-- With several databases, each database whose tables differ gets its own file. Give each database a `migrations` option
-  that lists only its own files (`'build/migrations/*-db.js'`), or the databases would run each other's migrations.
+- Read the migration before running it: a renamed property becomes a dropped column and an added column, and the old
+  column's data is lost. Edit the SQL when needed.
+- When nothing has changed, the command writes nothing, reports it (`No changes in database schema were found`) and
+  exits with code 0.
+- With several databases, each database whose tables differ receives its own file. Set each database's `migrations`
+  option to list only its own files (`'build/migrations/*-db.js'`); otherwise the databases would run each other's
+  migrations.
 
 ## 5. Running the migrations at startup
 
 Instead of a command, the database can run its pending migrations each time it connects, with `migrationsRun: true`.
 The order is then: `dropSchema` (if set), the migrations, then `synchronize` (if set).
 
-- The `Database` component connects once: listed in `bootstrap`, it runs the migrations while the application launches.
+- The `Database` component connects once: when it is listed in `bootstrap`, it runs the migrations while the
+  application launches.
 - The `Database` provider connects each time it is resolved, so it checks the migrations each time.
 
 The component and the provider also have the methods `runMigrations({transaction, fake})`,
@@ -161,7 +164,7 @@ The component and the provider also have the methods `runMigrations({transaction
 
 ## 6. Transactions
 
-`migrationsTransactionMode`, an option of the database, or `MIGRATION_TRANSACTION` for one command:
+`migrationsTransactionMode`, a database option, or `MIGRATION_TRANSACTION` for a single command:
 
 | Mode | The pending migrations run… |
 |---|---|
@@ -169,16 +172,16 @@ The component and the provider also have the methods `runMigrations({transaction
 | `each` | Each in its own transaction: a failure keeps the migrations run before it |
 | `none` | Without a transaction |
 
-- A migration can set its own `transaction` property (`true` or `false`) in the modes `each` and `none`; in the mode
-  `all`, this is an error.
-- PostgreSQL and SQLite run the changes of the schema inside transactions. MySQL and MariaDB commit each change of the
-  schema at once: a failed migration can leave part of its changes applied.
+- A migration can set its own `transaction` property (`true` or `false`) in the `each` and `none` modes; in the `all`
+  mode, this is an error.
+- PostgreSQL and SQLite run schema changes inside transactions. MySQL and MariaDB commit each schema change immediately:
+  a failed migration can leave part of its changes applied.
 
 ## 7. MongoDB
 
-The MongoDB databases (`mongodb`, `mongo-embedded`) have no schema to compare: `MIGRATION_GENERATE` writes nothing for
-them, and their migrations are written by hand. `queryRunner.query()` is not supported; the entity manager of MongoDB
-does the work:
+MongoDB databases (`mongodb`, `mongo-embedded`) have no schema to compare: `MIGRATION_GENERATE` writes nothing for them,
+and their migrations are written manually. `queryRunner.query()` is not supported; the MongoDB entity manager does the
+work:
 
 ```typescript
 import type {MigrationInterface, MongoEntityManager, QueryRunner} from 'lakutata/orm'
@@ -198,5 +201,5 @@ export class RenameTitle1792161460700 implements MigrationInterface {
 }
 ```
 
-MongoDB runs them without transactions: a failed migration leaves the migrations run before it, and its own changes made
-before the failure.
+MongoDB runs them without transactions: a failed migration leaves in place the migrations run before it, and the changes
+it made before the failure.

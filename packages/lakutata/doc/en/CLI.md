@@ -1,8 +1,8 @@
 # Lakutata Command Line
 
-The command line adapter turns the controller actions marked with `@CLIAction` into the commands of a command line
-tool. It is built on [Commander](https://github.com/tj/commander.js). Install `commander` (version 12 to 15) next to
-`lakutata`, and `@inquirer/prompts` (version 7 or 8) if the tool should ask for missing values:
+The command-line adapter turns controller actions marked with `@CLIAction` into the commands of a command-line tool. It
+is built on [Commander](https://github.com/tj/commander.js). Install `commander` (version 12 to 15) next to `lakutata`,
+and `@inquirer/prompts` (version 7 or 8) if the tool should prompt for missing values:
 
 ```bash
 npm install commander @inquirer/prompts
@@ -64,13 +64,13 @@ What happens:
 3. The result goes to stdout, an error to stderr.
 4. The application stops and the process exits with code 0 if the command succeeded, 1 if it failed.
 
-`bin` is the name of the program in the help. Without it, the adapter takes the name of the script file, which is
-`index` for `node dist/index.js`.
+`bin` is the program's name in the help. Without it, the adapter uses the script file's name, which is `index` for
+`node dist/index.js`.
 
 ## 2. Commands and arguments
 
 `@CLIAction(command, DTO?, options?)` (from `lakutata/decorator/ctrl`) declares a command. The `command` string is the
-name of the command followed by its arguments, in the syntax of Commander:
+command's name followed by its arguments, in Commander's syntax:
 
 | Syntax | Meaning |
 |---|---|
@@ -78,13 +78,13 @@ name of the command followed by its arguments, in the syntax of Commander:
 | `[name]` | An optional argument |
 | `<files...>` | One or more arguments, collected in an array (`[files...]`: zero or more) |
 
-Each argument goes to the DTO property of the same name, converted to the type of the property. Extra arguments are an
+Each argument goes to the DTO property with the same name, converted to the property's type. Extra arguments are an
 error.
 
-**Groups.** The words before the name of the command are groups. `@CLIAction('file copy <files...>', CopyDTO)` is the
-command `copy` of the group `file`, run as `tool file copy a.txt b.txt`. Groups can be nested (`'pack linux deb'`). The
-`groups` option of the adapter describes them in the help, and `tool file --help` lists the commands of a group. The
-help of a tool with the command `greet` and the group `file`:
+**Groups.** The words before the command's name are groups. `@CLIAction('file copy <files...>', CopyDTO)` is the `copy`
+command in the `file` group, run as `tool file copy a.txt b.txt`. Groups can be nested (`'pack linux deb'`). The
+adapter's `groups` option describes them in the help, and `tool file --help` lists a group's commands. The help of a
+tool with the `greet` command and the `file` group:
 
 ```text
 $ tool --help
@@ -102,18 +102,18 @@ Commands:
   help [command]          display help for command
 ```
 
-**Help text.** The `description` action option is the line of the command in the help. Without it, the help shows the
-name of the action (`ToolController:greet`).
+**Help text.** The `description` action option is the command's line in the help. Without it, the help shows the
+action's name (`ToolController:greet`).
 
 **Prefixes.** `@Prefix({command: 'user'})` on a controller joins the prefix to each of its commands with a colon:
-`@CLIAction('get <id>')` becomes `tool user:get 42`. The prefix is part of the name of the command, not a group.
+`@CLIAction('get <id>')` becomes `tool user:get 42`. The prefix is part of the command's name, not a group.
 
 ## 3. Options
 
-The other properties of the DTO are options. An option is named after its property in kebab case (`keepTimes` gives
-`--keep-times`), and the type of the property decides its form:
+The DTO's other properties are options. An option is named after its property in kebab case (`keepTimes` becomes
+`--keep-times`), and the property's type determines its form:
 
-| Type of the property | Option | Example |
+| Property type | Option | Example |
 |---|---|---|
 | boolean | A flag | `--loud` |
 | boolean whose default is `true` | A flag and its negation | `--keep-times`, `--no-keep-times` |
@@ -123,8 +123,8 @@ The other properties of the DTO are options. An option is named after its proper
 | object | A JSON value | `--filter '{"active":true}'` |
 | anything else | A string | `--mode fast` |
 
-The help shows the `.description()` of each property, its default and its allowed values (`.valid()`). A value outside
-the allowed list, or text where a number is expected, is refused before the action runs:
+The help shows each property's `.description()`, default and allowed values (`.valid()`). A value outside the allowed
+list, or text where a number is expected, is refused before the action runs:
 
 ```text
 $ tool file copy --help
@@ -143,25 +143,25 @@ $ tool file copy a.txt --mode slow
 error: option '--mode <value>' argument 'slow' is invalid. Allowed choices are "fast", "safe".
 ```
 
-- A required property without a default must be given, unless the tool asks for it (see section 5).
-- The options have no short form such as `-m`.
-- A command without a DTO accepts no option, and its arguments reach the action as strings.
+- A required property without a default must be provided, unless the tool prompts for it (see section 5).
+- Options have no short form such as `-m`.
+- A command without a DTO accepts no options, and its arguments reach the action as strings.
 
-The DTO then validates the input as for any action: its defaults are applied and the unknown keys removed (see
+The DTO then validates the input as for any action: its defaults are applied and unknown keys are removed (see
 [DTO Validation](DTOValidation.md)).
 
 ## 4. Output and exit codes
 
-The value returned by the action is written to stdout:
+The action's return value is written to stdout:
 
 | Value returned | Output |
 |---|---|
 | A string | The string, with a final line break added if it has none |
 | `null`, `undefined` | Nothing |
-| A `Uint8Array` (a `Buffer`) | The bytes as they are |
+| A `Uint8Array` (a `Buffer`) | The bytes, unchanged |
 | Any other value | Indented JSON |
-| `Result.file(path)` (or a `Buffer`, or a stream) | The content of the file |
-| `Result.events(producer)` | The data of each event, as it is sent |
+| `Result.file(path)` (or a `Buffer`, or a stream) | The file's content |
+| `Result.events(producer)` | Each event's data, as it is sent |
 | `Result.status(status, data)` | The data only |
 
 `Result` comes from `lakutata/com/entrypoint`. The `format` option replaces this formatting: it receives each result
@@ -172,7 +172,7 @@ Where the messages go, and the exit code:
 | Situation | Output | Exit code |
 |---|---|---|
 | The command succeeded | The result, on stdout | 0 |
-| The action, a middleware, the validation or the access control failed | `error: <message>` on stderr | 1 |
+| The action, a middleware, validation or access control failed | `error: <message>` on stderr | 1 |
 | An unknown command, a missing argument, an invalid value, extra arguments | Commander's message on stderr | 1 |
 | `--help`, `--version` | stdout | 0 |
 | No command at all | The help on stderr | 1 |
@@ -189,9 +189,9 @@ Inside the action, `this.context` is a `CLIContext`: its `command` is the comman
 
 ## 5. Prompts
 
-When the tool runs in a terminal and `@inquirer/prompts` is installed, it asks for the missing values instead of
-failing. It asks for each required property that has no value and no default, one after another. A missing required
-argument (`<name>`) is not asked for: it is an error.
+When the tool runs in a terminal and `@inquirer/prompts` is installed, it prompts for missing values instead of failing.
+It prompts for each required property that has no value and no default, one after another. A missing required argument
+(`<name>`) is not prompted for: it is an error.
 
 | Property | Prompt |
 |---|---|
@@ -200,15 +200,15 @@ argument (`<name>`) is not asked for: it is an error.
 | An array of allowed values | A list of check boxes |
 | number | A number |
 | Named like a password, a secret, a token, an API key or a credential | A hidden input, shown as `*` |
-| Anything else | A text; an array as values separated by commas, an object as JSON |
+| Anything else | Text input; an array as comma-separated values, an object as JSON |
 
-Each answer is checked against the schema of its property at once: an invalid answer shows the error and the question
-is asked again. The question is the `.description()` of the property, followed by its name.
+Each answer is checked against its property's schema immediately: an invalid answer shows the error and the question is
+asked again. The question is the property's `.description()`, followed by its name.
 
-The `interactive` option decides when the tool asks:
+The `interactive` option determines when the tool prompts:
 
-- `'auto'` (the default): when stdin and stdout are both a terminal. When the input or the output is piped, as in a
-  script, a missing value is an error instead of a question.
+- `'auto'` (the default): when stdin and stdout are both terminals. When the input or output is piped, as in a script, a
+  missing value is an error instead of a prompt.
 - `true`: always, as long as `@inquirer/prompts` is installed.
 - `false`: never.
 
@@ -216,24 +216,24 @@ The `interactive` option decides when the tool asks:
 
 | Option | Default | Meaning |
 |---|---|---|
-| `bin` | The name of the script file | The name of the program in the help |
-| `description` | | The description of the program in the help |
+| `bin` | The script file's name | The program's name in the help |
+| `description` | | The program's description in the help |
 | `version` | | Adds `-V, --version`, which prints it |
-| `groups` | | The descriptions of the groups: `{file: 'Work on files', 'pack linux': 'Linux packages'}` |
+| `groups` | | Group descriptions: `{file: 'Work on files', 'pack linux': 'Linux packages'}` |
 | `argv` | `process.argv.slice(2)` | The arguments to read |
-| `interactive` | `'auto'` | When to ask for the missing values (see section 5) |
-| `stdin`, `stdout`, `stderr` | The streams of the process | Where the prompts read, and where the results and the errors are written |
-| `format` | See section 4 | Turns a result into the text or the bytes to write |
+| `interactive` | `'auto'` | When to prompt for missing values (see section 5) |
+| `stdin`, `stdout`, `stderr` | The process's streams | Where prompts read from, and where results and errors are written |
+| `format` | See section 4 | Turns a result into the text or bytes to write |
 | `noCommand` | `'help'` | Without arguments: `'help'` writes the help and exits with code 1, `'ignore'` runs nothing and leaves the application running |
-| `exit` | `'application'` | After the command: `'application'` stops the application and exits with the code of the command, `'process'` only sets `process.exitCode`, `'none'` does nothing, and a function receives the code |
+| `exit` | `'application'` | After the command: `'application'` stops the application and exits with the command's exit code, `'process'` only sets `process.exitCode`, `'none'` does nothing, and a function receives the code |
 | `configure` | | `(program) => void`, called with the Commander program once the commands are added, before the arguments are read: global options, hooks |
 | `translate` | | Translates the help and the prompts (see [Internationalization (i18n)](I18n.md#help-and-prompts-of-a-command-line-tool)) |
-| `middlewares` | | The middlewares of the commands of this adapter, run after the ones of the entrypoint |
-| `name` | | The name of the adapter, to tell several apart |
+| `middlewares` | | Middlewares for this adapter's commands, run after the entrypoint's |
+| `name` | | The adapter's name, to distinguish several adapters |
 
 ## 7. Commands in a server application
 
-An application can serve HTTP and also provide commands. By default, though, the command line adapter stops the
+An application can serve HTTP and also provide commands. By default, however, the command-line adapter stops the
 application after its command, and without arguments it writes the help and exits. To start the server when the
 application runs without arguments, and to run a command otherwise, set `noCommand: 'ignore'`:
 

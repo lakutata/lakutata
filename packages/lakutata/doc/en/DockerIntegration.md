@@ -3,29 +3,29 @@
 The **Docker component** (`lakutata/com/docker`, package `@lakutata/docker`) drives a Docker daemon over the Docker
 Engine API, without the Docker CLI: it pulls, builds (with BuildKit), imports, exports, tags and pushes images, creates,
 runs and manages containers (exec, interactive TTYs, logs, stats, commit, file export) and manages networks. It
-connects to a local socket, or to a remote daemon over HTTP, HTTPS or SSH. The README of `@lakutata/docker` and the
-typings of `lakutata/com/docker` give every option.
+connects to a local socket, or to a remote daemon over HTTP, HTTPS or SSH. The `@lakutata/docker` README and the
+`lakutata/com/docker` type declarations describe every option.
 
-The component is not preset: declare it in the `components` of the application. For a machine running containerd
+The component is not preset: declare it in the application's `components`. For a machine running containerd
 without Docker (embedded Linux devices), see [Containerd Integration](ContainerdIntegration.md).
 
 ## 1. Requirements and connections
 
 The component needs a Docker daemon (Docker Engine or Docker Desktop, Engine API 1.41 or newer) reachable from the
-application. The SSH connections use the optional peer dependency `ssh2` (`npm install ssh2`) and the Docker CLI on the
+application. SSH connections use the optional peer dependency `ssh2` (`npm install ssh2`) and the Docker CLI on the
 remote host.
 
 | Connection | Options |
 |---|---|
-| The Docker of the environment (default) | none: `DOCKER_HOST`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH`, `DOCKER_CLIENT_TIMEOUT`, else the local socket |
+| The environment's Docker (default) | none: `DOCKER_HOST`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH`, `DOCKER_CLIENT_TIMEOUT`, otherwise the local socket |
 | Unix socket / Windows named pipe | `socketPath` (`buildDockerSocketConnectionOptions`) |
 | TCP, plain HTTP | `host`, `port` (`buildDockerHttpConnectionOptions`) |
 | TCP, HTTPS | `host`, `port`, `ca`, `cert`, `key` as PEM contents (`buildDockerHttpsConnectionOptions`) |
 | SSH | `host`, `port`, `username`, `sshAuthAgent` (`buildDockerSSHConnectionOptions`) |
 
-When it is created, the component pings the daemon and negotiates the API version: an unreachable daemon makes its
-creation fail with `DockerConnectionException`; when the component is listed in `bootstrap`, the application then fails
-to start. `timeout` (milliseconds) is how long a request may stay idle.
+When it is created, the component pings the daemon and negotiates the API version. If the daemon is unreachable, the
+component's creation fails with `DockerConnectionException`; when the component is listed in `bootstrap`, the launch
+then fails. `timeout` (milliseconds) is how long a request may stay idle.
 
 ```typescript
 import {readFileSync} from 'node:fs'
@@ -130,8 +130,8 @@ async function images(docker: Docker): Promise<void> {
 }
 ```
 
-- `getImage()` resolves the names as the daemon does: the full or short ID, `alpine` for `alpine:latest`, a digest.
-- `prune()` without options prunes the stopped containers and the dangling images; the unused networks and anonymous
+- `getImage()` resolves names as the daemon does: the full or short ID, `alpine` for `alpine:latest`, a digest.
+- Without options, `prune()` prunes stopped containers and dangling images; it prunes unused networks and anonymous
   volumes only when asked (`networks: true`, `volumes: true`).
 
 ## 4. Containers
@@ -184,15 +184,16 @@ async function containers(docker: Docker): Promise<void> {
 }
 ```
 
-- A `DockerContainer` is a snapshot: its operations refresh it; the changes made by others are seen by getting it
-  again (`docker.getContainer(id)`, which also takes a name or a short ID).
+- A `DockerContainer` is a snapshot: its operations refresh it, and changes made by others become visible when you
+  obtain it again (`docker.getContainer(id)`, which also takes a name or a short ID).
 - Starting a running container, or stopping a stopped one, does nothing, as with the Docker CLI.
-- `exec()` runs without a TTY or stdin. An array command runs as it is; a string is a command line, run by
+- `exec()` runs without a TTY or stdin. An array command runs unchanged; a string is a command line, run by
   `/bin/sh -c`.
-- `kill()` sends `SIGKILL` by default, or the signal given.
-- `commit()` makes an image of a container, `exportDirectory()` writes a directory of a container as a tar archive.
-- Not provided: attaching to the main process, copying files into a container, managing the volumes (other than pruning
-  them) and the events of the daemon.
+- `kill()` sends `SIGKILL` by default, or the specified signal.
+- `commit()` creates an image from a container; `exportDirectory()` writes one of a container's directories as a tar
+  archive.
+- Not provided: attaching to the main process, copying files into a container, managing volumes (other than pruning
+  them) and daemon events.
 
 ## 5. Networks
 
@@ -215,10 +216,10 @@ async function networks(docker: Docker): Promise<void> {
 
 ## 6. Errors
 
-The exceptions of the component are exported by `lakutata/com/docker`: `DockerConnectionException` (the daemon is
+The component's exceptions are exported by `lakutata/com/docker`: `DockerConnectionException` (the daemon is
 unreachable when the component is created), `DockerContainerNotFoundException`, `DockerImageNotFoundException`,
 `DockerNetworkNotFoundException`, `DockerImagePullException`, `DockerImageBuildException`,
 `DockerImageImportException`, `DockerImagePushException`, `DockerImageRepoTagNotFoundException`, and
-`DockerRequestException` (the daemon refuses a request; its `statusCode` is the HTTP status, 409 for a name already
-used). Invalid options throw `InvalidMethodAcceptException`. When the component is destroyed, the pulls and builds in
+`DockerRequestException` (the daemon refuses a request; its `statusCode` is the HTTP status, 409 for a name already in
+use). Invalid options throw `InvalidMethodAcceptException`. When the component is destroyed, pulls and builds in
 progress are aborted.

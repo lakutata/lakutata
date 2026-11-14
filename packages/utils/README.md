@@ -119,8 +119,8 @@ console.log(Statistics.median(latencies), Statistics.quantile(latencies, 0.9))
 ### Time
 
 A `Time` is an instant in a time zone: `new Time()` is the current time in the default zone (the `TZ` environment
-variable, else the system's zone), and `timezone(name)` gives the same instant in another zone. The methods of `Time`
-never modify the instance: setters and arithmetic return a new `Time`.
+variable, else the system's zone), and `timezone(name)` returns the same instant in another zone. `Time` methods never
+modify the instance: setters and arithmetic return a new `Time`.
 
 #### Time zones
 
@@ -143,13 +143,13 @@ console.log(Time.timezones().includes('Asia/Kolkata'))
 
 A string without an offset, and an array of wall clock fields, are read in the default zone by the constructor, and in
 the instance's zone by its comparisons and `diff()` (`paris.isSame('2024-03-09', 'day')` compares with that day in
-Paris). `timezone()` throws a `RangeError` for a zone that the runtime does not know, and `timezone('')` gives the
-default zone. The methods inherited from `Date` (`getHours()`, `setHours()`…) use the process's time zone, and their
-setters modify the instance: use the `Time` methods instead.
+Paris). `timezone()` throws a `RangeError` for a zone that the runtime does not know, and `timezone('')` returns the
+default zone. Methods inherited from `Date` (`getHours()`, `setHours()`…) use the process's time zone, and their setters
+modify the instance: use the `Time` methods instead.
 
 #### Formatting
 
-`format()` takes moment's format tokens (in English); text in brackets is kept as is.
+`format()` takes moment's format tokens (in English); text in brackets is kept unchanged.
 
 ```typescript
 import {Time} from 'lakutata'
@@ -220,8 +220,8 @@ document every declaration, with examples.
 |---|---|
 | `camelCase` | Convert a string of any case into camelCase |
 | `noCase`, `NoCaseOptions`, `SplitOptions` | Convert a string of any case into lower case words separated by spaces |
-| `templating`, `TemplatingOptions`, `MissingValueError` | Fill the `{key}` and `{{key}}` (HTML-escaped) placeholders of a template |
-| `randomString` | A random string of a given length, from a named or custom character set |
+| `templating`, `TemplatingOptions`, `MissingValueError` | Fill a template's `{key}` and `{{key}}` (HTML-escaped) placeholders |
+| `randomString` | A random string of a specified length, from a named or custom character set |
 | `nonceString` | A random string of 32 letters and digits |
 
 ### Objects and classes
@@ -231,16 +231,16 @@ document every declaration, with examples.
 | `As` | Cast a value to a type, for the type checker only |
 | `cloneDeep` | Deep-copy a value, keeping its classes, collections and circular references |
 | `ObjectPath` | Get, set and test a nested property by its path (`'a.b[0].c'`); paths through a prototype are refused |
-| `getObjectPropertyPaths` | List the paths of the leaf values of an object |
+| `getObjectPropertyPaths` | List the paths to an object's leaf values |
 | `getObjectNestingDepth` | Measure how deeply an object nests |
 | `isEmptyObject` | Whether a value is empty: `null`, `undefined`, an empty `Map` or `Set`, an object without own properties |
-| `objectHash`, `ObjectHashOptions` | Hash a value by its content, whatever the order of its keys |
+| `objectHash`, `ObjectHashOptions` | Hash a value based on its content, regardless of key order |
 | `sortKeys`, `SortKeysOptions` | Copy a plain object with its keys sorted by a comparison function |
 | `sortObject`, `SortObjectOptions` | Copy a plain object with its keys in alphabetical order |
 | `objectToMap` | Convert an object into a map of its properties |
-| `objectConstructor` | The class of an object |
-| `objectPrototype` | The prototype of a class |
-| `objectParentConstructor`, `objectParentConstructors` | The parent class of a class, and all its ancestors |
+| `objectConstructor` | An object's class |
+| `objectPrototype` | A class's prototype |
+| `objectParentConstructor`, `objectParentConstructors` | A class's parent class, and all its ancestors |
 | `isSubclassOf` | Whether a class extends another one |
 
 ### Arrays and sets
@@ -272,7 +272,7 @@ document every declaration, with examples.
 
 | Export | What it is |
 |---|---|
-| `md5`, `sha1`, `sha256` | The digest of a string, as a `Buffer` |
+| `md5`, `sha1`, `sha256` | A string's digest, as a `Buffer` |
 | `MessagePack` | Serialize values to and from MessagePack bytes or strings (a `Map` decodes as an object, a `Set` as an array) |
 | `UUID`, `UUIDTypes`, `UUIDVersion1Options`, `UUIDVersion4Options`, `UUIDVersion6Options` | Generate (v1, v3, v4, v5, v6), validate, parse and stringify UUIDs |
 | `URLBuilder`, `URLAttributes` | Parse a URL of any scheme into its attributes, or build one from them |
@@ -292,7 +292,7 @@ document every declaration, with examples.
 
 ## Errors
 
-The utilities throw standard JavaScript errors, plus one error class of their own; the guards (`is*`) return `false`
+The utilities throw standard JavaScript errors, plus one package-specific error class; the guards (`is*`) return `false`
 instead of throwing.
 
 | Error | Thrown when |
@@ -303,7 +303,7 @@ instead of throwing.
 | `MissingValueError` | `templating()` with a placeholder that has no value, unless `ignoreMissing` is set |
 | `Error` | `objectHash()` with `undefined`, an unknown algorithm or encoding, or an unsupported type (a `Promise`) without `ignoreUnknown`; `MessagePack.encode()` with a function, a symbol, a `Map` key that is neither a string nor a number, or more than 100 levels of nesting; the `Statistics` methods with an array that is empty or too short |
 
-The typings of each helper list the errors it throws.
+Each helper's typings list the errors it throws.
 
 ## See also
 

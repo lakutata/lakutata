@@ -3,9 +3,9 @@
 English | [中文](README.zh-CN.md)
 
 LDAP for Node.js in TypeScript, part of the [Lakutata](https://github.com/lakutata/lakutata) framework, with no native
-code and no dependencies. It holds the protocol (the messages of LDAPv3 and their controls, DNs, search filters, schemas
-and LDIF), a client and a server. It needs no application: the components that bring LDAP into a Lakutata application
-are in `@lakutata/ldap`.
+code and no dependencies. It contains the protocol (LDAPv3 messages and their controls, DNs, search filters, schemas and
+LDIF), a client and a server. It requires no application: the components that bring LDAP into a Lakutata application are
+in `@lakutata/ldap`.
 
 ## Installation
 
@@ -41,24 +41,24 @@ console.log(result.ok ? result.dn : result.reason)
 await client.close()
 ```
 
-- `createLDAPClient()` gives a pool of connections bound as one identity. It opens them when an operation needs one,
-  tries the servers in order (or those of a DNS SRV record), and closes the idle ones. A connection whose server did
-  not answer in time, or answered what cannot be read, gets no more operations and closes once the operations still
-  on it have ended.
-- `connectLDAP()` opens one connection (`ldap://`, `ldaps://`, `ldapi://`, StartTLS) for a session of its own. Its
-  operations take a `timeout` and a `signal`; a search or a write that times out is abandoned on the server and the
-  connection goes on. A bind or StartTLS that times out closes the connection.
-- Searches are paged (500 entries a page) unless `paged: false`, so a server's own limit on a request does not cut
-  them short; `searchIterator()` gives the entries one by one and ends the paging on the server when the loop stops
-  early. `sort` with `window` reads a window of the sorted entries (virtual list view); both controls are sent as
-  critical, so a server that cannot sort or window fails the search rather than giving every entry. The values Active
-  Directory gives in ranges (`member;range=0-1499`) are read to their end.
+- `createLDAPClient()` returns a pool of connections bound as one identity. It opens them when an operation needs one,
+  tries the servers in order (or those listed in a DNS SRV record), and closes idle ones. A connection whose server did
+  not respond in time, or responded with something that cannot be read, receives no more operations and closes once the
+  operations still on it have ended.
+- `connectLDAP()` opens one connection (`ldap://`, `ldaps://`, `ldapi://`, StartTLS) for its own session. Its operations
+  take a `timeout` and a `signal`; a search or a write that times out is abandoned on the server and the connection
+  continues. A bind or StartTLS that times out closes the connection.
+- Searches are paged (500 entries per page) unless `paged: false`, so a server's own limit on a request does not cut
+  them short; `searchIterator()` yields the entries one by one and ends paging on the server when the loop stops early.
+  `sort` with `window` reads a window of the sorted entries (virtual list view); both controls are sent as critical, so
+  on a server that cannot sort or window, the search fails rather than returning every entry. The values Active
+  Directory returns in ranges (`member;range=0-1499`) are read to their end.
 - An entry reads text with `get()` and bytes with `getBuffers()`; `get()` throws on an attribute whose values are bytes
   (`jpegPhoto`, `objectGUID`…), so bytes are never read as text.
-- `authenticate()` finds the user's entry, then binds as the user on a connection of its own: an empty password is
-  refused before anything is sent, and the result says why a bind failed (`invalidCredentials`, `accountLocked`,
-  `passwordExpired`…), read from the password policy control or the data codes of Active Directory. It sends passwords
-  only over TLS (an `ldaps` URL or `startTLS`) or a local `ldapi` socket, unless `requireTLS: false`.
+- `authenticate()` finds the user's entry, then binds as the user on a separate connection: an empty password is refused
+  before anything is sent, and the result states why a bind failed (`invalidCredentials`, `accountLocked`,
+  `passwordExpired`…), read from the password policy control or Active Directory's data codes. It sends passwords only
+  over TLS (an `ldaps` URL or `startTLS`) or a local `ldapi` socket, unless `requireTLS: false`.
 - A result that is not a success throws its exception: `LDAPNoSuchObjectException`, `LDAPInvalidCredentialsException`…
 - `readSchema()` reads the schema a server publishes. `guidToString()`, `sidToString()`, `parseUserAccountControl()`,
   `fileTimeToDate()` and `changeADPassword()` help with Active Directory.
@@ -87,58 +87,57 @@ await server.listen({path: '/run/directory/ldapi', mode: 0o666})
 
 - `createLDAPServer()` serves the entries of its backends, each mounted at its suffix. A backend stores the entries
   (`get()`, `search()`, the writes it supports, and `exists()` when it can tell an entry exists without reading it);
-  the server does the rest: the protocol, StartTLS and LDAPS, the schema checks on every write, the passwords, the
+  the server handles the rest: the protocol, StartTLS and LDAPS, the schema checks on every write, the passwords, the
   access control, the limits, the root DSE and the subschema, and sorting, the virtual list view and paged results
   when the backend does not do them itself (a backend that sorts itself calls `sortSearchItems()` on its own lighter
   records, so it orders and windows as the server would). `MemoryBackend` keeps its entries in memory;
   `createHandlerBackend()` makes a backend from handlers written operation by operation, as ldapjs servers are.
-- The schema: the system schema (the operational attributes and the object classes of the directory itself) always,
-  then the schemas of the `schema` option in order, `DEFAULTS` of `@lakutata/ldap-engine/schemas` by default: core,
-  cosine and inetOrgPerson, the schemas of the RFCs that nearly every server has. The other bundled schemas are added
-  when needed (`[...DEFAULTS, RFC2307BIS]`): rfc2307bis for POSIX accounts and groups, openssh-lpk for SSH public
-  keys, ppolicy for the password policy (the password policy plugin loads it itself). Schemas of one's own are
-  documents read from their files (`readSchemaFile()`, or `readSchemaDirectory()` for a directory, in the order of
-  their names) or the texts of the files. A name or an OID defined twice stops the server at its start.
-- `server.connect({as})` gives a connection in the same process, with the operations of the client: the application
-  reads and writes its directory without the network, through the same schema checks, password hashing and access
-  control as the network requests. It works without `listen()`.
-- `listen({path})` listens on a Unix socket (ldapi) for the clients on the same machine: SSSD 2.9 and later, nslcd,
-  OpenLDAP's tools (`ldapi://%2Frun%2Fdirectory%2Fldapi`). Its connections never leave the machine, so the server takes
-  passwords over them as over TLS, and offers SASL PLAIN there. EXTERNAL stays on TLS:
-  the server cannot tell which user the process at the other end runs as. `mode` decides who may connect (`0o666`:
-  every user of the machine; by default, with the usual umask, the user of the server's process alone). A socket left
-  by a server that stopped is replaced. Unix sockets are not served on Windows.
+- The schema: the system schema (the directory's own operational attributes and object classes) always, then the schemas
+  of the `schema` option in order, `DEFAULTS` of `@lakutata/ldap-engine/schemas` by default (core, cosine and
+  inetOrgPerson, the schemas of the RFCs that nearly every server has). The other bundled schemas are added when needed
+  (`[...DEFAULTS, RFC2307BIS]`): rfc2307bis for POSIX accounts and groups, openssh-lpk for SSH public keys, ppolicy for
+  the password policy (the password policy plugin loads it itself). Custom schemas are documents read from their files
+  (`readSchemaFile()`, or `readSchemaDirectory()` for a directory, in the order of their names) or the texts of the
+  files. The server fails to start if a name or an OID is defined twice.
+- `server.connect({as})` returns a connection in the same process, with the client's operations: the application reads
+  and writes its directory without the network, through the same schema checks, password hashing and access control as
+  network requests. It works without `listen()`.
+- `listen({path})` listens on a Unix socket (ldapi) for clients on the same machine: SSSD 2.9 and later, nslcd,
+  OpenLDAP's tools (`ldapi://%2Frun%2Fdirectory%2Fldapi`). Its connections never leave the machine, so the server
+  accepts passwords over them as over TLS, and offers SASL PLAIN there. EXTERNAL stays on TLS: the server cannot tell
+  which user the process at the other end runs as. `mode` decides who may connect (`0o666`: every user of the machine;
+  by default, with the usual umask, only the user of the server's process). A socket left by a server that stopped is
+  replaced. Unix sockets are not served on Windows.
 - `createDirectory()` manages users, groups and organizational units with LDAP operations, on any connection: the
-  in-process one, the client, or a remote OpenLDAP, as long as its profile fits the schema of the server.
-- Passwords are written as `{PBKDF2-SHA512}`, as the pw-pbkdf2 module of OpenLDAP writes them; a bind also checks the
-  other schemes of OpenLDAP (`{SSHA}`, the SHA-2 schemes, `{CRYPT}`, and `{ARGON2}` where node:crypto runs argon2:
-  Node.js 24.7 and later, but not Electron), then hashes the password again in the scheme of the server. Nobody reads
-  `userPassword`.
+  in-process one, the client, or a remote OpenLDAP, as long as its profile fits the server's schema.
+- Passwords are written as `{PBKDF2-SHA512}`, as OpenLDAP's pw-pbkdf2 module writes them; a bind also checks OpenLDAP's
+  other schemes (`{SSHA}`, the SHA-2 schemes, `{CRYPT}`, and `{ARGON2}` where node:crypto runs argon2: Node.js 24.7 and
+  later, but not Electron), then hashes the password again in the server's scheme. Nobody reads `userPassword`.
 - By default anonymous sessions read only the root DSE and the subschema, bound sessions read the directory, and the
-  administrators of `access.admins` write; `access.check` decides first when given. Failed binds of a DN or an
-  address are slowed down, then locked for a while, all answered with invalidCredentials.
--  The password policy of draft-behera-ldap-password-policy (`passwordPolicy`, a plugin), with the attributes OpenLDAP's
+  administrators of `access.admins` write; `access.check` decides first when provided. Failed binds of a DN or an
+  address are slowed down, then locked for a while, and all receive invalidCredentials.
+- The password policy of draft-behera-ldap-password-policy (`passwordPolicy`, a plugin), with the attributes OpenLDAP's
   ppolicy uses: a default policy (the DN of a pwdPolicy entry, or its rules) that a user's pwdPolicySubentry replaces;
   accounts locked after too many failures, expiration with its warnings and grace binds, the password to change first
-  after a reset, the minimum age, length, quality (with a check of one's own) and history of new passwords. Its state is
-  in the operational attributes of the entries (pwdChangedTime, pwdAccountLockedTime…), so every backend keeps it. A
-  locked account is answered as a wrong password unless `revealLocked` is set.
-- A backend may bring the schema files of the attributes it computes, interceptors of its own, a store shared by the
+  after a reset, the minimum age, length, quality (with a custom check) and history of new passwords. Its state is
+  stored in the operational attributes of the entries (pwdChangedTime, pwdAccountLockedTime…), so every backend keeps
+  it. A locked account is reported as a wrong password unless `revealLocked` is set.
+- A backend may bring the schema files of the attributes it computes, its own interceptors, a store shared by the
   instances for the bind throttle (its `update()` changes a state in one step, so that failed binds made at the same
-  time each count), `transaction()`, in which the interceptors' `beforeCommit()` and the write run together, and `lock()`,
-  with which the engine reads the entry of a modify or a rename again once it is locked in that transaction, just
-  before the write, and makes and checks the changes from it, keeping what the interceptors did to them.
+  time each count), `transaction()`, in which the interceptors' `beforeCommit()` and the write run together, and
+  `lock()`, with which the engine reads the entry of a modify or a rename again once it is locked in that transaction,
+  just before the write, and makes and checks the changes from it, keeping what the interceptors did to them.
 
 ### Plugins
 
-A plugin adds what an extension needs to the server, as the overlays of OpenLDAP do. Its interceptors run around the
-operations of the backends: before a request, around it, on each entry a search returns, or before a write is committed,
+A plugin adds what an extension needs to the server, as OpenLDAP's overlays do. Its interceptors run around the
+backends' operations: before a request, around it, on each entry a search returns, or before a write is committed,
 placed before or after the server's own steps (`access`, `password`, `schema`, `operational`, `paging`). It may also run
-around every request (`aroundRequest`, which sees the binds, the extended operations and the searches the server answers
-itself), around the check of a password (`authenticate`), and on the password changes, while the passwords are in clear
-(`passwordChange`). It may bring schema files, controls, extended operations, SASL mechanisms and password schemes,
-which the root DSE and the subschema publish. Two plugins claiming one OID, or defining one attribute type or object
-class differently, stop the server at its start.
+around every request (`aroundRequest`, which sees the binds, the extended operations and the searches the server
+responds to itself), around the check of a password (`authenticate`), and on password changes, while the passwords are
+in clear (`passwordChange`). It may bring schema files, controls, extended operations, SASL mechanisms and password
+schemes, which the root DSE and the subschema publish. The server fails to start if two plugins claim one OID, or define
+one attribute type or object class differently.
 
 ```typescript
 import {createLDAPServer, MemberOfPlugin, MemoryBackend, ReferentialIntegrityPlugin, UniquePlugin} from '@lakutata/ldap-engine'
@@ -151,29 +150,28 @@ const server = createLDAPServer({
 
 | Plugin | What it does | Like OpenLDAP's |
 |---|---|---|
-| `MemberOfPlugin` | Keeps the memberOf of the members of the groups | memberof |
+| `MemberOfPlugin` | Keeps the memberOf of group members | memberof |
 | `ReferentialIntegrityPlugin` | Changes the DNs in values when entries are deleted, renamed or moved | refint |
 | `UniquePlugin` | Refuses a value another entry has | unique |
-| `PasswordPolicyPlugin` | The password policy, which the `passwordPolicy` option gives too | ppolicy |
-| `IdAllocationPlugin` | Gives uidNumber and gidNumber to the POSIX entries added without them | DNA of 389 Directory Server |
+| `PasswordPolicyPlugin` | The password policy, which the `passwordPolicy` option also provides | ppolicy |
+| `IdAllocationPlugin` | Assigns uidNumber and gidNumber to POSIX entries added without them | DNA of 389 Directory Server |
 | `LastBindPlugin` | Records in authTimestamp the time of the last successful bind that verified a password | lastbind |
-| `SambaPasswordPlugin` | Writes the NT hash of a new password in sambaNTPassword (the schema of Samba loaded) | smbk5pwd |
-| `AuditPlugin` | Gives a record of each request and its outcome to a function of one's own | accesslog, auditlog |
-| `ConstraintPlugin` | Refuses values breaking rules: a pattern, a size, a count, a check of one's own | constraint |
+| `SambaPasswordPlugin` | Writes a new password's NT hash to sambaNTPassword (with Samba's schema loaded) | smbk5pwd |
+| `AuditPlugin` | Passes a record of each request and its outcome to a custom function | accesslog, auditlog |
+| `ConstraintPlugin` | Refuses values that break rules: a pattern, a size, a count, a custom check | constraint |
 | `GroupPresentationPlugin` | Shows each group as both groupOfNames and groupOfUniqueNames, as lldap does | |
 
-- A plugin is any object of the `LDAPPlugin` shape; the plugins above extend `BaseLDAPPlugin`, which gives the name
-  and the suffixes (`{name, suffixes}`: a plugin twice, or for some backends only). Extend one to change what it
-  does.
+- A plugin is any object with the `LDAPPlugin` shape; the plugins above extend `BaseLDAPPlugin`, which provides the name
+  and the suffixes (`{name, suffixes}`: a plugin twice, or for some backends only). Extend one to change what it does.
 - `server.start()` runs the plugins' `start()`; `listen()` does it first.
 - A plugin reads and writes the directory on `context.server.connect({internal: true})`: its operations go through
   the chain and the schema checks, and the access control lets them through.
 - The plugins keep the relations within one backend, as OpenLDAP's overlays keep them within one database: a group and
   its members, an entry and the values naming it, and the values kept unique belong in the same backend.
 - The plugins writing after a change (memberOf, the references, the time of the last bind) do it once the change is
-  done, as OpenLDAP's overlays do. A backend doing their work itself declares it, and the plugin leaves its chain: the
-  directory backend of `@lakutata/ldap` computes memberOf, keeps the references, gives the numbers and keeps the time
-  of the last bind in its database, in the transaction of the write.
+  done, as OpenLDAP's overlays do. A backend that does their work itself declares it, and the plugin leaves its chain:
+  the directory backend of `@lakutata/ldap` computes memberOf, keeps the references, assigns the numbers and keeps the
+  time of the last bind in its database, in the write's transaction.
 - `interceptors` takes interceptors alone, for the plugins that are interceptors only.
 
 ### The protocol
@@ -205,28 +203,28 @@ const read: ReadMessage[] = reader.push(bytes)
 console.log(read.length)
 ```
 
-- `encodeMessage()` and `decodeMessage()` turn every message of LDAPv3 (RFC 4511) into bytes and back. A decoded message
-  keeps its DNs as text and its values as bytes: nothing is parsed or checked beyond the encoding, so a server can answer
-  a malformed DN with its result code.
-- `MessageReader` reads the messages of a stream from its chunks, with a limit on their size. A message it cannot
-  decode but whose message ID it knows comes out as an error, and the stream goes on; anything else throws a fatal
+- `encodeMessage()` and `decodeMessage()` convert every LDAPv3 message (RFC 4511) to bytes and back. A decoded message
+  keeps its DNs as text and its values as bytes: nothing is parsed or checked beyond the encoding, so a server can
+  respond to a malformed DN with its result code.
+- `MessageReader` reads a stream's messages from its chunks, with a limit on their size. A message it cannot decode but
+  whose message ID it knows is returned as an error, and the stream continues; anything else throws a fatal
   `LDAPDecodeException`.
-- `Filter` builds search filters, parses their text (RFC 4515) and writes it; the template `filter` escapes the values
+- `Filter` builds search filters, parses their text (RFC 4515) and writes it; the `filter` template escapes the values
   written into it, so a value cannot change the filter. `matchFilter()` evaluates a filter on an entry with the three
   values of RFC 4511 (true, false, undefined). An approximate match (`~=`) is an equality, except on a name and optional
   UID (uniqueMember), where it compares the names alone, whatever the UIDs, as OpenLDAP's uniqueMemberMatch does
   approximately.
 - The controls (paged results, sort, virtual list view, tree delete, password policy, read entry, proxied
   authorization, persistent search, content synchronization…) and the values of the extended operations (Password
-  Modify, Who Am I, Cancel) have codecs; `Ber` and `BerReader` write and read BER, for codecs of one's own.
+  Modify, Who Am I, Cancel) have codecs; `Ber` and `BerReader` write and read BER, for custom codecs.
 - `DN` parses DNs (RFC 4514), writes them back escaped, and compares them by their normalized form.
-- `Schema` loads schemas: documents, or the texts of schema files (the `cn=config` LDIF of OpenLDAP, a subschema
-  entry, or the `.schema` form). It refuses a name or an OID defined twice, lists the names the definitions refer to
-  without defining them, with the file and line of each (`problems()`), and gives the matching rules of RFC 4517 that
-  compare the values.
+- `Schema` loads schemas: documents, or the texts of schema files (OpenLDAP's `cn=config` LDIF, a subschema entry, or
+  the `.schema` form). It refuses a name or an OID defined twice, lists the names the definitions refer to without
+  defining them, with the file and line of each (`problems()`), and provides the matching rules of RFC 4517 that compare
+  values.
 - `parseSchemaFile()` turns a schema file into a document: its definitions as plain objects, with their comments and
-  lines, which go through JSON as they are. `stringifySchemaFile()` writes it back, the definitions unchanged as they
-  were written, which is what an editor of schema files needs. The bundled schemas are documents too (`CORE`… of
+  lines, which pass through JSON unchanged. `stringifySchemaFile()` writes it back, with unchanged definitions written
+  as they originally were, which is what a schema file editor needs. The bundled schemas are documents too (`CORE`… of
   `@lakutata/ldap-engine/schemas`), imported without parsing any text.
 - `parseLDIF()` and `stringifyLDIF()` read and write LDIF (RFC 2849), entries and changes, with the comments before
   each record.
@@ -269,14 +267,14 @@ for (const problem of schema.problems()) console.log(`${problem.source}:${proble
 | `Entry` | An entry found by a search |
 | `readSchema(connection)` | The schema a server publishes |
 | `parseLDAPURL(url)` | An LDAP URL (RFC 4516) |
-| `guidToString()`, `sidToString()`, `parseUserAccountControl()`, `fileTimeToDate()`, `changeADPassword()`, `resetADPassword()`… | Active Directory |
+| `guidToString()`, `sidToString()`, `parseUserAccountControl()`, `fileTimeToDate()`, `changeADPassword()`, `resetADPassword()`… | Active Directory helpers |
 | `createLDAPServer(options)`, `LDAPServerEngine` | A server: `listen()`, `handleConnection()`, `attach()`, `connect()`, `start()`, `close()`, its `events` |
-| `LDAPInProcessConnection` | A connection in the same process |
-| `LDAPBackend`, `DirectoryEntry`, `OperationContext`, `SearchContext`… | The interface of the backends |
-| `MemoryBackend`, `createHandlerBackend(options)` | Backends ready |
-| `sortSearchItems(items, valuesOf, context, schema)`, `sortWindowRange(context, count)`, `sortOrderingOf(attribute, schema)` | The sort and the window of a search, for a backend sorting itself: in memory, or in its database by the range of the window and the rule of each key |
+| `LDAPInProcessConnection` | An in-process connection |
+| `LDAPBackend`, `DirectoryEntry`, `OperationContext`, `SearchContext`… | The backend interface |
+| `MemoryBackend`, `createHandlerBackend(options)` | Ready-made backends |
+| `sortSearchItems(items, valuesOf, context, schema)`, `sortWindowRange(context, count)`, `sortOrderingOf(attribute, schema)` | A search's sort and window, for a backend that sorts itself: in memory, or in its database by the window's range and each key's rule |
 | `LDAPPlugin`, `LDAPPluginHost`, `PluginControl`, `PasswordChange`, `BaseLDAPPlugin` | The plugins |
-| `MemberOfPlugin`, `ReferentialIntegrityPlugin`, `UniquePlugin`, `PasswordPolicyPlugin`, `IdAllocationPlugin`, `LastBindPlugin`, `SambaPasswordPlugin`, `AuditPlugin`, `ConstraintPlugin`, `GroupPresentationPlugin` | The plugins ready |
+| `MemberOfPlugin`, `ReferentialIntegrityPlugin`, `UniquePlugin`, `PasswordPolicyPlugin`, `IdAllocationPlugin`, `LastBindPlugin`, `SambaPasswordPlugin`, `AuditPlugin`, `ConstraintPlugin`, `GroupPresentationPlugin` | Ready-made plugins |
 | `LDAPInterceptor`, `InterceptorPlacement`, `ServerRequest`… | The interceptors |
 | `AccessOptions`, `ServerLimits`, `BindThrottleOptions` | The access rules, the limits, the bind throttle |
 | `PasswordSchemes`, `PasswordScheme` | The password storage schemes |
@@ -284,21 +282,21 @@ for (const problem of schema.problems()) console.log(`${problem.source}:${proble
 | `plainMechanism()`, `externalMechanism()`, `SASLMechanism` | SASL |
 | `createDirectory(connection, options)`, `Directory`, `DirectoryProfile` | The directory helper |
 | `parseSchemaFile(text, name)`, `stringifySchemaFile(document)`, `SchemaDocument` | A schema file as a document, and back |
-| `readSchemaFile(path)`, `readSchemaDirectory(directory)` | The documents of a schema file, and of the files of a directory in the order of their names (the numbers in them by their value) |
+| `readSchemaFile(path)`, `readSchemaDirectory(directory)` | The documents of a schema file, and of a directory's files in the order of their names (the numbers in them by their value) |
 | `encodeMessage(message)`, `decodeMessage(bytes)` | A message as bytes, and back |
-| `MessageReader` | The reader of the messages of a stream |
+| `MessageReader` | A reader for a stream's messages |
 | `Filter`, `filter`, `escapeFilterValue(value)`, `matchFilter(filter, entry, schema)` | Filters: building, text, the escaping template, evaluation |
-| `PagedResultsControl`, `SortRequestControl`, `VLVRequestControl`, `PasswordPolicyResponseControl`… `findControl()` | The codecs of the controls |
-| `ExtendedOperation`, `PasswordModifyRequest`, `PasswordModifyResponse`, `WhoAmIResponse`, `CancelRequest`, `SyncInfo` | The OIDs and the values of the extended operations |
-| `Ber`, `BerReader`, `isUTF8(bytes)` | Writing and reading BER, for codecs of one's own; whether bytes are UTF-8 |
+| `PagedResultsControl`, `SortRequestControl`, `VLVRequestControl`, `PasswordPolicyResponseControl`… `findControl()` | Control codecs |
+| `ExtendedOperation`, `PasswordModifyRequest`, `PasswordModifyResponse`, `WhoAmIResponse`, `CancelRequest`, `SyncInfo` | The OIDs of the extended operations and values |
+| `Ber`, `BerReader`, `isUTF8(bytes)` | Writing and reading BER, for custom codecs; whether bytes are UTF-8 |
 | `DN`, `RDN`, `escapeDNValue(value)` | DNs |
 | `Schema`, `parseAttributeType()`, `parseObjectClass()`… `parseGeneralizedTime()`, `formatGeneralizedTime()` | Schemas, their definitions, the times |
 | `parseLDIF(text)`, `stringifyLDIF(records)` | LDIF, with the comments before each record |
 | `ResultCode`, `resultCodeName(code)` | The result codes and their names |
-| `LDAPMessage`, `ProtocolOp`, `LDAPRequest`, `LDAPResponse`, `LDAPResult`, `Control`, the types of the operations, the filters, the controls and the records | Their types |
-| `LDAPException` and its subclasses | The exceptions of the package (see [Errors](#errors)) |
+| `LDAPMessage`, `ProtocolOp`, `LDAPRequest`, `LDAPResponse`, `LDAPResult`, `Control`, the types of operations, filters, controls and records | Their types |
+| `LDAPException` and its subclasses | The package's exceptions (see [Errors](#errors)) |
 
-`@lakutata/ldap-engine/schemas` exports the bundled schemas (`@lakutata/ldap/schemas` too):
+`@lakutata/ldap-engine/schemas` exports the bundled schemas (as does `@lakutata/ldap/schemas`):
 
 | Export | What it is |
 |---|---|
@@ -309,12 +307,12 @@ for (const problem of schema.problems()) console.log(`${problem.source}:${proble
 
 | Exception | When |
 |---|---|
-| `LDAPDecodeException` | A message that cannot be decoded; `fatal` when the stream cannot go on, otherwise with its `messageId` and `operation`, and `malformed` when the encoding of the operation is wrong rather than one of its values (a server then ends the session) |
-| `LDAPFilterSyntaxException` | The text of a filter that is not one, with the `position` of the error |
-| `LDAPDNSyntaxException` | The text of a DN that is not one, with the `position` of the error |
-| `LDAPSchemaException` | A schema definition that cannot be parsed, a name or an OID defined twice, a reference to what is not defined |
-| `LDAPLDIFSyntaxException` | An LDIF text that cannot be parsed, with the `line` of the error |
-| `LDAPResultException` and its subclasses (`LDAPNoSuchObjectException`, `LDAPInvalidCredentialsException`, `LDAPSizeLimitExceededException`…) | A result that is not a success, with its `code`, `matchedDN`, `diagnosticMessage` and the `adDataCode` of Active Directory |
+| `LDAPDecodeException` | A message that cannot be decoded; `fatal` when the stream cannot continue, otherwise with its `messageId` and `operation`, and `malformed` when the operation's encoding is wrong rather than one of its values (a server then ends the session) |
+| `LDAPFilterSyntaxException` | Text that is not a valid filter, with the error's `position` |
+| `LDAPDNSyntaxException` | Text that is not a valid DN, with the error's `position` |
+| `LDAPSchemaException` | A schema definition that cannot be parsed, a name or an OID defined twice, a reference to something that is not defined |
+| `LDAPLDIFSyntaxException` | LDIF text that cannot be parsed, with the error's `line` |
+| `LDAPResultException` and its subclasses (`LDAPNoSuchObjectException`, `LDAPInvalidCredentialsException`, `LDAPSizeLimitExceededException`…) | A result that is not a success, with its `code`, `matchedDN`, `diagnosticMessage` and Active Directory's `adDataCode` |
 | `LDAPConnectionException` | A connection that cannot be opened, or closed while operations were waiting |
 | `LDAPTimeoutException` | An operation that took longer than its `timeout` |
 | `LDAPUsageException` | A call the client refuses before sending anything (an empty password, the text of an attribute whose values are bytes…) |

@@ -133,7 +133,7 @@ A controller's actions are its methods that carry an action decorator. The decor
 each transport: an HTTP route (`@GET('/orders/:id')`), a command (`@CLIAction('order')`), a service pattern
 (`@ServiceAction({cmd: 'order.get'})`), a schedule (`@Schedule`) or a queue (`@QueueAction`). Adapters, such as
 `expressHTTPEntrypoint()` or `commanderCLIEntrypoint()`, translate a transport's requests into action calls, and the
-actions' results and exceptions into responses.
+results and exceptions of the actions into responses.
 
 An action therefore receives its input already validated by its DTO, whatever the transport, and returns a result; it
 does not depend on the transport that called it. Input validation, access control, and the middlewares of the entrypoint

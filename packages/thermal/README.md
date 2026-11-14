@@ -3,10 +3,10 @@
 English | [中文](README.zh-CN.md)
 
 Thermal printing for Node.js: receipts, labels and wristbands written in HTML and CSS, rendered by a native addon into
-the printer's own dot grid, then encoded as ESC/POS, TSPL or ZPL commands. The rendering is the print preview and the
-data of the printer at once: one picture of black dots, exported as PNG or sent as printer commands. No browser is
-involved: the layout is [litehtml](https://github.com/litehtml/litehtml), the glyphs [FreeType](https://freetype.org)
-in monochrome with hinting, the graphics [plutovg](https://github.com/sammycage/plutovg) and the SVG
+the printer's own dot grid, then encoded as ESC/POS, TSPL or ZPL commands. The rendering is both the print preview and
+the printer's data: one picture of black dots, exported as PNG or sent as printer commands. No browser is involved: the
+layout is [litehtml](https://github.com/litehtml/litehtml), the glyphs [FreeType](https://freetype.org) in monochrome
+with hinting, the graphics [plutovg](https://github.com/sammycage/plutovg) and the SVG
 [lunasvg](https://github.com/sammycage/lunasvg). A receipt renders in about two milliseconds on a recent machine. The
 fonts are bundled: Noto Sans SC (Source Han Sans), regular and bold.
 
@@ -19,17 +19,17 @@ the printers.
 npm install @lakutata/thermal
 ```
 
-- The addon is compiled during the installation (node-gyp), so the machine needs Python 3 and a C++17 compiler: the
-  Command Line Tools of Xcode on macOS, `build-essential` (Debian, Ubuntu) or `build-base` (Alpine) on Linux, the Build
-  Tools of Visual Studio ("Desktop development with C++") on Windows. Compiling takes about ten seconds on a recent
+- The addon is compiled during the installation (node-gyp), so the machine requires Python 3 and a C++17 compiler: the
+  Xcode Command Line Tools on macOS, `build-essential` (Debian, Ubuntu) or `build-base` (Alpine) on Linux, and the
+  Visual Studio Build Tools ("Desktop development with C++") on Windows. Compiling takes about ten seconds on a recent
   machine, a few minutes on a slow one. If it fails, the installation fails.
-- The package manager has to run the install script of the package. npm runs it, and may warn that the script is "not
-  yet covered by allowScripts": `npm install-scripts approve @lakutata/thermal` records that you allow it. Bun and pnpm
-  run it only for the dependencies they are told to trust (`trustedDependencies` in the package.json for Bun,
-  `pnpm approve-builds` for pnpm); without it, loading the package throws an error telling how to build the addon.
-- Node.js `>=18.10.0`, with `@lakutata/core`. The addon uses Node-API, so Bun and the main process of Electron load
-  the addon node-gyp built for Node.js, without a rebuild.
-- The package is a 17 MB download, 28 MB unpacked: the two fonts and the sources of the addon.
+- The package manager has to run the package's install script. npm runs it, and may warn that the script is "not yet
+  covered by allowScripts": `npm install-scripts approve @lakutata/thermal` records that you allow it. Bun and pnpm run
+  it only for dependencies they are told to trust (`trustedDependencies` in the package.json for Bun,
+  `pnpm approve-builds` for pnpm); without it, loading the package throws an error that explains how to build the addon.
+- Node.js `>=18.10.0`, with `@lakutata/core`. The addon uses Node-API, so Bun and Electron's main process load the addon
+  that node-gyp built for Node.js, without a rebuild.
+- The package is a 17 MB download, 28 MB unpacked: the two fonts and the addon's sources.
 
 ## Usage
 
@@ -75,18 +75,18 @@ await render(html, {label: {width: 40, height: 30}, dpi: 300})  //a 40 × 30 mm 
 await render(html, {label: {width: 25, height: 250}, dpi: 300, rotate: 90, page: {lead: 25.4}})  //a wristband
 ```
 
-- `paper` is the paper width of the 203 dpi receipt printers: `58` (a print width of 48 mm, 384 dots) or `80` (72 mm,
-  576 dots). The Chinese brands and Epson's 203 dpi models print these widths. A printer of another resolution or print
-  width, such as the Epson TM-T88 family and the Bixolon SRP-350 (180 dpi, 512 dots), is given by `width` and `dpi`:
-  with `paper: 80` its output would be cut on the right.
-- `width` is the print width, as the printer's specification gives it ("print width 72 mm"), not the paper's.
+- `paper` is the paper width for 203 dpi receipt printers: `58` (a print width of 48 mm, 384 dots) or `80` (72 mm, 576
+  dots). Chinese brands and Epson's 203 dpi models print these widths. A printer with another resolution or print width,
+  such as the Epson TM-T88 family and the Bixolon SRP-350 (180 dpi, 512 dots), is specified by `width` and `dpi`: with
+  `paper: 80` its output would be cut on the right.
+- `width` is the print width, as the printer's specification states it ("print width 72 mm"), not the paper's.
 - `label` is the size of a label or a wristband: across the print head (`width`) and along the feed (`height`).
 - Sizes are millimetres, or strings with a unit: `'72mm'`, `'2in'`, `'576dots'`. A size is converted to dots rounded
-  down, never up: the 203 dpi printers are 8 dots per millimetre and the 300 dpi ones 12, so their widths come out
+  down, never up: 203 dpi printers are 8 dots per millimetre and 300 dpi ones 12, so their widths come out
   whole; at 180 dpi, 72 mm are 510 dots of a 512-dot head, two dots of margin rather than two dots cut off.
-- `dpi` is needed by `width` and `label`, and is 203 for `paper`. Wristband printers are often 300 dpi.
-- Media of a fixed length (`label`, or `width` with `page.length`) are cut into pages: `page.overflow` keeps the first
-  page (`'clip'`, the default) or makes as many as the content needs (`'paginate'`).
+- `dpi` is required by `width` and `label`, and is 203 for `paper`. Wristband printers are often 300 dpi.
+- Fixed-length media (`label`, or `width` with `page.length`) are cut into pages: `page.overflow` keeps the first page
+  (`'clip'`, the default) or creates as many as the content requires (`'paginate'`).
 - `rotate` turns each page clockwise. A wristband printed along the band is laid out along its length, then turned by
   90 or 270. `page.lead` leaves the start of each page blank along the feed, for printers that cannot print there.
 
@@ -118,12 +118,12 @@ borders with rounded corners, backgrounds with linear and radial gradients, `::b
 
 ### Pictures and QR codes
 
-- Inline `<svg>` elements, and `<img>` sources: `data:` URLs (PNG, JPEG, GIF, BMP, SVG), and the files of the
-  directory given by `baseDir` (`<img src="logo.png">`, `<link rel="stylesheet" href="receipt.css">`). A path outside
-  that directory, a remote address (`https:`) and, without `baseDir`, any file are refused.
-- `qrcode:` sources draw a QR code on whole dots, as large as its box allows: the text after `qrcode:` is
-  percent-encoded (`encodeURIComponent`), the options follow `#`: `ec` (the error correction, `L`, `M`, `Q` or `H`, `M`
-  by default) and `quiet` (the modules of the quiet zone, 4 by default). For example
+- Inline `<svg>` elements, and `<img>` sources: `data:` URLs (PNG, JPEG, GIF, BMP, SVG), and files in the directory
+  specified by `baseDir` (`<img src="logo.png">`, `<link rel="stylesheet" href="receipt.css">`). A path outside that
+  directory, a remote address (`https:`) and, without `baseDir`, any file are refused.
+- `qrcode:` sources draw a QR code on whole dots, as large as its box allows. The text after `qrcode:` is
+  percent-encoded (`encodeURIComponent`), and the options follow `#`: `ec` (the error correction, `L`, `M`, `Q` or `H`,
+  `M` by default) and `quiet` (the modules of the quiet zone, 4 by default). For example
   `<img style="width: 25mm" src="qrcode:ORDER-42#ec=Q&quiet=2">`.
 - Photographs are dithered; SVG and line art are thresholded. A fragment chooses for one picture:
   `<img src="logo.png#threshold">`, `<img src="photo.svg#dither">`.
@@ -131,8 +131,8 @@ borders with rounded corners, backgrounds with linear and radial gradients, `::b
 ### Fonts
 
 The bundled Noto Sans SC covers Chinese, Japanese kana, Latin, Greek and Cyrillic, in regular and bold (not Korean
-Hangul); it is the font of the generic families (`sans-serif`, `serif`…) and of the characters a registered font lacks.
-More fonts are registered once for the process:
+Hangul); it is the font for the generic families (`sans-serif`, `serif`…) and for the characters a registered font
+lacks. More fonts are registered once for the process:
 
 ```typescript
 import {registerFont, render} from '@lakutata/thermal'
@@ -142,12 +142,12 @@ const image = await render('<h1 style="font-family: Brand">Lakeside</h1>', {pape
 console.log(image.height)
 ```
 
-A family registered without the weight or the style asked for is emboldened or slanted. Scripts that need shaping
+A family registered without the requested weight or style is emboldened or slanted. Scripts that require shaping
 (Arabic, Thai, Devanagari) are not supported.
 
 ### Printer commands
 
-`encode()` turns a rendering into the commands of a printer, by its language or its model:
+`encode()` turns a rendering into a printer's commands, by its language or its model:
 
 ```typescript
 import {encode, render} from '@lakutata/thermal'
@@ -163,32 +163,32 @@ const tspl: Buffer = encode(label, {language: 'tspl', gap: 2, density: 8})
 console.log(escpos.length, zpl.length, tspl.length)
 ```
 
-- **ESC/POS** (receipt printers): each page as raster bands of `raster`: `'gsv0'` (`GS v 0`, the default),
-  `'gsl'` (`GS ( L`, which Epson recommends) or `'esc*'` (`ESC *`, 24-dot columns, the oldest). A band holds
-  `bandHeight` rows (255 by default: small printers have small buffers). After each page, `feed` (millimetres) and
-  `cut` (`'full'` or `'partial'`, the paper fed to the cutter first); after the last one, `drawer` opens the cash drawer
-  (`true` for pin 2, or `{pin, on, off}` in milliseconds). The feed and the `ESC *` bands count in the printer's
+- **ESC/POS** (receipt printers): each page as raster bands, sent with `'gsv0'` (`GS v 0`, the default), `'gsl'`
+  (`GS ( L`, which Epson recommends) or `'esc*'` (`ESC *`, 24-dot columns, the oldest), as `raster` selects. A band
+  holds `bandHeight` rows (255 by default: small printers have small buffers). After each page, `feed` (millimetres) and
+  `cut` (`'full'` or `'partial'`, after the paper is fed to the cutter); after the last one, `drawer` opens the cash
+  drawer (`true` for pin 2, or `{pin, on, off}` in milliseconds). The feed and the `ESC *` bands count in the printer's
   vertical motion unit, so the encoder first sets it to the dot pitch (`GS P`).
 - **`skipBlank`** (ESC/POS and TSPL, on by default): a blank stretch of a millimetre or more is not sent. ESC/POS feeds
   the paper over it, TSPL sends one `BITMAP` for each stretch printed. A receipt takes fewer bytes, which matters on a
   slow link (a serial port at 9600 bits a second takes about 960 bytes a second). Set it to `false` on a printer whose
-  feed does not follow `GS P` (the gaps of the receipt come out too short or too long). ESC/POS over 255 dpi sends
-  every row; ZPL compresses its blank rows already.
+  feed does not follow `GS P` (the receipt's gaps come out too short or too long). ESC/POS over 255 dpi sends every row;
+  ZPL already compresses its blank rows.
 - **TSPL** (TSC and many Chinese label printers): the label size, its `sensor` (`'gap'`, `'mark'` or `'continuous'`)
   and `gap`, `density` (0 to 15), `speed`, then each page a `BITMAP` printed in `copies`.
-- **ZPL** (Zebra and the printers that emulate it): each page a label of its width and length, its sensor (`^MN`),
+- **ZPL** (Zebra and printers that emulate it): each page a label of its width and length, its sensor (`^MN`),
   `density` (0 to 30, `~SD`), `speed` (`^PR`), the page a graphic field (`^GF`), compressed by default (`compress`).
 - **`cut`** cuts after each page in the three languages, on a printer with a cutter: `'full'` (or `true`) or
   `'partial'` (a half cut). On TSPL it sets `SET CUTTER 1` or `SET PARTIAL_CUTTER 1`, and on ZPL the cutter mode
-  (`^MMC`, always a full cut). `false` turns the cutter of a label printer off (`SET CUTTER OFF`, `^MMT`): a label
+  (`^MMC`, always a full cut). `false` turns off a label printer's cutter (`SET CUTTER OFF`, `^MMT`): a label
   printer keeps that setting from one job to the next. Without `cut`, nothing is cut and a label printer keeps its own
   setting.
 
 ### The printer models
 
-`printerModels()` lists the printers known by name; `model` gives a rendering their resolution and print width, and an
-encoding their language and raster command. A label printer's model gives its resolution and its habits, and the
-`label` option the size of the label:
+`printerModels()` lists the printers known by name; `model` provides a rendering with their resolution and print width,
+and an encoding with their language and raster command. A label printer's model provides its resolution and its habits,
+and the `label` option provides the label's size:
 
 | Model | Brand | dpi | Dots | Language | Media |
 |---|---|---|---|---|---|
@@ -205,17 +205,18 @@ encoding their language and raster command. A label printer's model gives its re
 | `HC100`, `ZD510-HC` | Zebra | 300 | 361 | ZPL | wristbands, printed along the band |
 
 The figures come from the makers' specifications and from the community profiles of
-[escpos-printer-db](https://github.com/receipt-print-hq/escpos-printer-db); `source` tells which. A printer not listed
-is given by its figures: `width` and `dpi` (or `label` and `dpi`) for the rendering, `language` for the encoding.
+[escpos-printer-db](https://github.com/receipt-print-hq/escpos-printer-db); `source` indicates which. A printer that is
+not listed is specified by its figures: `width` and `dpi` (or `label` and `dpi`) for the rendering, `language` for the
+encoding.
 
 ### How the dots are drawn
 
-Text prints black unless its color is nearly white, its glyphs rendered in monochrome with the font's hinting: crisp
-dots, not the gray edges of a screenshot thresholded or dithered. Borders, fills of black or white, SVG and QR codes are
-drawn with crisp edges too. Gray fills, gradients and photographs are dithered (Floyd–Steinberg), and their dithering
-never spreads into the dots drawn black or white on purpose. The text is broken into lines as Unicode does (closing
-punctuation stays at the end of a line, opening punctuation at its start), and a word longer than 16 characters (a web
-address, an order number of letters) can break anywhere.
+Text prints black unless its color is nearly white, and its glyphs are rendered in monochrome with the font's hinting:
+crisp dots, not the gray edges of a thresholded or dithered screenshot. Borders, black or white fills, SVG and QR codes
+are also drawn with crisp edges. Gray fills, gradients and photographs are dithered (Floyd–Steinberg), and their
+dithering never spreads into the dots drawn black or white on purpose. Text is broken into lines by the Unicode rules
+(closing punctuation stays at the end of a line, opening punctuation at its start), and a word longer than 16 characters
+(a web address, an order number of letters) can break anywhere.
 
 ## API
 
@@ -228,19 +229,19 @@ address, an order number of letters) can break anywhere.
 | `PrintImage` | A rendering: `pages`, `width`, `height`, `dpi`, `dotsPerMm`, `toPNG(page?)` |
 | `PrintPage` | A page of dots: `width`, `height`, `rows`, `bytesPerRow`, `dot(x, y)`, `toPNG()` |
 | `RenderOptions`, `MediaOptions`, `PageOptions`, `LabelSize`, `Length`, `FontSource`, `EncodeOptions` | The options |
-| `PrinterModel`, `PrinterLanguage`, `EscPosRaster` | A model of the table, the command languages, the ESC/POS raster commands |
-| `ThermalException`, `ThermalOptionException`, `ThermalFontException`, `ThermalContentException`, `ThermalTimeoutException`, `ThermalCancelledException` | The exceptions of the package (see [Errors](#errors)) |
+| `PrinterModel`, `PrinterLanguage`, `EscPosRaster` | A model from the table, the command languages, the ESC/POS raster commands |
+| `ThermalException`, `ThermalOptionException`, `ThermalFontException`, `ThermalContentException`, `ThermalTimeoutException`, `ThermalCancelledException` | The package's exceptions (see [Errors](#errors)) |
 
 ## Errors
 
 | Error | When |
 |---|---|
-| `ThermalOptionException` | Options that are not valid: no media or more than one, a media without its resolution, a size out of range, a rotated page without a fixed length, an unknown model, an encoding without its language |
+| `ThermalOptionException` | Invalid options: no media or more than one, a media without its resolution, a size out of range, a rotated page without a fixed length, an unknown model, an encoding without its language |
 | `ThermalFontException` | A font file that cannot be read, or that FreeType does not open |
 | `ThermalContentException` | A picture or a style sheet that cannot be read or decoded (outside `baseDir`, remote, broken), a QR code with too much text, content longer than `maxLength` (2500 mm by default) |
 | `ThermalTimeoutException` | The rendering waited in the queue longer than its `timeout` |
-| `ThermalCancelledException` | The `signal` of the rendering aborted before it started |
-| `ThermalException` | The base of the others, thrown itself for an internal error of the addon |
+| `ThermalCancelledException` | The rendering's `signal` aborted before it started |
+| `ThermalException` | The base of the others, thrown directly for an internal addon error |
 
 ## See also
 

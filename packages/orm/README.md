@@ -3,8 +3,8 @@
 English | [中文](README.zh-CN.md)
 
 The ORM of the Lakutata framework, built on [TypeORM](https://typeorm.io) 1. It provides the `Database` component (a
-connection shared by the application), the `Database` provider (a connection of its own), the entity decorators, the
-TypeORM API (repositories, find operators, query builders, migrations), and the migration commands of an application
+connection shared by the application), the `Database` provider (a dedicated connection), the entity decorators, the
+TypeORM API (repositories, find operators, query builders, migrations), and an application's migration commands
 (`MIGRATION_GENERATE`, `MIGRATION_RUN`, `MIGRATION_REVERT`, `MIGRATION_SHOW`).
 
 The umbrella package `lakutata` re-exports it: `lakutata/com/database` (the component), `lakutata/provider/database`
@@ -17,9 +17,9 @@ npm install lakutata pg        # the framework, and the PostgreSQL driver
 npm install @lakutata/orm      # or the ORM only, with @lakutata/core
 ```
 
-The source of TypeORM 1.1.2 (MIT) is part of the package (see `THIRD_PARTY_NOTICES.md`), so no `typeorm` package is
+The TypeORM 1.1.2 source (MIT) is part of the package (see `THIRD_PARTY_NOTICES.md`), so no `typeorm` package is
 installed, and libraries built on the `typeorm` package (its NestJS module, naming strategy libraries…) do not use this
-copy. The database driver is not a dependency: install the driver for the `type` of your connection options.
+copy. The database driver is not a dependency: install the driver for the `type` in your connection options.
 
 | Database | `type` | Install |
 |---|---|---|
@@ -35,22 +35,22 @@ copy. The database driver is not a dependency: install the driver for the `type`
 | Google Cloud Spanner | `spanner` | `@google-cloud/spanner` (8) |
 
 The `sqljs` driver holds the whole database in memory. With the `location` option, it loads the database from that file
-when it connects, and writes it back after each change with `autoSave: true`, or when `saveDatabase()` of its entity
-manager (`SqljsEntityManager`) is called; `exportDatabase()` returns the database as a `Uint8Array`.
+when it connects, and writes it back after each change with `autoSave: true`, or when `saveDatabase()` is called on its
+entity manager (`SqljsEntityManager`); `exportDatabase()` returns the database as a `Uint8Array`.
 
-`mongo-embedded`, added by Lakutata, is the MongoDB support of TypeORM (entities with an `@ObjectIdColumn`, the MongoDB
+`mongo-embedded`, added by Lakutata, is TypeORM's MongoDB support (entities with an `@ObjectIdColumn`, the MongoDB
 operators in find options, the `MongoRepository`) running on a database inside the process: the package
 `@lakutata/mongo-embedded`, which stores the documents with SQLite in a native addon and behaves like MongoDB 8.0 with
 one member (transactions, change streams, text and geospatial indexes, collations). Its addon is compiled when it is
-installed, which needs Python 3 and a C++17 compiler. The `database` option is its directory (`':memory:'` by default);
-its other options are `sync`, `syncInterval`, `cacheSize`, `mmapSize`, `oplogSize`, `writeConcern` and
-`transactionLifetimeLimitSeconds`. `transaction()` runs its function in a transaction of the database. As with the
-`mongodb` type, TypeORM's relations and query builders are not supported, and migrations are written by hand (through
-`queryRunner.manager`, a `MongoEntityManager`). `import {ObjectId} from 'lakutata/orm'` gives the class of the ids of
-the entities, and their type for the `@ObjectIdColumn()` properties. See the guide
+installed, which requires Python 3 and a C++17 compiler. The `database` option is its directory (`':memory:'` by
+default); its other options are `sync`, `syncInterval`, `cacheSize`, `mmapSize`, `oplogSize`, `writeConcern` and
+`transactionLifetimeLimitSeconds`. `transaction()` runs its function in a database transaction. As with the `mongodb`
+type, TypeORM's relations and query builders are not supported, and migrations are written manually (through
+`queryRunner.manager`, a `MongoEntityManager`). `import {ObjectId} from 'lakutata/orm'` provides the class of the
+entities' IDs, and their type for the `@ObjectIdColumn()` properties. See the guide
 [Embedded MongoDB](https://lakutata.com/guide/MongoEmbedded).
 
-A query result cache in Redis (`cache: {type: 'redis'}` or `'ioredis'`) needs the `redis` or `ioredis` package.
+A query result cache in Redis (`cache: {type: 'redis'}` or `'ioredis'`) requires the `redis` or `ioredis` package.
 
 Entities rely on decorators and their metadata: the TypeScript options for applications
 (`"extends": "lakutata/tsconfig.json"`) enable `experimentalDecorators` and `emitDecoratorMetadata`.
@@ -59,10 +59,10 @@ Entities rely on decorators and their metadata: the TypeScript options for appli
 
 ### A database in an application
 
-`buildDatabaseOptions` registers a `Database` component with TypeORM connection options (`DataSourceOptions`, passed
-to TypeORM unchanged). The component connects when it is created, which happens while the application launches when it
-is listed in `bootstrap`, and it disconnects when the application stops. A connection failure stops the launch of the
-application.
+`buildDatabaseOptions` registers a `Database` component with TypeORM connection options (`DataSourceOptions`, passed to
+TypeORM unchanged). The component connects when it is created, which happens while the application launches when it is
+listed in `bootstrap`, and it disconnects when the application stops. When the connection fails, the application's
+launch fails.
 
 ```typescript
 import {Application, Component} from 'lakutata'
@@ -122,33 +122,33 @@ Application
     })
 ```
 
-The common connection options (the TypeORM documentation describes the options of each driver):
+The common connection options (the TypeORM documentation describes each driver's options):
 
 | Option | What it sets |
 |---|---|
 | `type` | The driver: `'postgres'`, `'mysql'`, `'better-sqlite3'`… |
 | `url` or `host`, `port`, `username`, `password`, `database` | The server and the database |
-| `schema` | The PostgreSQL schema of the tables (by default the `search_path` of the server, usually `public`) |
-| `entities` | The entity classes, `EntitySchema`s, or glob paths of their compiled files (`'build/entities/*.js'`) |
+| `schema` | The PostgreSQL schema of the tables (by default the server's `search_path`, usually `public`) |
+| `entities` | The entity classes, `EntitySchema`s, or glob paths to their compiled files (`'build/entities/*.js'`) |
 | `synchronize` | Update the schema from the entities on each connection (default `false`): development only |
 | `migrations`, `migrationsTableName`, `migrationsRun`, `migrationsTransactionMode` | The migrations, their table (default `migrations`), whether they run on each connection (default `false`), their transactions (default `'all'`) |
 | `logging`, `logger` | What TypeORM logs (`true`, `['error', 'schema']`…) and where |
 | `poolSize`, `extra` | The connection pool size; the options passed to the driver (`extra: {max: 20}` for `pg`) |
-| `subscribers`, `namingStrategy`, `cache` | The entity subscribers, the naming of the tables and columns, the query result cache |
+| `subscribers`, `namingStrategy`, `cache` | The entity subscribers, table and column naming, the query result cache |
 
-The framework changes the default of one option: `invalidWhereValuesBehavior` is
-`{null: 'ignore', undefined: 'ignore'}`, the behavior of TypeORM 0.3 (TypeORM 1 throws by default). A property of a
-where condition whose value is `null` or `undefined` is left out of the condition. Each key you give replaces its
-default (`invalidWhereValuesBehavior: {undefined: 'throw'}` throws on `undefined` values). With the default,
+The framework changes one option's default: `invalidWhereValuesBehavior` is `{null: 'ignore', undefined: 'ignore'}`,
+TypeORM 0.3's behavior (TypeORM 1 throws by default). A property in a where condition whose value is `null` or
+`undefined` is left out of the condition. Each key you specify replaces its default
+(`invalidWhereValuesBehavior: {undefined: 'throw'}` throws on `undefined` values). With the default,
 `findOneBy({id: undefined})` finds the first row, so check the values taken from requests before querying with them.
 
 If a database created with TypeORM 0.3 has table or column names with non-ASCII characters, TypeORM 1 names their
 indices and constraints differently, and generated migrations would rename them. `NamingStrategyV03` from
-`lakutata/orm` (`namingStrategy: new NamingStrategyV03()`) keeps the names of TypeORM 0.3.
+`lakutata/orm` (`namingStrategy: new NamingStrategyV03()`) keeps TypeORM 0.3's names.
 
 ### Entities
 
-The decorators in `lakutata/decorator/orm` are those of TypeORM: `@Entity`, `@ViewEntity`, the columns (`@Column`,
+The decorators in `lakutata/decorator/orm` are TypeORM's: `@Entity`, `@ViewEntity`, the columns (`@Column`,
 `@PrimaryColumn`, `@PrimaryGeneratedColumn`, `@CreateDateColumn`, `@UpdateDateColumn`, `@DeleteDateColumn`,
 `@VersionColumn`, `@VirtualColumn`, `@ViewColumn`, `@ObjectIdColumn`, `@Generated`), the relations (`@OneToOne`,
 `@OneToMany`, `@ManyToOne`, `@ManyToMany`, `@JoinColumn`, `@JoinTable`, `@RelationId`), the constraints (`@Index`,
@@ -225,9 +225,9 @@ An entity may also extend `BaseEntity` (from `lakutata/orm`) for active record o
 ### Queries
 
 `lakutata/orm` exports the TypeORM API: the repositories, the find operators (`In`, `ILike`, `Between`, `MoreThan`,
-`IsNull`, `Not`, `Raw`, `ArrayContains`, `JsonContains`…), the query builders, the entity manager and the errors.
-Find options take objects: `relations: {author: true}`, `select: {id: true, title: true}` (TypeORM 1 removed the
-arrays of names).
+`IsNull`, `Not`, `Raw`, `ArrayContains`, `JsonContains`…), the query builders, the entity manager and the errors. Find
+options take objects: `relations: {author: true}`, `select: {id: true, title: true}` (TypeORM 1 removed arrays of
+names).
 
 ```typescript
 import {Component} from 'lakutata'
@@ -291,10 +291,10 @@ class Orders extends Component {
 
 ### Transactions
 
-`transaction()` runs a function in a transaction, which is committed when the function resolves and rolled back when
-it rejects (the error is rethrown). The operations of the transaction go through the entity manager passed to the
-function; those made through `db.manager` or `db.getRepository()` run outside it. A query runner controls a transaction
-by hand.
+`transaction()` runs a function in a transaction, which is committed when the function resolves and rolled back when it
+rejects (the error is rethrown). Operations in the transaction go through the entity manager passed to the function;
+operations made through `db.manager` or `db.getRepository()` run outside it. A query runner controls a transaction
+manually.
 
 ```typescript
 import {Component} from 'lakutata'
@@ -347,11 +347,11 @@ class Bank extends Component {
 
 ### The Database provider
 
-The provider from `lakutata/provider/database` has the same API as the component, but it is transient: each
-resolution (`@Inject`, `getObject()`) creates a new instance, which opens its own connection pool and closes it when
-the instance is destroyed along with the object or container that created it. It suits short-lived work (a job, a
-script, a tenant database), while the requests of an application share the component. Its `entities` option is added
-to the entities of its connection options.
+The provider from `lakutata/provider/database` has the same API as the component, but it is transient: each resolution
+(`@Inject`, `getObject()`) creates a new instance, which opens its own connection pool and closes it when the instance
+is destroyed along with the object or container that created it. It suits short-lived work (a job, a script, a tenant
+database), while an application's requests share the component. Its `entities` option is added to the entities in its
+connection options.
 
 ```typescript
 import {Application} from 'lakutata'
@@ -400,7 +400,7 @@ components: {
 ### Migrations
 
 A migration is a class implementing `MigrationInterface`: its `up()` changes the schema, and its `down()` reverts the
-change. The `migrations` connection option lists the migrations (classes, or glob paths of their compiled files), and
+change. The `migrations` connection option lists the migrations (classes, or glob paths to their compiled files), and
 the `migrations` table records those that have run.
 
 ```typescript
@@ -420,22 +420,22 @@ export class Migrations1760000000000 implements MigrationInterface {
 ```
 
 Migrations run when the database connects with `migrationsRun: true`, through `runMigrations()` and
-`undoLastMigration()` of the `Database` component or provider, or through the commands of the application.
+`undoLastMigration()` of the `Database` component or provider, or through the application's commands.
 
-The commands are environment variables read by the application itself; `lakutata migration` (from `@lakutata/cli`)
-starts the application with them. When started with one of them, the application reads its options and then, instead
-of running its `bootstrap` and its `onLaunched` handler, runs the command on each `Database` component and provider of
-its options, and exits. Each database connects with `synchronize`, `migrationsRun` and `dropSchema` forced to `false`.
-The names of the variables are case-insensitive, and a flag is set by `1`, `true` or `yes`.
+The commands are environment variables read by the application itself; `lakutata migration` (from `@lakutata/cli`) runs
+the application with them. When run with one of them, the application reads its options and then, instead of running its
+`bootstrap` and its `onLaunched` handler, runs the command on each `Database` component and provider in its options, and
+exits. Each database connects with `synchronize`, `migrationsRun` and `dropSchema` forced to `false`. Variable names are
+case-insensitive, and a flag is set by `1`, `true` or `yes`.
 
 | Variable | Command |
 |---|---|
-| `MIGRATION_GENERATE=<directory>` | Compare the entities with the schema of the database, and write the SQL of the differences as a migration: `<directory>/<timestamp>-<database name>.ts` (the directory is relative to the working directory and created if needed), with the class `<Directory><timestamp>` (`Migrations1760000000000` for `src/migrations`), which imports its types from `@lakutata/orm` when the project depends on it, else from `lakutata/orm` |
+| `MIGRATION_GENERATE=<directory>` | Compare the entities with the database's schema, and write the SQL for the differences as a migration: `<directory>/<timestamp>-<database name>.ts` (the directory is relative to the working directory and created if needed), with the class `<Directory><timestamp>` (`Migrations1760000000000` for `src/migrations`), which imports its types from `@lakutata/orm` when the project depends on it, else from `lakutata/orm` |
 | `MIGRATION_RUN=1` | Run the pending migrations, printing each one as it runs |
 | `MIGRATION_REVERT=1` | Revert the last migration run (`MIGRATION_DATABASE` required when the application has several databases) |
 | `MIGRATION_SHOW=1` | Print each migration as `[X]` (run) or `[ ]` (pending), and the number pending |
-| `MIGRATION_DATABASE=<name>` | The database of the command: the name of its component or provider (all of them by default) |
-| `MIGRATION_TRANSACTION=all\|each\|none` | The transactions of `MIGRATION_RUN` and `MIGRATION_REVERT` (default: the `migrationsTransactionMode` option of the database, else `all`) |
+| `MIGRATION_DATABASE=<name>` | The database the command works on: its component or provider name (all of them by default) |
+| `MIGRATION_TRANSACTION=all\|each\|none` | The transactions of `MIGRATION_RUN` and `MIGRATION_REVERT` (default: the database's `migrationsTransactionMode` option, else `all`) |
 | `MIGRATION_FAKE=1` | Record the migrations as run (or reverted) without running them |
 
 When several are set, only one command runs: `MIGRATION_GENERATE` takes precedence, then `MIGRATION_RUN`,
@@ -457,8 +457,8 @@ exits with 0), `MIGRATION_REVERT` with several databases and no `MIGRATION_DATAB
 or a migration that fails (the databases after it are skipped). When `MIGRATION_GENERATE` finds no change in any
 database, the process exits with 0.
 
-The entities of a database are those of its connection options, plus, for a `Database` provider, those of its
-`entities` option.
+A database's entities are those in its connection options, plus, for a `Database` provider, those in its `entities`
+option.
 
 ## API
 
@@ -471,25 +471,25 @@ The entities of a database are those of its connection options, plus, for a `Dat
 | `Repository`, `EntityManager`, `QueryRunner`, `SelectQueryBuilder`, `DataSource`, `BaseEntity`… | `lakutata/orm` | The TypeORM classes and types |
 | `In`, `ILike`, `Between`, `MoreThan`, `IsNull`, `Not`, `Raw`… | `lakutata/orm` | The TypeORM find operators |
 | `MigrationInterface`, `Migration`, `MigrationExecutor` | `lakutata/orm` | The migrations |
-| `DataSourceOptions`, `PostgresDataSourceOptions`, `MysqlDataSourceOptions`… | `lakutata/orm` | The connection options of each driver (their TypeORM 0.3 names, `PostgresConnectionOptions`…, are deprecated) |
+| `DataSourceOptions`, `PostgresDataSourceOptions`, `MysqlDataSourceOptions`… | `lakutata/orm` | Each driver's connection options (their TypeORM 0.3 names, `PostgresConnectionOptions`…, are deprecated) |
 | `QueryFailedError`, `EntityNotFoundError`, `TypeORMError`… | `lakutata/orm` | The TypeORM errors |
 
-The typings document the declarations of Lakutata, with examples; the TypeORM declarations are documented by
+The typings document Lakutata's declarations, with examples; TypeORM's declarations are documented by
 [TypeORM](https://typeorm.io).
 
 ## Errors
 
-The package throws the errors of the drivers and the TypeORM errors, which `lakutata/orm` exports:
+The package throws driver errors and TypeORM errors, which `lakutata/orm` exports:
 
 | Error | Thrown when |
 |---|---|
 | The driver error (`pg`'s `DatabaseError`, `ECONNREFUSED`…) | The `Database` component or provider cannot connect: its creation rejects, and the application fails to launch when the component is in `bootstrap` |
 | `QueryFailedError` | The database rejects a query (a constraint violation, a syntax error); its `driverError` holds the driver error (`code` `23505` for a PostgreSQL unique violation) |
 | `EntityNotFoundError` | `findOneOrFail()`, `findOneByOrFail()` find no entity |
-| `EntityMetadataNotFoundError` | An entity is not in the `entities` of the connection |
+| `EntityMetadataNotFoundError` | An entity is not in the connection's `entities` |
 | `OptimisticLockVersionMismatchError` | A find with `lock: {mode: 'optimistic', version}` reads another version |
 | `CannotExecuteNotConnectedError` | `synchronize()` or the migrations run on a closed connection |
-| `TypeORMError` | The base class of the TypeORM errors, also thrown on its own (a MongoDB method called on another database, a relation not found…) |
+| `TypeORMError` | The base class of the TypeORM errors, also thrown directly (a MongoDB method called on another database, a relation not found…) |
 
 ## See also
 

@@ -3,14 +3,14 @@
 This example builds a notes server for AI assistants: Claude Code, Claude Desktop or another MCP client runs it, and the
 model uses it to save, search and delete the user's notes, kept in a JSON file. It starts from the `default` template
 and shows the parts of an MCP server: tools whose arguments are validated by DTOs, a resource and a prompt, the stdio
-transport for the clients that start the server themselves, the HTTP transport, and tests that use the SDK's MCP client.
+transport for clients that start the server themselves, the HTTP transport, and tests that use the SDK's MCP client.
 
 | Name | Kind | What it does |
 |---|---|---|
-| `notes_add` | Tool | Saves a note: its title, its text and its tags |
-| `notes_search` | Tool | Finds the notes by words and by tag, the newest first |
+| `notes_add` | Tool | Saves a note: its title, text and tags |
+| `notes_search` | Tool | Finds notes by words and by tag, newest first |
 | `notes_delete` | Tool | Deletes a note |
-| `note://{id}` | Resource | Gives a note in Markdown |
+| `note://{id}` | Resource | Returns a note in Markdown |
 | `notes_review` | Prompt | Asks the model to summarize the notes with a tag |
 
 ## 1. Create the project
@@ -24,10 +24,10 @@ npm uninstall express @types/express
 rm src/controllers/ExampleController.ts src/dtos/GreetDTO.ts
 ```
 
-An MCP client runs the server as a single process, so the `default` template, which makes one application, fits it
-([Project Structure](../ProjectStructure.md)). `@lakutata/mcp` serves the actions of the application over MCP; it is not
-part of `lakutata` ([MCP](../MCP.md)). The SDK's MCP client, `@modelcontextprotocol/client`, is only for the tests. The
-server has no HTTP routes, so express and the example controller of the template are removed.
+An MCP client runs the server as a single process, so the `default` template, which creates one application, suits it
+([Project Structure](../ProjectStructure.md)). `@lakutata/mcp` serves the application's actions over MCP; it is not part
+of `lakutata` ([MCP](../MCP.md)). The SDK's MCP client, `@modelcontextprotocol/client`, is used only by the tests. The
+server has no HTTP routes, so express and the template's example controller are removed.
 
 ## 2. The input and the results
 
@@ -120,7 +120,7 @@ DTO then validates them, as for every action ([DTO and Validation](../DTOValidat
 - `NoteIdDTO` serves both a tool, whose arguments are JSON (the number `1`), and the resource, whose variables are text
   (`'1'` in `note://1`): `.strict(false)` converts the text;
 - `NoteDTO` and `SearchResultDTO` describe the results of two tools (their `output`, section 5);
-- `TagDTO` holds the argument of the prompt, which is text, like every argument of a prompt.
+- `TagDTO` holds the prompt's argument, which is text, like every prompt argument.
 
 ## 3. The exception
 
@@ -233,11 +233,11 @@ export class NoteStore extends Component {
 
 - `NoteStore` is a component: one instance for the whole application, while a controller is created for each request
   ([Objects and Lifetimes](../Objects.md)).
-- `@Configurable` makes `file` an option of the component: its value is given where the component is declared
-  (section 6) and validated when the application launches ([Dependency Injection](../Injection.md)).
+- `@Configurable` makes `file` a component option: its value is specified where the component is declared (section 6)
+  and validated when the application launches ([Dependency Injection](../Injection.md)).
 - Each client runs its own server: given the same file, Claude Code and Claude Desktop run two processes that share it.
-  So the file is read at each call instead of being kept in memory, and the notes are written whole to a temporary file
-  that is then renamed over it.
+  Therefore, the file is read on each call instead of being kept in memory, and the notes are written whole to a
+  temporary file that is then renamed over it.
 
 ## 5. The controller
 
@@ -318,15 +318,14 @@ export class NoteController extends Controller {
 }
 ```
 
-- `@Prefix({mcp: 'notes'})` prefixes the names of the tools and of the prompt: `add` becomes `notes_add`. The URIs of
-  the resources are never prefixed.
-- The `description` of a tool is what the model reads to decide when to call it: say what the tool does and when to use
-  it.
+- `@Prefix({mcp: 'notes'})` prefixes the tool and prompt names: `add` becomes `notes_add`. Resource URIs are never
+  prefixed.
+- A tool's `description` is what the model reads to decide when to call it: say what the tool does and when to use it.
 - `readOnly` and `destructive` are hints for the client, which may ask the user before a call that deletes.
 - With `output`, the result is sent both as JSON text and as structured content, which the client checks against the
-  schema of the DTO. Such a tool must return an object: `search` returns `{total, notes}`, not an array of notes.
-- `note://{id}` is a template: the client fills in the id and reads `note://1`. The string returned is the text of the
-  resource, of type `text/markdown`.
+  DTO's schema. Such a tool must return an object: `search` returns `{total, notes}`, not an array of notes.
+- `note://{id}` is a template: the client fills in the ID and reads `note://1`. The returned string is the resource's
+  text, of type `text/markdown`.
 - The prompt returns a string, which becomes a single user message, sent when the user picks the prompt in the client.
 
 ## 6. The options of the server
@@ -387,16 +386,16 @@ export function config(file: string = process.env.NOTES_FILE ?? path.join(os.hom
 }
 ```
 
-This is the `Config.ts` of the template, with:
+This is the template's `Config.ts`, with:
 
-- the `log` component, which writes to the standard error ([Logging](../Logger.md), section 5): over stdio, the standard
-  output carries the messages of the protocol, and a log line there would break them. Nothing else may write there, not
-  even `console.log()`. The `App.ts` of the template, unchanged, logs the startup through this component;
+- the `log` component, which writes to standard error ([Logging](../Logger.md), section 5): over stdio, standard output
+  carries the protocol messages, and a log line there would break them. Nothing else may write there, not even
+  `console.log()`. The template's `App.ts`, unchanged, logs the launch through this component;
 - the `notes` component and its file: `NOTES_FILE`, or `notes.json` in the home directory. The client starts the server
   in a directory of its choice, so the default path is absolute;
-- the `mcp` adapter of the entrypoint ([Entrypoint](../Entrypoint.md)): `stdioMCPEntrypoint()` by default, and
+- the entrypoint's `mcp` adapter ([Entrypoint](../Entrypoint.md)): `stdioMCPEntrypoint()` by default, and
   `httpMCPEntrypoint()` on `127.0.0.1` when `MCP_PORT` is set. When `MCP_TOKEN` is set too, `authenticate` requires it,
-  and a request without it is answered with 401;
+  and a request without it receives a 401 response;
 - `instructions` for the model, which the client receives when it connects.
 
 ## 7. Run it
@@ -405,8 +404,8 @@ This is the `Config.ts` of the template, with:
 npm run build
 ```
 
-You can try the server without a client by writing the messages of the protocol to its standard input: the
-initialization, then a call to `notes_add`.
+You can try the server without a client by writing protocol messages to its standard input: the initialization, then a
+call to `notes_add`.
 
 ```bash
 printf '%s\n' \
@@ -421,11 +420,11 @@ printf '%s\n' \
 {"result":{"content":[{"type":"text","text":"{\n  \"id\": 1,\n  \"title\": \"Wi-Fi\",\n  \"text\": \"The password is on the back of the router.\",\n  \"tags\": [\n    \"home\"\n  ],\n  \"createdAt\": \"2026-10-17T14:56:05.346Z\"\n}"}],"structuredContent":{"id":1,"title":"Wi-Fi","text":"The password is on the back of the router.","tags":["home"],"createdAt":"2026-10-17T14:56:05.346Z"}},"jsonrpc":"2.0","id":2}
 ```
 
-The standard output holds only the responses, one message per line; the startup log went to the standard error, which is
+Standard output contains only the responses, one message per line; the launch log went to standard error, which is
 discarded here. The server exits once its input is closed. A client must run `node build/App.js`, not `npm start`: npm
-writes its own lines (`> notes@0.0.1 start`) to the standard output.
+writes its own lines (`> notes@0.0.1 start`) to standard output.
 
-**In Claude Code.** Register the server once for all your projects (`--scope user`), with the path of the notes file:
+**In Claude Code.** Register the server once for all your projects (`--scope user`), with the path to the notes file:
 
 ```bash
 claude mcp add --scope user notes -e NOTES_FILE=$HOME/notes.json -- node $PWD/build/App.js
@@ -433,12 +432,12 @@ claude mcp get notes
 ```
 
 `claude mcp get notes` starts the server to check it, and shows `Status: ✔ Connected`. In a conversation, Claude can
-then save what you ask it to remember and search your notes; the descriptions of the tools and the instructions of the
-server tell it when. `/mcp__notes__notes_review home` sends the prompt, filled with the notes tagged `home`.
+then save what you ask it to remember and search your notes; the tool descriptions and the server's instructions tell it
+when. `/mcp__notes__notes_review home` sends the prompt, filled with the notes tagged `home`.
 
 **In Claude Desktop and other clients.** A client that runs its servers over stdio lists their commands in its
-configuration, under `mcpServers`. For Claude Desktop, this is the file `claude_desktop_config.json`
-(Settings > Developer > Edit Config), read when the application starts:
+configuration, under `mcpServers`. For Claude Desktop, this is the `claude_desktop_config.json` file (Settings >
+Developer > Edit Config), read when the application starts:
 
 ```json
 {
@@ -455,7 +454,7 @@ configuration, under `mcpServers`. For Claude Desktop, this is the file `claude_
 The paths must be absolute. A client that cannot find `node` (installed with nvm, for example) needs its full path,
 which `which node` prints.
 
-**Over HTTP.** The server then runs on its own, and the clients connect to its URL:
+**Over HTTP.** The server then runs on its own, and clients connect to its URL:
 
 ```bash
 MCP_PORT=3000 MCP_TOKEN=change-me node build/App.js
@@ -471,15 +470,14 @@ curl -i -X POST localhost:3000/mcp -H 'Content-Type: application/json' -d '{}'
 claude mcp add --transport http --scope user notes-http http://127.0.0.1:3000/mcp --header "Authorization: Bearer change-me"
 ```
 
-A request without the token is refused; Claude Code sends the header given with `--header`. Over HTTP, the server speaks
-the 2026-07-28 revision of the protocol, and serves the clients of the 2025 revisions without sessions
+A request without the token is refused; Claude Code sends the header specified with `--header`. Over HTTP, the server
+speaks the 2026-07-28 revision of the protocol, and serves clients of the 2025 revisions without sessions
 ([MCP](../MCP.md), section 6).
 
 ## 8. Test it
 
-The test of the template is replaced by a test of the server over its two transports. Over stdio, the SDK's MCP client
-runs `build/App.js` as a child process, as Claude Code does; over HTTP, the server runs in the test process, on
-port 18088:
+The template's test is replaced by a test of the server over its two transports. Over stdio, the SDK's MCP client runs
+`build/App.js` as a child process, as Claude Code does; over HTTP, the server runs in the test process, on port 18088:
 
 **`src/tests/App.spec.ts`**
 
@@ -598,8 +596,8 @@ describe('notes over HTTP', (): void => {
 })
 ```
 
-- `env` adds `NOTES_FILE` to the variables that the SDK passes to the server (a few, such as `PATH`, not the whole
-  environment of the test), so that the server uses its own file. `stderr: 'pipe'` collects the logs of the server.
+- `env` adds `NOTES_FILE` to the variables that the SDK passes to the server (a few, such as `PATH`, not the test's
+  whole environment), so that the server uses its own file. `stderr: 'pipe'` collects the server's logs.
 - For a failed call, `callTool()` returns a result whose `isError` is true instead of throwing: the model reads the
   error like any other result.
 
@@ -638,11 +636,11 @@ npx lakutata package bundle
 ```
 
 - The bundle is a single file that runs without `node_modules` ([Packaging](../Packaging.md)); git ignores it. Copy it
-  anywhere and give its path to the clients: `claude mcp add --scope user notes -- node /path/to/notes.cjs`.
-- The notes are read and written whole at each call, which suits the notes of one person. For many notes, or for several
-  clients that write at once, keep them in a database ([Databases](../Database.md)).
+  anywhere and provide its path to the clients: `claude mcp add --scope user notes -- node /path/to/notes.cjs`.
+- The notes are read and written whole on each call, which suits one person's notes. For many notes, or for several
+  clients that write at the same time, keep them in a database ([Databases](../Database.md)).
 - To serve other machines over HTTP, put a proxy with TLS in front of the server, and list in `allowedHosts` the host
-  name that the clients connect to ([MCP](../MCP.md), section 6).
+  name that clients connect to ([MCP](../MCP.md), section 6).
 
 <!--
 check:

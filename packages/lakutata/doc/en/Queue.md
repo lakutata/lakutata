@@ -1,18 +1,18 @@
 # Lakutata Queues
 
-The **Queue component** (`lakutata/com/queue`, package `@lakutata/queue`) lets you add messages to queues and process
-them with controller actions marked `@QueueAction`. The `queueEntrypoint` adapter delivers the messages, and the actions
-get the same input DTOs, access control and middleware as on any other transport. A message is acknowledged when its
-action returns, retried after a failure, and finally sent to a dead-letter queue; whatever the action returns is the
-result of the message. Queues can live in memory, Redis, NATS JetStream, RabbitMQ or Kafka, and the actions' code is the
-same for every driver. The README of `@lakutata/queue` gives the details.
+The **Queue component** (`lakutata/com/queue`, the `@lakutata/queue` package) lets you add messages to queues and
+process them with controller actions marked `@QueueAction`. The `queueEntrypoint` adapter delivers the messages, and the
+actions receive the same input DTOs, access control and middleware as on any other transport. A message is acknowledged
+when its action returns, retried after a failure, and finally sent to a dead-letter queue; whatever the action returns
+is the message's result. Queues can live in memory, Redis, NATS JetStream, RabbitMQ or Kafka, and the actions' code is
+the same for every driver. The README of `@lakutata/queue` provides the details.
 
 ## 1. Configuration
 
-Declare `Queue` in the application's `components` with `buildQueueOptions` (it is named `queue` by convention), give the
-entrypoint the queue adapter, and start the entrypoint at launch with `bootstrap: ['entrypoint']` — otherwise it is only
-created on first use and the actions never start consuming. Without a `driver`, messages are kept in the memory of the
-process.
+Declare `Queue` in the application's `components` with `buildQueueOptions` (it is named `queue` by convention), provide
+the queue adapter to the entrypoint, and create the entrypoint at launch with `bootstrap: ['entrypoint']`; otherwise it
+is only created on first use and the actions never start consuming. Without a `driver`, messages are kept in the
+process's memory.
 
 ```typescript
 import {Application} from 'lakutata'
@@ -48,21 +48,21 @@ Application.run(() => ({
 | `{type: 'nats', servers}` | `nats` | NATS 2.9.4+ with JetStream (`-js`) | streams keep messages for `maxAge` (7 days by default); duplicates are dropped within a 2-minute window; no priorities |
 | `{type: 'rabbitmq', url}` | `amqplib` | RabbitMQ 3.6+ | priorities 0–10, delays; needs `results.store` |
 | `{type: 'kafka', brokers}` | `@platformatic/kafka` (Node.js 22.22 / 24.6+) | Kafka 3.5+ | ordering by key, `partitions` (1 by default); needs `results.store` |
-| `{type: 'custom', driver}` | | | a `QueueDriver` of the application |
+| `{type: 'custom', driver}` | | | a `QueueDriver` provided by the application |
 
-The client packages are optional peer dependencies, loaded when the component starts. A missing client fails the start
-with `QueueDriverNotFoundException`, a server that is too old with `QueueDriverVersionException`, and an unreachable
-server with its connection error. Once started, the drivers reconnect on their own. The server-backed drivers also take
-a `prefix` (`lakutata` by default) for the names they create on the server, so that applications sharing a server stay
-apart.
+The client packages are optional peer dependencies, loaded when the component is created. Creating the component fails
+with `QueueDriverNotFoundException` when a client package is missing, with `QueueDriverVersionException` when the server
+is too old, and with the connection error when the server is unreachable. Once started, the drivers reconnect
+automatically. The server-backed drivers also take a `prefix` (`lakutata` by default) for the names they create on the
+server, so that applications sharing a server stay separate.
 
-The other options of the component:
+The component's other options:
 
-- `defaults`: default settings for the consumers: `attempts` (3), `backoff` (exponential, from 1 s to 1 min),
+- `defaults`: default settings for the consumers, namely `attempts` (3), `backoff` (exponential, from 1 s to 1 min),
   `concurrency` (1), `timeout` (none) and `group` (the application's `appId`).
 - `results`: `keep` (how long a result is kept, 1 day by default) and `store` (the name of a `Cacher` component that
-  keeps the results instead of the driver). RabbitMQ and Kafka cannot keep results themselves: give them a store that
-  all your applications share, such as a Redis store. `false` keeps no results at all.
+  keeps the results instead of the driver). RabbitMQ and Kafka cannot keep results themselves: specify a store that all
+  your applications share, such as a Redis store. `false` keeps no results at all.
 - `codec`: `'messagepack'` (the default, the same codec as `@lakutata/nats`), `'json'` (for services written in other
   languages) or a custom `QueueCodec`.
 - `requestTimeout`: how long `request()` and `result()` wait (30 s).
@@ -92,8 +92,8 @@ Application.run(() => ({
 @QueueAction(queue, dto?, options?)
 ```
 
-The method processes the messages of a queue. Its input is the message, validated by the DTO, and `this.context` is a
-`QueueContext`; whatever it returns is the result of the message. The same method may also carry the decorators of other
+The method processes a queue's messages. Its input is the message, validated by the DTO, and `this.context` is a
+`QueueContext`; whatever it returns is the message's result. The same method may also carry the decorators of other
 transports (an HTTP route, a service action…). The options are those of any action (`name`, `acl`, `rule`,
 `middlewares`…) plus:
 
@@ -101,7 +101,8 @@ transports (an HTTP route, a service action…). The options are those of any ac
 - `concurrency`: how many messages one instance processes at the same time;
 - `attempts`, `backoff`: how many times a message is delivered before it goes to the dead-letter queue, and how long to
   wait between deliveries;
-- `timeout`: the time limit for processing a message; when exceeded, the processing is aborted and the message retried;
+- `timeout`: the time limit for processing a message; when it is exceeded, processing is aborted and the message is
+  retried;
 - `ordered`: process messages that share a `key` in order, one at a time (memory and Kafka drivers);
 - `output`: a queue that receives the returned value as a new message (it must be an object; `undefined` sends nothing).
 
@@ -142,11 +143,11 @@ class ImageController extends Controller {
 
 The context holds the `queue`, the `jobId`, the `group`, the `attempt` (1 on the first delivery), the `attempts`
 allowed, the application's `headers` and `publishedAt`. Its `type` is `'QUEUE'`, so middleware and access rules shared
-by several transports can tell queue deliveries apart.
+by several transports can distinguish queue deliveries.
 
 `queueEntrypoint(componentName, {name, middlewares, onError})` checks the actions' options and registers their groups
-while the application starts, then begins consuming once it has launched. `onError(error, action, context)` is called on
-every failure, retried or not; by default failures are written to the application log.
+during the launch, then begins consuming once the application has launched. `onError(error, action, context)` is called
+on every failure, retried or not; by default failures are written to the application log.
 
 Without a controller, `queue.consume(name, processor, options)` processes a queue with a plain function
 `(input, context, signal) => result` and returns a subscription with a `stop()` method:
@@ -195,8 +196,8 @@ class Images extends Component {
 
 A message takes these options: `jobId` (a random UUID by default), `dedupe`, `delay`, `priority` (higher first), `key`
 (the ordering key), `attempts` and `backoff` (overriding the consumer's), and `headers` (the `x-lkt-` prefix is
-reserved). An option the driver does not support fails with `QueueCapabilityException`; `queue.capabilities` lists what
-the driver supports.
+reserved). Using an option that the driver does not support fails with `QueueCapabilityException`; `queue.capabilities`
+lists what the driver supports.
 
 `request()` resolves with the value the action returns and rejects with `QueueJobFailedException` when the message
 fails. On timeout it rejects with `QueueRequestTimeoutException`, but the message stays in the queue and its result can
@@ -212,25 +213,25 @@ whatever is kept right now); they reject with `QueueResultNotFoundException` whe
   (`{queue, jobId, group, input, error, attempts, failedAt}`) — an ordinary queue you can consume. A message may be
   processed twice after a crash or a stop, so actions should be idempotent.
 - **No retry when a retry cannot help.** Invalid input (`InvalidValueException`), denied access, a missing action, an
-  invalid result (`@Return`), or a message or result the codec cannot encode: the message goes straight to the dead
-  letter queue. An action that throws `QueueDiscardException` drops its message: it is acknowledged, and neither
+  invalid result (`@Return`), or a message or result the codec cannot encode: the message goes straight to the
+  dead-letter queue. An action that throws `QueueDiscardException` drops its message: it is acknowledged, and neither
   dead-lettered nor kept.
 - **Time limit.** Processing that exceeds its `timeout` fails with `QueueProcessingTimeoutException` and is retried: its
   signal is aborted, and whatever it returns afterwards is dropped. Drivers whose deliveries have a lease (NATS) extend
   it while the message is being processed.
-- **Stopping.** When the application stops, the consumers stop taking messages, and the ones being processed get the
-  entrypoint's `shutdownTimeout` to finish. Any still running after that are neither acknowledged nor dead-lettered:
-  they are delivered again later.
+- **Stopping.** When the application stops, the consumers stop taking messages, and the messages being processed are
+  given the entrypoint's `shutdownTimeout` to finish. Any still running after that are neither acknowledged nor
+  dead-lettered: they are delivered again later.
 - **Groups.** Instances of the same group share the messages; each group receives every message. An action's group is
   its application's `appId` by default, so two applications consuming one queue each receive its messages unless they
   name the same `group`. A group only receives messages added after it was registered: its actions register it while the
-  application starts, and `consume()` and `queue.prepare(name, {group})` register it too. With the server-backed
+  application launches, and `consume()` and `queue.prepare(name, {group})` register it too. With the server-backed
   drivers, messages added to a queue before any group registered are not delivered; the memory driver keeps them for the
   first group that registers, up to `backlog` messages for each queue (`{type: 'memory', backlog: 1000}` by default),
-  and drops the oldest beyond that. So a dead-letter queue (`<queue>.dead`) that nobody consumes keeps only its last
-  1000 messages in memory. Groups stay registered on the server, so their messages are kept even while none of their
-  instances is running.
-- **Messages.** A message is an object: the input of its action. With the default codec, a `Date` arrives as an ISO
+  and drops the oldest beyond that. A dead-letter queue (`<queue>.dead`) that nobody consumes therefore keeps only its
+  last 1000 messages in memory. Groups stay registered on the server, so their messages are kept even while none of
+  their instances is running.
+- **Messages.** A message is an object: its action's input. With the default codec, a `Date` arrives as an ISO
   string (an input DTO can convert it back; in a result it stays a string), and a `bigint` is refused.
 
 ## 5. The drivers compared
@@ -247,9 +248,9 @@ whatever is kept right now); they reject with `QueueResultNotFoundException` whe
 | An abandoned delivery counts as an attempt | no | yes | yes | no | no |
 | Survives a restart | no | yes | yes | yes | yes |
 
-On Kafka, the messages of a partition are processed in order, one at a time: `concurrency` is the number of partitions
-an instance works on at the same time, and attempts are counted by the instance processing the message. RabbitMQ cannot
-list the groups of a queue, so the component keeps them in `results.store`; your applications must share that store for
+On Kafka, a partition's messages are processed in order, one at a time: `concurrency` is the number of partitions an
+instance works on at the same time, and attempts are counted by the instance processing the message. RabbitMQ cannot
+list a queue's groups, so the component keeps them in `results.store`; your applications must share that store for
 `request()` and `result()` to find the groups without naming one.
 
 ## 6. Exceptions
@@ -258,12 +259,12 @@ list the groups of a queue, so the component keeps them in `results.store`; your
 |---|---|
 | `QueueInvalidMessageException` (400) | A message that is not an object, an empty queue name, a header with the `x-lkt-` prefix, or a value the codec cannot encode |
 | `QueueCapabilityException` | An option the driver does not support (`priority`, `dedupe`, `delay`, `ordered`), no result kept |
-| `QueueRequestTimeoutException` (504) | `request()` did not get its result in time |
-| `QueueResultNotFoundException` (404) | `result()` before the message has been processed, or an unknown id |
+| `QueueRequestTimeoutException` (504) | `request()` did not receive its result in time |
+| `QueueResultNotFoundException` (404) | `result()` before the message has been processed, or an unknown ID |
 | `QueueResultExpiredException` (410) | `result()` after the result expired |
 | `QueueAmbiguousGroupException` (400) | `request()` or `result()` without `group` when several groups consume the queue |
-| `QueueJobFailedException` | `request()` or `result()` of a message which failed (its `error`, its `attempts`) |
+| `QueueJobFailedException` | `request()` or `result()` for a message that failed (its `error` and `attempts`) |
 | `QueueProcessingTimeoutException` (504) | Processing exceeded its `timeout` (the message is retried) |
 | `QueueDiscardException` | Thrown by an action to drop its message |
-| `QueueDriverNotFoundException` | The client package of the driver is not installed |
+| `QueueDriverNotFoundException` | The driver's client package is not installed |
 | `QueueDriverVersionException` | The server is older than the driver supports |

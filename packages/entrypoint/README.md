@@ -8,7 +8,7 @@ NW.js or React Native) and a scheduled job at the same time. Whatever the transp
 middlewares, its input is validated by the same DTO, and the same access control applies.
 
 The umbrella package `lakutata` re-exports it as `lakutata/com/entrypoint` (the component, controllers, contexts and
-results), `lakutata/decorator/ctrl` (the action decorators) and `lakutata/adapter/*` (the transports), and presets the
+results), `lakutata/decorator/ctrl` (the action decorators) and `lakutata/adapter/*` (the adapters), and presets the
 `entrypoint` component in every application.
 
 ## Installation
@@ -17,7 +17,7 @@ results), `lakutata/decorator/ctrl` (the action decorators) and `lakutata/adapte
 npm install lakutata
 ```
 
-The transports rely on optional peer dependencies, which you install only when you use them:
+The adapters rely on optional peer dependencies, which you install only when you use them:
 
 | Transport | Subpath | Install |
 |---|---|---|
@@ -27,8 +27,8 @@ The transports rely on optional peer dependencies, which you install only when y
 | Service over Socket.IO | `lakutata/adapter/socket.io` | `socket.io` |
 | Service over JSON-RPC 2.0 (HTTP, WebSocket, stdio) | `lakutata/adapter/jsonrpc` | `ws` for WebSocket |
 | Service over Electron IPC | `lakutata/adapter/electron` | (Electron) |
-| Service to the windows of NW.js | `lakutata/adapter/nwjs` | (NW.js) |
-| Service to the user interface of a mobile application of React Native | `lakutata/adapter/react-native` | none |
+| Service to NW.js windows | `lakutata/adapter/nwjs` | (NW.js) |
+| Service to the user interface of a React Native mobile application | `lakutata/adapter/react-native` | none |
 | Service over HTTP (`POST /`, events by SSE) | `lakutata/com/entrypoint` | none |
 | Schedules (`@Schedule`) | `lakutata/com/entrypoint` | none |
 | Service over gRPC / NATS | `@lakutata/grpc/service` / `@lakutata/nats` | their packages |
@@ -102,14 +102,14 @@ Application.run(() => ({
 
 - `this.context` is the request's context: `HTTPContext` (with `request`, `response`, `route`, `method`),
   `CLIContext` (with `command`), `ServiceContext` (with `clientId`) or `ScheduleContext`.
-- `this.signal` is aborted when the request is aborted: the client goes away, the deadline passes or the entrypoint
-  stops.
+- `this.signal` is aborted when the request is aborted: the client closes the connection or cancels the call, the
+  deadline passes or the entrypoint stops.
 - A controller is created for each request (`@Scoped`), and the request-scoped objects it injects are shared within
   that request.
 - The returned value is the response. `Result.status(201, data, headers)`, `Result.file(path)` and `Result.events()`
   (Server-Sent Events) control the HTTP response.
-- Over HTTP (Express, Fastify), an exception is answered with its `statusCode` and the JSON `{errno, errMsg}`, and
-  invalid input with 400.
+- Over HTTP (Express, Fastify), the adapter responds to an exception with its `statusCode` and the JSON
+  `{errno, errMsg}`, and to invalid input with 400.
 
 ### Middlewares and access control
 
@@ -148,7 +148,7 @@ Application.run(() => ({
 }))
 ```
 
-Access control: an action declared with `{acl: true}` is checked by the rules given to `buildEntrypoints({rules})`
+Access control: an action declared with `{acl: true}` is checked by the rules passed to `buildEntrypoints({rules})`
 (`AccessControlRule` subclasses, created for each request). A rule that resolves to `false` denies the request with
 `AccessDeniedException` (HTTP 403).
 
@@ -156,23 +156,23 @@ Access control: an action declared with `{acl: true}` is checked by the rules gi
 
 | Export | Subpath | What it is |
 |---|---|---|
-| `Entrypoint`, `buildEntrypoints` | `lakutata/com/entrypoint` | The component and its options: controllers, transports, middlewares, rules, groups |
-| `Controller` | `lakutata/com/entrypoint` | The base class of the controllers (`context`, `signal`) |
-| `HTTPContext`, `CLIContext`, `ServiceContext`, `ScheduleContext`, `BaseContext`, `ContextType` | `lakutata/com/entrypoint` | The contexts of the requests |
-| `Result`, `StatusResult`, `FileResult`, `EventsResult` | `lakutata/com/entrypoint` | The results controlling the HTTP response |
-| `AccessControlRule`, `AccessControl` | `lakutata/com/entrypoint` | The access control |
-| `Middleware`, `ActionInvocation`, `Next` | `lakutata/com/entrypoint` | The middlewares |
-| `httpServiceEntrypoint`, `scheduleEntrypoint` | `lakutata/com/entrypoint` | The service over HTTP, the schedules |
-| `HTTPServiceProxy`, `buildHTTPServiceProxy` | `lakutata/com/entrypoint` | The client of a service over HTTP: its actions and its events |
+| `Entrypoint`, `buildEntrypoints` | `lakutata/com/entrypoint` | The component and its options: controllers, adapters, middlewares, rules, groups |
+| `Controller` | `lakutata/com/entrypoint` | The base class of controllers (`context`, `signal`) |
+| `HTTPContext`, `CLIContext`, `ServiceContext`, `ScheduleContext`, `BaseContext`, `ContextType` | `lakutata/com/entrypoint` | Request contexts |
+| `Result`, `StatusResult`, `FileResult`, `EventsResult` | `lakutata/com/entrypoint` | Results that control the HTTP response |
+| `AccessControlRule`, `AccessControl` | `lakutata/com/entrypoint` | Access control |
+| `Middleware`, `ActionInvocation`, `Next` | `lakutata/com/entrypoint` | Middlewares |
+| `httpServiceEntrypoint`, `scheduleEntrypoint` | `lakutata/com/entrypoint` | The HTTP service adapter, the schedule adapter |
+| `HTTPServiceProxy`, `buildHTTPServiceProxy` | `lakutata/com/entrypoint` | The client of an HTTP service: its actions and events |
 | `Cron`, `parseDuration` | `lakutata/com/entrypoint` | Cron expressions and durations |
-| `InterfaceListeningOptions` | `lakutata/com/entrypoint` | The options of the adapters that listen on a network interface instead of an address: `interface`, `family`, `strict`, `onError`, `interfaceListening` (`@lakutata/netif` by default) |
+| `InterfaceListeningOptions` | `lakutata/com/entrypoint` | The options of adapters that listen on a network interface instead of an address: `interface`, `family`, `strict`, `onError`, `interfaceListening` (`@lakutata/netif` by default) |
 | `HTTPAction`, `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS` | `lakutata/decorator/ctrl` | HTTP routes |
 | `CLIAction`, `ServiceAction`, `Schedule` | `lakutata/decorator/ctrl` | Commands, service actions, scheduled jobs |
-| `Prefix`, `UseMiddlewares` | `lakutata/decorator/ctrl` | A prefix for the routes, commands and patterns of a controller; its middlewares |
-| `expressHTTPEntrypoint`, `fastifyHTTPEntrypoint` | `lakutata/adapter/express`, `lakutata/adapter/fastify` | HTTP transports (`staticUI` with Express) |
-| `commanderCLIEntrypoint` | `lakutata/adapter/commander` | CLI transport |
-| `socketIOServiceEntrypoint`, `jsonRPCServiceEntrypoint`, `electronIPCServiceEntrypoint` | `lakutata/adapter/*` | Service transports |
-| `EntrypointAdapter`, `ChannelRuntime` | `@lakutata/entrypoint/channel` | Writing a transport or a channel |
+| `Prefix`, `UseMiddlewares` | `lakutata/decorator/ctrl` | A prefix for a controller's routes, commands and patterns; its middlewares |
+| `expressHTTPEntrypoint`, `fastifyHTTPEntrypoint` | `lakutata/adapter/express`, `lakutata/adapter/fastify` | HTTP adapters (`staticUI` with Express) |
+| `commanderCLIEntrypoint` | `lakutata/adapter/commander` | CLI adapter |
+| `socketIOServiceEntrypoint`, `jsonRPCServiceEntrypoint`, `electronIPCServiceEntrypoint` | `lakutata/adapter/*` | Service adapters |
+| `EntrypointAdapter`, `ChannelRuntime` | `@lakutata/entrypoint/channel` | Writing an adapter or a channel |
 
 The typings document each declaration with examples.
 
@@ -180,14 +180,14 @@ The typings document each declaration with examples.
 
 | Exception | Thrown when |
 |---|---|
-| `InvalidValueException` (from `lakutata`) | The input does not match the DTO of the action (HTTP 400) |
+| `InvalidValueException` (from `lakutata`) | The input does not match the action's DTO (HTTP 400) |
 | `AccessDeniedException` | A rule denies the request (HTTP 403) |
 | `ControllerActionNotFoundException`, `RouteNotFoundException` | No action matches the request (HTTP 404) |
 | `EntrypointStoppedException` | The entrypoint is stopping (HTTP 503) |
 | `DuplicateActionNameException` | Two actions of a channel have the same name |
-| `InvalidActionGroupException`, `InvalidPrefixException`, `InvalidMiddlewareException`, `InvalidChannelException`, `InvalidEntrypointAdapterException` | The declarations of the controllers or the options are invalid |
+| `InvalidActionGroupException`, `InvalidPrefixException`, `InvalidMiddlewareException`, `InvalidChannelException`, `InvalidEntrypointAdapterException` | Controller declarations or options are invalid |
 | `ServiceInvokeException` | A remote service action failed (its error's properties copied) |
-| `ServiceUnavailableException` | A service called by an `HTTPServiceProxy` gave no response (HTTP 503) |
+| `ServiceUnavailableException` | A service called by an `HTTPServiceProxy` does not respond (HTTP 503) |
 
 ## See also
 
@@ -197,4 +197,4 @@ The typings document each declaration with examples.
   `Middlewares.md`, `HTTP.md` (the HTTP adapters), `ServiceCalls.md` (the service transports), `CLI.md`, `Schedules.md`.
 - `@lakutata/core`: DTOs, dependency injection and the application.
 - `@lakutata/mutex`: `@Synchronized` actions and `exclusive` schedules.
-- `@lakutata/grpc`, `@lakutata/nats`: the service transports over gRPC and NATS.
+- `@lakutata/grpc`, `@lakutata/nats`: the gRPC and NATS service adapters.

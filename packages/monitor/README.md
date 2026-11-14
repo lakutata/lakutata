@@ -17,8 +17,8 @@ It has no optional dependencies: the measurements come from `node:process`, `nod
 
 ## Usage
 
-Register the monitors in the application's `components` and list them in `bootstrap`, since a monitor starts measuring
-when it is created. Then get them with `getObject()` or `@Inject` and read their `statistics`; they are singletons.
+Register the monitors in the application's `components` and list them in `bootstrap`, because a monitor starts measuring
+when it is created. Then obtain them with `getObject()` or `@Inject` and read their `statistics`; they are singletons.
 
 ```typescript
 import {Application} from 'lakutata'
@@ -73,23 +73,23 @@ Application
 
 | Monitor | Measures | Unit | Sampling | Rounded to |
 |---|---|---|---|---|
-| `CpuMonitor` | User plus system CPU time of the process over each second | percent of one core (above 100 with several cores) | every second, first sample 1 s after creation | 5 decimals |
+| `CpuMonitor` | The process's user plus system CPU time over each second | percent of one core (above 100 with several cores) | every second, first sample 1 s after creation | 5 decimals |
 | `MemoryMonitor` | `process.memoryUsage()`: resident set, V8 heap, external memory; the host's total memory | bytes (the `*Usage` fields in percent) | at creation, then every second | 2 decimals for the means and percentages |
-| `EventLoopMonitor` | The interval between the runs of a 1 ms timer on the event loop (about 1 ms when the loop is idle); the share of time the loop is busy | milliseconds; percent | continuously (Node's `monitorEventLoopDelay`, 1 ms resolution) | not rounded |
+| `EventLoopMonitor` | The interval between runs of a 1 ms timer on the event loop (about 1 ms when the loop is idle); the share of time the loop is busy | milliseconds; percent | continuously (Node's `monitorEventLoopDelay`, 1 ms resolution) | not rounded |
 | `HttpRequestMonitor` | The duration of each request received by a `node:http` server (Express, Fastify), from its arrival to the end of its response | milliseconds; a count | each request, delivered in batches shortly after its response | 2 decimals |
 
-- **Reading the statistics**: each read of the getter computes them again. The minimum, maximum, mean and percentiles
+- **Reading the statistics**: the getter computes them again on each read. The minimum, maximum, mean and percentiles
   cover every sample since the monitor was created or reset: call `reset()` after each report to measure one period at
   a time. The percentiles come from histograms (3 significant digits). The minimum, maximum and mean are exact, except
   those of `EventLoopMonitor`, which come from the Node.js histogram like its percentiles and are approximate.
 - **A blocked event loop**: the next CPU sample is late and covers the whole time the loop was blocked. It counts once
-  for each second it covers, so the mean and the percentiles weigh busy periods by their duration.
+  per second it covers, so that the mean and the percentiles weight busy periods by their duration.
 - **Before the first sample**: the CPU statistics are 0 for the first second, and the HTTP statistics until a request
   ends. The event loop's `utilRate` reads 100 until the loop has been idle, as right after a `reset()`.
-- **Lifecycle**: the monitors' timers do not keep the process alive, and the monitors stop when the application is
-  destroyed.
-- **Scope**: the monitors measure only the current process: in a cluster or with several instances, each process has
-  its own. `physicalTotal` is the host's memory, not a container's limit. Requests that the process sends, and HTTP/2
+- **Lifecycle**: the timers of the monitors do not keep the process alive, and the monitors stop when the application
+  stops.
+- **Scope**: the monitors measure only the current process; in a cluster or with several instances, each process has its
+  own. `physicalTotal` is the host's memory, not a container's limit. Requests that the process sends, and HTTP/2
   requests, are not counted.
 
 ## API
@@ -99,20 +99,20 @@ Application
 | `CpuMonitor` | The CPU usage component: `statistics`, `reset()` |
 | `MemoryMonitor` | The memory component: `statistics`, `reset()` |
 | `EventLoopMonitor` | The event loop component: `statistics`, `reset()` |
-| `HttpRequestMonitor` | The received HTTP requests component: `statistics`, `reset()` |
+| `HttpRequestMonitor` | The component for received HTTP requests: `statistics`, `reset()` |
 | `ICpuMonitorStatistics` | `usage` and `usageMin`/`Max`/`Avg`/`P50`/`P90`/`P95`/`P99`, in percent of one core |
 | `IMemoryMonitorStatistics` | `physical*` (resident set), `heap*` (V8 heap), `external*`, in bytes, plus `physicalUsage` and `heapUsage` in percent |
 | `IEventLoopMonitorStatistics` | `min`, `max`, `avg`, `stdDev`, `p50`, `p90`, `p95`, `p99` in milliseconds, `utilRate` in percent |
 | `IHttpRequestMonitorStatistics` | `count`, then `min`, `max`, `avg`, `stdDev`, `p50`, `p90`, `p95`, `p99` in milliseconds |
-| `IMonitor` | The interface of the monitors: a `statistics` property |
+| `IMonitor` | The monitor interface: a `statistics` property |
 
 All of them are exported by `lakutata/com/monitor` and `@lakutata/monitor`. The typings document each declaration with
 examples.
 
 ## Errors
 
-The monitors throw no exceptions of their own: reading `statistics` and calling `reset()` never fail. An option that a
-monitor does not have is ignored, with a warning when the application starts.
+The monitors throw no package-specific exceptions: reading `statistics` and calling `reset()` never fail. An option that
+a monitor does not have is ignored, with a warning when the application launches.
 
 ## See also
 

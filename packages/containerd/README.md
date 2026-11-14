@@ -3,10 +3,10 @@
 English | [中文](README.zh-CN.md)
 
 The containerd component of the Lakutata framework. It manages the images, containers, CNI networks and named volumes of
-a [containerd](https://containerd.io) namespace by talking directly to containerd's gRPC socket, without a Docker daemon
-or nerdctl (the gRPC client is written in TypeScript, with no native addon). It targets Linux machines that run
-containerd alone, such as embedded devices, and its API follows that of the Docker component. Images are pulled with
-registry credentials, pushed, tagged, imported, exported and pruned. Containers are created with ports, volumes,
+a [containerd](https://containerd.io) namespace by communicating directly with containerd's gRPC socket, without a
+Docker daemon or nerdctl (the gRPC client is written in TypeScript, with no native addon). It targets Linux machines
+that run containerd alone, such as embedded devices, and its API follows that of the Docker component. Images are pulled
+with registry credentials, pushed, tagged, imported, exported and pruned. Containers are created with ports, volumes,
 devices, seccomp and resource limits; they can then be started and stopped, run commands, stream their logs, report
 their stats, and be updated and committed, and have directories exported from them. Builds are sent to BuildKit. The
 containers it creates are the same as those nerdctl creates, so `nerdctl ps` lists them. The umbrella package `lakutata`
@@ -26,16 +26,16 @@ The component has no optional npm dependencies. The machine needs:
 | CNI networks, published ports | The CNI plugins (`bridge`, `portmap`, `host-local`… in `/opt/cni/bin`, `/usr/lib/cni` or `/usr/libexec/cni`) and iptables |
 | `exec()` with `stdin`, separate `stdout`/`stderr`, terminals | `mkfifo` on the host (without it, `exec()` puts both outputs in `stdout`) |
 | Builds | A BuildKit daemon (`buildkitd`): local, on its unix socket, or remote over TCP/TLS |
-| Containers of other architectures | QEMU (or Rosetta) emulators registered in `binfmt_misc` |
+| Containers for other architectures | QEMU (or Rosetta) emulators registered in `binfmt_misc` |
 
 ## Usage
 
 ### The component in an application
 
-Register `Containerd` in the application's `components` and get it with `getObject()` or `@Inject`. It connects when
+Register `Containerd` in the application's `components` and obtain it with `getObject()` or `@Inject`. It connects when
 it is created: without containerd on `socketPath`, its creation fails with `ContainerdConnectionException`, and the
-application fails to start when the component is listed in `bootstrap`, as here. The component creates its namespace
-if it does not exist.
+launch fails when the component is listed in `bootstrap`, as here. The component creates its namespace if it does not
+exist.
 
 ```typescript
 import {Application} from 'lakutata'
@@ -78,20 +78,18 @@ Application
 
 ### What differs from the Docker component
 
-- There is no daemon in between: the component itself pulls, unpacks, pushes, imports and exports images, and
-  generates the containers' OCI specifications, as nerdctl does. The containers carry nerdctl's labels
-  (`nerdctl/name`…), and the CNI network configurations are nerdctl's (`nerdctl-<name>.conflist`), so nerdctl and the
-  component share them.
+- There is no intermediate daemon: the component itself pulls, unpacks, pushes, imports and exports images, and
+  generates the containers' OCI specifications, as nerdctl does. Containers carry nerdctl's labels (`nerdctl/name`…),
+  and the CNI network configurations are nerdctl's (`nerdctl-<name>.conflist`), so nerdctl and the component share them.
 - containerd's shim writes a container's output to a log file, and containerd's restart monitor applies its restart
   policy, so both keep working while the application is stopped. The logs have no timestamps.
 - `createContainer()` takes the image in its options and never pulls it: pull it first. As with Docker, a container
-  joins the default network, `bridge`, unless `network` or `networks` says otherwise (a CNI network created on first
-  use, so the CNI plugins are needed; see the installation), and its ports are published there; `network: 'host'`
-  gives it the host's network.
-- There is no `loginRepository()`: the credentials come from the `registryAuths` option, or from the `auth` of each
-  call.
+  joins the default network, `bridge`, unless `network` or `networks` specifies otherwise (a CNI network created on
+  first use, so the CNI plugins are needed; see the installation), and its ports are published there; `network: 'host'`
+  makes it use the host's network.
+- There is no `loginRepository()`: the credentials come from the `registryAuths` option, or from each call's `auth`.
 - `importImage()` returns every image in the archive, and `prune()` returns what it removed.
-- The component works within one namespace: the images, containers and volumes of other namespaces are not visible.
+- The component works within one namespace: images, containers and volumes in other namespaces are not visible.
 
 ### Images
 
@@ -195,26 +193,26 @@ await container.remove()
 console.log(await containerd.listContainers({app: 'worker'}))
 ```
 
-- Containers get containerd's default seccomp profile, with the system calls their `capabilities` allow (as with
-  nerdctl); `seccompProfile: 'unconfined'` disables it, and a file path gives an OCI profile. Privileged containers are
-  unconfined.
-- `devices` creates host devices in the container (a single device, or every device in a directory such as
-  `/dev/snd`). For devices plugged in later, bind their directory and allow their numbers with `deviceCgroupRules`, as
-  with Docker's `--device-cgroup-rule`. A `privileged` container gets every device in the host's `/dev` (as nerdctl
-  gives them).
+- Containers receive containerd's default seccomp profile, with the system calls their `capabilities` allow (as with
+  nerdctl); `seccompProfile: 'unconfined'` disables it, and a file path specifies an OCI profile. Privileged containers
+  are unconfined.
+- `devices` creates host devices in the container (a single device, or every device in a directory such as `/dev/snd`).
+  For devices plugged in later, bind their directory and allow their numbers with `deviceCgroupRules`, as with Docker's
+  `--device-cgroup-rule`. A `privileged` container receives every device in the host's `/dev` (as nerdctl provides
+  them).
 - On cgroup v2, containers have their own cgroup namespace (`cgroupns: 'host'` shares the host's).
 - `privileged`, `capabilities`, `capabilitiesDrop`, `readonlyRootfs`, `pidMode: 'host'`, `ipcMode: 'host'`, `sysctls`,
   `extraHosts`, `dns`, `shmSize`, `pidsLimit`, `cpuSet`, `cpuShares`, `memorySwap` and `OOMKillDisable` work like the
-  Docker options of the same names. As with Docker, `memorySwap` is the memory and the swap together, requires
-  `memoryLimit`, and defaults to twice `memoryLimit`.
+  Docker options with the same names. As with Docker, `memorySwap` is memory and swap combined, requires `memoryLimit`,
+  and defaults to twice `memoryLimit`.
 - `update()` with settings other than the resources and the restart policy only works for containers the component
-  created (it keeps their settings in `dataRoot`). A resource set to `0` (`cpuSet: []`) is removed at once, from the
-  running container too.
-- `wait()` on a container that is not running resolves at once, as `docker wait` does, with the exit code of its last
-  run (`0` if it was never started).
+  created (it keeps their settings in `dataRoot`). A resource set to `0` (`cpuSet: []`) is removed immediately, from the
+  running container as well.
+- `wait()` on a container that is not running resolves immediately, as `docker wait` does, with its last run's exit code
+  (`0` if it was never started).
 
 Terminals run a process with a pseudo terminal in a running container: `/bin/sh` by default. A string command runs
-through `/bin/sh -c`, as with `exec()`, and an array runs as is.
+through `/bin/sh -c`, as with `exec()`, and an array runs unchanged.
 
 ```typescript
 import {type Containerd, type ContainerdContainer, type ContainerdContainerTTY} from 'lakutata/com/containerd'
@@ -370,8 +368,8 @@ Application
 | `ContainerdImage` | An image: `name`, `digest`, `platforms`, `platform`, `size`, `config`…; `tag`, `push`, `export`, `remove`, `syncImageInfo` |
 | `ContainerdContainer` | A container: `id`, `name`, `state`, `networks`, `ports`, `volumes`…; `start`, `stop`, `restart`, `kill`, `pause`, `unpause`, `wait`, `remove`, `exec`, `logs`, `stats`, `createTTY`, `update`, `commit`, `exportDirectory`, `processes`, `image`, `syncContainerInfo` |
 | `ContainerdContainerTTY` | A terminal in a container: `raw`, `readable`, `writable`, `onData`, `write`, `resize`, `wait`, `close` |
-| `ImagePullOptions`, `ImagePushOptions`, `ImageBuildOptions`, `ImageImportOptions`, `ImageExportOptions` | The options of the image operations |
-| `ContainerCreateOptions`, `ContainerStopOptions`, `ContainerKillOptions`, `ContainerRemoveOptions`, `ContainerExecOptions`, `ContainerLogsOptions`, `ContainerTTYOptions`, `ContainerTTYConsoleSizeOptions`, `ContainerResourceOptions`, `ContainerCommitOptions`, `ContainerExportDirectoryOptions` | The options of the container operations |
+| `ImagePullOptions`, `ImagePushOptions`, `ImageBuildOptions`, `ImageImportOptions`, `ImageExportOptions` | Image operation options |
+| `ContainerCreateOptions`, `ContainerStopOptions`, `ContainerKillOptions`, `ContainerRemoveOptions`, `ContainerExecOptions`, `ContainerLogsOptions`, `ContainerTTYOptions`, `ContainerTTYConsoleSizeOptions`, `ContainerResourceOptions`, `ContainerCommitOptions`, `ContainerExportDirectoryOptions` | Container operation options |
 | `NetworkCreateOptions`, `VolumeCreateOptions`, `ContainerdPruneOptions`, `ContainerdRegistryAuthOptions` | The options for networks, volumes, `prune` and registry credentials |
 | `ContainerdBind`, `ContainerdVolume`, `ContainerdTmpfs`, `ContainerdDevice`, `ContainerdContainerPort`, `ContainerdRestartPolicy` | Parts of the container options |
 | `ContainerdContainerState`, `ContainerdContainerNetwork`, `ContainerdContainerStats`, `ContainerdExecResult`, `ContainerdImageConfig`, `ContainerdNetworkInfo`, `ContainerdVolumeInfo`, `ContainerdPruneResult`, `ContainerdEvent` | The information returned |
@@ -385,32 +383,31 @@ examples.
 
 | Exception | When |
 |---|---|
-| `ContainerdConnectionException` (`E_CONTAINERD_CONNECTION`) | The component is created and containerd does not answer on `socketPath` (it is not running, or the socket is not accessible), or `buildkitTLS` is given with a unix socket `buildkitAddress` |
+| `ContainerdConnectionException` (`E_CONTAINERD_CONNECTION`) | The component is created and containerd does not respond on `socketPath` (it is not running, or the socket is not accessible), or `buildkitTLS` is specified with a unix socket `buildkitAddress` |
 | `ContainerdImageNotFoundException` (`E_CONTAINERD_IMAGE_NOT_FOUND`) | No image has the name: `getImage()`, `createContainer()` with an image that was not pulled, an operation on a removed image |
 | `ContainerdPlatformException` (`E_CONTAINERD_PLATFORM`) | The image has no manifest for the requested platform (pull, push, container creation) |
 | `ContainerdImagePullException` (`E_CONTAINERD_IMAGE_PULL`) | The registry cannot be reached, refuses the credentials or does not have the reference; the transfer or the unpacking fails |
 | `ContainerdImagePushException` (`E_CONTAINERD_IMAGE_PUSH`) | The registry cannot be reached or refuses the push |
-| `ContainerdImageImportException` (`E_CONTAINERD_IMAGE_IMPORT`) | The archive cannot be read or contains no image; a `name` is given with an archive of several images; the unpacking fails |
+| `ContainerdImageImportException` (`E_CONTAINERD_IMAGE_IMPORT`) | The archive cannot be read or contains no image; a `name` is specified with an archive of several images; the unpacking fails |
 | `ContainerdImageExportException` (`E_CONTAINERD_IMAGE_EXPORT`) | The archive cannot be written |
 | `ContainerdImageBuildException` (`E_CONTAINERD_IMAGE_BUILD`) | BuildKit cannot be reached, the build fails, or the built image cannot be imported |
-| `ContainerdContainerNotFoundException` (`E_CONTAINERD_CONTAINER_NOT_FOUND`) | No container has the id, name or id prefix |
+| `ContainerdContainerNotFoundException` (`E_CONTAINERD_CONTAINER_NOT_FOUND`) | No container has the ID, name or ID prefix |
 | `ContainerdContainerNameConflictException` (`E_CONTAINERD_CONTAINER_NAME_CONFLICT`) | Another container has the name |
 | `ContainerdContainerStateException` (`E_CONTAINERD_CONTAINER_STATE`) | `exec()`, `createTTY()`, `stats()`, `kill()`, `pause()`, `unpause()` or `processes()` on a container that is not running; `start()` on a paused one; `remove()` on a running one without `force`; an `update()` that would recreate a container the component did not create |
 | `ContainerdPathNotFoundException` (`E_CONTAINERD_PATH_NOT_FOUND`) | `exportDirectory()` of a path that does not exist in the container |
-| `ContainerdNetworkNotFoundException` (`E_CONTAINERD_NETWORK_NOT_FOUND`) | No network has the name or id; a container is created on a missing network |
+| `ContainerdNetworkNotFoundException` (`E_CONTAINERD_NETWORK_NOT_FOUND`) | No network has the name or ID; a container is created on a missing network |
 | `ContainerdNetworkConflictException` (`E_CONTAINERD_NETWORK_CONFLICT`) | The network exists, its subnet overlaps another one, a container uses it, it is the default `bridge`, or nerdctl did not create it |
 | `ContainerdVolumeNotFoundException` (`E_CONTAINERD_VOLUME_NOT_FOUND`) | The volume does not exist |
 | `ContainerdVolumeInUseException` (`E_CONTAINERD_VOLUME_IN_USE`) | A container mounts the volume |
 | `InvalidValueException` (from `lakutata`) | The component's options are invalid, when it is created; a live `update()` of `memorySwap` without a memory limit, or below it |
-| `InvalidMethodAcceptException` (from `lakutata`) | The arguments of a call do not match its options (a container name with a space, a missing `image`, a `memorySwap` without `memoryLimit`) |
+| `InvalidMethodAcceptException` (from `lakutata`) | A call's arguments do not match its options (a container name with a space, a missing `image`, a `memorySwap` without `memoryLimit`) |
 | `GRPCError` (from `@lakutata/grpc`) | `wait()` is aborted (the object is destroyed); the connection to containerd is lost |
-| `Error` | The settings of a container cannot be applied (ports without a CNI network, no command, no CNI plugin, a user missing from the image); a container prefix matches several containers |
+| `Error` | A container's settings cannot be applied (ports without a CNI network, no command, no CNI plugin, a user missing from the image); a container prefix matches several containers |
 
 ## See also
 
 - The guide on the website: [Containerd Integration](https://lakutata.com/guide/ContainerdIntegration).
-- `doc/en/ContainerdIntegration.md` in the `lakutata` package (Chinese version in `doc/zh`): the guide to the
-  component.
+- `doc/en/ContainerdIntegration.md` in the `lakutata` package (Chinese version in `doc/zh`): the component guide.
 - `@lakutata/docker` (`lakutata/com/docker`): the same operations through a Docker daemon.
 - `@lakutata/grpc`: the gRPC client that the component and its builds use.
 - `@lakutata/core` (`lakutata`): components, `Application` and dependency injection.

@@ -1,19 +1,19 @@
 # Examples
 
-Each example builds a whole application, from a template of `lakutata create` to its tests: the files to write, the
-commands to run and what they print. The code of every page is checked: a script creates the project from the page,
-builds it and runs its tests.
+Each example builds a complete application, from a `lakutata create` template to its tests: the files to write, the
+commands to run and what they print. The code in every example is checked: a script creates the project from the
+example, builds it and runs its tests.
 
 | Example | What it shows |
 |---|---|
 | [A REST API with a database](RestAPI.md) | The `service` template, an entity and its migration (SQLite), DTO validation, an exception with its HTTP status, pagination, tests |
-| [A command-line tool](CommandLineTool.md) | The `cli` template, commands with arguments and options (`@CLIAction` and their DTOs), the validation errors, asking for a missing option in the terminal, the exit codes, tests, a bundle that runs without `node_modules` |
-| [A web application with a user interface](WebApp.md) | The `web-react` template, an HTTP API under `/api` with its data in a component, a React page that calls it (through the Vite proxy in development), the page served by the built application and from the resources of a bundle (`lakutata.resources`, `resourcesPath()`), tests |
-| [A desktop application](DesktopApp.md) | The `electron-react` template, a notes app: the actions of the main process called over IPC, a system dialog, events pushed to the window, tests that run without Electron |
+| [A command-line tool](CommandLineTool.md) | The `cli` template, commands with arguments and options (`@CLIAction` and their DTOs), validation errors, prompting for a missing option in the terminal, exit codes, tests, a bundle that runs without `node_modules` |
+| [A web application with a user interface](WebApp.md) | The `web-react` template, an HTTP API under `/api` with its data in a component, a React page that calls it (through the Vite proxy in development), the page served by the built application and from a bundle's resources (`lakutata.resources`, `resourcesPath()`), tests |
+| [A desktop application](DesktopApp.md) | The `electron-react` template, a notes app: main-process actions called over IPC, a system dialog, events pushed to the window, tests that run without Electron |
 | [A tray application with NW.js](TrayApp.md) | The `nwjs-react` template, a clipboard history in the tray: components that run without a window (the clipboard read at an interval, the tray and its menu), the window hidden instead of closed, the user interface isolated in a webview, events pushed to it, tests that run without NW.js |
-| [A mobile application](MobileApp.md) | The `mobile-react` template, an expense book for Android, iOS and HarmonyOS: the Node.js side in the data directory of the application (`@data`), SQLite through `better-sqlite3` built for each system, migrations run at launch, a React Native user interface calling the actions through the native module, events pushed to it, tests that run on the computer |
-| [Calls between services](ServiceCalls.md) | Two `service` projects: `@ServiceAction` patterns with `@Prefix`, the HTTP service transport, a proxy component that calls it, a token between the services, the callee's refusal passed back to the caller (409), the tests of each service with a stand-in in the test process |
+| [A mobile application](MobileApp.md) | The `mobile-react` template, an expense book for Android, iOS and HarmonyOS: the Node.js side in the application's data directory (`@data`), SQLite through `better-sqlite3` built for each system, migrations run at launch, a React Native user interface calling the actions through the native module, events pushed to it, tests that run on the computer |
+| [Calls between services](ServiceCalls.md) | Two `service` projects: `@ServiceAction` patterns with `@Prefix`, the HTTP service transport, a proxy component that calls it, a token between the services, the callee's refusal passed back to the caller (409), each service's tests with a stand-in in the test process |
 | [Background jobs](BackgroundJobs.md) | The `service` template, a queue (memory driver) and its `@QueueAction`, retries and the dead-letter queue, a cron schedule run in one instance with a lock, two instances sharing a directory, tests that replace a component |
 | [An MCP server for AI assistants](MCPServer.md) | The `default` template, tools, a resource and a prompt served over stdio and HTTP, arguments validated by DTOs, registration in Claude Code and Claude Desktop, tests with the SDK's MCP client |
-| [A video meeting](Meeting.md) | The `web-react` template with `@lakutata/webrtc`: the signaling and the media server on the port of the page, the browser client, the cameras of everyone in a room, a chat over data channels, tests with members in Node.js |
+| [A video meeting](Meeting.md) | The `web-react` template with `@lakutata/webrtc`: the signaling and the media server on the page's port, the browser client, the cameras of everyone in a room, a chat over data channels, tests with members in Node.js |
 | [A service on a device](DeviceService.md) | The `service` template with its `installer` feature: a scheduled action, components with options, the monitors, configuration through environment variables, a system service installed by deb/rpm packages, tests |

@@ -1,9 +1,9 @@
 # Lakutata Controllers and Actions
 
-A controller is a class whose methods answer requests. Each of these methods is an **action**: a decorator gives it an
-address (an HTTP route, a command, a service pattern, a schedule, a queue), and the `entrypoint` component calls it when
-a request arrives at that address. One method can have several addresses: the same code then answers over HTTP, on the
-command line and over a service transport, with the same validation, middlewares and access control.
+A controller is a class whose methods respond to requests. Each of these methods is an **action**: a decorator assigns
+it an address (an HTTP route, a command, a service pattern, a schedule, a queue), and the `entrypoint` component calls
+it when a request arrives at that address. One method can have several addresses: the same code then responds over HTTP,
+on the command line and over a service transport, with the same validation, middlewares and access control.
 
 ## 1. A controller
 
@@ -75,31 +75,30 @@ $ node dist/index.js order 42
 ```
 
 - A controller extends `Controller`, from `lakutata/com/entrypoint`.
-- The controllers are listed in the `controllers` option of `buildEntrypoints`, next to the adapters of the transports
-  (see [Entrypoint](Entrypoint.md)). The entrypoint must be listed in `bootstrap`, or nothing starts it.
-- The decorator of a transport has no effect without its adapter: here, without `cli`, the `@CLIAction` would be
-  ignored.
+- Controllers are listed in the `controllers` option of `buildEntrypoints`, next to the transport adapters (see
+  [Entrypoint](Entrypoint.md)). The entrypoint must be listed in `bootstrap`; otherwise nothing creates it.
+- A transport's decorator has no effect without its adapter: here, without `cli`, the `@CLIAction` would be ignored.
 
 ## 2. How a request is handled
 
-1. The adapter receives the request and looks for the action at its address. When there is none, the transport answers
+1. The adapter receives the request and looks up the action at its address. When there is none, the transport responds
    that it is not found (404 over HTTP).
 2. A new scope is created for the request.
-3. The middlewares run (see [Middlewares and Access Control](Middlewares.md)).
-4. A new instance of the controller is created in the scope.
-5. The DTO of the action validates the input (section 4).
-6. The access control checks the request (see [Middlewares and Access Control](Middlewares.md)).
+3. Middlewares run (see [Middlewares and Access Control](Middlewares.md)).
+4. A new controller instance is created in the scope.
+5. The action's DTO validates the input (section 4).
+6. Access control checks the request (see [Middlewares and Access Control](Middlewares.md)).
 7. The method is called with the input, and what it returns is the response (section 5).
 8. The scope is destroyed, with the objects created in it.
 
-So a controller lives as long as one request. The providers it injects that are `@Scoped` (the default for a provider)
-are created once for the request and shared by everything that takes part in it; the components are shared by the whole
-application.
+A controller therefore lives as long as one request. The providers it injects that are `@Scoped` (the default for
+providers) are created once for the request and shared by everything that takes part in it; components are shared by the
+whole application.
 
 Inside the method, two properties describe the request:
 
-- `this.context` is the context of the request. Its `type` names the transport, and its class gives the details of that
-  transport:
+- `this.context` is the request's context. Its `type` names the transport, and its class provides the transport-specific
+  details:
 
   | Class | `type` | Specific properties |
   |---|---|---|
@@ -109,12 +108,12 @@ Inside the method, two properties describe the request:
   | `ScheduleContext` | `'SCHEDULE'` | `schedule`, `scheduledAt`, `run` |
   | `QueueContext` (`lakutata/com/queue`) | `'QUEUE'` | See [Queues](Queue.md) |
 
-  Every context also has `data`, the input as it arrived (before validation), and `locale`, the language of the
-  request when the I18n middleware is used.
-- `this.signal` is an `AbortSignal` (its type allows `undefined`: write `this.signal?.`). It is aborted when the
-  request is: the client went away, the deadline of a gRPC call passed, or the application is stopping and its
-  `shutdownTimeout` ran out. Once it is aborted, the result of the action is dropped; a long action should check it and
-  stop early.
+  Every context also has `data`, the input as it arrived (before validation), and `locale`, the request's language when
+  the I18n middleware is used.
+- `this.signal` is an `AbortSignal` (its type allows `undefined`; write `this.signal?.`). It is aborted when the request
+  is aborted: the client closed the connection or canceled the call, a gRPC call's deadline passed, or the application
+  is stopping and its `shutdownTimeout` ran out. Once it is aborted, the action's result is discarded; a long-running
+  action should check it and stop early.
 
 ## 3. The action decorators
 
@@ -127,20 +126,20 @@ Inside the method, two properties describe the request:
 | `@QueueAction(queue)` (`lakutata/com/queue`) | A message queue | [Queues](Queue.md) |
 | `@MCPTool(name)` (`@lakutata/mcp`), `@DBusMethod(...)` (`@lakutata/dbus`) | An MCP tool, a D-Bus method | [MCP](MCP.md), [D-Bus](DBus.md) |
 
-The decorators of the first five rows come from `lakutata/decorator/ctrl`, unless the table names another subpath.
-They take the address first, then the DTO class of the input, then the action options; the DTO and the options can be
-left out. `@Schedule` is the exception: it takes no DTO, as a scheduled job has no input.
+The decorators in the first five rows come from `lakutata/decorator/ctrl`, unless the table names another subpath. They
+take the address first, then the input's DTO class, then the action options; the DTO and the options can be omitted.
+`@Schedule` is the exception: it takes no DTO, because a scheduled job has no input.
 
 The action options:
 
 | Option | Default | Meaning |
 |---|---|---|
-| `name` | `'ControllerClass:method'` | The name of the action, unique for each transport |
-| `description` | | A description: the help of a command, the listing of the actions |
-| `middlewares` | | The middlewares of this action (see [Middlewares and Access Control](Middlewares.md)) |
-| `acl` | `false` | Check the request with the access rules of the entrypoint |
-| `rule` | | An access rule of this action: `(context, input) => Promise<boolean>` |
-| `groups` | | The groups of the action, used by the access rules and the listings (see [Entrypoint](Entrypoint.md)) |
+| `name` | `'ControllerClass:method'` | The action's name, unique within each transport |
+| `description` | | A description, used as a command's help and in action listings |
+| `middlewares` | | This action's middlewares (see [Middlewares and Access Control](Middlewares.md)) |
+| `acl` | `false` | Check the request against the entrypoint's access rules |
+| `rule` | | An access rule for this action: `(context, input) => Promise<boolean>` |
+| `groups` | | The action's groups, used by access rules and listings (see [Entrypoint](Entrypoint.md)) |
 
 ## 4. The input
 
@@ -148,46 +147,46 @@ Each transport builds the input from its request:
 
 | Transport | Input |
 |---|---|
-| HTTP | The query and the body, with the route parameters over them |
-| Command line | The arguments and the options |
-| Service | The message, without the keys of the pattern |
+| HTTP | The query and the body, with the route parameters merged over them |
+| Command line | The arguments and options |
+| Service | The message, without the pattern's keys |
 | Schedule | Nothing |
 | Queue | The message |
 
-The DTO of the action then validates it:
+The action's DTO then validates it:
 
-- the values of the query and of the route parameters are text: a schema that expects a number or a boolean needs
-  `.strict(false)` to convert `'42'` or `'true'`. The command line gives its arguments and options the type of their
-  property itself ([Command Line](CLI.md));
-- the defaults are applied, and the keys the DTO does not declare are removed (`extra` above);
-- an invalid input stops the request with an `InvalidValueException`, answered with the status 400 over HTTP. The
-  message names the first invalid value: `"product" is required`. With the I18n middleware, it is in the language of
-  the request.
+- query values and route parameters are text: a schema that expects a number or a boolean needs `.strict(false)` to
+  convert `'42'` or `'true'`. The command line converts its arguments and options to the types of their properties
+  itself ([Command Line](CLI.md));
+- defaults are applied, and keys the DTO does not declare are removed (`extra` above);
+- when the input is invalid, the request fails with an `InvalidValueException`, sent with status 400 over HTTP. The
+  message names the first invalid value: `"product" is required`. With the I18n middleware, it is in the request's
+  language.
 
-The method receives the validated input as a plain object, a copy: not an instance of the DTO class, which only gives it
+The method receives the validated input as a plain object, a copy: not an instance of the DTO class, which only provides
 its type. An action without a DTO receives the input as it arrived, with all its keys.
 
 ## 5. The result
 
-What the method returns is sent back by the transport:
+The transport sends back what the method returns:
 
 | Transport | A value | `undefined` | An error thrown |
 |---|---|---|---|
 | HTTP | JSON | Status 204 | Its `statusCode` (500 by default) and `{errno, errMsg}` |
-| Command line | On stdout: text as it is, other values as JSON | Nothing | `error: <message>` on stderr, exit code 1 |
+| Command line | On stdout: text unchanged, other values as JSON | Nothing | `error: <message>` on stderr, exit code 1 |
 | Service | `{success: true, error: null, payload}` | `payload` left out | `{success: false, error, payload: null}`, the error with all its properties |
-| Schedule | Ignored | | Given to `onError`, or logged |
+| Schedule | Ignored | | Passed to `onError`, or logged |
 
-`Result`, from `lakutata/com/entrypoint`, controls the response more closely:
+`Result`, from `lakutata/com/entrypoint`, provides finer control over the response:
 
 - `Result.status(status, data, headers)`: an HTTP status and headers with the data;
 - `Result.file(path)` (or a `Buffer`, or a stream, with `{filename, contentType, etag, headers}`): a file, as a download
-  when `filename` is given;
-- `Result.events(producer)`: Server-Sent Events over HTTP, the data of each event on the command line. The producer
-  `(send, signal) => …` runs after the scope of the request is destroyed, so it should use components rather than
+  when `filename` is specified;
+- `Result.events(producer)`: Server-Sent Events over HTTP, each event's data on the command line. The producer
+  `(send, signal) => …` runs after the request's scope is destroyed, so it should use components rather than
   request-scoped providers.
 
-The service transports cannot send a file or events: such a result fails the request.
+Service transports cannot send a file or events: the request fails with such a result.
 
 ## 6. Prefixes
 
@@ -216,11 +215,11 @@ class UserController extends Controller {
 }
 ```
 
-- `route` is put before the HTTP routes, `command` before the commands (joined by a colon), and `pattern` is merged
-  into the service patterns. A key set to different values in the prefix and in an action is an error
+- `route` is prepended to the HTTP routes, `command` to the commands (joined by a colon), and `pattern` is merged into
+  the service patterns. A key set to different values in the prefix and in an action is an error
   (`InvalidPrefixException`).
-- The scheduled jobs have no prefix.
-- A controller takes the prefix of the nearest class that declares one: its own, or else the one of its parent.
+- Scheduled jobs have no prefix.
+- A controller takes the prefix of the nearest class that declares one: its own, or else its parent's.
 
 ## 7. Inheritance
 
@@ -249,8 +248,8 @@ class V2Controller extends HealthController {
 }
 ```
 
-- Register the subclasses only (`controllers: [V1Controller, V2Controller]`). A parent and a subclass registered
+- Register only the subclasses (`controllers: [V1Controller, V2Controller]`). A parent and a subclass registered
   together, with the same address for an action, would conflict: the one registered last wins.
 - A subclass can override an inherited method: the action keeps its address and runs the new code. A decorator on the
-  overriding method adds an address; the inherited one stays.
+  overriding method adds an address; the inherited one remains.
 - The base class can be abstract.

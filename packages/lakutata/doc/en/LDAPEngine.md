@@ -1,20 +1,20 @@
 # Lakutata LDAP Engine
 
-The package `@lakutata/ldap-engine` is LDAP for Node.js, written in TypeScript: a client for directories (OpenLDAP,
+The `@lakutata/ldap-engine` package is LDAP for Node.js, written in TypeScript: a client for directories (OpenLDAP,
 Active Directory, 389 Directory Server, FreeIPA…), a server whose backends keep the entries wherever they choose, and
-the protocol both are made of. It is not part of `lakutata`, and it needs no application. What it is like:
+the protocol both are built on. It is not part of `lakutata`, and it requires no application. What it provides:
 
-- **A client** that pages its searches, reads text and bytes apart, refuses an empty password before sending anything,
-  and tells why a user could not sign in (a wrong password, a locked account, an expired password…).
-- **A server** that does the protocol, TLS, the schema checks, the passwords, the access control and the password
-  policy itself: a backend only keeps the entries.
+- **A client** that pages its searches, reads text and bytes separately, refuses an empty password before sending
+  anything, and reports why a user could not sign in (a wrong password, a locked account, an expired password…).
+- **A server** that handles the protocol, TLS, schema checks, passwords, access control and the password policy itself:
+  a backend only keeps the entries.
 - **Connections in the same process**: a program reads and writes its own server without the network, through the same
-  checks as the requests of the network.
-- **The pieces on their own**: filters, DNs, schemas, LDIF and the messages of LDAPv3, for a script that imports
-  accounts, an editor of schema files, or a proxy.
+  checks as network requests.
+- **The pieces on their own**: filters, DNs, schemas, LDIF and LDAPv3 messages, for a script that imports accounts, a
+  schema file editor, or a proxy.
 - **No dependencies and no native code**: Node.js `>=18.10.0`, Bun, Electron and NW.js.
 
-The README of `@lakutata/ldap-engine` lists every export; this guide goes through what the package is for, with an
+The `@lakutata/ldap-engine` README lists every export; this guide describes what the package is for, with an
 example of each use. In a Lakutata application, `@lakutata/ldap` wraps the client and the server in components (see
 [LDAP](LDAP.md)); what they do is described here.
 
@@ -24,7 +24,7 @@ npm install @lakutata/ldap-engine
 
 ## 1. Connecting to a server
 
-`connectLDAP()` opens one connection, with a session of its own: what it binds as is its identity until it binds
+`connectLDAP()` opens one connection, with its own session: what it binds as is its identity until it binds
 again.
 
 ```typescript
@@ -43,19 +43,19 @@ try {
 }
 ```
 
-- The URL says how to connect: `ldap://` (plain TCP), `ldaps://` (TLS from the start) or `ldapi://` with the path of a
-  Unix socket, escaped (`ldapi://%2Frun%2Fdirectory%2Fldapi`). `startTLS: true` upgrades an `ldap://` connection
-  before anything else is sent; `connection.startTLS()` does it later. The name checked in the certificate is the host
-  of the URL, unless `tls.servername` says otherwise.
+- The URL specifies how to connect: `ldap://` (plain TCP), `ldaps://` (TLS from the start) or `ldapi://` with the
+  escaped path of a Unix socket (`ldapi://%2Frun%2Fdirectory%2Fldapi`). `startTLS: true` upgrades an `ldap://`
+  connection before anything else is sent; `connection.startTLS()` does so later. The name checked in the certificate is
+  the URL's host, unless `tls.servername` specifies another.
 - Every operation takes a `timeout` (the connection's, 30 seconds by default) and a `signal`. A search or a write that
-  takes longer is abandoned on the server, and the connection goes on. A bind or StartTLS that takes longer closes the
-  connection, since the state of its session is no longer known. Connecting takes at most `connectTimeout` (5
-  seconds).
-- `bind()` with a name and an empty password is refused before it is sent: many servers take it as an anonymous
-  success. `saslBind(mechanism, credentials, {step})` binds with SASL, `step` answering each challenge of the server.
+  takes longer is abandoned on the server, and the connection continues. A bind or StartTLS that takes longer closes the
+  connection, because its session's state is no longer known. Connecting takes at most `connectTimeout` (5 seconds).
+- `bind()` with a name and an empty password is refused before it is sent: many servers treat it as an anonymous
+  success. `saslBind(mechanism, credentials, {step})` binds with SASL; `step` responds to each challenge from the
+  server.
 - `close()` ends the session; the operations still waiting reject. An idle connection does not keep the process alive.
 - A server may send messages of up to `maxMessageSize` bytes (64 MiB): a longer one ends the connection rather than
-  filling the memory.
+  filling memory.
 
 ## 2. Searching
 
@@ -80,27 +80,26 @@ for await (const group of connection.searchIterator('dc=example,dc=com', {filter
 await connection.close()
 ```
 
-- `scope` is `'base'`, `'one'`, `'sub'` (the default) or `'children'`. `filter` is the text of a filter or a `Filter`
-  (section 6); the template `filter` escapes the values written into it, so a value cannot change the filter.
-- Searches are paged, 500 entries a page (`paged: {pageSize}` changes it, `paged: false` leaves it out), so the limit
-  a server puts on one request does not cut them short. A search of one entry (`scope: 'base'`) is not paged, nor one
-  whose `sizeLimit` is not above the page size.
-- `sizeLimit` bounds what the search keeps: the entries after it are left out, whether the server stops there or goes
-  on sending, and `truncated` is true. A limit of the server's own, when the search asked for none, rejects with an
-  `LDAPSizeLimitExceededException`, its `partial` entries with it.
-- Paging that does not advance (a page without entries that gives back the cookie of the page before, or a hundred
-  pages without entries) rejects with an `LDAPProtocolErrorException` rather than paging forever.
-- `searchIterator()` gives the entries one by one, a page at a time; leaving the loop early ends the paging on the
-  server.
-- `sort` and `window` read a window of the sorted entries (the virtual list view): `{sort: [{attribute: 'cn'}],
-  window: {offset: 1, limit: 20}}`, with `total` the number of entries in the whole list. Both controls are sent as
-  critical, so a server that cannot sort fails the search rather than giving every entry unsorted. A window past the
-  last entry returns no entries and still gives `total`.
-- The `references` of the result are those the server gives; they are not followed.
+- `scope` is `'base'`, `'one'`, `'sub'` (the default) or `'children'`. `filter` is a filter's text or a `Filter`
+  (section 6); the `filter` template escapes the values written into it, so a value cannot change the filter.
+- Searches are paged, 500 entries per page (`paged: {pageSize}` changes this, `paged: false` turns paging off), so the
+  limit a server places on one request does not cut them short. A search for one entry (`scope: 'base'`) is not paged,
+  nor is one whose `sizeLimit` does not exceed the page size.
+- `sizeLimit` bounds what the search keeps: entries beyond it are left out, whether the server stops there or continues
+  sending, and `truncated` is true. A limit the server applies itself, when the search asked for none, rejects with an
+  `LDAPSizeLimitExceededException` that carries the `partial` entries.
+- Paging that does not advance (an empty page that returns the previous page's cookie, or a hundred empty pages) rejects
+  with an `LDAPProtocolErrorException` rather than paging forever.
+- `searchIterator()` yields the entries one by one, a page at a time; leaving the loop early ends paging on the server.
+- `sort` and `window` read a window of the sorted entries (the virtual list view): `{sort: [{attribute: 'cn'}], window:
+  {offset: 1, limit: 20}}`; the result's `total` is the number of entries in the whole list. Both controls are sent as
+  critical, so on a server that cannot sort, the search fails rather than returning every entry unsorted. A window past
+  the last entry returns no entries and still returns `total`.
+- The result's `references` are those the server returns; they are not followed.
 
-An `Entry` gives its values as text or as bytes, never one for the other:
+An `Entry` returns its values as text or as bytes, never one as the other:
 
-| Method | What it gives |
+| Method | What it returns |
 |---|---|
 | `entry.dn` | The DN, as the server wrote it |
 | `get(name)`, `first(name)` | The values as text, or the first one; they throw for an attribute whose values are bytes |
@@ -108,10 +107,10 @@ An `Entry` gives its values as text or as bytes, never one for the other:
 | `has(name)`, `names()`, `isBinary(name)` | Whether it has an attribute, its attributes, whether one is bytes |
 | `toObject()`, `toJSON()` | Its attributes as an object (bytes as `Buffer`), and as JSON (bytes in base64) |
 
-The attributes of bytes are those known to hold bytes (`jpegPhoto`, `userCertificate`, the `objectGUID` and
-`objectSid` of Active Directory…), those with the `;binary` option, those named in `binaryAttributes`, and those of a
-binary syntax when the connection is given the server's schema (section 7). The names are compared without case, as
-the server wrote them: `cn` is not `commonName`, nor `cn;lang-en`.
+The attributes read as bytes are those known to hold bytes (`jpegPhoto`, `userCertificate`, Active Directory's
+`objectGUID` and `objectSid`…), those with the `;binary` option, those named in `binaryAttributes`, and those with a
+binary syntax when the connection is provided with the server's schema (section 7). Names are compared
+case-insensitively, as the server wrote them: `cn` is not `commonName`, nor `cn;lang-en`.
 
 ## 3. Writing
 
@@ -139,10 +138,10 @@ await connection.delete('ou=former,dc=example,dc=com', {controls: [TreeDeleteCon
 await connection.close()
 ```
 
-- The attributes of `add()` are an object (a value or a list of values for each) or a list of `{type, values}`. A
+- The attributes passed to `add()` are an object (a value or a list of values for each) or a list of `{type, values}`. A
   value is text (written as UTF-8), bytes, a number or a boolean (written `TRUE` and `FALSE`).
-- A change is `add`, `delete` (the values given, or the whole attribute), `replace` or `increment`.
-- `passwordModify()` changes a password with the extended operation of RFC 3062: the bound user's unless
+- A change is `add`, `delete` (the specified values, or the whole attribute), `replace` or `increment`.
+- `passwordModify()` changes a password with the RFC 3062 extended operation: the bound user's unless
   `userIdentity` names another; to `newPassword`, or, without one, to a password the server generates and returns.
 - `extended(name, value)` runs another extended operation; every operation takes `controls`, encoded by their codecs
   (`TreeDeleteControl`, `AssertionControl`, `PostReadRequestControl`, `ProxiedAuthorizationControl`…).
@@ -151,8 +150,8 @@ await connection.close()
 
 ## 4. A pool, and signing users in
 
-`createLDAPClient()` gives a pool of connections bound as one identity, for a service that runs many operations at a
-time.
+`createLDAPClient()` returns a pool of connections bound as one identity, for a service that runs many operations
+concurrently.
 
 ```typescript
 import {createLDAPClient, type LDAPPool} from '@lakutata/ldap-engine'
@@ -175,24 +174,24 @@ export async function signIn(username: string, password: string): Promise<string
 }
 ```
 
-- The pool opens a connection when an operation needs one and all are busy, up to `poolSize` (4), runs each operation
-  on the least busy one, and closes the connections idle for `idleTimeout` (10 minutes). A search with its pages runs
-  on one connection.
+- The pool opens a connection when an operation needs one and all are busy, up to `poolSize` (4), runs each operation on
+  the least busy one, and closes connections that have been idle for `idleTimeout` (10 minutes). A search runs all its
+  pages on one connection.
 - The servers are tried in order until one can be reached, or found in a DNS SRV record (`srv:
   '_ldap._tcp.example.com'`).
-- A connection whose server did not answer in time, or answered what cannot be read, gets no more operations and
-  closes once the operations still on it have ended; the next operations open a new one.
-- The pool has the operations of a connection; `bind()` changes its identity, `connect()` gives a connection outside
-  the pool, `close()` closes them all.
-- `authenticate()` finds the user's entry (by `uid`, or the `attribute` or `filter` given), then binds as the user on
-  a connection of its own, so the pool's identity never changes. `bindName` binds with a name made from the user name
-  instead of searching (``(name) => `${name}@example.com` `` for Active Directory).
-- Its result says why a bind failed: `invalidCredentials`, `accountLocked`, `accountDisabled`, `accountExpired`,
-  `passwordExpired`, `mustChangePassword`…, read from the password policy control of OpenLDAP or the data codes of
-  Active Directory, which tell more than the result code. `timeBeforeExpiration` and `graceAuthNsRemaining` warn
-  before a password expires.
+- A connection whose server did not respond in time, or responded with something that cannot be read, receives no more
+  operations and closes once the operations still on it have ended; the next operations open a new one.
+- The pool has a connection's operations; `bind()` changes its identity, `connect()` returns a connection outside the
+  pool, `close()` closes them all.
+- `authenticate()` finds the user's entry (by `uid`, or by the specified `attribute` or `filter`), then binds as the
+  user on a separate connection, so the pool's identity never changes. `bindName` binds with a name built from the user
+  name instead of searching (``(name) => `${name}@example.com` `` for Active Directory).
+- Its result states why a bind failed: `invalidCredentials`, `accountLocked`, `accountDisabled`, `accountExpired`,
+  `passwordExpired`, `mustChangePassword`…, read from OpenLDAP's password policy control or Active Directory's data
+  codes, which carry more detail than the result code. `timeBeforeExpiration` and `graceAuthNsRemaining` warn before a
+  password expires.
 - It sends passwords only over TLS (an `ldaps` URL or `startTLS: true`) or a local `ldapi` socket; `requireTLS: false`
-  allows the others, for a server on the same machine.
+  allows other connections, for a server on the same machine.
 
 ## 5. Active Directory
 
@@ -212,17 +211,17 @@ await changeADPassword(connection, user.dn, 'old secret', 'new secret')
 await connection.close()
 ```
 
-- Active Directory takes a bind with the user principal name (`alice@example.com`) or the DN.
-- `guidToString()` and `sidToString()` give the text of an objectGUID (the first fields little-endian, as Active
-  Directory shows it) and an objectSid; `stringToGuid()` and `stringToSid()` go back, for a filter on those
+- Active Directory accepts a bind with the user principal name (`alice@example.com`) or the DN.
+- `guidToString()` and `sidToString()` return the text form of an objectGUID (the first fields little-endian, as Active
+  Directory shows it) and of an objectSid; `stringToGuid()` and `stringToSid()` convert back, for a filter on those
   attributes.
-- `parseUserAccountControl()` gives the flags of userAccountControl by name (`accountDisable`, `lockout`,
-  `dontExpirePassword`…); `fileTimeToDate()` gives the date of a FILETIME (pwdLastSet, lastLogon, accountExpires), and
+- `parseUserAccountControl()` returns the userAccountControl flags by name (`accountDisable`, `lockout`,
+  `dontExpirePassword`…); `fileTimeToDate()` returns the date of a FILETIME (pwdLastSet, lastLogon, accountExpires), and
   `undefined` for "never".
-- The values of a large attribute (the member of a large group) come in ranges (`member;range=0-1499`): they are read
+- A large attribute's values (a large group's member attribute) come in ranges (`member;range=0-1499`): they are read
   to their end, unless `ranges: false`.
 - `changeADPassword()` changes the user's own password, with the old one; `resetADPassword()` sets one as an
-  administrator. Active Directory takes them over TLS only (LDAPS or StartTLS), and checks its password policy.
+  administrator. Active Directory accepts them over TLS only (LDAPS or StartTLS), and checks its password policy.
 
 ## 6. Filters and DNs
 
@@ -242,19 +241,19 @@ console.log(DN.parse('ou=people,dc=example,dc=com').child(`cn=${escapeDNValue('S
 ```
 
 - `Filter` builds filters (`and`, `or`, `not`, `equal`, `greaterOrEqual`, `lessOrEqual`, `approx`, `present`,
-  `substrings`, `extensible`), reads their text (RFC 4515) with `parse()` and writes it with `stringify()`. The
-  template `filter` builds a filter from its text and the values written into it, each escaped.
-- `matchFilter()` evaluates a filter on an entry with the three values of RFC 4511: `true`, `false`, or `undefined`
-  when it cannot be decided. With a `Schema`, it compares the values by their matching rules (the case, the spaces,
-  the subtypes); without one, the text without case.
+  `substrings`, `extensible`), parses their text (RFC 4515) with `parse()` and writes it with `stringify()`. The
+  `filter` template builds a filter from its text and the values written into it, each escaped.
+- `matchFilter()` evaluates a filter on an entry with the three values of RFC 4511: `true`, `false`, or `undefined` when
+  it cannot be decided. With a `Schema`, it compares values by their matching rules (case, spaces, subtypes); without
+  one, it compares the text case-insensitively.
 - `DN.parse()` reads a DN (RFC 4514); `toString()` writes it back escaped. `equals()`, `isDescendantOf()` and
-  `isChildOf()` compare DNs by their normalized form (`CN=Alice` and `commonName=alice` are one name with a schema);
-  `rdn()`, `parent()` and `child()` walk the tree. `escapeDNValue()` escapes a value written into a DN.
+  `isChildOf()` compare DNs by their normalized form (with a schema, `CN=Alice` and `commonName=alice` are the same
+  name); `rdn()`, `parent()` and `child()` walk the tree. `escapeDNValue()` escapes a value written into a DN.
 
 ## 7. Schemas
 
-The schema decides what an entry may hold: its object classes, the attributes they require and allow, the syntaxes
-and the matching rules that compare the values.
+The schema determines what an entry may hold: its object classes, the attributes they require and allow, the syntaxes,
+and the matching rules that compare values.
 
 ```typescript
 import {connectLDAP, readSchema, type Schema} from '@lakutata/ldap-engine'
@@ -266,19 +265,19 @@ console.log(schema.isSingleValued('displayName'), schema.isBinary('jpegPhoto'), 
 await connection.close()
 ```
 
-- `readSchema()` reads the schema a server publishes (its subschema entry). Given to `connectLDAP({schema})`, it tells
-  the entries which attributes are bytes.
+- `readSchema()` reads the schema a server publishes (its subschema entry). Passed to `connectLDAP({schema})`, it tells
+  entries which attributes are bytes.
 - `new Schema().load()` loads schema files: the LDIF of OpenLDAP's `cn=config`, a subschema entry, or the `.schema`
   form. A name or an OID defined twice throws an `LDAPSchemaException` naming both files; `problems()` lists the names
-  the definitions refer to that are not defined, with the file and the line.
-- `@lakutata/ldap-engine/schemas` exports the bundled schemas as documents: `SYSTEM` (the operational attributes and
-  the object classes of the directory itself), `CORE`, `COSINE` and `INETORGPERSON` (`DEFAULTS`, which nearly every
-  server has), `RFC2307BIS` (POSIX accounts and groups), `OPENSSH_LPK` (SSH public keys) and `PPOLICY` (the password
-  policy). `bundledSchema(names)` gives a `Schema` of them.
+  the definitions refer to that are not defined, with the file and line.
+- `@lakutata/ldap-engine/schemas` exports the bundled schemas as documents: `SYSTEM` (the directory's own operational
+  attributes and object classes), `CORE`, `COSINE` and `INETORGPERSON` (`DEFAULTS`, which nearly every server has),
+  `RFC2307BIS` (POSIX accounts and groups), `OPENSSH_LPK` (SSH public keys) and `PPOLICY` (the password policy).
+  `bundledSchema(names)` returns a `Schema` built from them.
 
-A schema file is also data: `parseSchemaFile()` (or `readSchemaFile(path)`) turns it into a document, its definitions
-plain objects with their comments and lines, and `stringifySchemaFile()` writes it back with the definitions that did
-not change as they were written. An editor of schema files changes the document; a program that loads its own
+A schema file is also data: `parseSchemaFile()` (or `readSchemaFile(path)`) turns it into a document whose definitions
+are plain objects with their comments and lines, and `stringifySchemaFile()` writes it back, with the definitions that
+did not change written as they originally were. A schema file editor changes the document; a program that loads its own
 schema can convert its files at build time and import the documents.
 
 ```typescript
@@ -299,8 +298,8 @@ for (const problem of schema.problems()) console.log(`${problem.source}:${proble
 
 ## 8. LDIF
 
-`parseLDIF()` reads LDIF (RFC 2849): entries, and changes to apply. `stringifyLDIF()` writes it, wrapping the long
-lines and writing the values that are not plain text in base64.
+`parseLDIF()` reads LDIF (RFC 2849): entries, and changes to apply. `stringifyLDIF()` writes it, wrapping long lines and
+writing values that are not plain text in base64.
 
 ```typescript
 import {type LDIFRecord, parseLDIF, stringifyLDIF} from '@lakutata/ldap-engine'
@@ -327,16 +326,16 @@ console.log(stringifyLDIF(records))
 
 - A record is an entry (`content`) or a change (`add`, `delete`, `modify`, `modifyDN`), with its line and the comments
   before it, which `stringifyLDIF()` writes back.
-- `parseLDIF(text, {readURL})` reads the values given by URL (`jpegPhoto:< file:///photos/carol.jpg`); without it,
+- `parseLDIF(text, {readURL})` reads values specified by URL (`jpegPhoto:< file:///photos/carol.jpg`); without it,
   they throw.
 - The directory helper (section 10) imports LDIF into a directory and exports a subtree as LDIF.
 
 ## 9. A server
 
-`createLDAPServer()` serves the entries of its backends, each mounted at its suffix. The backend keeps the entries;
-the server does the rest: the protocol, StartTLS and LDAPS, the schema checks on every write, the passwords, the
-access control, the limits, the root DSE and the subschema, and the sorting, virtual list view and paged results a
-backend does not do itself.
+`createLDAPServer()` serves the entries of its backends, each mounted at its suffix. The backend keeps the entries; the
+server handles the rest: the protocol, StartTLS and LDAPS, the schema checks on every write, the passwords, the access
+control, the limits, the root DSE and the subschema, and the sorting, virtual list view and paged results that a backend
+does not do itself.
 
 ```typescript
 import {readFileSync} from 'node:fs'
@@ -360,44 +359,44 @@ process.on('SIGTERM', () => void server.close())
 
 - `listen()` listens for LDAP on a port (`0` for a free one, which it returns) and an address (`host`), for LDAPS with
   `secure: true`, or on a Unix socket (ldapi) with `path`. A server may listen several times. `attach(server)` and
-  `handleConnection(socket)` serve the connections of a `net.Server` made elsewhere.
-- The Unix socket is for the clients on the same machine (SSSD 2.9 and later, nslcd, OpenLDAP's tools): its
-  connections never leave the machine, so the server takes passwords over them as over TLS, and offers SASL PLAIN
-  there. `mode` decides who may connect (`0o666`: every user of the machine; by default, with the usual umask, the
-  user of the server's process alone). A socket left by a server that stopped is replaced. The server does not listen
-  on Unix sockets on Windows.
-- The schema: the system schema always, then the schemas of `schema` in order, `DEFAULTS` by default. A schema of
-  one's own is a document (`readSchemaFile()`, or `readSchemaDirectory()` for the files of a directory in the order of
-  their names) or the text of a file. A name or an OID defined twice stops the server at its start.
-- `MemoryBackend` keeps its entries in memory, for tests and small servers. A backend of one's own is in section 14;
-  the `DirectoryBackend` of `@lakutata/ldap` keeps the entries in the database of an application.
-- Sorting follows RFC 2891: an entry without a value of a key comes after the others, and before them in reverse; of
-  several values, the least counts (the greatest in reverse). A key whose attribute the schema does not know gives
-  noSuchAttribute in the sort response, and a sorted paged search carries the sort response on every page.
-- The virtual list view follows draft-ietf-ldapext-ldapv3-vlv-09: the offset is scaled to the server's count; an offset
-  below 1 or past the last entry fails the search with virtualListViewError, offsetRangeError being the result of the
-  view; and a context ID is refused, since the server gives none.
-- An attribute asked for with options (`description;lang-en`) returns the attributes that have those options; `binary`
-  is a transfer option and plays no part in the match. An attribute asked for by a range of its values
-  (`member;range=0-1`, counted from 0, as in the range retrieval of Active Directory) returns those values under a
+  `handleConnection(socket)` serve the connections of a `net.Server` created elsewhere.
+- The Unix socket is for clients on the same machine (SSSD 2.9 and later, nslcd, OpenLDAP's tools): its connections
+  never leave the machine, so the server accepts passwords over them as over TLS, and offers SASL PLAIN there. `mode`
+  decides who may connect (`0o666`: every user of the machine; by default, with the usual umask, only the user of the
+  server's process). A socket left by a server that stopped is replaced. The server does not listen on Unix sockets on
+  Windows.
+- The schema: the system schema always, then the schemas of `schema` in order, `DEFAULTS` by default. A custom schema is
+  a document (`readSchemaFile()`, or `readSchemaDirectory()` for a directory's files in the order of their names) or a
+  file's text. The server fails to start if a name or an OID is defined twice.
+- `MemoryBackend` keeps its entries in memory, for tests and small servers. Custom backends are described in section 14;
+  the `DirectoryBackend` of `@lakutata/ldap` keeps the entries in an application's database.
+- Sorting follows RFC 2891: an entry without a value for a key comes after the others, and before them in reverse order;
+  of several values, the least counts (the greatest in reverse order). A key whose attribute the schema does not know
+  produces noSuchAttribute in the sort response, and a sorted paged search carries the sort response on every page.
+- The virtual list view follows draft-ietf-ldapext-ldapv3-vlv-09: the offset is scaled to the server's count; with an
+  offset below 1 or past the last entry, the search fails with virtualListViewError and the view's result is
+  offsetRangeError; and a context ID is refused, because the server returns none.
+- An attribute requested with options (`description;lang-en`) returns the attributes that have those options; `binary`
+  is a transfer option and plays no part in the match. An attribute requested by a range of its values
+  (`member;range=0-1`, counted from 0, as in Active Directory's range retrieval) returns those values under a
   description that carries the range. The end is `*` when the range includes the last value, and a range that starts
-  past the last value returns nothing. An attribute is returned at most once: when it is also asked for by name or by
-  `*`, it is returned whole and the range is left out. A one-level or subtree search from the empty DN is answered
+  past the last value returns nothing. An attribute is returned at most once: when it is also requested by name or by
+  `*`, it is returned whole and the range is left out. A one-level or subtree search from the empty DN receives
   noSuchObject; the root DSE is read with a base-scope search.
-- The server does not dereference aliases: it reads `derefAliases` and returns alias entries as they are. It accepts
-  ManageDsaIT: the built-in backends keep no referral entries, so it changes nothing for them, and a backend of one's
-  own that gives referrals finds it in `context.controls`.
+- The server does not dereference aliases: it reads `derefAliases` and returns alias entries unchanged. It accepts
+  ManageDsaIT: the built-in backends keep no referral entries, so it changes nothing for them, and a custom backend that
+  returns referrals finds it in `context.controls`.
 - `events`: `connection`, `disconnect`, `bind`, `bindFailure`, `operation` (the operation, its DN, its result code and
-  its milliseconds), `startTLS`, `connectionError`, and `error` for an error of a backend or an interceptor that is
-  not a result.
+  its duration in milliseconds), `startTLS`, `connectionError`, and `error` for an error from a backend or an
+  interceptor that is not a result.
 - `close()` stops listening, ends the sessions with a Notice of Disconnection, and stops the plugins.
 
 ## 10. The program's own connections
 
-`server.connect({as})` gives a connection in the same process, bound as the DN given, with the operations of the
-client. It needs no `listen()`, sends nothing over a network, and goes through the same schema checks, password
-hashing and access control as the network requests. `createDirectory()` manages users, groups and organizational units
-with LDAP operations, on any connection.
+`server.connect({as})` returns a connection in the same process, bound as the specified DN, with the client's
+operations. It needs no `listen()`, sends nothing over a network, and goes through the same schema checks, password
+hashing and access control as network requests. `createDirectory()` manages users, groups and organizational units with
+LDAP operations, on any connection.
 
 ```typescript
 import {createDirectory, createLDAPServer, type Directory, MemoryBackend} from '@lakutata/ldap-engine'
@@ -420,11 +419,11 @@ console.log(await directory.exportLDIF(people))
 - The helper has `add()`, `createUser()` (with its password, hashed by the server), `createOrganizationalUnit()`,
   `createGroup()`, `addMember()`, `removeMember()`, `groupsOf()`, `setPassword()`, `verifyPassword()`, `move()`,
   `rename()`, `delete()` (`{subtree: true}` for a subtree), `find()`, `importLDIF()` and `exportLDIF()`.
-- Its default profile has `inetOrgPerson` users named by `uid`, `groupOfNames` groups named by `cn` (the empty DN as
-  their member while they have none) and `organizationalUnit` units; `createDirectory(connection, {profile})` gives
-  another, to manage a directory with classes of its own.
-- On the client of section 1 or 4, it manages a remote directory (an OpenLDAP) the same way.
-- `server.connect({internal: true})` is the connection of the server's own code (a plugin): its operations go through
+- Its default profile has `inetOrgPerson` users named by `uid`, `groupOfNames` groups named by `cn` (with the empty DN
+  as their member while they have none) and `organizationalUnit` units; `createDirectory(connection, {profile})`
+  specifies another, to manage a directory with its own classes.
+- On the client from section 1 or 4, it manages a remote directory (an OpenLDAP server) the same way.
+- `server.connect({internal: true})` is the connection for the server's own code (a plugin): its operations go through
   the schema checks, and the access control lets them through.
 
 ## 11. Who may do what
@@ -456,88 +455,89 @@ const server = createLDAPServer({
 await server.listen({port: 389})
 ```
 
-- `access.adminPasswords` gives administrators their passwords by DN, in clear or hashed (`{SCHEME}`), like OpenLDAP's
-  rootdn and rootpw but stricter: a simple or SASL PLAIN bind of such an administrator takes only that password, whether
-  or not an entry has its DN (OpenLDAP's back-mdb also takes the entry's userPassword when the rootpw does not match).
+- `access.adminPasswords` sets administrators' passwords by DN, in clear or hashed (`{SCHEME}`), like OpenLDAP's rootdn
+  and rootpw but stricter: a simple or SASL PLAIN bind of such an administrator accepts only that password, whether or
+  not an entry has its DN (OpenLDAP's back-mdb also accepts the entry's userPassword when the rootpw does not match).
   The administrator's credentials then stay out of the data it governs. The entry's userPassword and the checks plugins
   make at a bind, such as the password policy, do not apply to it; the bind throttle does. A SASL mechanism that
-  establishes an identity without a password (SASL EXTERNAL with a client certificate, or a mechanism of the
-  application's that does the same) does not check this password. A Password Modify for such an administrator is refused
+  establishes an identity without a password (SASL EXTERNAL with a client certificate, or an application-defined
+  mechanism that does the same) does not check this password. A Password Modify for such an administrator is refused
   with unwillingToPerform; the password is changed in the options. A write to the entry's userPassword is allowed and
   does not change this password. If a value begins with `{…}` and names a scheme the server does not have, the server
-  refuses to start, so a clear password that begins with `{…}` must be given hashed. A crypt or argon2 hash given
-  without its `{SCHEME}` (`$2b$…`, as a bcrypt library returns it), or with blanks before the `{SCHEME}`, also stops the
-  start; write it as `{CRYPT}$2b$…`. A value the server cannot verify (a malformed hash, a DES `{CRYPT}`) does not stop
-  the start, but the administrator can never bind with it, so bind once after setting it. An `{ARGON2}` value of the
-  server's own scheme stops the start where node:crypto does not run argon2 (Node.js before 24.7, Electron). The server
-  also refuses to start if the same DN is given twice, written with a different case or spacing.
-- `access.check` decides first: `true` allows, `false` refuses, `undefined` leaves it to the table. It is given the
+  refuses to start, so a clear password that begins with `{…}` must be provided hashed. A crypt or argon2 hash provided
+  without its `{SCHEME}` (`$2b$…`, as a bcrypt library returns it), or with blanks before the `{SCHEME}`, also makes the
+  server refuse to start; write it as `{CRYPT}$2b$…`. A value the server cannot verify (a malformed hash, a DES
+  `{CRYPT}`) does not stop the server from starting, but the administrator can never bind with it, so bind once after
+  setting it. An `{ARGON2}` value of the server's own scheme stops the server from starting where node:crypto does not
+  run argon2 (Node.js before 24.7, Electron). The server also refuses to start if the same DN is specified twice,
+  written with a different case or spacing.
+- `access.check` decides first: `true` allows, `false` refuses, `undefined` leaves it to the table. It receives the
   operation (`read` for what a search returns or a compare reads), the DN, the session's identity, and the entry or the
   attributes when they are known. For a rename it is asked three times: `modifyDN` about the entry; `modifyDN` about the
-  DN the entry would get (`from` holds its current DN), so a check that allows writes only below one entry also refuses
-  a move out of that subtree; and `modify` about the attributes whose values the new RDN writes and, with deleteOldRDN,
-  those whose values the old RDN removes, as OpenLDAP requires the right to add the first and to delete the second. A
-  move that keeps its RDN writes no attribute and is not asked the third time. A compare on an entry the session may not
-  read is answered as if the entry did not exist.
+  DN the entry would receive (`from` holds its current DN), so a check that allows writes only below one entry also
+  refuses a move out of that subtree; and `modify` about the attributes whose values the new RDN writes and, with
+  deleteOldRDN, those whose values the old RDN removes, as OpenLDAP requires the right to add the first and to delete
+  the second. A move that keeps its RDN writes no attribute and is not asked the third time. The server responds to a
+  compare on an entry the session may not read as if the entry did not exist.
 - With `access.check`, a search asks `read` for each entry as the backend stores it, before the server adds the
   operational attributes it computes and before any plugin changes the entry. Entries the session may not read are left
   out before the search is paged, windowed or counted, so pages and the virtual list view contain and count only what
   the session may read. The server then sorts and windows a virtual list view itself, within `limits.sortCandidates`,
-  even when the backend could. An entry an interceptor of one's own adds to a search, or returns as a new object, is
+  even when the backend could. An entry that a custom interceptor adds to a search, or returns as a new object, is
   checked again once the whole chain has run, with whatever the later steps added to it.
-- A check that does not decide reads (one that decides only writes, say) sets `access.checkReads` to false: it is
-  then never asked about `read`, the table decides what sessions read, and the backend sorts, windows and pages as it
+- A check that does not decide reads (for example, one that decides only writes) sets `access.checkReads` to false: it
+  is then never asked about `read`, the table decides what sessions read, and the backend sorts, windows and pages as it
   does without a check. With `checkReads: false`, a session the table does not let read has its searches refused with
   insufficientAccessRights, even where the check allows the search.
-- A search of the base alone (scope `base`) that the session may not read is answered as if the base did not exist,
-  and a matched DN names only entries the session may read. A search below that base still returns the entries the
-  session may read, so its answer shows that the base exists. To hide that an entry exists, refuse `search` on its DN:
-  such a search is refused with insufficientAccessRights whether the entry exists or not.
+- The server responds to a search of the base alone (scope `base`) that the session may not read as if the base did
+  not exist, and a matched DN names only entries the session may read. A search below that base still returns the
+  entries the session may read, so its response shows that the base exists. To hide that an entry exists, refuse
+  `search` on its DN: such a search is refused with insufficientAccessRights whether the entry exists or not.
 - A bind ends the paged searches on its connection, including a bind that is refused.
-- `plaintextBind` says where a password is taken without TLS (a simple bind or a SASL PLAIN bind, a write of
+- `plaintextBind` specifies where a password is accepted without TLS (a simple bind or a SASL PLAIN bind, a write of
   `userPassword`, a Password Modify): everywhere (`'all'`, by default), from the loopback (`'loopback'`), or nowhere
-  (`'none'`). The Unix socket takes passwords whatever it says. A SASL mechanism of one's own whose credentials carry a
-  password sets `takesPassword`: where `plaintextBind` refuses passwords, it is not offered.
-- A bind with a name and an empty password is refused (`allowUnauthenticatedBind` takes it as anonymous). The failed
-  binds of a DN or an address are answered later and later, then refused for a while (`bindThrottle`), all with
-  invalidCredentials, which does not tell a locked account from a wrong password.
-- The `limits`: for the sessions that are not administrators, 500 entries and 3600 seconds a search, the depth and size
-  of its filter; for every session, the size of the messages, the requests outstanding, the connections and the idle
-  time. The size limit of a paged search covers all of its pages together: once it is reached, the search ends with
+  (`'none'`). The Unix socket accepts passwords whatever this option specifies. A custom SASL mechanism whose
+  credentials carry a password sets `takesPassword`: where `plaintextBind` refuses passwords, it is not offered.
+- A bind with a name and an empty password is refused (`allowUnauthenticatedBind` treats it as anonymous). The failed
+  binds of a DN or an address receive increasingly delayed responses, then are refused for a while (`bindThrottle`),
+  all with invalidCredentials, which does not distinguish a locked account from a wrong password.
+- The `limits`: for sessions that are not administrators, 500 entries and 3600 seconds per search, and the depth and
+  size of its filter; for every session, the message size, the outstanding requests, the connections and the idle time.
+  A paged search's size limit covers all of its pages together: once it is reached, the search ends with
   sizeLimitExceeded if the session could still read more entries. For sessions that are not administrators,
-  `pagedSizeLimit` sets a separate limit for paged searches (the same as `sizeLimit` when unset, 0 for none). The
-  server sorts at most `sortCandidates` entries in memory (10000 by default); a sort the backend does itself is not
-  bound by it. Past that number, a search whose sort or virtual list view is critical is refused with
+  `pagedSizeLimit` sets a separate limit for paged searches (the same as `sizeLimit` when unset, 0 for none). The server
+  sorts at most `sortCandidates` entries in memory (10000 by default); a sort the backend does itself is not bound by
+  it. Past that number, a search whose sort or virtual list view is critical is refused with
   unavailableCriticalExtension (the engine's client sends both as critical for a `window`, and a sort on its own as not
-  critical); otherwise every entry comes back, neither sorted nor windowed, with adminLimitExceeded in the sort
-  response control (RFC 2891).
+  critical); otherwise every entry comes back, neither sorted nor windowed, with adminLimitExceeded in the sort response
+  control (RFC 2891).
 
 ## 12. Passwords and the password policy
 
-The server hashes every password it is given, as `{PBKDF2-SHA512}` (the format of OpenLDAP's pw-pbkdf2 module;
-`passwords: {iterations}` changes its cost). A bind also checks the other schemes of OpenLDAP (`{SSHA}`, the SHA-2
-schemes, `{CRYPT}` with MD5, SHA-256, SHA-512 and bcrypt, `{ARGON2}` where node:crypto runs argon2: Node.js 24.7 and
-later, but not Electron) and the passwords in clear of an older directory, then hashes the password again in the scheme
-of the server (`rehashOnBind`). An administrator may write a hashed value as it is, with its `{SCHEME}`, to import
-accounts. A value in the complete form of a common crypt or argon2 hash, written without its `{SCHEME}`, is refused,
-because its text would become the password. Other bare hashes are still taken as passwords in clear, so always write the
-`{SCHEME}`. With `rehashOnBind`, a value in another scheme than the server's is replaced at its first successful bind,
-the only time the password is known in clear. It is replaced only if the entry still holds that value; if the value is
-found changed or removed, nothing is written. A backend with `transaction()` and `lock()`, such as the directory backend
-of @lakutata/ldap, locks the entry while the value is checked and replaced; other backends read the value again just
-before the write. To keep an imported hash (one an application also checks), turn `rehashOnBind` off; an application may
-also register a scheme of its own with `PasswordSchemes.register()` (a native bcrypt, say) and give the server those
-schemes. A scheme's name may contain only letters, digits, `.` and `-`; `register()` refuses any other. A scheme
+The server hashes every password it receives, as `{PBKDF2-SHA512}` (the format of OpenLDAP's pw-pbkdf2 module;
+`passwords: {iterations}` changes its cost). A bind also checks OpenLDAP's other schemes (`{SSHA}`, the SHA-2 schemes,
+`{CRYPT}` with MD5, SHA-256, SHA-512 and bcrypt, `{ARGON2}` where node:crypto runs argon2: Node.js 24.7 and later, but
+not Electron) and an older directory's passwords in clear, then hashes the password again in the server's scheme
+(`rehashOnBind`). An administrator may write a hashed value unchanged, with its `{SCHEME}`, to import accounts. A value
+in the complete form of a common crypt or argon2 hash, written without its `{SCHEME}`, is refused, because its text
+would become the password. Other bare hashes are still treated as passwords in clear, so always write the `{SCHEME}`.
+With `rehashOnBind`, a value in a scheme other than the server's is replaced at its first successful bind, the only time
+the password is known in clear. It is replaced only if the entry still holds that value; if the value is found changed
+or removed, nothing is written. A backend with `transaction()` and `lock()`, such as the directory backend of
+@lakutata/ldap, locks the entry while the value is checked and replaced; other backends read the value again just before
+the write. To keep an imported hash (one an application also checks), turn `rehashOnBind` off; an application may also
+register its own scheme with `PasswordSchemes.register()` (a native bcrypt, for example) and provide those schemes to
+the server. A scheme's name may contain only letters, digits, `.` and `-`; `register()` refuses any other. A scheme
 registered under a name the server already has replaces the server's own. To have `{CRYPT}` bcrypt values checked by a
-native library, register the scheme as `CRYPT` and pass every value it does not take to the scheme it replaces, which
-`schemeOf('{CRYPT}')` gives before the registration: `$1$`, `$5$` and `$6$`, and also `$2y$`, which the `bcrypt` package
-on npm does not accept. A value written by anyone else is treated as a password in clear, even if it looks hashed. When
-a modify deletes a password given in clear (the old password of a change), it is checked against the stored one only on
-the session's own entry; to change someone else's password, replace it. When a bind names a DN under a backend's suffix
-that has no entry, or whose entry holds no password, the server still checks the password against a hash in its own
-scheme, as it would for a wrong password. A backend with its own `bind()` decides this for itself.
+native library, register the scheme as `CRYPT` and pass every value it does not accept to the scheme it replaces, which
+`schemeOf('{CRYPT}')` returns before the registration: `$1$`, `$5$` and `$6$`, and also `$2y$`, which the `bcrypt`
+package on npm does not accept. A value written by anyone else is treated as a password in clear, even if it looks
+hashed. When a modify deletes a password provided in clear (the old password in a change), it is checked against the
+stored one only on the session's own entry; to change someone else's password, replace it. When a bind names a DN under
+a backend's suffix that has no entry, or whose entry holds no password, the server still checks the password against a
+hash in its own scheme, as it would for a wrong password. A backend with its own `bind()` decides this for itself.
 
-`passwordPolicy` applies the password policy of draft-behera, with the attributes OpenLDAP's ppolicy uses:
+`passwordPolicy` applies the draft-behera password policy, with the attributes OpenLDAP's ppolicy uses:
 
 ```typescript
 import {createLDAPServer, MemoryBackend} from '@lakutata/ldap-engine'
@@ -554,55 +554,55 @@ const server = createLDAPServer({
 await server.listen({port: 389})
 ```
 
-- Accounts are locked after too many failures, for a while or until an administrator sets a new password; the accounts
+- Accounts are locked after too many failures, for a while or until an administrator sets a new password; accounts
   unused for too long are locked too (`maxIdle`).
 - A password expires (`maxAge`), with warnings before (`expireWarning`) and binds allowed after (`graceAuthNLimit`).
   Within one instance, binds made at the same time do not take more grace binds than are left: each is counted after it
-  is written, and a bind that finds more than the limit is refused and its use removed. When several arrive at once for
-  the last grace bind, all of them may be refused; the grace bind is then still available.
+  is written, and a bind that finds more than the limit is refused and its use is removed. When several arrive at the
+  same time for the last grace bind, all of them may be refused; the grace bind is then still available.
 - After an administrator sets a password, the user changes it before doing anything else (`mustChange`); it may still
   start TLS first, so that the change goes over TLS; the restriction ends once the change has been written, and a new
   bind on the same connection is judged afresh.
 - An entry governed by a policy holds one password: a write that would leave it with two is refused.
-- The request control of the policy may come with any request (draft-behera §6.1), a search of the root DSE included;
-  its response control comes where the policy has something to say.
+- The policy's request control may accompany any request (draft-behera §6.1), a search of the root DSE included; its
+  response control is sent where the policy has something to report.
 - New passwords: with the old one (`safeModify`), not too soon again (`minAge`), and not one of the former ones
   (`inHistory`); their length (`minLength`, `maxLength`) and the `quality` check are applied when `checkQuality` is 1
-  (a hash an administrator imports passes) or 2 (always), as pwdCheckQuality says.
-- The state is in operational attributes of the entries (pwdChangedTime, pwdAccountLockedTime, pwdFailureTime…), so
-  every backend keeps it. Each failed bind counts, also when several are made at the same time. Two made in the same
-  millisecond on two instances sharing a backend, before either is written, can be given the same time; whether they
-  then count once or twice depends on what the backend does with a value it already has. The clients that send the
-  password policy control get the warnings and the reasons; a locked account is answered as a wrong password, unless
+  (a hash an administrator imports passes) or 2 (always), as pwdCheckQuality specifies.
+- The state is stored in operational attributes of the entries (pwdChangedTime, pwdAccountLockedTime, pwdFailureTime…),
+  so every backend keeps it. Each failed bind counts, including when several are made at the same time. Two made in the
+  same millisecond on two instances sharing a backend, before either is written, can be assigned the same time; whether
+  they then count once or twice depends on what the backend does with a value it already has. Clients that send the
+  password policy control receive the warnings and the reasons; a locked account is reported as a wrong password, unless
   `revealLocked` is set. When an interceptor or a plugin refuses a bind after its password was checked, the bind does
   not count as successful: the recorded failures stay, pwdLastSuccess is not written, the bind throttle's count is not
   reset and no warning is sent. Two things still happen: a grace bind already counted stays used, and the password is
   still hashed again where `rehashOnBind` applies. The time of the last bind is kept only for a bind that succeeds. The
-  policy's own refusal of an expired password with no grace bind left is different: as draft-behera §8.1.2.1 says, a
-  password that validates clears the recorded failures before its expiry is looked at.
-- The policy is a plugin, the `PasswordPolicyPlugin` the option adds after the others, and it loads the schema ppolicy
+  policy's own refusal of an expired password with no grace bind left is different: as draft-behera §8.1.2.1 specifies,
+  a password that validates clears the recorded failures before its expiry is examined.
+- The policy is a plugin, the `PasswordPolicyPlugin` the option adds after the others, and it loads the ppolicy schema
   itself.
 
 ## 13. Plugins and interceptors
 
-Plugins add to the server what the overlays of OpenLDAP add to slapd: code around the operations, and the schema,
+Plugins add to the server what OpenLDAP's overlays add to slapd: code around operations, and the schema,
 controls and extended operations that code needs.
 
 | Plugin | What it does | Like OpenLDAP's |
 |---|---|---|
-| `MemberOfPlugin` | Keeps the memberOf of the members of the groups | memberof |
+| `MemberOfPlugin` | Keeps the memberOf of group members | memberof |
 | `ReferentialIntegrityPlugin` | Changes the DNs in values when entries are deleted, renamed or moved | refint |
 | `UniquePlugin` | Refuses a value another entry has | unique |
 | `PasswordPolicyPlugin` | The password policy of section 12 | ppolicy |
-| `IdAllocationPlugin` | Gives uidNumber and gidNumber to the POSIX entries added without them | (DNA of 389 Directory Server) |
+| `IdAllocationPlugin` | Assigns uidNumber and gidNumber to POSIX entries added without them | (DNA of 389 Directory Server) |
 | `LastBindPlugin` | Records in authTimestamp the time of the last successful bind that verified a password | lastbind |
-| `SambaPasswordPlugin` | Writes the NT hash of a new password in sambaNTPassword (the schema of Samba loaded) | smbk5pwd |
-| `AuditPlugin` | Gives a record of each request and its outcome to a function of one's own | accesslog, auditlog |
-| `ConstraintPlugin` | Refuses values breaking rules: a pattern, a size, a count, a check of one's own | constraint |
-| `GroupPresentationPlugin` | Shows each group as both groupOfNames and groupOfUniqueNames, for clients knowing one of them | |
+| `SambaPasswordPlugin` | Writes a new password's NT hash to sambaNTPassword (with Samba's schema loaded) | smbk5pwd |
+| `AuditPlugin` | Passes a record of each request and its outcome to a custom function | accesslog, auditlog |
+| `ConstraintPlugin` | Refuses values that break rules: a pattern, a size, a count, a custom check | constraint |
+| `GroupPresentationPlugin` | Shows each group as both groupOfNames and groupOfUniqueNames, for clients that know one of them | |
 
-A plugin of one's own extends `BaseLDAPPlugin` (or is any object of the `LDAPPlugin` shape). Its interceptors run
-around the operations of the backends:
+A custom plugin extends `BaseLDAPPlugin` (or is any object with the `LDAPPlugin` shape). Its interceptors run around the
+backends' operations:
 
 ```typescript
 import {AuditPlugin, BaseLDAPPlugin, createLDAPServer, type InterceptorPlacement, MemberOfPlugin, MemoryBackend, UniquePlugin} from '@lakutata/ldap-engine'
@@ -643,20 +643,20 @@ await server.listen({port: 389})
 
 - An interceptor runs for the `operations` it names: `before()` checks or changes a request, `around()` runs around the
   rest of the chain, `transformEntry()` changes the entries a search returns, and `beforeCommit()` runs in the
-  transaction of a write, on a backend that has transactions. Throwing an `LDAPResultException` answers with its code. A
-  `bind` interceptor runs around the password check of a simple bind and of a SASL PLAIN bind;
-  `request.authentication.type` tells which. The bind succeeds only when the password has been checked and the chain
-  answers success. An `around()` may refuse a bind without calling `next()`; to let it through, it must call `next()`
-  and return that outcome or a success of its own. If it returns a result other than success instead of throwing, the
-  bind fails with that result. If it returns nothing, a value without a result code, or a result code no bind can have
+  transaction of a write, on a backend that has transactions. An interceptor that throws an `LDAPResultException`
+  responds with its code. A `bind` interceptor runs around the password check of a simple bind and of a SASL PLAIN bind;
+  `request.authentication.type` indicates which. The bind succeeds only when the password has been checked and the chain
+  returns success. An `around()` may refuse a bind without calling `next()`; to let it through, it must call `next()`
+  and return that outcome or its own success. If it returns a result other than success instead of throwing, the bind
+  fails with that result. If it returns nothing, a value without a result code, or a result code no bind can have
   (saslBindInProgress, or a negative one), the bind fails with other (80). The bind also fails with other (80) if the
-  `around()` answers success when the password has not been checked, because it did not call `next()` or caught its
-  rejection. The interceptors around it receive that answer. A plugin's `authenticate()` that returns without calling
-  `verify()`, or catches its rejection, fails the bind in the same way; if it calls `verify()` more than once, the call
+  `around()` returns success when the password has not been checked, because it did not call `next()` or caught its
+  rejection. The interceptors around it receive that result. If a plugin's `authenticate()` returns without calling
+  `verify()`, or catches its rejection, the bind fails in the same way; if it calls `verify()` more than once, the call
   that finishes last decides, and none may still be running when it returns. A plugin's `aroundRequest()` may refuse a
   bind, but it cannot turn a bind the server did not complete into a success or a step in progress: such a bind fails
-  with the server's own refusal, or with other (80) when the server gave none. A refusal of its own that an interceptor
-  throws, invalidCredentials included, reaches the client as thrown, on a simple bind and on SASL PLAIN. Some things are
+  with the server's own refusal, or with other (80) when the server gave none. An interceptor's own refusal,
+  invalidCredentials included, reaches the client as thrown, on a simple bind and on SASL PLAIN. Some things are
   done only once the bind has succeeded and the server has written its own state: the time of the last bind and the
   records a plugin or an interceptor added with `afterBind()` are made in the order they were added (along a SASL
   exchange, those of every step), and the `bind` event is emitted last. If a record throws, or a listener of the `bind`
@@ -674,29 +674,29 @@ await server.listen({port: 389})
   `paging`) by `{interceptor, before: 'schema'}`, and otherwise at the end of the chain, after them all: what it adds to
   a request there is not checked against the schema. Placed before `password`, it sees the passwords in clear. An
   interceptor that removes entries from searches (a `transformEntry()` returning undefined, or an `around()` that
-  replaces the entries) must be placed after `paging`; the end of the chain is. Placed earlier, the pages and the
-  virtual list view still count the entries it removes. An interceptor that only changes the entries is best placed
-  before `paging`, as `GroupPresentationPlugin` is: the backend can then still sort, window and page by itself. The
-  sort and the virtual list view then use the entries as stored, without its changes.
-- In the interceptors and the plugins, `context.session` is the session for a bind. For any other operation it is a
-  view of the session whose identity stays the one the operation started with, whatever bind comes meanwhile: keep
-  data of a session in `session.state`, or key it by `session.id`, not by the session object.
+  replaces the entries) must be placed after `paging`; the end of the chain is. If it is placed earlier, the pages and
+  the virtual list view still count the entries it removes. An interceptor that only changes the entries is best placed
+  before `paging`, as `GroupPresentationPlugin` is: the backend can then still sort, window and page by itself. The sort
+  and the virtual list view then use the entries as stored, without its changes.
+- In interceptors and plugins, `context.session` is the session for a bind. For any other operation it is a view of the
+  session whose identity stays the one the operation started with, whatever bind comes in the meantime: keep a session's
+  data in `session.state`, or key it by `session.id`, not by the session object.
 - A plugin may also run around every request (`aroundRequest`, which sees the binds, StartTLS and the extended
-  operations the server answers itself), around the check of a password (`authenticate`), and on the password changes
-  while they are in clear (`passwordChange`, whose `importing` says whether the values that look hashed are hashes an
-  administrator imports). It may bring schema files, controls, extended operations, SASL mechanisms and password
-  schemes, which the root DSE and the subschema publish. Two plugins claiming one OID stop the server at its start. The
+  operations the server responds to itself), around the check of a password (`authenticate`), and on password changes
+  while they are in clear (`passwordChange`, whose `importing` indicates whether the values that look hashed are hashes
+  an administrator imports). It may bring schema files, controls, extended operations, SASL mechanisms and password
+  schemes, which the root DSE and the subschema publish. The server fails to start if two plugins claim one OID. The
   root DSE and the subschema go through no backend's chain, so a plugin's control reaches them only when the plugin
   applies it in `aroundRequest`. Such a plugin marks the control `serverEntries: true`; without the mark, a search of
   those entries carrying the control as critical is refused.
 - Every plugin takes `name` and `suffixes` among its options: to have it twice, or for some backends only. The plugins
-  keep the relations within one backend, as the overlays of OpenLDAP keep them within one database.
-- `interceptors` (an option of the server) takes interceptors alone, for what needs nothing else.
+  keep the relations within one backend, as OpenLDAP's overlays keep them within one database.
+- `interceptors` (a server option) takes interceptors alone, for what needs nothing else.
 
 ## 14. Backends of one's own
 
-A program that keeps its users in tables of its own serves them with a backend of its own. `createHandlerBackend()`
-builds one from handlers written operation by operation, as the servers of ldapjs are written:
+A program that keeps its users in its own tables serves them with a custom backend. `createHandlerBackend()`
+builds one from handlers written operation by operation, as ldapjs servers are written:
 
 ```typescript
 import {createHandlerBackend, createLDAPServer, type LDAPBackend, LDAPNoSuchObjectException} from '@lakutata/ldap-engine'
@@ -721,33 +721,32 @@ const server = createLDAPServer({backends: [backend], access: {admins: ['cn=admi
 await server.listen({port: 389})
 ```
 
-- A backend has `get()` (an entry by its DN), `search()` (the entries of a search, a superset being enough), and the
-  writes it supports (`add()`, `modify()`, `delete()`, `modifyDN()`); the server answers the others with
-  unwillingToPerform. `exists()` tells whether an entry exists without reading it, when that is cheaper.
-- A backend may check the binds itself (`bind()`), bring the schema files of the attributes it computes, interceptors of
-  its own, and `transaction()`, in which the interceptors' `beforeCommit()` and the write run together. With `lock()` as
-  well, the engine reads the entry of a modify or a rename again in that transaction, after the interceptors'
-  `beforeCommit()` and just before the write, once the backend has locked it. It makes the changes and checks them from
-  what it reads: a write made meanwhile is not undone, increments are counted, and required attributes checked, on the
-  entry as it is.
+- A backend has `get()` (an entry by its DN), `search()` (the entries of a search; a superset is enough), and the writes
+  it supports (`add()`, `modify()`, `delete()`, `modifyDN()`); the server responds to the others with
+  unwillingToPerform. `exists()` indicates whether an entry exists without reading it, when that is cheaper.
+- A backend may check binds itself (`bind()`), bring the schema files of the attributes it computes, its own
+  interceptors, and `transaction()`, in which the interceptors' `beforeCommit()` and the write run together. With
+  `lock()` as well, the engine reads the entry of a modify or a rename again in that transaction, after the
+  interceptors' `beforeCommit()` and just before the write, once the backend has locked it. It makes the changes and
+  checks them from what it reads: a write made in the meantime is not undone, increments are counted, and required
+  attributes checked, on the entry in its current state.
 - With `lock()`, `beforeCommit()` sees the changes made from the entry as read before the transaction. Afterwards, the
   changes no interceptor touched are made again from the request, and those edited in place are made again from their
-  edits; a change an interceptor removed stays removed, and one it added (or replaced with a new object) is written as
-  it is.
+  edits; a change an interceptor removed stays removed, and one it added (or replaced with a new object) is written
+  unchanged.
 - A backend that sorts, windows or pages itself declares it in its `capabilities`, and `sortSearchItems()` orders its
   own records as the server would. When entries can be left out one by one (`access.check` without `checkReads: false`,
   or an interceptor after `paging` that has a `transformEntry()` or an `around()` for searches), the server does the
   virtual list view and the paging itself. The backend still sorts a sorted search, but the server also sorts for a
-  virtual list view. A backend doing the work of a plugin (`memberOf`, `referentialIntegrity`, `idAllocation`,
+  virtual list view. A backend that does a plugin's work (`memberOf`, `referentialIntegrity`, `idAllocation`,
   `lastBind`) declares it there too, and the plugin leaves its chain. The controls a backend handles go in
   `capabilities.controls`: a request with one of them critical is refused when it reaches a different backend or none at
-  all: an anonymous or unauthenticated bind, a step of a SASL exchange that has verified no password so far, or an
-  extended operation. Password Modify is checked against the backend of the entry it changes.
+  all (an anonymous or unauthenticated bind, a step of a SASL exchange that has verified no password so far, or an
+  extended operation). Password Modify is checked against the backend of the entry it changes.
 
 ## 15. The protocol
 
-The messages of LDAPv3 are there for what the client and the server do not do: a proxy, a recorder, a test of a
-server.
+LDAPv3 messages are available for what the client and the server do not do: a proxy, a recorder, a server test.
 
 ```typescript
 import {decodeMessage, encodeMessage, filter, type LDAPMessage, MessageReader, PagedResultsControl, type ReadMessage} from '@lakutata/ldap-engine'
@@ -765,33 +764,33 @@ const read: ReadMessage[] = reader.push(Buffer.concat([bytes, bytes.subarray(0, 
 console.log(read.length, reader.bufferedBytes) //1 5
 ```
 
-- `encodeMessage()` and `decodeMessage()` turn every message of LDAPv3 (RFC 4511) into bytes and back. A decoded
-  message keeps its DNs as text and its values as bytes: nothing is parsed beyond the encoding, so a server can answer
-  a malformed DN with its result code.
-- `MessageReader` reads the messages of a stream from its chunks, with a limit on their size. A message it cannot
-  decode but whose message ID it knows comes out as an error, and the stream goes on; anything else throws a fatal
-  `LDAPDecodeException`. `malformed` tells a wrong encoding, on which a server ends the session, from a value that is
-  not allowed, which it answers with protocolError (RFC 4511 §4.1.1).
+- `encodeMessage()` and `decodeMessage()` convert every LDAPv3 message (RFC 4511) to bytes and back. A decoded message
+  keeps its DNs as text and its values as bytes: nothing is parsed beyond the encoding, so a server can respond to a
+  malformed DN with its result code.
+- `MessageReader` reads a stream's messages from its chunks, with a limit on their size. A message it cannot decode but
+  whose message ID it knows is returned as an error, and the stream continues; anything else throws a fatal
+  `LDAPDecodeException`. `malformed` distinguishes a wrong encoding, on which a server ends the session, from a value
+  that is not allowed, to which it responds with protocolError (RFC 4511 §4.1.1).
 - The controls (paged results, sort, virtual list view, tree delete, password policy, read entry, proxied
   authorization, persistent search, content synchronization…) and the values of the extended operations (Password
-  Modify, Who Am I, Cancel) have codecs; `Ber` and `BerReader` write and read BER for codecs of one's own.
+  Modify, Who Am I, Cancel) have codecs; `Ber` and `BerReader` write and read BER for custom codecs.
 
 ## 16. In an application
 
-In a Lakutata application, `@lakutata/ldap` gives the client as the `LDAPClient` component and the server as the
-`LDAPServer` component, with the `DirectoryBackend` keeping the entries in the application's database, and plugins and
-backends that are Lakutata classes with options. The options of the server are those of this guide; the
+In a Lakutata application, `@lakutata/ldap` provides the client as the `LDAPClient` component and the server as the
+`LDAPServer` component, along with the `DirectoryBackend`, which keeps the entries in the application's database, and
+plugins and backends that are Lakutata classes with options. The server's options are those described in this guide; the
 [LDAP](LDAP.md) guide describes what the components add.
 
 ## 17. Exceptions
 
 | Exception | When |
 |---|---|
-| `LDAPResultException` and its subclasses (`LDAPNoSuchObjectException`, `LDAPInvalidCredentialsException`, `LDAPInsufficientAccessException`, `LDAPEntryAlreadyExistsException`, `LDAPSizeLimitExceededException`, `LDAPProtocolErrorException`…) | A result that is not a success, with its `code`, `matchedDN` and `diagnosticMessage` (and the `adDataCode` of Active Directory); a backend or an interceptor throws them to answer with their code |
+| `LDAPResultException` and its subclasses (`LDAPNoSuchObjectException`, `LDAPInvalidCredentialsException`, `LDAPInsufficientAccessException`, `LDAPEntryAlreadyExistsException`, `LDAPSizeLimitExceededException`, `LDAPProtocolErrorException`…) | A result that is not a success, with its `code`, `matchedDN` and `diagnosticMessage` (and the `adDataCode` of Active Directory); a backend or an interceptor throws them to respond with their code |
 | `LDAPConnectionException` | A connection that cannot be opened, or closed while operations were waiting (its `code` is the system's: `ECONNREFUSED`…) |
-| `LDAPTimeoutException` | An operation, a connection or a TLS handshake that took longer than its time |
+| `LDAPTimeoutException` | An operation, a connection or a TLS handshake that took longer than its time limit |
 | `LDAPUsageException` | A call refused before anything is sent: an empty password, the text of an attribute whose values are bytes, StartTLS while operations are outstanding |
-| `LDAPDecodeException` | A message that cannot be decoded: `fatal` when the stream cannot go on, otherwise with its `messageId` and `operation` |
-| `LDAPFilterSyntaxException`, `LDAPDNSyntaxException`, `LDAPLDIFSyntaxException` | The text of a filter, a DN or LDIF that cannot be read, with the `position` or `line` of the error |
+| `LDAPDecodeException` | A message that cannot be decoded: `fatal` when the stream cannot continue, otherwise with its `messageId` and `operation` |
+| `LDAPFilterSyntaxException`, `LDAPDNSyntaxException`, `LDAPLDIFSyntaxException` | Filter, DN or LDIF text that cannot be read, with the error's `position` or `line` |
 | `LDAPSchemaException` | A schema that cannot be loaded: a definition that cannot be parsed, a name or an OID defined twice |
 | `LDAPException` | The base of all of them |

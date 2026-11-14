@@ -1,15 +1,15 @@
 # Calls between services
 
-This example builds two services, one calling the other. The `inventory` service keeps the stock of the products and
-serves it to other services through service actions; the `orders` service has an HTTP API that places orders, and
-reserves their stock in the inventory through a proxy. Both start from the `service` template. The example shows
-service actions and their patterns, the HTTP service transport and a proxy that calls it, a token shared by the two
-services, how the inventory's error reaches the client when it refuses an order, and the tests of each service.
+This example builds two services, one calling the other. The `inventory` service keeps the product stock and serves it
+to other services through service actions; the `orders` service has an HTTP API that places orders, and reserves their
+stock in the inventory through a proxy. Both start from the `service` template. The example shows service actions and
+their patterns, the HTTP service transport and a proxy that calls it, a token shared by the two services, how the
+inventory's error reaches the client when it refuses an order, and each service's tests.
 
 | Service | Call | What it does |
 |---|---|---|
-| `inventory` | `{"resource": "stock", "act": "get", "product": "lamp"}` | Gives the quantity of a product in stock |
-| `inventory` | `{"resource": "stock", "act": "reserve", "order": "<id>", "items": [{"product": "lamp", "quantity": 2}]}` | Reserves the items of an order, all of them or none |
+| `inventory` | `{"resource": "stock", "act": "get", "product": "lamp"}` | Returns the quantity of a product in stock |
+| `inventory` | `{"resource": "stock", "act": "reserve", "order": "<id>", "items": [{"product": "lamp", "quantity": 2}]}` | Reserves an order's items, all of them or none |
 | `orders` | `POST /orders` | Places an order: `{"items": [{"product": "lamp", "quantity": 2}]}` |
 
 ## 1. Create the projects
@@ -21,10 +21,10 @@ rm inventory/packages/app/src/controllers/ExampleController.ts inventory/package
 rm orders/packages/app/src/controllers/ExampleController.ts orders/packages/app/src/dtos/GreetDTO.ts
 ```
 
-The two projects sit side by side, each a workspace whose service is `packages/app`
-([Project Structure](../ProjectStructure.md)); the paths below start with the name of their project. They share no code:
-the action patterns and the shape of the messages are the contract between them. Nothing is installed: the HTTP
-service transport and its proxy are part of `lakutata`.
+The two projects sit side by side, each a workspace whose service is `packages/app` ([Project
+Structure](../ProjectStructure.md)); the paths below start with their project's name. They share no code: the action
+patterns and the message shape are the contract between them. Nothing is installed: the HTTP service transport and its
+proxy are part of `lakutata`.
 
 ## 2. The stock
 
@@ -52,7 +52,8 @@ export class OutOfStockException extends Exception {
 }
 ```
 
-Each exception has its `errno` and its status ([Exceptions](../Exceptions.md)). Its message is given when it is thrown.
+Each exception has its `errno` and its status ([Exceptions](../Exceptions.md)). Its message is provided when it is
+thrown.
 
 **`inventory/packages/app/src/components/Stock.ts`**
 
@@ -127,9 +128,9 @@ export class Stock extends Component {
   controller lives for one request. It is kept in memory, starting from the quantities of its `products` option (a
   `@Configurable` property), which `init()` copies.
 - `reserve()` checks every item before it changes the stock: an order is reserved whole, or not at all.
-- The order id makes the reservation happen only once: a call sent again, after a timeout for example, gets the same
-  result and reserves nothing more.
-- The message of `OutOfStockException` is built from the values given with it: `desk: 5 asked, 2 in stock`.
+- The order ID ensures that the reservation happens only once: a call sent again, after a timeout for example, receives
+  the same result and reserves nothing more.
+- The message of `OutOfStockException` is built from the values provided with it: `desk: 5 asked, 2 in stock`.
 
 ## 3. The service actions
 
@@ -167,9 +168,9 @@ export class ReserveDTO extends DTO {
 }
 ```
 
-The DTOs validate the input of the actions as they do over HTTP ([DTO and Validation](../DTOValidation.md)). A message
-is JSON, so its values keep their types: no `.strict(false)` is needed. `.unique('product')` refuses an order that lists
-a product twice.
+The DTOs validate the actions' input as they do over HTTP ([DTO and Validation](../DTOValidation.md)). A message is
+JSON, so its values keep their types: no `.strict(false)` is needed. `.unique('product')` refuses an order that lists a
+product twice.
 
 **`inventory/packages/app/src/controllers/StockController.ts`**
 
@@ -209,12 +210,12 @@ export class StockController extends Controller {
 }
 ```
 
-- `@ServiceAction(pattern, DTO)` gives an action its pattern ([Service Calls](../ServiceCalls.md)). A message matches it
-  when it holds the keys of the pattern with the same values; its other keys are the input of the action.
-- `@Prefix({pattern: {resource: 'stock'}})` merges `resource: 'stock'` into the patterns of all the controller's
-  actions ([Controllers and Actions](../Controllers.md)): the `get` action answers the message
+- `@ServiceAction(pattern, DTO)` assigns an action its pattern ([Service Calls](../ServiceCalls.md)). A message matches
+  it when it contains the pattern's keys with the same values; its other keys are the action's input.
+- `@Prefix({pattern: {resource: 'stock'}})` merges `resource: 'stock'` into the patterns of all the controller's actions
+  ([Controllers and Actions](../Controllers.md)): the `get` action responds to the message
   `{"resource": "stock", "act": "get", "product": "lamp"}`, and its input is `{"product": "lamp"}`.
-- What the action returns is the `payload` of the response, and the exception it throws is its `error`.
+- What the action returns is the response's `payload`, and the exception it throws is its `error`.
 
 ## 4. The token of the callers
 
@@ -246,11 +247,11 @@ export async function authenticate(invocation: ActionInvocation, next: Next): Pr
 }
 ```
 
-The template's middleware checked the HTTP requests; here it checks the service calls. `httpRequestOfContext()` gives
-the HTTP request that carries a call, with its headers. When the environment has an `API_TOKEN`, a call without
+The template's middleware checked HTTP requests; here it checks service calls. `httpRequestOfContext()` returns the HTTP
+request that carries a call, with its headers. When the environment has an `API_TOKEN`, a call without
 `Authorization: Bearer <API_TOKEN>` is refused with `E_UNAUTHORIZED` before its input is validated ([Middlewares and
-Access Control](../Middlewares.md)). The services that call the inventory are given this token. To let each caller reach
-only some of the actions, give each caller its own token and add an access rule that checks the action groups
+Access Control](../Middlewares.md)). The services that call the inventory receive this token. To let each caller reach
+only some of the actions, assign each caller its own token and add an access rule that checks the action groups
 ([Middlewares and Access Control](../Middlewares.md), section 4).
 
 ## 5. The options of the inventory
@@ -294,11 +295,11 @@ export function config(port: number = Number(process.env.PORT ?? 8080), serviceP
 
 The entrypoint has two adapters ([Entrypoint](../Entrypoint.md)):
 
-- `http`: an Express server on `PORT`, kept for the template's health check (`GET /health`, used by the `HEALTHCHECK`
-  of the `Dockerfile`);
-- `service`: `httpServiceEntrypoint()`, the HTTP service transport, on `SERVICE_PORT` (3000 by default). It runs its own
-  server. A call is a `POST` of the message as JSON, always answered with 200 and `{success, error, payload}`. Its
-  `middlewares` run for the calls only, so the health check needs no token.
+- `http`: an Express server on `PORT`, kept for the template's health check (`GET /health`, used by the `HEALTHCHECK` in
+  the `Dockerfile`);
+- `service`: `httpServiceEntrypoint()`, the HTTP service adapter, on `SERVICE_PORT` (3000 by default). It runs its own
+  server. A call is a `POST` of the message as JSON; the response is always 200 with `{success, error, payload}`. Its
+  `middlewares` run only for calls, so the health check needs no token.
 
 The `stock` component starts with 10 lamps and 3 desks.
 
@@ -359,19 +360,19 @@ export class Inventory extends Component {
 
 The orders service calls the inventory through an `HTTPServiceProxy` ([Service Calls](../ServiceCalls.md), section 4),
 registered in its options as the `inventoryService` component (section 8). The proxy posts the messages and reads the
-responses. `Inventory` is a component of the orders service on top of it: it decides what the inventory's errors mean
-for an order.
+responses. `Inventory`, a component of the orders service, sits on top of it: it decides what the inventory's errors
+mean for an order.
 
-- `invoke()` takes the message and the longest wait for the response, here 5 seconds. The proxy waits 10 minutes by
-  default; an order should not wait that long, so the call gives its own limit.
-- A refusal of an order crosses the call: the proxy throws a `ServiceInvokeException` that carries the properties of
-  the inventory's error, including its `errno`, `errMsg` and `statusCode`. `Inventory` throws it again as it is, so the
-  HTTP adapter of the orders service answers with that status and that `errno`: the client receives the inventory's
-  409 `E_OUT_OF_STOCK`.
+- `invoke()` takes the message and the maximum wait for the response, here 5 seconds. The proxy waits 10 minutes by
+  default; an order should not wait that long, so the call sets its own limit.
+- The inventory's refusal of an order crosses the call: the proxy throws a `ServiceInvokeException` that carries the
+  properties of the inventory's error, including its `errno`, `errMsg` and `statusCode`. `Inventory` rethrows it
+  unchanged, so the HTTP adapter of the orders service responds with that status and that `errno`: the client receives
+  the inventory's 409 `E_OUT_OF_STOCK`.
 - The inventory's other errors are not the client's fault. A refused token, a message that the inventory does not
   understand, or no response at all (the proxy's `ServiceUnavailableException`) is a failure of the orders service: it
-  answers 503 `E_INVENTORY_UNAVAILABLE`.
-- `Inventory` recognizes the refusals by their `errno`: the class of an exception does not cross the call
+  responds with 503 `E_INVENTORY_UNAVAILABLE`.
+- `Inventory` recognizes refusals by their `errno`: an exception's class does not cross the call
   ([Exceptions](../Exceptions.md), section 5).
 - `reserve()` wraps the call in a typed method, so the controllers never build messages themselves.
 
@@ -442,8 +443,9 @@ export class OrderController extends Controller {
 ```
 
 - The controller injects the `inventory` component (`@Inject('inventory')`) and calls it like any other component.
-- The order gets its id before the call: if the call is sent again, the inventory still reserves the order only once.
-- An error of the call becomes the error of the request, so the controller needs no `try`.
+- The order receives its ID before the call: if the call is sent again, the inventory still reserves the order only
+  once.
+- An error in the call becomes the request's error, so the controller needs no `try`.
 
 ## 8. The options of the orders
 
@@ -493,31 +495,32 @@ export function config(port: number = Number(process.env.PORT ?? 8080), inventor
 }
 ```
 
-This is the `Config.ts` of the template, with:
+This is the template's `Config.ts`, with:
 
 - the `inventoryService` component: the proxy, with the inventory's address (`INVENTORY_URL`, `http://localhost:3000`
   by default) and the token for its calls (`INVENTORY_TOKEN`, the inventory's `API_TOKEN`) in their `Authorization`
   header;
 - the `inventory` component, which the controller injects;
 - the `OrderController` instead of the example controller;
-- `jsonEnvelope()` without `errorStatus`: the errors keep their status (400, 409, 503);
-- a body of 1 MB at most (the template allows 100 MB), more than an order needs;
-- `bootstrap: ['inventoryService', 'entrypoint']`: the proxy is created at the start, so an invalid `INVENTORY_URL`
-  stops the service at once, with `The option "url" of "inventoryService" (HTTPServiceProxy) is invalid`.
+- `jsonEnvelope()` without `errorStatus`: errors keep their status (400, 409, 503);
+- a body limit of 1 MB (the template allows 100 MB), more than an order needs;
+- `bootstrap: ['inventoryService', 'entrypoint']`: the proxy is created at launch, before the HTTP server listens. The
+  application checks the options of every declared object at launch, so with an invalid `INVENTORY_URL` the launch
+  fails immediately, with `The option "url" of "inventoryService" (HTTPServiceProxy) is invalid`.
 
-The template's middleware `Authenticate.ts` stays: when the orders service has an `API_TOKEN` of its own, its clients
-must carry that token.
+The template's `Authenticate.ts` middleware is kept: when the orders service has its own `API_TOKEN`, its clients must
+carry that token.
 
 ## 9. Run it
 
-Start the inventory with its HTTP server on 8081, so that the orders service keeps 8080:
+Launch the inventory with its HTTP server on 8081, so that the orders service keeps 8080:
 
 ```bash
 cd inventory
 PORT=8081 API_TOKEN=inventory-secret npm run dev
 ```
 
-Then start the orders service in another terminal, with the inventory's token:
+Then launch the orders service in another terminal, with the inventory's token:
 
 ```bash
 cd orders
@@ -539,7 +542,7 @@ curl -i -X POST localhost:8080/orders -H 'Content-Type: application/json' -d '{"
 # {"errno":"E_PRODUCT_NOT_FOUND","errMsg":"The product chair does not exist","data":null}
 ```
 
-The inventory answers the calls that carry its token, and refuses the others:
+The inventory responds to calls that carry its token, and refuses the others:
 
 ```bash
 curl localhost:3000 -H 'Authorization: Bearer inventory-secret' -H 'Content-Type: application/json' -d '{"resource": "stock", "act": "get", "product": "desk"}'
@@ -549,7 +552,7 @@ curl localhost:3000 -H 'Content-Type: application/json' -d '{"resource": "stock"
 # {"success":false,"error":{…,"statusCode":401,"message":"The caller is not authenticated","errMsg":"The caller is not authenticated","err":"UnauthorizedException","errno":"E_UNAUTHORIZED"},"payload":null}
 ```
 
-The error carries all the properties of the exception; its `stack`, `appId` and `appName` are left out here. Stop the
+The error carries all the exception's properties; its `stack`, `appId` and `appName` are omitted here. Stop the
 inventory (Ctrl+C) and place an order:
 
 ```bash
@@ -560,8 +563,8 @@ curl -i -X POST localhost:8080/orders -H 'Content-Type: application/json' -d '{"
 
 ## 10. Test it
 
-Each service has its own tests, which replace the template's test. The inventory's tests start it, post the messages
-of its actions and read the envelopes of the responses:
+Each service has its own tests, which replace the template's test. The inventory's tests launch it, post its actions'
+messages and read the response envelopes:
 
 **`inventory/packages/app/src/tests/App.spec.ts`**
 
@@ -643,10 +646,10 @@ describe('inventory', (): void => {
 })
 ```
 
-The tests of the orders service do not need the inventory. They start a stand-in for it in the same process: an
-entrypoint in a container of its own ([Objects and Lifetimes](../Objects.md), section 5), with an action of the same
-pattern as the inventory's. A process runs one application, here the orders service, so the stand-in is not an
-application. It checks the token as the inventory does, and the last two tests change its token, then stop it:
+The orders service's tests do not need the inventory. They start a stand-in for it in the same process: an entrypoint in
+its own container ([Objects and Lifetimes](../Objects.md), section 5), with an action that has the same pattern as the
+inventory's. A process runs one application, here the orders service, so the stand-in is not an application. It checks
+the token as the inventory does, and the last two tests change its token, then stop it:
 
 **`orders/packages/app/src/tests/App.spec.ts`**
 
@@ -805,18 +808,18 @@ app │ ℹ pass 5
 
 ## 11. In production
 
-- `npm run docker:build` in each project makes its image (the template's `Dockerfile`). In its image, the inventory
-  serves its health check on `PORT` (8080) and the calls on `SERVICE_PORT` (3000). On the container network, the
-  orders service reaches it with `INVENTORY_URL=http://inventory:3000`; publish only the port of the orders service.
-- Give both services the token from the same secret: the inventory's `API_TOKEN` and the `INVENTORY_TOKEN` of the
-  orders service. While only one of them has a new token, the orders service answers 503.
-- The stock is kept in memory, and the orders are not kept at all: store them in a database
-  ([A REST API with a database](RestAPI.md)). There, the order id, as a unique key of the reservations, keeps an order
-  from being reserved twice.
-- Other transports serve the same actions: Socket.IO, JSON-RPC ([Service Calls](../ServiceCalls.md)), NATS
-  ([NATS](../NATS.md)) or gRPC ([gRPC](../GRPC.md)), each an adapter of the `service` option. The proxies of NATS and
-  gRPC have the same `invoke()` and throw the same `ServiceInvokeException`: register `inventoryService` with their
-  builders instead and change the type of the proxy in `Inventory.ts`; the rest of `Inventory.ts` stays.
+- `npm run docker:build` in each project builds its image (the template's `Dockerfile`). In its image, the inventory
+  serves its health check on `PORT` (8080) and the calls on `SERVICE_PORT` (3000). On the container network, the orders
+  service reaches it with `INVENTORY_URL=http://inventory:3000`; publish only the orders service's port.
+- Provide both services with the token from the same secret: the inventory's `API_TOKEN` and the orders service's
+  `INVENTORY_TOKEN`. While only one of them has a new token, the orders service responds with 503.
+- The stock is kept in memory, and the orders are not kept at all: store them in a database ([A REST API with a
+  database](RestAPI.md)). There, the order ID, as a unique key for reservations, prevents an order from being reserved
+  twice.
+- Other service transports serve the same actions: Socket.IO, JSON-RPC ([Service Calls](../ServiceCalls.md)), NATS
+  ([NATS](../NATS.md)) or gRPC ([gRPC](../GRPC.md)), each through an adapter in the `service` option. The NATS and gRPC
+  proxies have the same `invoke()` and throw the same `ServiceInvokeException`: register `inventoryService` with their
+  builders instead and change the proxy's type in `Inventory.ts`; the rest of `Inventory.ts` stays unchanged.
 
 <!--
 check:

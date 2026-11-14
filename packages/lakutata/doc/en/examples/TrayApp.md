@@ -1,16 +1,16 @@
 # A tray application with NW.js
 
-This example builds a clipboard history that lives in the tray of the system: it keeps the texts copied in any program,
-and its window lists them, searches them, copies one to the clipboard again and pins the ones to keep. It starts from
-the `nwjs-react` template and shows what an NW.js application made with Lakutata is made of: its background script, a
-Lakutata application that runs as long as the application does, with or without a window (here it reads the clipboard
-and keeps the icon in the tray with its menu); its window, whose React user interface calls the actions of the
-application and receives its events; and the tests of the application, which run without NW.js.
+This example builds a clipboard history that lives in the system tray: it keeps the texts copied in any program, and its
+window lists them, searches them, copies one to the clipboard again and pins the ones to keep. It starts from the
+`nwjs-react` template and shows the parts of an NW.js application built with Lakutata: its background script, a Lakutata
+application that runs as long as the application does, with or without a window (here it reads the clipboard and keeps
+the icon in the tray with its menu); its window, whose React user interface calls the application's actions and receives
+its events; and the application's tests, which run without NW.js.
 
 | Message | What it does |
 |---|---|
 | `{cmd: 'clips.list'}` | Lists the clips, the pinned ones first, then the latest |
-| `{cmd: 'clips.list', query: 'git'}` | Lists only the clips whose text holds `git`, whatever its case |
+| `{cmd: 'clips.list', query: 'git'}` | Lists only the clips whose text contains `git`, regardless of case |
 | `{cmd: 'clips.copy', id: '…'}` | Copies a clip to the clipboard again, which moves it to the top |
 | `{cmd: 'clips.pin', id: '…', pinned: true}` | Pins a clip: it stays, however many texts are copied after it |
 | `{cmd: 'clips.delete', id: '…'}` | Removes a clip |
@@ -26,10 +26,10 @@ cd clips
 rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/GreetDTO.ts
 ```
 
-The project is a workspace ([Project Structure](../ProjectStructure.md)): `packages/app` is the background script of
-NW.js, a Lakutata application; `packages/ui` is the user interface, a React page built by Vite; `packages/resources`
-holds the icon. The application needs no other package: the clipboard and the tray come from NW.js, and the history is a
-JSON file written with `node:fs`. The example controller of the template is removed.
+The project is a workspace ([Project Structure](../ProjectStructure.md)): `packages/app` is the NW.js background script,
+a Lakutata application; `packages/ui` is the user interface, a React page built by Vite; `packages/resources` holds the
+icon. The application needs no other package: the clipboard and the tray come from NW.js, and the history is a JSON file
+written with `node:fs`. The template's example controller is removed.
 
 ## 2. The input
 
@@ -64,9 +64,9 @@ export class PinClipDTO extends ClipIdDTO {
 }
 ```
 
-Each action validates its input with a DTO before it runs ([DTO and Validation](../DTOValidation.md)). A clip is named
-by its id, a UUID given by the history: `.uuid()` refuses any other string, `"id" must be a valid GUID`. A message is
-JSON, so its values keep their types: `pinned` must be a boolean.
+Each action validates its input with a DTO before it runs ([DTO and Validation](../DTOValidation.md)). A clip is
+identified by its ID, a UUID assigned by the history: `.uuid()` refuses any other string with
+`"id" must be a valid GUID`. A message is JSON, so its values keep their types: `pinned` must be a boolean.
 
 ## 3. The exception
 
@@ -85,8 +85,8 @@ export class ClipNotFoundException extends Exception {
 
 An exception has an `errno`, the code that the user interface checks ([Exceptions](../Exceptions.md)). The window
 receives the error as it was thrown, with all its properties ([Service Calls](../ServiceCalls.md), section 3):
-`error.errno` is `'E_CLIP_NOT_FOUND'`. The service transports always answer with an envelope, whatever the status of the
-error, so the exception needs no `statusCode`.
+`error.errno` is `'E_CLIP_NOT_FOUND'`. The service transports always respond with an envelope, whatever the error's
+status, so the exception needs no `statusCode`.
 
 ## 4. The history
 
@@ -279,19 +279,19 @@ export class History extends Component {
 - A component is created once and shared by the whole application ([Objects and Lifetimes](../Objects.md)): it keeps the
   clips, which outlive the requests, while a controller lives for one request only ([Controllers and
   Actions](../Controllers.md), section 2).
-- The component knows nothing of NW.js. Its options give it what it uses ([Dependency Injection](../Injection.md)):
-  `clipboard`, the functions that read and write the text of the clipboard (the clipboard of NW.js in the application,
-  section 8; a variable in the tests, section 11), and `file`, where the history is kept.
-- NW.js does not tell when the clipboard changes, so `init()` reads it every `interval` milliseconds. A text other than
-  the last one read is a copy; the text that the clipboard holds when the application starts is not one, and neither is
-  the text that `copy()` writes itself.
+- The component knows nothing of NW.js. Its options provide what it uses ([Dependency Injection](../Injection.md)):
+  `clipboard`, the functions that read and write the clipboard text (the NW.js clipboard in the application, section 8;
+  a variable in the tests, section 11), and `file`, where the history is kept.
+- NW.js does not report clipboard changes, so `init()` reads the clipboard every `interval` milliseconds. A text other
+  than the last one read is a copy; the text that the clipboard holds when the application launches is not one, and
+  neither is the text that `copy()` writes itself.
 - A text copied again moves to the top instead of being added twice. Beyond `limit` clips, the oldest ones are dropped,
   except the pinned ones.
-- Each change saves the file and tells it: `this.entrypoint.broadcast()` pushes `clips.changed` to the window
-  ([Service Calls](../ServiceCalls.md), section 5), and `this.emit('changed')` tells the other components, such as the
-  tray (section 6). The file is written to a file beside it (`history.json.tmp`), then renamed over it, so that a crash
-  never leaves it half written; the writes wait for each other, and `destroy()` waits for the last one when the
-  application stops.
+- Each change saves the file and tells it: `this.entrypoint.broadcast()` pushes `clips.changed` to the window ([Service
+  Calls](../ServiceCalls.md), section 5), and `this.emit('changed')` tells the other components, such as the tray
+  (section 6). The file is written to a file next to it (`history.json.tmp`), then renamed over it, so that a crash
+  never leaves it half-written; writes wait for each other, and `destroy()` waits for the last one when the application
+  stops.
 
 ## 5. The controller
 
@@ -342,13 +342,13 @@ export class ClipController extends Controller {
 Each `@ServiceAction` is called by a message: `{cmd: 'clips.pin', id: '…', pinned: true}` calls `pin()` with
 `{id: '…', pinned: true}`, validated by `PinClipDTO` ([Service Calls](../ServiceCalls.md), section 2). The actions are
 short: the work is done by the `history` component, which the controller injects. An action that returns nothing, such
-as `remove()`, answers `{success: true, error: null}`.
+as `remove()`, responds with `{success: true, error: null}`.
 
 ## 6. The window and the tray
 
-The application stays in the tray: closing the window hides it, and the menu of the tray shows it again or quits the
-application. Two files of the template change, the component of the window and the types of the API of NW.js, and the
-tray is a new component.
+The application stays in the tray: closing the window hides it, and the tray menu shows it again or quits the
+application. Two of the template's files change, the window component and the NW.js API types, and the tray is a new
+component.
 
 **`packages/app/src/components/MainWindow.ts`**
 
@@ -415,13 +415,13 @@ export class MainWindow extends Component {
 }
 ```
 
-- The window opens the host page of the template (`packages/app/host`), which holds the user interface in a webview. The
-  user interface runs isolated from Node.js and from NW.js: it reaches the application through the messages of the host
-  page only, the role that the preload script plays in Electron.
+- The window opens the template's host page (`packages/app/host`), which holds the user interface in a webview. The user
+  interface runs isolated from Node.js and NW.js: it reaches the application only through the host page's messages, the
+  role that the preload script plays in Electron.
 - NW.js asks a window to close with its `close` event; once the event is listened to, the window closes only through
   `close(true)`. Here the listener hides it, unless the application is quitting (Cmd+Q on macOS, which passes `'quit'`
   to the listener). `destroy()` removes the listener and closes the window when the application stops.
-- `show()` brings the window back, from the menu of the tray or when the application is started a second time
+- `show()` brings the window back, from the tray menu or when the application is launched a second time
   (`nw.App.on('open')`: NW.js runs a single instance of the application).
 
 **`packages/app/src/components/Tray.ts`**
@@ -491,17 +491,17 @@ export class Tray extends Component {
 }
 ```
 
-- The menu of the tray lists the five latest clips; choosing one copies it to the clipboard again. The component makes
-  the menu again whenever the history emits `changed`.
-- **Quit** calls `this.app.exit(0)`: the application stops gracefully, its components destroyed in turn
-  ([Application](../Application.md), section 3), the icon removed from the tray and the window closed.
-- On Windows, the notification area shows the icon of the application made smaller. The menu bar of macOS shows an icon
-  at its size (the 512 pixels of `logo.png`), so the name of the application stands there instead. NW.js recommends
-  creating the tray in the background script, which lasts as long as the application: a tray created by a page stops
-  working when the page navigates.
+- The tray menu lists the five latest clips; choosing one copies it to the clipboard again. The component rebuilds the
+  menu whenever the history emits `changed`.
+- **Quit** calls `this.app.exit(0)`, and the application stops gracefully: its components are destroyed in turn
+  ([Application](../Application.md), section 3), the icon is removed from the tray and the window is closed.
+- On Windows, the notification area shows a scaled-down application icon. The macOS menu bar shows an icon at its actual
+  size (the 512 pixels of `logo.png`), so the application's name appears there instead. NW.js recommends creating the
+  tray in the background script, which lasts as long as the application: a tray created by a page stops working when the
+  page navigates.
 
-The types of the template describe what it uses of the API of NW.js. They gain the `close` event and `hide()` of a
-window, `nw.App.dataPath`, the clipboard, the tray and its menu:
+The template's types describe the parts of the NW.js API that it uses. They gain a window's `close` event and `hide()`,
+`nw.App.dataPath`, the clipboard, the tray and its menu:
 
 **`packages/app/src/nw.d.ts`**
 
@@ -713,10 +713,10 @@ export function config(options: ConfigOptions): ApplicationOptions {
 }
 ```
 
-The options of `history` are those of the component: the clipboard, the file (`history.json` in the data directory) and
-the interval and the limit, which take their default values when they are `undefined`. Without a window
+The options of `history` are the component's options: the clipboard, the file (`history.json` in the data directory),
+and the interval and limit, which take their default values when they are `undefined`. Without a window
 (`window: false`, the tests), there is no tray either: the components that need NW.js are left out, and the actions are
-served through the global object that the tests give.
+served through the global object that the tests provide.
 
 ## 8. The background script
 
@@ -760,14 +760,14 @@ Application
     })
 ```
 
-Two options are added to the `App.ts` of the template: `clipboard`, the clipboard of NW.js (`nw.Clipboard.get()`) read
-and written as text, and `dataPath`, the data directory that NW.js gives the application (`nw.App.dataPath`). That
-directory is named after the `appId` of `lakutata.installer` in `packages/app/package.json` (`clips`), in development as
-in the installed application: `~/Library/Application Support/clips/Default` on macOS, `%LOCALAPPDATA%\clips` on Windows
-and `~/.config/clips` on Linux.
+Two options are added to the template's `App.ts`: `clipboard`, the NW.js clipboard (`nw.Clipboard.get()`) read and
+written as text, and `dataPath`, the data directory that NW.js assigns to the application (`nw.App.dataPath`). That
+directory is named after the `appId` of `lakutata.installer` in `packages/app/package.json` (`clips`), both in
+development and in the installed application: `~/Library/Application Support/clips/Default` on macOS,
+`%LOCALAPPDATA%\clips` on Windows and `~/.config/clips` on Linux.
 
-The host page and the bridge of the template (`packages/app/host`, `packages/ui/src/ipc.ts`) stay as they are: they give
-the user interface the actions and the events of the application, and nothing else from NW.js or Node.js.
+The template's host page and bridge (`packages/app/host`, `packages/ui/src/ipc.ts`) are unchanged: they provide the user
+interface with the application's actions and events, and nothing else from NW.js or Node.js.
 
 ## 9. The user interface
 
@@ -829,10 +829,10 @@ export function App() {
 }
 ```
 
-- `window.ipc` is the bridge of the template (`packages/ui/src/ipc.ts`): `invoke()` calls an action and gives its
-  `payload`, or throws its error; `on()` and `off()` listen to the events pushed by the application.
-- The list is loaded again on each `clips.changed`, whatever caused it: a copy in another program, an action of the
-  window, or a clip chosen in the menu of the tray.
+- `window.ipc` is the template's bridge (`packages/ui/src/ipc.ts`): `invoke()` calls an action and returns its
+  `payload`, or throws its error; `on()` and `off()` listen to events pushed by the application.
+- The list is reloaded on each `clips.changed`, whatever caused it: a copy in another program, an action in the window,
+  or a clip chosen in the tray menu.
 - The buttons do not change the list themselves: the history pushes its change, and the list follows.
 
 ## 10. Run it
@@ -841,14 +841,14 @@ export function App() {
 npm run dev
 ```
 
-The command starts the dev server of Vite, which serves the user interface and reloads it whenever `packages/ui`
-changes, and NW.js, whose window loads the user interface with its DevTools open. The application logs
+The command starts the Vite dev server, which serves the user interface and reloads it whenever `packages/ui` changes,
+and NW.js, whose window loads the user interface with its DevTools open. The application logs
 `Clips started in development mode`. Copy a few texts in any program: they appear at the top of the window, and in the
-menu of the tray (the name `Clips` in the menu bar of macOS).
+tray menu (the name `Clips` in the macOS menu bar).
 
 In development, the actions are also served over HTTP on port 9000 (`DEV_PORT`), so you can try them with curl or
-Postman: `POST /` sends a message, and `GET /events` streams the events of a client as Server-Sent Events
-([Service Calls](../ServiceCalls.md), section 4). After copying `git log --oneline -5`, then
+Postman: `POST /` sends a message, and `GET /events` streams a client's events as Server-Sent Events ([Service
+Calls](../ServiceCalls.md), section 4). After copying `git log --oneline -5`, then
 `https://docs.nwjs.io/References/Tray/`, run in another terminal:
 
 ```bash
@@ -871,8 +871,8 @@ curl -X POST localhost:9000/ -H 'Content-Type: application/json' -d '{"cmd": "cl
 # {"success":false,"error":{…,"message":"The clip 00000000-0000-4000-8000-000000000000 is not in the history","errMsg":"The clip 00000000-0000-4000-8000-000000000000 is not in the history","err":"ClipNotFoundException","errno":"E_CLIP_NOT_FOUND"},"payload":null}
 ```
 
-The window shows the pin at once, as the event reached it too. The error carries all the properties of the exception,
-including its stack (left out here).
+The window shows the pin immediately, because the event reached it too. The error carries all the exception's
+properties, including its stack (omitted here).
 
 ## 11. Test it
 
@@ -1017,9 +1017,9 @@ describe('Clips', (): void => {
 
 The tests run the application with Node.js, without NW.js: `window: false` leaves out the window and the tray, the
 clipboard is a variable, and the data directory a temporary one. `nwjsServiceEntrypoint` puts its bridge on the global
-object it is given (`global: shared`), where the host page of a window finds it in NW.js; the tests call the actions
-through it, as the window does, and subscribe to the events of a client. The interval of 10 milliseconds and the limit
-of 3 clips keep the tests short.
+object it receives (`global: shared`), where a window's host page finds it in NW.js; the tests call the actions through
+it, as the window does, and subscribe to a client's events. The 10-millisecond interval and the 3-clip limit keep the
+tests short.
 
 ```bash
 npm test
@@ -1037,20 +1037,20 @@ app │ ℹ pass 7
 ✔ test ran in app
 ```
 
-`npm test` builds the packages, the user interface included, then runs the tests. What needs NW.js, the clipboard of the
-system, the tray and the window, is tried out with `npm run dev`.
+`npm test` builds the packages, including the user interface, then runs the tests. What needs NW.js, the system
+clipboard, the tray and the window, is tried out with `npm run dev`.
 
 ## 12. Package it
 
-- `npm run package:host` builds the packages, then makes the installers for the platform it runs on, in
+- `npm run package:host` builds the packages, then builds the installers for the platform it runs on, in
   `dist/installer`: a `dmg` on macOS, a `deb` on Linux, an `nsis` installer and a `zip` on Windows.
-  `npm run package:linux` makes the Linux ones in Docker, from any platform. They are made by
+  `npm run package:linux` builds the Linux ones in Docker, from any platform. They are built by
   `lakutata package installer`, from `lakutata.installer` in `packages/app/package.json`
   ([Installers](../Installers.md)).
 - The installed application runs in the normal flavor of NW.js, without the DevTools: its mode is `production` and it
-  has no HTTP entrypoint (`devPort` is given only in the sdk flavor of `lakutata nwjs run`).
-- The application runs in the version of NW.js given by `lakutata.nwjs` in `packages/app/package.json`;
-  `npm run nwjs:use -- <version>` gives it another one, such as `win7`, NW.js 0.72, the last release that runs on
+  has no HTTP service adapter (`devPort` is set only in the sdk flavor of `lakutata nwjs run`).
+- The application runs in the NW.js version specified by `lakutata.nwjs` in `packages/app/package.json`;
+  `npm run nwjs:use -- <version>` switches it to another one, such as `win7`, NW.js 0.72, the last release that runs on
   Windows 7, 8 and 8.1 ([Project Structure](../ProjectStructure.md)).
 
 <!--

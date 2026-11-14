@@ -24,7 +24,7 @@ npm install ssh2
 
 | Connection | Options | Needs |
 |---|---|---|
-| The Docker configured in the environment (default) | none: read from `DOCKER_HOST`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH`, `DOCKER_CLIENT_TIMEOUT`, else the local socket | nothing |
+| The Docker configured in the environment (default) | none: read from `DOCKER_HOST`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH`, `DOCKER_CLIENT_TIMEOUT`, otherwise the local socket | nothing |
 | Unix socket / Windows named pipe | `socketPath` (`buildDockerSocketConnectionOptions`) | access to the socket (the `docker` group) |
 | TCP, plain HTTP | `host`, `port` (`buildDockerHttpConnectionOptions`) | a daemon listening on TCP (`-H tcp://0.0.0.0:2375`) |
 | TCP, HTTPS | `host`, `port`, `ca`, `cert`, `key` as PEM contents (`buildDockerHttpsConnectionOptions`) | a daemon with TLS (`--tlsverify`) |
@@ -34,10 +34,10 @@ npm install ssh2
 
 ### The component in an application
 
-Register `Docker` in the application's `components`, then get it with `getObject()` or `@Inject`. When it is created,
+Register `Docker` in the application's `components`, then obtain it with `getObject()` or `@Inject`. When it is created,
 the component pings the daemon and negotiates the API version: when the daemon cannot be reached, the creation fails
-with `DockerConnectionException`. The application then fails to start if the component is created during the start
-(listed in `bootstrap`, or injected into an object that is).
+with `DockerConnectionException`. The launch then fails if the component is created during the launch (listed in
+`bootstrap`, or injected into an object that is).
 
 ```typescript
 import {Application} from 'lakutata'
@@ -110,8 +110,8 @@ Application.run(() => ({
 ```
 
 - Without `socketPath` or `host`, the component connects to the Docker configured in the environment, and the other
-  options given (`timeout`, `headers`, `version`…) override the environment's settings.
-- `protocol` defaults to `'https'` when `ca`, `cert` and `key` are all given, and to `'http'` otherwise.
+  options specified (`timeout`, `headers`, `version`…) override the environment's settings.
+- `protocol` defaults to `'https'` when `ca`, `cert` and `key` are all specified, and to `'http'` otherwise.
 - `timeout` (in milliseconds) is how long a request may stay idle; it also ends streams (such as followed logs) that
   stay idle that long.
 
@@ -158,7 +158,7 @@ await docker.prune({containers: false, images: true, networks: false, volumes: f
   `docker.io/library/alpine:3.20`, or a digest. `pullImage()` looks up the pulled image the same way.
 - `listImages()` inspects every image, with one request per image.
 - `prune()` without options removes stopped containers and dangling images; it removes unused networks and anonymous
-  volumes only when asked to (`networks: true`, `volumes: true`).
+  volumes only when requested (`networks: true`, `volumes: true`).
 - Pulls, builds, pushes and `loginRepository()` send the registry credentials (`auth`) in full, including the tokens
   (`identityToken`, `registryToken`).
 
@@ -224,19 +224,19 @@ await web.remove({force: true})
 console.log((await docker.listContainers()).map((container: DockerContainer): string => `${container.name}: ${container.state.status}`))
 ```
 
-- A `DockerContainer` is a snapshot: its own operations refresh it, but to see changes made by others, get it again
+- A `DockerContainer` is a snapshot: its own operations refresh it, but to see changes made by others, obtain it again
   (`docker.getContainer(id)`, which also accepts a name or a short ID). When a container's image was force-removed, the
   container is read without it, and its `image` is `undefined`.
 - Starting a running container or stopping a stopped one does nothing, as with the Docker CLI.
 - `exec()` runs without a TTY or stdin and resolves with `{exitCode, stdout, stderr}`, whatever the exit code (as with
-  the containerd component). An array command runs as it is; a string is a command line, run by `/bin/sh -c`.
+  the containerd component). An array command runs unchanged; a string is a command line, run by `/bin/sh -c`.
 - `createTTY()` runs `/bin/sh` by default; its `cmd` follows the same rules as for `exec()`. Its write failures are
   logged by the application's `log` component, or to the console when there is none.
-- `kill()` sends `SIGKILL` by default, or the signal given (`'SIGHUP'`, `15`).
+- `kill()` sends `SIGKILL` by default, or the specified signal (`'SIGHUP'`, `15`).
 - `update()` changes the memory limit, the CPUs and the restart policy live, and the name by renaming the container. Any
-  other setting recreates the container from its whole configuration (command, mounts, networks, with the anonymous
+  other setting recreates the container from its full configuration (command, mounts, networks, with the anonymous
   volumes mounted again). The new container is created under a temporary name and replaces the old one only once it is
-  created (and started, if the old one was running), so a failure leaves the old one as it was. The container's ID
+  created (and started, if the old one was running), so a failure leaves the old one unchanged. The container's ID
   changes, and its files outside volumes are not kept.
 - `state.startedAt` is `null` when the container was never started, and `state.finishedAt` when it never exited.
 - Not provided: attaching to the main process, copying files into a container, managing volumes (other than with
@@ -276,8 +276,8 @@ await docker.removeNetwork(network.id)
 | `DockerContainerTTY` | An interactive command with a TTY: `raw`, `readable`, `writable`, `onData()`, `write()`, `resize()` |
 | `buildDockerConnectionOptions`, `buildDockerSocketConnectionOptions`, `buildDockerHttpConnectionOptions`, `buildDockerHttpsConnectionOptions`, `buildDockerSSHConnectionOptions` | Build the component options for each kind of connection |
 | `IDockerConnectionOptions`, `IDockerSocketConnectionOptions`, `IDockerHttpConnectionOptions`, `IDockerHttpsConnectionOptions`, `IDockerSSHConnectionOptions`, `IDockerKeyObject` | The connection options |
-| `ImagePullOptions`, `ImageBuildOptions`, `ImageImportOptions`, `ImageExportOptions`, `ImageTagOptions`, `ImagePushOptions`, `ImageRemoveOptions` | The options of the image operations |
-| `ContainerSettingOptions`, `ContainerStopOptions`, `ContainerKillOptions`, `ContainerRemoveOptions`, `ContainerCommitOptions`, `ContainerExecOptions`, `ContainerCreateTTYOptions`, `ContainerTTYConsoleSizeOptions`, `ContainerLogsOptions`, `ContainerExportDirectoryOptions` | The options of the container operations |
+| `ImagePullOptions`, `ImageBuildOptions`, `ImageImportOptions`, `ImageExportOptions`, `ImageTagOptions`, `ImagePushOptions`, `ImageRemoveOptions` | Image operation options |
+| `ContainerSettingOptions`, `ContainerStopOptions`, `ContainerKillOptions`, `ContainerRemoveOptions`, `ContainerCommitOptions`, `ContainerExecOptions`, `ContainerCreateTTYOptions`, `ContainerTTYConsoleSizeOptions`, `ContainerLogsOptions`, `ContainerExportDirectoryOptions` | Container operation options |
 | `NetworkCreateOptions`, `DockerPruneOptions`, `DockerAuthOptions` | The options for creating a network and for `prune()`, and the registry credentials |
 | `ContainerState`, `ContainerPort`, `ContainerBind`, `ContainerDevice`, `ContainerNetwork`, `ContainerCapability`, `ContainerRestartPolicy`, `ContainerStats`, `ContainerConfig`, `ContainerExecResult` | Container types, and the result of `exec()` |
 | `ImageConfig`, `ImageExposePort`, `RepositoryTag`, `NetworkInfo`, `DockerOutputCallback` | Types for images, networks and progress messages |
@@ -291,7 +291,7 @@ examples.
 
 | Exception | When |
 |---|---|
-| `DockerConnectionException` (`E_DOCKER_CONNECTION`) | The component's creation: the daemon is unreachable or does not answer, the TLS handshake fails, or SSH is used without `ssh2` |
+| `DockerConnectionException` (`E_DOCKER_CONNECTION`) | The component's creation: the daemon is unreachable or does not respond, the TLS handshake fails, or SSH is used without `ssh2` |
 | `DockerContainerNotFoundException` (`E_DOCKER_CONTAINER_NOT_FOUND`) | `getContainer()` finds no container with this ID, short ID or name; an operation on a container that was removed |
 | `DockerImageNotFoundException` (`E_DOCKER_IMAGE_NOT_FOUND`) | `getImage()` finds no image with this ID or name; `createContainer()` (or a recreation by `update()`) with a missing image; an operation on an image that was removed |
 | `DockerImagePullException` (`E_DOCKER_IMAGE_PULL`) | `pullImage()` fails, or the component is destroyed during the pull |
@@ -300,9 +300,9 @@ examples.
 | `DockerImagePushException` (`E_DOCKER_IMAGE_PUSH`) | `push()`: the registry refuses the push |
 | `DockerImageRepoTagNotFoundException` (`E_DOCKER_IMAGE_REPO_TAG_NOT_FOUND`) | `export()` with a tag that the image does not have, and `createRepoTagIfNotExists: false` |
 | `DockerNetworkNotFoundException` (`E_DOCKER_NETWORK_NOT_FOUND`) | `getNetwork()` or `removeNetwork()` with an ID, short ID or name that matches no network; a container created or recreated on a missing network |
-| `DockerRequestException` (`E_DOCKER_REQUEST`) | The daemon refuses a request and none of the exceptions above applies: its `statusCode` is the HTTP status (409 for a name already in use or a container that is not running, 401 for credentials refused by `loginRepository()`, 400 for an invalid setting, 500 for an error of the daemon), and its message is the daemon's |
-| `InvalidMethodAcceptException` (from `lakutata`) | The options of a call are invalid |
-| The errors of Node.js | The daemon becomes unreachable after the component's creation (`ECONNREFUSED`…); the `source` file of `importImage()` cannot be read (`ENOENT`…) |
+| `DockerRequestException` (`E_DOCKER_REQUEST`) | The daemon refuses a request and none of the exceptions above applies: its `statusCode` is the HTTP status (409 for a name already in use or a container that is not running, 401 for credentials refused by `loginRepository()`, 400 for an invalid setting, 500 for a daemon error), and its message is the daemon's |
+| `InvalidMethodAcceptException` (from `lakutata`) | A call's options are invalid |
+| Node.js errors | The daemon becomes unreachable after the component's creation (`ECONNREFUSED`…); the `source` file of `importImage()` cannot be read (`ENOENT`…) |
 
 When the component is destroyed (as the application stops), pulls and builds in progress are aborted and reject with
 their exception, and listings in progress resolve with an empty list.
@@ -310,8 +310,7 @@ their exception, and listings in progress resolve with an empty list.
 ## See also
 
 - The guide on the website: [Docker Integration](https://lakutata.com/guide/DockerIntegration).
-- `doc/en/DockerIntegration.md` in the `lakutata` package (Chinese version in `doc/zh`): the guide to the Docker
-  integration.
+- `doc/en/DockerIntegration.md` in the `lakutata` package (Chinese version in `doc/zh`): the Docker integration guide.
 - `@lakutata/containerd` (`lakutata/com/containerd`): the same API without a Docker daemon, over containerd.
 - `@lakutata/core` (`lakutata`): components, `Application` and dependency injection.
 - `npm run test:docker` (in this package) tests the component against the machine's Docker.

@@ -4,10 +4,10 @@ English | [中文](README.zh-CN.md)
 
 The MCP channel for the [Lakutata](https://github.com/lakutata/lakutata) framework. The
 [Model Context Protocol](https://modelcontextprotocol.io) (MCP) is how AI applications (Claude Desktop, Claude Code,
-IDEs, agents) give a model access to the tools, data and prompts of other programs. This package serves an
-application's controller actions as the tools, resources and prompts of an MCP server, over stdio or Streamable HTTP.
-They go through the same entrypoint, middlewares, validation and access control as the application's HTTP, CLI and
-service actions. The umbrella package `lakutata` does not re-export it: import it from `@lakutata/mcp`.
+IDEs, agents) give a model access to other programs' tools, data and prompts. This package serves an application's
+controller actions as an MCP server's tools, resources and prompts, over stdio or Streamable HTTP. They go through the
+same entrypoint, middlewares, validation and access control as the application's HTTP, CLI and service actions. The
+umbrella package `lakutata` does not re-export it: import it from `@lakutata/mcp`.
 
 | | Used when | Declared with |
 |---|---|---|
@@ -21,10 +21,10 @@ service actions. The umbrella package `lakutata` does not re-export it: import i
 npm install lakutata @lakutata/mcp
 ```
 
-It needs Node.js `>=18.10.0`. Its peer dependencies `@lakutata/core` and `@lakutata/entrypoint` come with `lakutata`;
+It requires Node.js `>=18.10.0`. Its peer dependencies `@lakutata/core` and `@lakutata/entrypoint` come with `lakutata`;
 the protocol itself is implemented by its dependency `@modelcontextprotocol/server`. On Node.js 18, which has no global
-`crypto`, the package sets it to the `webcrypto` of `node:crypto` (the one Node.js 19 and later make global): the SDK needs
-it.
+`crypto`, the package sets it to the `webcrypto` of `node:crypto` (the one Node.js 19 and later make global), because
+the SDK requires it.
 
 ## Usage
 
@@ -101,17 +101,17 @@ expects.
 
 ### Tools
 
-- A tool's name is prefixed with the `mcp` prefix of its controller (`@Prefix({mcp})`), joined by `_`
+- A tool's name is prefixed with its controller's `mcp` prefix (`@Prefix({mcp})`), joined by `_`
   (`device_status`). Names are 1 to 128 letters, digits, `_`, `-` or `.`.
-- A tool's input schema is the JSON Schema of its DTO (describe the properties with `.description()`). The DTO
+- A tool's input schema is its DTO's JSON Schema (describe the properties with `.description()`). The DTO
   validates the input after the middlewares, as on the other channels.
 - A tool's description is the `description` option; without it, the model sees the action's name
   (`ControllerClass:method` by default). Write what the tool does and when to use it.
 - `title`, `readOnly`, `destructive`, `idempotent` and `openWorld` are passed to the clients, which use them to decide
   whether the user must confirm a call.
-- `output` is the DTO of the result, and its JSON Schema becomes the tool's output schema. The action must then return
-  an object (a plain object or a DTO instance), which becomes the structured content of the result. Any other value (a
-  string, an array, nothing) is answered with an error result that names the action and the type it returned.
+- `output` is the result's DTO, and its JSON Schema becomes the tool's output schema. The action must then return an
+  object (a plain object or a DTO instance), which becomes the result's structured content. Any other value (a string,
+  an array, nothing) produces an error result that names the action and the type it returned.
 - The action options (`name`, `description`, `acl`, `rule`, `middlewares`…) are accepted as well.
 
 | The action returns | The tool result |
@@ -121,7 +121,7 @@ expects.
 | a DTO instance (a class instance) | its JSON as text; with `output`, also its JSON object as the structured content |
 | another value (an array, a number…) | its JSON as text |
 | `Result.file(...)` | an image, an audio clip or an embedded resource, depending on its content type |
-| a `CallToolResult` (`{content: [...]}`) | the result as is |
+| a `CallToolResult` (`{content: [...]}`) | the result, unchanged |
 | `undefined` | an empty result |
 
 An error reaches the model as a result with `isError: true` and the text `errno: message`, so the model can correct its
@@ -129,7 +129,7 @@ input and call the tool again.
 
 ### Resources
 
-A resource is read-only data addressed by a URI. The variables of a URI template are merged into the input, like route
+A resource is read-only data addressed by a URI. A URI template's variables are merged into the input, like route
 parameters (they take precedence over it).
 
 ```typescript
@@ -163,13 +163,13 @@ export class DeviceResourceController extends Controller {
 - A resource's name is `resourceName`, or the action's name by default; `title`, `mimeType`, `audience` and
   `priority` describe it. Controllers do not prefix the URIs.
 - A string becomes text (`text/plain` unless `mimeType` is set); bytes and files become text or a blob, depending on
-  their content type; other values become JSON; a `ReadResourceResult` (`{contents: [...]}`) is returned as is.
+  their content type; other values become JSON; a `ReadResourceResult` (`{contents: [...]}`) is returned unchanged.
 - An error becomes a protocol error: invalid params for client errors (a 4xx `statusCode`), an internal error
   otherwise.
 
 ### Prompts
 
-A prompt is a message template. Its arguments are the properties of the DTO (clients send them as strings).
+A prompt is a message template. Its arguments are the DTO's properties (clients send them as strings).
 
 ```typescript
 import {DTO} from 'lakutata'
@@ -193,22 +193,22 @@ export class DevicePromptController extends Controller {
 }
 ```
 
-A string becomes a user message; an array gives the messages (strings for the user, or `{role, content}`); a
-`GetPromptResult` (`{messages: [...]}`) is returned as is. Prompt names are prefixed like tool names. An error becomes a
-protocol error, as for resources.
+A string becomes a user message; an array provides the messages (strings for the user, or `{role, content}`); a
+`GetPromptResult` (`{messages: [...]}`) is returned unchanged. Prompt names are prefixed like tool names. An error
+becomes a protocol error, as for resources.
 
 ### The context
 
-Actions receive an `MCPContext` with `context.kind` (`tool`, `resource` or `prompt`), `context.name` (the tool or
-prompt name, or the resource's URI template), `context.uri` (the URI read), `context.authInfo` (over HTTP) and
-`context.progress(progress, total?, message?)`, which reports the progress of a long call when the client asked for
-it. `context.sessionId` is set only by a transport with sessions: it is `undefined` with the built-in adapters. When
-the client cancels a call, the action's signal (`this.signal`) is aborted.
+Actions receive an `MCPContext` with `context.kind` (`tool`, `resource` or `prompt`), `context.name` (the tool or prompt
+name, or the resource's URI template), `context.uri` (the URI read), `context.authInfo` (over HTTP) and
+`context.progress(progress, total?, message?)`, which reports a long call's progress when the client requested it.
+`context.sessionId` is set only by a transport with sessions: it is `undefined` with the built-in adapters. When the
+client cancels a call, the action's signal (`this.signal`) is aborted.
 
 ### Notifications
 
-`MCPNotifier` tells clients what has changed in the application. Inject it into any object (`@Inject(MCPNotifier)`) or
-get it with `getObject(MCPNotifier)`: it is autoloaded, one per application.
+`MCPNotifier` notifies clients of what has changed in the application. Inject it into any object
+(`@Inject(MCPNotifier)`) or obtain it with `getObject(MCPNotifier)`: it is autoloaded, one per application.
 
 ```typescript
 import {Component} from 'lakutata'
@@ -232,14 +232,14 @@ application's running MCP adapters (not those of another application in the same
 - over stdio, `resourceUpdated()` reaches the client only if it subscribed to that resource (`resources/subscribe`);
 - over HTTP, clients of the 2026-07-28 revision that listen for changes (`subscriptions/listen`) are notified. Clients
   of the 2025 revisions are served without sessions, so the server cannot notify them. Each process keeps its
-  subscriptions in memory: when several instances of an application run behind a load balancer, they share a
+  subscriptions in memory: when several application instances run behind a load balancer, they share a
   notification bus (`bus: ServerEventBus`, over Redis, NATS…) so that every client is notified, whichever instance it
   listens to.
 
 ### stdioMCPEntrypoint
 
-The client runs the application as a subprocess and talks to it over its standard input and output. The application
-exits when the client closes its input (`exitOnClose: false` keeps it running).
+The client runs the application as a subprocess and communicates with it over its standard input and output. The
+application exits when the client closes its input (`exitOnClose: false` keeps it running).
 
 The standard output belongs to the protocol: **the application must write its logs to standard error**, for example with
 `log: {class: Logger, destinations: [process.stderr]}`.
@@ -249,7 +249,7 @@ model), `stdin` and `stdout` (the process's by default), `exitOnClose` (`true`),
 
 ### httpMCPEntrypoint
 
-A Streamable HTTP endpoint (`path`, `/mcp` by default) that serves the 2026-07-28 revision of the protocol, and clients
+A Streamable HTTP endpoint (`path`, `/mcp` by default) that serves the protocol's 2026-07-28 revision, and clients
 of the 2025 revisions without sessions (`legacy: 'reject'` refuses them).
 
 ```typescript
@@ -295,23 +295,24 @@ Application.run(() => ({
 - By default it listens on `127.0.0.1:3000` (`host`, `port`). On a loopback address, it checks the `Host` and `Origin`
   headers against the local host names to block DNS rebinding (`403`); `allowedHosts` and `allowedOrigins` set other
   names, and `false` disables a check.
-- `interface` listens on a network interface instead of `host`, whatever its addresses (`family`, `strict` and `onError`
-  go with it), with the package `@lakutata/netif` installed apart. On the loopback interface the headers are checked as
-  on a loopback address; on another interface, set `allowedHosts` and `authenticate`.
-- `authenticate(request)` returns the client's authentication, which the actions receive in `context.authInfo`; when
-  it throws, the adapter answers `401`. Returning `undefined` serves the request without authentication.
-- Bodies larger than `maxRequestBodySize` (4 MiB by default) get a `413`; `server` holds the `node:http` server options;
-  `listening(server, listeners)` is called once the server listens (`listeners`: those of the interface, with
-  `interface`).
-- It stops gracefully with the entrypoint: it stops accepting requests, the calls in progress are answered (the
-  entrypoint waits for them, then the adapter gives their responses up to a second), and then the subscription streams
-  and the remaining connections are closed, including connections the application took over with an upgrade.
+- `interface` listens on a network interface instead of `host`, regardless of its addresses (`family`, `strict` and
+  `onError` go with it), with the package `@lakutata/netif` installed separately. On the loopback interface the headers
+  are checked as on a loopback address; on another interface, set `allowedHosts` and `authenticate`.
+- `authenticate(request)` returns the client's authentication, which the actions receive in `context.authInfo`; when it
+  throws, the adapter responds with `401`. Returning `undefined` serves the request without authentication.
+- Bodies larger than `maxRequestBodySize` (4 MiB by default) receive a `413`; `server` holds the `node:http` server
+  options; `listening(server, listeners)` is called once the server listens (`listeners`: the interface's listeners,
+  with `interface`).
+- It stops gracefully with the entrypoint: it stops accepting requests, the calls in progress receive their responses
+  (the entrypoint waits for them, then the adapter allows up to a second for their responses to be sent), and then the
+  subscription streams and the remaining connections are closed, including connections the application took over with an
+  upgrade.
 
 #### Sharing the port of another HTTP server
 
 With `listen: false`, the adapter opens no port: its `handler` is mounted on another server, such as the application
 of `expressHTTPEntrypoint` (a Next.js custom server or `node:http` work too). That server's routes, middlewares and
-port apply; a body it has already parsed (`express.json()`) is used as is.
+port apply; a body it has already parsed (`express.json()`) is used unchanged.
 
 ```typescript
 import {Application} from 'lakutata'
@@ -347,13 +348,13 @@ Application.run(() => ({
 }))
 ```
 
-The handler checks the `Host` and `Origin` headers only against the `allowedHosts` and `allowedOrigins` given, because
-the adapter does not know the host of the mounting server. Before the adapter starts and once it stops, the handler
-answers `503`.
+The handler checks the `Host` and `Origin` headers only against the `allowedHosts` and `allowedOrigins` specified,
+because the adapter does not know the mounting server's host. Before the adapter starts and once it stops, the handler
+responds with `503`.
 
 ### Other transports
 
-`buildMCPServer(runtime, info)` builds an MCP server for the actions of a channel runtime, which a custom adapter
+`buildMCPServer(runtime, info)` builds an MCP server for a channel runtime's actions, which a custom adapter
 connects to another transport; `toToolResult`, `toErrorResult`, `toResourceResult` and `toPromptResult` convert results
 the way the built-in adapters do.
 
@@ -368,7 +369,7 @@ the way the built-in adapters do.
 | `httpMCPEntrypoint`, `HTTPMCPEntrypointOptions`, `HTTPMCPEntrypointAdapter` | The Streamable HTTP adapter, and its `handler` for mounting on another server |
 | `MCPNotifier` | Notifies clients: `resourceUpdated`, `resourcesChanged`, `toolsChanged`, `promptsChanged` |
 | `MCPContext`, `MCPContextParams`, `MCP_CONTEXT_TYPE`, `MCPRequestKind`, `MCPAuthInfo` | The request context: `kind`, `name`, `uri`, `sessionId`, `authInfo`, `progress()` |
-| `buildMCPServer`, `MCPServerInfo` | Builds the MCP server of a channel runtime, for custom adapters; the server's name, version and instructions |
+| `buildMCPServer`, `MCPServerInfo` | Builds a channel runtime's MCP server, for custom adapters; the server's name, version and instructions |
 | `toToolResult`, `toErrorResult`, `toResourceResult`, `toPromptResult` | Convert action results and errors |
 | `MCPMetadata` | An action's MCP metadata, read by the adapters |
 | `MCPChannel` | The definition of the `mcp` channel, for custom adapters |
@@ -384,13 +385,13 @@ The typings document each declaration, with examples.
 | `Error` (`EADDRINUSE`…) | `httpMCPEntrypoint` starts and its server cannot listen: the entrypoint fails to start |
 | An error thrown by a tool | A result with `isError: true` and the text `errno: message`, returned to the model |
 | An error thrown by a resource or a prompt | A protocol error: invalid params (`-32602`) for a 4xx `statusCode`, an internal error (`-32603`) otherwise; its message is `errno: message` |
-| The protocol error `-32602` (`Tool nope not found`) | A request for a tool, resource or prompt that no action serves, answered by the MCP SDK |
+| The protocol error `-32602` (`Tool nope not found`) | A request for a tool, resource or prompt that no action serves; the MCP SDK returns the error |
 | `ControllerActionNotFoundException` (from `lakutata/com/entrypoint`) | A custom adapter dispatches a request that no action serves (`runtime.dispatch()`) |
 
-Over HTTP, the adapter answers `401` when `authenticate` throws, `403` for a refused `Host` or `Origin`, `404` for any
-other path (on its own server) and `413` for a body over `maxRequestBodySize`. A mounted handler answers `503` before
-the adapter starts and once it stops; the adapter's own server closes its port when it stops (a request on a
-connection still open by then gets `503`).
+Over HTTP, the adapter responds with `401` when `authenticate` throws, `403` for a refused `Host` or `Origin`, `404` for
+any other path (on its own server) and `413` for a body over `maxRequestBodySize`. A mounted handler responds with `503`
+before the adapter starts and once it stops; the adapter's own server closes its port when it stops (a request on a
+connection still open by then receives `503`).
 
 ## See also
 

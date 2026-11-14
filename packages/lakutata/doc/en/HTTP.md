@@ -1,10 +1,10 @@
 # Lakutata HTTP
 
 The HTTP adapters serve the HTTP actions of the controllers (`@GET`, `@POST`…) with Express or Fastify. This guide
-covers what is particular to HTTP: the two adapters and their options, the routes, how a request becomes the input of an
-action, the responses, the errors, and the features of the web framework itself. The controllers and their actions are
-described in [Controllers and Actions](Controllers.md), the middlewares and the access control in [Middlewares and
-Access Control](Middlewares.md), and the starting and stopping of the adapters in [Entrypoint](Entrypoint.md).
+describes what is specific to HTTP: the two adapters and their options, routes, how a request becomes an action's input,
+responses, errors, and the web framework's own features. Controllers and their actions are described in [Controllers and
+Actions](Controllers.md), middlewares and access control in [Middlewares and Access Control](Middlewares.md), and how
+the adapters start and stop in [Entrypoint](Entrypoint.md).
 
 ## 1. A first HTTP API
 
@@ -111,26 +111,26 @@ The options of `expressHTTPEntrypoint()`:
 
 | Option | Default | Meaning |
 |---|---|---|
-| `port` | `80` | The port; `0` picks a free port. A port already in use fails the application's start |
-| `host` | all the interfaces | The address to listen on, such as `'127.0.0.1'` for the local machine only |
-| `name` | | The name of the adapter, to tell several adapters apart |
-| `body` | `{limit: '1mb'}` | The size limit of the bodies (`'5mb'`, or a number of bytes); `text`: the content types read as text (section 4); `false` parses no body |
-| `server` | | The options of the Node.js HTTP server: `keepAliveTimeout`, `headersTimeout`, `requestTimeout`… |
+| `port` | `80` | The port; `0` picks a free port. The launch fails when the port is already in use |
+| `host` | all interfaces | The address to listen on, such as `'127.0.0.1'` for the local machine only |
+| `name` | | The adapter's name, to distinguish several adapters |
+| `body` | `{limit: '1mb'}` | The body size limit (`'5mb'`, or a number of bytes); `text`: the content types read as text (section 4); `false` parses no body |
+| `server` | | Options for the Node.js HTTP server: `keepAliveTimeout`, `headersTimeout`, `requestTimeout`… |
 | `app` | a new application | An existing Express application to add the actions to |
 | `input` | the query and the body | Builds the input from the request (section 4) |
-| `respond` | `JSONResponder` | Writes the results and the errors (section 6) |
-| `middlewares` | | The middlewares of the actions of this adapter, run after those of the entrypoint |
+| `respond` | `JSONResponder` | Writes results and errors (section 6) |
+| `middlewares` | | Middlewares for this adapter's actions, run after the entrypoint's |
 | `before` | | `(app, context) => …`: adds the application's own middlewares and routes (section 7) |
-| `fallback` | | Answers the requests outside the paths of the actions, such as the pages of a web UI (section 7) |
+| `fallback` | | Responds to requests outside the action paths, such as the pages of a web UI (section 7) |
 | `stop` | | Called when the adapter stops, once its server is closed |
-| `heartbeat` | `15000` | How often a comment keeps the event streams alive, in milliseconds (section 5) |
-| `listening` | | `(server, listeners) => …`: called once the server listens, or once the listeners of the interface are made (see below) |
+| `heartbeat` | `15000` | How often, in milliseconds, a comment keeps event streams alive (section 5) |
+| `listening` | | `(server, listeners) => …`: called once the server listens, or once the interface's listeners are created (see below) |
 | `interface` | | The network interface to listen on instead of an address, with `family`, `strict` and `onError` (see below) |
 
-`fastifyHTTPEntrypoint()` takes the same options, except `server` and `app`, replaced by `fastify`: a Fastify instance,
-or the options of the instance to create (`bodyLimit`, 1 MiB by default; `trustProxy`; `connectionTimeout`,
-`keepAliveTimeout`, `requestTimeout`; `logger`…). Its `body` option has only `text`, the size limit being the
-`bodyLimit` of the instance.
+`fastifyHTTPEntrypoint()` takes the same options, except `server` and `app`, which are replaced by `fastify`: a Fastify
+instance, or options for the instance to create (`bodyLimit`, 1 MiB by default; `trustProxy`; `connectionTimeout`,
+`keepAliveTimeout`, `requestTimeout`; `logger`…). Its `body` option has only `text`, because the size limit is the
+instance's `bodyLimit`.
 
 Where they differ:
 
@@ -138,23 +138,23 @@ Where they differ:
 |---|---|---|
 | URL-encoded form bodies | Parsed | Refused with 415 |
 | `this.context.request` | The Express request (`ip`, `get()`, `hostname`…) | The Node.js request |
-| A wildcard route | `/files/*path`: the input gets `path: ['docs', 'a.txt']` | `/files/*`: the input gets `'*': 'docs/a.txt'` |
-| Other HTTP methods than `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`, `TRACE` | Accepted | Registered with `app.addHttpMethod()` in `before`; otherwise the start fails |
-| A web UI as `fallback` | `staticUI()` (section 7) | A handler of your own |
-| The `errno` of the errors of the framework | `E_UNKNOWN` | Its codes, such as `FST_ERR_CTP_BODY_TOO_LARGE` |
-| A given application or instance, when the application stops | Left as it is | Closed |
+| A wildcard route | `/files/*path`: the input contains `path: ['docs', 'a.txt']` | `/files/*`: the input contains `'*': 'docs/a.txt'` |
+| HTTP methods other than `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`, `TRACE` | Accepted | Registered with `app.addHttpMethod()` in `before`; otherwise the adapter fails to start |
+| A web UI as `fallback` | `staticUI()` (section 7) | Your own handler |
+| The `errno` of framework errors | `E_UNKNOWN` | Its codes, such as `FST_ERR_CTP_BODY_TOO_LARGE` |
+| A supplied application or instance, when the application stops | Left unchanged | Closed |
 
 When the application stops (see [Entrypoint](Entrypoint.md), section 4), the adapters stop accepting connections and end
-the event streams; Fastify also answers 503 to the requests that still arrive on the open connections. The requests in
-progress get the `shutdownTimeout` of the entrypoint (after it, they are answered with 503), then up to one second to
-send their responses, before the remaining connections are closed, the WebSockets included.
+the event streams; Fastify also responds with 503 to requests that still arrive on open connections. Requests in
+progress are given the entrypoint's `shutdownTimeout` (after which they receive a 503 response), then up to one second
+to send their responses, before the remaining connections, including WebSockets, are closed.
 
 ### On a network interface
 
-A device with several network interfaces often serves its pages on one of them only, and the address of that interface
-comes from DHCP and changes. With `interface`, the adapter listens on the interface instead of an address, whatever its
-addresses, and goes on listening when they change and when the interface is unplugged and plugged back. By default it
-uses the package `@lakutata/netif`, installed apart, which compiles a native addon (see [Netif](Netif.md)).
+A device with several network interfaces often serves its pages on only one of them, and that interface's address comes
+from DHCP and changes. With `interface`, the adapter listens on the interface instead of an address, whatever its
+addresses, and continues listening when they change and when the interface is unplugged and plugged back in. By default
+it uses the `@lakutata/netif` package, installed separately, which compiles a native addon (see [Netif](Netif.md)).
 
 ```typescript
 import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
@@ -169,27 +169,27 @@ export const http = expressHTTPEntrypoint({
 
 | Option | Default | Meaning |
 |---|---|---|
-| `interface` | | The name of the interface (`'eth1'`; on Windows the name of the network connection), `{mac: '52:54:00:12:34:56'}` or `{index: 3}`; several in an array, and then `port` cannot be `0`. It cannot be given with `host` |
+| `interface` | | The interface's name (`'eth1'`; on Windows, the network connection's name), `{mac: '52:54:00:12:34:56'}` or `{index: 3}`; several in an array, in which case `port` cannot be `0`. It cannot be specified with `host` |
 | `family` | `'both'` | `'IPv4'`, `'IPv6'` or both |
-| `strict` | `false` | Fails the start where the system cannot refuse the connections that reach the addresses of the interface through another interface, and stops listening while it cannot (see [Netif](Netif.md), section 2) |
-| `onError` | the log of the application | Receives the errors of listening again while the application runs, such as a port taken by another program; the adapter retries by itself |
-| `interfaceListening` | `@lakutata/netif` | Another implementation of the listening on interfaces: an `IInterfaceListening`, the contract of Lakutata that `@lakutata/netif` implements |
+| `strict` | `false` | Makes the adapter fail to start where the system cannot refuse connections that reach the interface's addresses through another interface, and stop listening while it cannot (see [Netif](Netif.md), section 2) |
+| `onError` | the application's log | Receives the errors of listening again while the application runs, such as a port taken by another program; the adapter retries automatically |
+| `interfaceListening` | `@lakutata/netif` | Another implementation of interface listening: an `IInterfaceListening`, the Lakutata contract that `@lakutata/netif` implements |
 
-- The interface may not exist yet when the application starts (a USB network adapter not plugged in): the start
-  succeeds, and the adapter listens once the interface appears. Until then the `addresses` of the listeners are empty.
-- The server itself does not listen, and its `address()` is `null`: the listeners give the port and the addresses.
-- `family`, `strict`, `onError` and `interfaceListening` without `interface` fail the creation of the adapter, as do
-  `interface` and `host` together.
+- The interface may not exist yet when the application launches (a USB network adapter not plugged in): the launch
+  succeeds, and the adapter listens once the interface appears. Until then, the listeners' `addresses` are empty.
+- The server itself does not listen, and its `address()` is `null`: the listeners provide the port and the addresses.
+- Creating the adapter fails when `family`, `strict`, `onError` or `interfaceListening` is specified without
+  `interface`, and when `interface` and `host` are specified together.
 
 ## 3. Routes
 
 | Decorator | Methods |
 |---|---|
-| `@GET(route)`, `@POST`, `@PUT`, `@PATCH`, `@DELETE`, `@HEAD`, `@OPTIONS` | The method of its name |
+| `@GET(route)`, `@POST`, `@PUT`, `@PATCH`, `@DELETE`, `@HEAD`, `@OPTIONS` | The method it is named after |
 | `@HTTPAction(route, method)` | One method (`'purge'`), or a list (`['get', 'post']`) |
 
-Each of them then takes the DTO of the input and the options of the action, both optional (see
-[Controllers and Actions](Controllers.md), section 3).
+Each of them then takes the input's DTO and the action options, both optional (see [Controllers and
+Actions](Controllers.md), section 3).
 
 ```typescript
 import {DTO} from 'lakutata'
@@ -218,41 +218,41 @@ class LibraryController extends Controller {
 }
 ```
 
-- A route uses the syntax of the web framework: `:id` is a parameter with both; the wildcards differ (section 2).
-- `@Prefix({route})` puts a prefix before the routes of a controller (see [Controllers and Actions](Controllers.md),
-  section 6).
-- A `GET` action also answers the `HEAD` requests of its route, without a body, unless the route has a `HEAD` action.
-- A request whose method has no action on its route is answered with 404 (`E_ROUTE_NOT_FOUND`), not 405. Nothing
-  answers `OPTIONS` by itself: the preflight requests of the browsers fail until a CORS middleware answers them
-  (section 7).
+- A route uses the web framework's syntax: `:id` is a parameter in both; the wildcards differ (section 2).
+- `@Prefix({route})` prepends a prefix to a controller's routes (see [Controllers and Actions](Controllers.md), section
+  6).
+- A `GET` action also responds to `HEAD` requests on its route, without a body, unless the route has a `HEAD` action.
+- A request whose method has no action on its route receives a 404 response (`E_ROUTE_NOT_FOUND`), not 405. Nothing
+  responds to `OPTIONS` automatically: browser preflight requests fail until a CORS middleware responds to them (section
+  7).
 
 ## 4. The input
 
-By default, the input of an action is the query, then the properties of the body over it, then the route parameters
-over both:
+By default, an action's input is the query, with the body's properties merged over it, then the route parameters over
+both:
 
 ```text
 POST /orders/7?id=1&note=a   with the body {"id": 5, "note": "b"}   →   {id: '7', note: 'b'}
 ```
 
-The DTO of the action then validates it, and removes the keys it does not declare. `this.context.data` is the input
-before the validation, without the route parameters.
+The action's DTO then validates it, and removes the keys it does not declare. `this.context.data` is the input before
+validation, without the route parameters.
 
-- **Text.** The values of the query and the route parameters are strings: a schema of a number or a boolean needs
-  `.strict(false)` to accept `'42'` or `'true'`.
-- **The query.** A key given several times is an array (`?tag=a&tag=b` → `tag: ['a', 'b']`). With Express 5 and
-  Fastify, the brackets do not nest: `?filter[status]=open` gives the key `'filter[status]'`.
-- **JSON bodies.** An array gives no usable input (Express spreads its items under numbered keys, Fastify ignores it):
-  send a list inside an object (`{"items": [...]}`).
-- **Forms.** Express parses the URL-encoded bodies, the brackets nested (`a[b]=1` → `a: {b: '1'}`); Fastify refuses them
-  with 415. Neither parses `multipart/form-data`, the file uploads (section 7).
+- **Text.** Query values and route parameters are strings: a number or boolean schema needs `.strict(false)` to accept
+  `'42'` or `'true'`.
+- **The query.** A repeated key is an array (`?tag=a&tag=b` → `tag: ['a', 'b']`). With Express 5 and Fastify, brackets
+  do not nest: `?filter[status]=open` produces the key `'filter[status]'`.
+- **JSON bodies.** An array produces no usable input (Express spreads its items under numbered keys, Fastify ignores
+  it): send a list inside an object (`{"items": [...]}`).
+- **Forms.** Express parses URL-encoded bodies and nests their brackets (`a[b]=1` → `a: {b: '1'}`); Fastify refuses
+  them with 415. Neither parses `multipart/form-data`, used for file uploads (section 7).
 - **Other text.** The content types listed in `body.text` (`['application/sdp']`, or `'text/*'` for a whole type) are
-  read as text, given to the action in the `body` property of its input. Fastify refuses the other types it does not
+  read as text and passed to the action in its input's `body` property. Fastify refuses other types that it does not
   parse with 415.
 - **Limits.** A body over the limit is refused with 413, malformed JSON with 400.
 
-The `input` option builds the input from the request. For example, to give the actions the address of the client and
-its language (only the DTOs that declare `ip` and `language` keep them):
+The `input` option builds the input from the request. For example, to pass the client's address and language to the
+actions (only DTOs that declare `ip` and `language` keep them):
 
 ```typescript
 import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
@@ -269,18 +269,18 @@ export const http = expressHTTPEntrypoint({
 })
 ```
 
-The route parameters are always merged over the result. With Express, an action can also read the request itself:
-`(this.context as HTTPContext).request as unknown as Request` gives the Express request, with `ip`, `get()` and the
-properties that its middlewares add. With Fastify, `this.context.request` is the Node.js request: give the action
-`request.ip` through `input`.
+The route parameters are always merged over the result. With Express, an action can also read the request directly:
+`(this.context as HTTPContext).request as unknown as Request` returns the Express request, with `ip`, `get()` and the
+properties its middlewares add. With Fastify, `this.context.request` is the Node.js request: pass `request.ip` to the
+action through `input`.
 
 ## 5. The response
 
-- A value is sent as JSON; `undefined` is answered with 204.
+- A value is sent as JSON; `undefined` results in a 204 response.
 - `Result.status(status, data?, headers?)` sends a status and headers with the data, or without data.
 - `Result.file(source, options?)` sends a file: its path (relative to the working directory), a `Buffer` or a stream.
   `filename` makes it a download; `contentType` sets its type, otherwise taken from the extension of its name; `etag`
-  sends `ETag` and answers 304 when the `If-None-Match` of the request matches it.
+  sends `ETag` and responds with 304 when the request's `If-None-Match` matches it.
 - `Result.events(producer)` sends Server-Sent Events.
 
 ```typescript
@@ -314,8 +314,8 @@ class ExportController extends Controller {
 }
 ```
 
-The events are written as the standard defines them: the data as JSON (a string as it is, one `data:` line per line),
-with the event's id and name before it when they are given:
+Events are written as the standard defines them. The data is written as JSON (a string unchanged, one `data:` line per
+line), preceded by the event's ID and name when they are specified:
 
 ```text
 id: 1
@@ -326,11 +326,10 @@ data: line one
 data: line two
 ```
 
-- A comment (`: ping`) is sent every `heartbeat` milliseconds, so that the proxies keep the connection open.
-- The stream ends when the producer returns or fails; a failure sends nothing more, the headers being already sent.
-  `signal` is aborted when the client leaves or the application stops.
-- The producer runs after the scope of the request is destroyed: it should use components, not the providers of the
-  request.
+- A comment (`: ping`) is sent every `heartbeat` milliseconds, so that proxies keep the connection open.
+- The stream ends when the producer returns or fails; a failure sends nothing more, because the headers have already
+  been sent. `signal` is aborted when the client leaves or the application stops.
+- The producer runs after the request's scope is destroyed: it should use components, not the request's providers.
 
 An action can also write the response itself through `this.context.response`, the Node.js response. Once the action has
 sent the headers, the adapter writes neither its result nor its error. When the client leaves before the response,
@@ -338,26 +337,26 @@ sent the headers, the adapter writes neither its result nor its error. When the 
 
 ## 6. Errors
 
-An error is answered with a status and `{errno, errMsg}`:
+The response to an error is a status and `{errno, errMsg}`:
 
-- the status is the first client error (4xx) found in the `statusCode` or `status` of the error or of its causes
-  (`cause`), otherwise its own status when it is between 400 and 599, otherwise 500;
+- the status is the first client error (4xx) found in the `statusCode` or `status` of the error or its causes (`cause`),
+  otherwise its own status when it is between 400 and 599, otherwise 500;
 - `errno` and `errMsg` come from the error itself: its `errno`, otherwise its `code`, otherwise `E_UNKNOWN`; its
-  `errMsg`, otherwise its `message`. So `new Error('Lookup failed', {cause: notFound})` is answered with the 404 of its
-  cause, and `{"errno": "E_UNKNOWN", "errMsg": "Lookup failed"}`.
+  `errMsg`, otherwise its `message`. The response to `new Error('Lookup failed', {cause: notFound})` therefore has its
+  cause's 404 status and the body `{"errno": "E_UNKNOWN", "errMsg": "Lookup failed"}`.
 
 | Status | `errno` | When |
 |---|---|---|
 | 400 | `E_INVALID_VALUE` | The DTO refused the input |
-| 400 | `E_UNKNOWN` (Express), `FST_ERR_CTP_INVALID_JSON_BODY` (Fastify) | The JSON of the body is malformed |
-| 403 | `E_ACCESS_DENY` | The access control refused the request (see [Middlewares and Access Control](Middlewares.md)) |
+| 400 | `E_UNKNOWN` (Express), `FST_ERR_CTP_INVALID_JSON_BODY` (Fastify) | The body's JSON is malformed |
+| 403 | `E_ACCESS_DENY` | Access control refused the request (see [Middlewares and Access Control](Middlewares.md)) |
 | 404 | `E_ROUTE_NOT_FOUND` | No action has this route and method |
 | 413 | `E_UNKNOWN` (Express), `FST_ERR_CTP_BODY_TOO_LARGE` (Fastify) | The body is over the limit |
 | 415 | `FST_ERR_CTP_INVALID_MEDIA_TYPE` | Fastify does not parse this type of body |
 | 503 | `E_ENTRYPOINT_STOPPED` | The application is stopping |
 | 500 | The error's | Any other error |
 
-An exception of the application gives its own `errno` and `statusCode`, as `OrderNotFoundException` in section 1.
+An application exception provides its own `errno` and `statusCode`, as `OrderNotFoundException` does in section 1.
 
 **The envelope.** `jsonEnvelope()` (Express) and `fastifyJSONEnvelope()` (Fastify) wrap every response in
 `{errno, errMsg, data}`:
@@ -372,34 +371,34 @@ export const http = expressHTTPEntrypoint({
 })
 ```
 
-- A result is `{errno: null, errMsg: null, data}`, with the status 200 when there is no data (`data` is `null`).
-- An error is `{errno, errMsg, data: null}`, with its status. `errorStatus` gives the status of every error, such as
-  200 for the clients that read the errors from the envelope. `actionErrorStatus` gives the status of the errors of the
-  actions only (their validation, their access control, their exceptions): a route not found and the errors of the
-  middlewares of the web framework keep theirs.
+- A result is `{errno: null, errMsg: null, data}`, with status 200 when there is no data (`data` is `null`).
+- An error is `{errno, errMsg, data: null}`, with its status. `errorStatus` sets the status of every error, such as 200
+  for clients that read errors from the envelope. `actionErrorStatus` sets the status of action errors only (their
+  validation, access control and exceptions): a route not found and errors from the web framework's middlewares keep
+  their own status.
 - `extra(request)` adds fields to every response, after `errno`, `errMsg` and `data`, which they never replace.
 
-**A responder of your own** is an object with two methods, given to `respond`: `success(response, data, request)` and
-`error(response, error, request, origin)`. `origin` is `'action'` when the request reached an action, `'request'` when
-it failed before (a middleware of the web framework, a route not found). `statusOfError()` and `describeError()`, from
-the adapter's subpath, compute the status and the `{errno, errMsg}` described above. The files and the event streams do
-not go through the responder.
+**A custom responder** is an object with two methods, passed to `respond`: `success(response, data, request)` and
+`error(response, error, request, origin)`. `origin` is `'action'` when the request reached an action, and `'request'`
+when it failed before that (in a web framework middleware, or a route not found). `statusOfError()` and
+`describeError()`, from the adapter's subpath, compute the status and the `{errno, errMsg}` described above. Files and
+event streams do not go through the responder.
 
 ## 7. The features of the web framework
 
-The `before` hook receives the Express application or the Fastify instance before the routes of the actions are added.
-Its middlewares, plugins and routes come first: a route of its own takes precedence over an action with the same path.
-Its second argument gives:
+The `before` hook receives the Express application or the Fastify instance before the action routes are added. Its
+middlewares, plugins and routes come first: a route it adds takes precedence over an action with the same path. Its
+second argument provides:
 
 | Property | What it is |
 |---|---|
-| `module` | The module of the entrypoint, to get objects: `await module.getObject('db')` |
+| `module` | The entrypoint's module, to obtain objects: `await module.getObject('db')` |
 | `server` | The HTTP server, not listening yet: a WebSocket server can be attached to it |
-| `routes` | The routes of the actions, each with its methods |
-| `actionPrefixes`, `isActionPath(path)` | The first segments of the routes of the actions, and whether a path is under one of them |
+| `routes` | The action routes, each with its methods |
+| `actionPrefixes`, `isActionPath(path)` | The first segments of the action routes, and whether a path is under one of them |
 
-A failure of `before` fails the application's start. With Express, the body parsers are added after `before`: its
-middlewares do not see a parsed body.
+The launch fails when `before` fails. With Express, the body parsers are added after `before`: its middlewares do not
+see a parsed body.
 
 ```typescript
 import compression from 'compression'
@@ -429,7 +428,7 @@ serve HTTPS, and trust it as above.
 ### Uploads
 
 The adapters do not parse `multipart/form-data`. With Express, add a parser such as `multer` to the route in `before`,
-and give its file to the input:
+and pass its file to the input:
 
 ```typescript
 import multer from 'multer'
@@ -468,16 +467,16 @@ export const http = expressHTTPEntrypoint({
 })
 ```
 
-The errors of multer, such as a file over its limit (`LIMIT_FILE_SIZE`), have no status: they are answered with 500.
+Multer's errors, such as a file over its limit (`LIMIT_FILE_SIZE`), have no status: they result in a 500 response.
 
-With Fastify, register `@fastify/multipart` with `attachFieldsToBody: 'keyValues'` in `before`: the fields and the
-files are then properties of the body, and so of the input. A file is a `Buffer` (declare it `DTO.Binary()`), without
-its name; a file over the limit is refused with 413.
+With Fastify, register `@fastify/multipart` with `attachFieldsToBody: 'keyValues'` in `before`: the fields and files
+then become properties of the body, and therefore of the input. A file is a `Buffer` (declare it `DTO.Binary()`),
+without its name; a file over the limit is refused with 413.
 
 ### A web UI
 
-`fallback` answers the requests outside the paths of the actions (`isActionPath()` above): with Express, `staticUI()`
-serves a built single-page application, such as the `dist` directory of a Vite build:
+`fallback` responds to requests outside the action paths (`isActionPath()` above). With Express, `staticUI()` serves a
+built single-page application, such as a Vite build's `dist` directory:
 
 ```typescript
 import {expressHTTPEntrypoint, staticUI} from 'lakutata/adapter/express'
@@ -488,34 +487,34 @@ export const http = expressHTTPEntrypoint({
 })
 ```
 
-- A file of the directory is sent as it is. The files with a content hash in their name (`index-B2x9fQ1a.js`) are
-  cached by the browsers for a year (`assetsMaxAge`); the other files are checked again on each request.
-- A `GET` request for a page (accepting HTML, its path without an extension) that matches no file is answered with the
-  `index.html` of the application, whose router handles the path. `spa: false` turns this off, and `index` names
-  another file.
-- The other requests that match no file, such as a missing script, are answered with 404.
-- The paths under the routes of the actions (`/api/…`) never reach the fallback: a request there that matches no action
-  is answered with 404.
+- A file in the directory is sent unchanged. Files with a content hash in their name (`index-B2x9fQ1a.js`) are cached by
+  browsers for a year (`assetsMaxAge`); other files are revalidated on each request.
+- A `GET` request for a page (one that accepts HTML and whose path has no extension) that matches no file receives the
+  application's `index.html`, whose router handles the path. `spa: false` turns this off, and `index` names another
+  file.
+- Other requests that match no file, such as a missing script, receive a 404 response.
+- Paths under the action routes (`/api/…`) never reach the fallback: a request there that matches no action receives a
+  404 response.
 
-With Fastify, `fallback` is a handler of your own, `(request, reply) => …`, which receives every request outside the
-paths of the actions.
+With Fastify, `fallback` is a custom handler, `(request, reply) => …`, which receives every request outside the action
+paths.
 
 ## 8. From Lakutata 2.x
 
-An HTTP entrypoint function of 2.x (`buildHTTPEntrypoint`) keeps working: it is called in the startup of the entrypoint
-(the objects it gets, such as an authenticator injecting the entrypoint, are available) and awaited, so the application
-launches once its server listens. To move it to `expressHTTPEntrypoint`:
+A 2.x HTTP entrypoint function (`buildHTTPEntrypoint`) keeps working: it is called during the entrypoint's startup (the
+objects it obtains, such as an authenticator injecting the entrypoint, are available) and awaited, so the application
+launches once its server listens. To migrate it to `expressHTTPEntrypoint`:
 
-- the middlewares and the routes of the application (CORS, compression, a health check, the authenticator, a web UI) go
-  into its `before` hook, which gets the objects with `module.getObject()`; the body parsers are its `body` option
-  (`{limit: '100mb'}`); the `keepAliveTimeout` and `headersTimeout` of the server are its `server` option;
-- the input built from the request (the query, the body, a value of the session) is its `input` option;
-- the `{errno, errMsg, data}` envelope is `jsonEnvelope()`. The applications of 2.x usually answered the errors of the
-  actions with 200, and the errors of their Express middlewares (`next(error)`: the 401 of an authenticator) with their
-  status: `jsonEnvelope({actionErrorStatus: 200})` does the same. `errorStatus: 200` would answer the 401 with 200 too,
-  and the clients that go to the login page on a 401 would miss it;
-- the other fields of the envelope of the application (`timestamp`, `nonce`, a request id) come from its `extra` option,
-  called for each response, results and errors alike. No responder of your own is needed to keep them.
+- the application's middlewares and routes (CORS, compression, a health check, the authenticator, a web UI) go into its
+  `before` hook, which obtains objects with `module.getObject()`; the body parsers become its `body` option
+  (`{limit: '100mb'}`); the server's `keepAliveTimeout` and `headersTimeout` become its `server` option;
+- the input built from the request (the query, the body, a session value) becomes its `input` option;
+- the `{errno, errMsg, data}` envelope becomes `jsonEnvelope()`. Applications written for 2.x usually responded to
+  action errors with 200, and to errors from their Express middlewares (`next(error)`, such as an authenticator's 401)
+  with their status; `jsonEnvelope({actionErrorStatus: 200})` does the same. `errorStatus: 200` would send the 401 with
+  status 200 as well, and clients that go to the login page on a 401 would miss it;
+- the application's other envelope fields (`timestamp`, `nonce`, a request ID) come from its `extra` option, called for
+  each response, results and errors alike. No custom responder is needed to keep them.
 
 ```typescript
 import {buildEntrypoints} from 'lakutata/com/entrypoint'
@@ -544,4 +543,4 @@ export const entrypoint = buildEntrypoints({
 })
 ```
 
-With Fastify, `fastifyJSONEnvelope()` takes the same options, and the authenticator is a hook of Fastify.
+With Fastify, `fastifyJSONEnvelope()` takes the same options, and the authenticator is a Fastify hook.

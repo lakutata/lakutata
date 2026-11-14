@@ -1,22 +1,22 @@
 # Lakutata Containerd Integration
 
 The **containerd component** (`lakutata/com/containerd`, package `@lakutata/containerd`) manages the images, containers,
-CNI networks and named volumes of a [containerd](https://containerd.io) namespace over the gRPC API of containerd,
-without Docker and without nerdctl. It targets the Linux machines that run containerd alone, such as embedded devices:
-the component talks to the socket of containerd (its gRPC client is written in TypeScript, no native addon), and does
-by itself what nerdctl does on top of it (pulling from the registries, unpacking the layers, generating the OCI
-specifications of the containers, their logs). Its API follows that of the Docker component
-([Docker Integration](DockerIntegration.md)). The README of `@lakutata/containerd` gives every option.
+CNI networks and named volumes of a [containerd](https://containerd.io) namespace over containerd's gRPC API, without
+Docker and without nerdctl. It targets Linux machines that run containerd alone, such as embedded devices: the component
+talks to containerd's socket (its gRPC client is written in TypeScript, with no native addon), and itself does what
+nerdctl does on top of containerd (pulling from registries, unpacking layers, generating the containers' OCI
+specifications, their logs). Its API follows the Docker component's API ([Docker Integration](DockerIntegration.md)).
+The `@lakutata/containerd` README describes every option.
 
-The containers it creates are the same as the containers nerdctl creates: they carry its labels (`nerdctl/name`,
+The containers it creates are the same as those nerdctl creates: they carry nerdctl's labels (`nerdctl/name`,
 `nerdctl/hostname`…), so `nerdctl ps` and `ctr containers ls` list them.
 
 ## 1. Requirements
 
 | Feature | Needs |
 |---|---|
-| Everything | Linux, containerd 1.6 or later with runc, Node.js `>=18.10.0`; the application runs as root or as a member of the group owning the socket of containerd |
-| CNI networks (the default `bridge` included), published ports | The CNI plugins (`bridge`, `portmap`, `host-local`… in `/opt/cni/bin`, `/usr/lib/cni` or `/usr/libexec/cni`, the `cniPath` option) and iptables |
+| Everything | Linux, containerd 1.6 or later with runc, Node.js `>=18.10.0`; the application runs as root or as a member of the group that owns containerd's socket |
+| CNI networks (including the default `bridge`), published ports | The CNI plugins (`bridge`, `portmap`, `host-local`… in `/opt/cni/bin`, `/usr/lib/cni` or `/usr/libexec/cni`, the `cniPath` option) and iptables |
 | `exec()` with `stdin`, separate `stdout`/`stderr`, terminals | `mkfifo` on the host (without it, `exec()` puts both outputs in `stdout`) |
 | Builds | A BuildKit daemon (`buildkitd`), local or remote |
 | Containers of other architectures | QEMU (or Rosetta) emulators registered in `binfmt_misc` |
@@ -64,17 +64,17 @@ Application
 ```
 
 The component connects when it is created: without containerd on `socketPath`, its creation fails with a
-`ContainerdConnectionException`; when the component is listed in `bootstrap`, the application then fails to start. Its
-namespace is created when it does not exist. Each component works in one namespace; declare one component per namespace
-to manage several.
+`ContainerdConnectionException`; when the component is listed in `bootstrap`, the launch then fails. Its namespace is
+created if it does not exist. Each component works in one namespace; declare one component per namespace to manage
+several.
 
 ### What differs from the Docker component
 
 - `createContainer()` takes the image in its options and never pulls it: pull it first.
-- The output of a container is written to a log file by the shim of containerd, and its restart policy is applied by the
-  restart monitor of containerd: both keep working while the application is stopped. The logs have no timestamps.
-- There is no `loginRepository()`: the credentials are the `registryAuths` option, or the `auth` of each call.
-- `importImage()` returns every image of the archive, and `prune()` returns what it removed.
+- A container's output is written to a log file by containerd's shim, and its restart policy is applied by containerd's
+  restart monitor: both keep working while the application is stopped. Logs have no timestamps.
+- There is no `loginRepository()`: credentials come from the `registryAuths` option, or from each call's `auth`.
+- `importImage()` returns every image in the archive, and `prune()` returns what it removed.
 
 ## 3. Images
 
@@ -111,8 +111,8 @@ async function images(containerd: Containerd): Promise<void> {
 }
 ```
 
-The names of the images are normalized as Docker does (`alpine` is `docker.io/library/alpine:latest`). containerd keeps
-the content of an image while an image or a container uses it.
+Image names are normalized as Docker normalizes them (`alpine` is `docker.io/library/alpine:latest`). containerd keeps
+an image's content while an image or a container uses it.
 
 ## 4. Containers
 
@@ -184,20 +184,20 @@ async function containers(containerd: Containerd): Promise<void> {
 }
 ```
 
-- `devices` creates devices of the host in the container (a device, or every device of a directory such as
-  `/dev/snd`). For the devices plugged later, bind their directory and allow their numbers with `deviceCgroupRules`, as
-  the `--device-cgroup-rule` of Docker does: `binds: [{hostPath: '/dev', containerPath: '/dev'}], deviceCgroupRules:
+- `devices` creates host devices in the container (a device, or every device in a directory such as `/dev/snd`). For
+  devices plugged in later, bind their directory and allow their numbers with `deviceCgroupRules`, as Docker's
+  `--device-cgroup-rule` does: `binds: [{hostPath: '/dev', containerPath: '/dev'}], deviceCgroupRules:
   ['c 188:* rwm']`.
-- The containers have a cgroup namespace of their own on cgroup v2 (`cgroupns: 'host'` shares the one of the host).
-- Their system calls are filtered by seccomp as nerdctl filters them: the default profile of containerd, with the
-  system calls their `capabilities` allow (`capabilities: ['SYS_ADMIN']` allows `mount`, `unshare`…).
-  `seccompProfile: 'unconfined'` disables it, the path of a file gives an OCI profile; the privileged containers are
+- On cgroup v2, containers have their own cgroup namespace (`cgroupns: 'host'` shares the host's).
+- Their system calls are filtered by seccomp as nerdctl filters them: containerd's default profile, with the system
+  calls their `capabilities` allow (`capabilities: ['SYS_ADMIN']` allows `mount`, `unshare`…).
+  `seccompProfile: 'unconfined'` disables it, and a file path specifies an OCI profile; privileged containers are
   unconfined.
 - `privileged`, `capabilities` / `capabilitiesDrop`, `readonlyRootfs`, `pidMode: 'host'`, `ipcMode: 'host'`, `sysctls`,
-  `extraHosts`, `dns`, `shmSize`, `pidsLimit`, `cpuSet`, `cpuShares`, `memorySwap`, `OOMKillDisable` work as the options
-  of Docker with the same names.
-- `update()` with other settings than the resources and the restart policy only works for the containers the component
-  created (it keeps their settings in `dataRoot`).
+  `extraHosts`, `dns`, `shmSize`, `pidsLimit`, `cpuSet`, `cpuShares`, `memorySwap`, `OOMKillDisable` work like the
+  Docker options with the same names.
+- `update()` with settings other than resources and the restart policy works only for containers the component created
+  (it keeps their settings in `dataRoot`).
 
 ### Volumes
 
@@ -219,10 +219,10 @@ async function volumes(containerd: Containerd): Promise<void> {
 
 ## 5. Networks
 
-A container joins the CNI network `bridge` by default (the default network of nerdctl, `nerdctl0`, `10.4.0.0/24`,
-created when a container first asks for it), where its ports are published. `network: 'host'` gives it the network of
-the host, `network: 'none'` its loopback only, and `networks` lists the CNI networks it joins: `bridge` and the networks
-created (bridges, macvlans or ipvlans, with IPv4 and IPv6 subnets). Their configurations are the ones of nerdctl
+By default, a container joins the CNI network `bridge` (nerdctl's default network, `nerdctl0`, `10.4.0.0/24`, created
+when a container first asks for it), where its ports are published. `network: 'host'` puts it on the host's network,
+`network: 'none'` limits it to its loopback, and `networks` lists the CNI networks it joins: `bridge` and the created
+networks (bridges, macvlans or ipvlans, with IPv4 and IPv6 subnets). Their configurations are nerdctl's
 (`/etc/cni/net.d/nerdctl-<name>.conflist`), so nerdctl and the component share them. The CNI plugins and iptables must
 be installed (see the requirements).
 
@@ -253,17 +253,17 @@ async function networks(containerd: Containerd): Promise<void> {
 }
 ```
 
-The networks of a container are set up by its runc hooks, as nerdctl does: they are added when its task is created and
-deleted when it stops, also when containerd restarts it under its restart policy (after a reboot, for example, while the
-application is not running). Its address is given at each start and written in its `/etc/hosts`.
+A container's networks are set up by its runc hooks, as nerdctl does: they are added when its task is created and
+deleted when it stops, and this also applies when containerd restarts it under its restart policy (after a reboot, for
+example, while the application is not running). Its address is assigned at each start and written to its `/etc/hosts`.
 
 ## 6. Builds
 
-The images are built by [BuildKit](https://github.com/moby/buildkit): a `buildkitd` of the machine (its socket,
+Images are built by [BuildKit](https://github.com/moby/buildkit): a `buildkitd` on the machine (its socket,
 `buildkitAddress: 'unix:///run/buildkit/buildkitd.sock'` by default, with its containerd or runc worker), or a remote
-one (`buildkitAddress: 'tcp://builder:1234'`, with `buildkitTLS: {ca, cert, key}`). The component sends the context of
-the build (without the files its `.dockerignore` excludes) and the Dockerfile over the session of BuildKit, as
-`docker buildx` does, and imports the image built into containerd:
+one (`buildkitAddress: 'tcp://builder:1234'`, with `buildkitTLS: {ca, cert, key}`). The component sends the build
+context (without the files its `.dockerignore` excludes) and the Dockerfile over the BuildKit session, as
+`docker buildx` does, and imports the built image into containerd:
 
 ```typescript
 import {type Containerd, type ContainerdImage} from 'lakutata/com/containerd'
@@ -288,15 +288,15 @@ async function build(containerd: Containerd): Promise<void> {
 }
 ```
 
-BuildKit pulls the base images with the registry credentials of the component (or `auth`).
+BuildKit pulls base images with the component's registry credentials (or `auth`).
 
 ## 7. Platforms and events
 
-`containerd.supportedPlatforms()` gives the platforms the machine can run: its own, and the ones of the emulators
-registered in `binfmt_misc` (QEMU, Rosetta). A container of another platform runs once its emulator is registered:
+`containerd.supportedPlatforms()` returns the platforms the machine can run: its own, and those of the emulators
+registered in `binfmt_misc` (QEMU, Rosetta). A container for another platform runs once its emulator is registered:
 `createContainer({image: 'alpine:3.20', platform: 'linux/amd64', cmd: ['uname', '-m']})` after pulling that platform.
 
-`containerd.events(signal)` streams the events of containerd in the namespace:
+`containerd.events(signal)` streams containerd's events in the namespace:
 
 ```typescript
 import {type Containerd, type ContainerdEvent} from 'lakutata/com/containerd'
@@ -326,4 +326,4 @@ network exists, its subnet overlaps another one, or a container uses it), `Conta
 ## 9. Limits of this version
 
 - Compose projects are not supported.
-- The logs of the containers have no timestamps.
+- Container logs have no timestamps.

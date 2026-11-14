@@ -1,9 +1,9 @@
 # Lakutata Installers
 
-`lakutata package installer` makes the installers of an application: the packages of the system (deb, rpm, apk, pkg,
-msi…) that install its executable, put its program in the PATH, and can register it as a service that starts with the
-system. They are configured in the `package.json` of the application, and need `@lakutata/builder` in the project, as do
-the other packing commands ([Packaging](Packaging.md)).
+`lakutata package installer` builds an application's installers: system packages (deb, rpm, apk, pkg, msi…) that install
+its executable, put its program in the PATH, and can register it as a service that starts with the system. They are
+configured in the application's `package.json`, and need `@lakutata/builder` in the project, as do the other packing
+commands ([Packaging](Packaging.md)).
 
 ## 1. Making installers
 
@@ -19,10 +19,10 @@ npx lakutata package installer --target pkg     # only some of them
 ✔ dist/installer/greet-1.0.0-arm64.pkg (pkg, 36.0 MB)
 ```
 
-An installer holds the executable of the directory layout (`lakutata package exe --layout directory`): the program,
-its native addons (`native/`) and its resources (`resources/`). The program is made with Node.js, or with Bun when
-`lakutata.installer.runtime` is `"bun"`. On a Node.js older than 20.12, give a newer one with `--node-program`, as for
-the executables.
+An installer holds the directory-layout executable (`lakutata package exe --layout directory`): the program, its native
+addons (`native/`) and its resources (`resources/`). The program is built with Node.js, or with Bun when
+`lakutata.installer.runtime` is `"bun"`. On Node.js older than 20.12, specify a newer one with `--node-program`, as for
+executables.
 
 | Platform | Installers (default) | Their files | Made with |
 |---|---|---|---|
@@ -31,20 +31,20 @@ the executables.
 | macOS | `pkg`, `tar.gz` | `<name>-<version>-arm64.pkg`, `<name>-<version>-darwin-arm64.tar.gz` | `pkgbuild`, `productbuild` |
 | Windows | `nsis`, `msi`, `zip` | `<name>-<version>-x64-setup.exe`, `<name>-<version>-x64.msi`, `<name>-<version>-win-x64.zip` | NSIS, WiX, WinSW |
 
-- **On each platform**: the installers of a platform are made on that platform, for the architecture of the machine
-  (section 7 covers the other platforms and architectures); a `pkg` package installs on the Macs of that architecture
-  only. The executables use the C library of the system they are made on, so make the Linux packages for glibc systems
-  on a glibc system, and the `apk` packages on Alpine.
-- **The tools** nFPM, NSIS, WiX and WinSW are downloaded once into the cache of the tool (`LAKUTATA_CACHE_DIR`).
-  `LAKUTATA_NFPM`, `LAKUTATA_NSIS`, `LAKUTATA_WIX` and `LAKUTATA_WINSW` name other copies, for machines without a
-  network, or for Linux architectures other than x64 and arm64 (nFPM has releases for these two only). macOS needs no
+- **On each platform**: a platform's installers are built on that platform, for the machine's architecture (section 7
+  covers other platforms and architectures); a `pkg` package installs only on Macs of that architecture. The executables
+  use the C library of the system they are built on, so build Linux packages for glibc systems on a glibc system, and
+  `apk` packages on Alpine.
+- **The tools** nFPM, NSIS, WiX and WinSW are downloaded once into the tool's cache (`LAKUTATA_CACHE_DIR`).
+  `LAKUTATA_NFPM`, `LAKUTATA_NSIS`, `LAKUTATA_WIX` and `LAKUTATA_WINSW` name other copies, for machines without network
+  access, or for Linux architectures other than x64 and arm64 (nFPM has releases only for these two). macOS needs no
   download.
-- **The version** of the installers is the `version` of the `package.json` of the application.
+- **The version** of the installers is the `version` field in the application's `package.json`.
 
 ## 2. The configuration
 
-The installers are configured by `lakutata.installer` in the `package.json` of the application. The one of the
-`service` template, with its `installer` feature (`lakutata create --with installer`):
+Installers are configured by `lakutata.installer` in the application's `package.json`. The configuration of the
+`service` template with its `installer` feature (`lakutata create --with installer`):
 
 ```json
 {
@@ -63,28 +63,28 @@ The installers are configured by `lakutata.installer` in the `package.json` of t
 
 | Field | Default | Meaning |
 |---|---|---|
-| `name` | The name of the program (the first `bin`, else the name of the package without its scope), in lower case | The name of the package, of its directory and of its files: lower case letters, digits, `+`, `-` and `.` |
-| `appId` | `name` | The identifier of the application (`com.acme.shop`): on macOS, the identifier of the package and the label of the service; on Windows, the key of its uninstaller and of its upgrades |
-| `productName` | The `productName` of the `package.json`, else `name` | The name shown to users (in the installers, and in the programs of Windows) |
-| `description`, `homepage`, `license` | Those of the `package.json` | The information of the packages |
+| `name` | The program name (the first `bin`, otherwise the package name without its scope), in lower case | The name of the package, its directory and its files: lower case letters, digits, `+`, `-` and `.` |
+| `appId` | `name` | The application identifier (`com.acme.shop`): on macOS, the package identifier and the service label; on Windows, the key of its uninstaller and its upgrades |
+| `productName` | The `productName` of the `package.json`, otherwise `name` | The name shown to users (in the installers, and in the programs of Windows) |
+| `description`, `homepage`, `license` | Those of the `package.json` | The package information |
 | `maintainer` | The `author` of the `package.json` | Its maintainer (`Name <email>`); without one, the tool warns |
-| `vendor` | None | Its vendor; on Windows, the publisher is the vendor, else the maintainer |
+| `vendor` | None | Its vendor; on Windows, the publisher is the vendor, otherwise the maintainer |
 | `runtime` | `node` | `node` or `bun` for the executable; `electron` for an Electron application (section 8), `nwjs` for an NW.js application (section 9) |
-| `addToPath` | `true` | Put the program in the PATH: `/usr/bin/<program>` on Linux, `/usr/local/bin/<program>` on macOS, the PATH of the machine on Windows |
-| `service` | None | `true`, or the options of the service (section 4) |
+| `addToPath` | `true` | Put the program in the PATH: `/usr/bin/<program>` on Linux, `/usr/local/bin/<program>` on macOS, the machine-wide PATH on Windows |
+| `service` | None | `true`, or the service options (section 4) |
 | `linux.targets` | `deb`, `rpm`, `tar.gz`; on Alpine `apk`, `tar.gz` | The Linux installers (`deb`, `rpm`, `archlinux`, `tar.gz`; `apk`, `tar.gz` on Alpine) |
 | `linux.depends`, `linux.recommends` | None | The system packages it needs and recommends (the C++ runtime library is always added) |
 | `linux.section`, `linux.priority` | None | Its section and its priority (deb) |
 | `mac.targets` | `pkg`, `tar.gz` | The macOS installers (`dmg` too, for an NW.js application) |
 | `win.targets` | `nsis`, `msi`, `zip` | The Windows installers |
-| `linux.scripts`, `mac.scripts`, `win.scripts`… | None | The scripts of the installers (section 5) |
-| `electron` | None | The configuration of electron-builder (section 8) |
+| `linux.scripts`, `mac.scripts`, `win.scripts`… | None | The installer scripts (section 5) |
+| `electron` | None | The electron-builder configuration (section 8) |
 
 `lakutata.icon` (beside `lakutata.installer`) is a square PNG image of 256 pixels or more: the icon of the Windows
-executable and installers, and of the Electron and NW.js applications.
+executable and installers, and of Electron and NW.js applications.
 
-The configuration is checked before anything is built, the options of the installers that are not made included, and an
-error names the field:
+The configuration is checked before anything is built, including the options of installers that are not being built, and
+an error names the field:
 
 ```
 error: The name of the package "Bad Name" must be lower case letters, digits, "+", "-" and "." (lakutata.installer.name)
@@ -97,17 +97,17 @@ error: The script lakutata.installer.mac.scripts.postinstall (scripts/missing.sh
 | | Linux | macOS | Windows |
 |---|---|---|---|
 | The application | `/opt/<name>` | `/usr/local/lib/<name>` | `C:\Program Files\<name>` |
-| Its program in the PATH | `/usr/bin/<program>` | `/usr/local/bin/<program>` | the PATH of the machine |
+| Its program in the PATH | `/usr/bin/<program>` | `/usr/local/bin/<program>` | the machine-wide PATH |
 | Its service | `/usr/lib/systemd/system/<service>.service`; `/etc/init.d/<service>` (OpenRC, Alpine) | `/Library/LaunchDaemons/<appId>.plist` | a Windows service: `<name>-service.exe` (WinSW) next to the program |
-| The environment of the service | `/etc/<name>/<name>.env` | `/usr/local/etc/<name>/<name>.env` | `C:\ProgramData\<name>\<name>.env` |
+| The service's environment | `/etc/<name>/<name>.env` | `/usr/local/etc/<name>/<name>.env` | `C:\ProgramData\<name>\<name>.env` |
 | Its working directory (its data) | `/var/lib/<name>` | `/usr/local/var/lib/<name>` | `C:\ProgramData\<name>` |
-| Its logs | the journal of systemd (`journalctl -u <service>`); `/var/log/<name>.log` with OpenRC | `/usr/local/var/log/<name>.log` | `C:\ProgramData\<name>\logs` |
+| Its logs | the systemd journal (`journalctl -u <service>`); `/var/log/<name>.log` with OpenRC | `/usr/local/var/log/<name>.log` | `C:\ProgramData\<name>\logs` |
 | Removal | by the package manager | `sudo /usr/local/lib/<name>/uninstall` | like other Windows programs |
 
 - **macOS does not remove packages**: the `uninstall` script installed with the application removes it, its service and
   its link in the PATH.
-- **The removal keeps** the data, the environment file and the user of the service, so that a new installation finds
-  them again.
+- **The removal keeps** the data, the environment file and the service user, so that a new installation finds them
+  again.
 - The archives (`tar.gz`, `zip`) only hold the application: they register no service and run no script.
 
 ## 4. The service
@@ -132,27 +132,27 @@ the removal stops and disables it first.
 
 | Option | Default | Meaning |
 |---|---|---|
-| `name` | `name` | The name of the service (systemd, OpenRC, Windows); on macOS the service is named by `appId` |
-| `description` | The description of the package | |
-| `args` | None | The arguments of the program |
+| `name` | `name` | The service name (systemd, OpenRC, Windows); on macOS the service is named by `appId` |
+| `description` | The package description | |
+| `args` | None | The program's arguments |
 | `env` | `MODE=production` | Its environment, added to `MODE=production` |
 | `user` | A system user created by the installation: `<name>` on Linux, `_<name>` (hidden) on macOS; on Windows the virtual account `NT SERVICE\<service>` | The user it runs as; `root` (Linux, macOS), or `LocalService`, `NetworkService`, `LocalSystem` on Windows |
 | `restart` | `on-failure` | Restart it when it fails (`on-failure`), whenever it ends (`always`), or never (`no`); on Windows and with OpenRC, `on-failure` and `always` behave alike |
-| `autoStart` | `true` | Enable and start it at the installation; otherwise the administrator enables and starts it (`sudo systemctl enable --now <service>`; on macOS, `sudo launchctl enable system/<appId>`, then `sudo launchctl bootstrap system /Library/LaunchDaemons/<appId>.plist`) |
+| `autoStart` | `true` | Enable and start it on installation; otherwise the administrator enables and starts it (`sudo systemctl enable --now <service>`; on macOS, `sudo launchctl enable system/<appId>`, then `sudo launchctl bootstrap system /Library/LaunchDaemons/<appId>.plist`) |
 
 - **The environment file** holds `env`. Administrators can change it, and upgrades and removals keep their changes. The
   service reads it when it starts, so restart the service after changing it (`sudo systemctl restart <service>`,
   `sudo rc-service <service> restart`, `sudo launchctl kickstart -k system/<appId>`, `Restart-Service <service>`).
-- **The working directory** of the service belongs to its user: write the data of the application there, with
-  relative paths or `process.cwd()`.
-- **Stopping** the service ends the application gracefully: it receives `SIGTERM`, or on Windows a Ctrl+C, which Node.js
-  receives as `SIGINT`. systemd, launchd and WinSW give it 30 seconds to end.
+- **The working directory** of the service belongs to its user: write the application's data there, with relative paths
+  or `process.cwd()`.
+- **Stopping** the service stops the application gracefully: it receives `SIGTERM`, or on Windows a Ctrl+C, which
+  Node.js receives as `SIGINT`. systemd, launchd and WinSW allow it 30 seconds to stop.
 
 ## 5. Installer scripts
 
-The installers can run scripts of the application, files of the project: to create a database, migrate data, or
-clean up. They are given for a platform (run by all its installers), for one installer (replacing the platform's
-script of the same moment), as native scripts of a Linux package, or as an NSIS file:
+Installers can run the application's scripts, which are files in the project: to create a database, migrate data, or
+clean up. They are specified for a platform (run by all its installers), for one installer (replacing the platform's
+script for the same stage), as native scripts of a Linux package, or as an NSIS file:
 
 ```json
 {
@@ -172,7 +172,7 @@ script of the same moment), as native scripts of a Linux package, or as an NSIS 
 
 | Script | When it runs |
 |---|---|
-| `preinstall` | Before the files of the application are installed |
+| `preinstall` | Before the application's files are installed |
 | `postinstall` | After they are installed, before the service starts |
 | `preremove` | Before the removal, once the service is stopped |
 | `postremove` | After the files are removed |
@@ -188,32 +188,32 @@ fi
 - **Their argument** (`$1`, `$args[0]` in PowerShell) says what the installer does: `install` or `upgrade` for
   `preinstall` and `postinstall`, `remove` for `preremove` and `postremove` (an upgrade runs no removal script). Each
   package manager signals an upgrade in its own way (dpkg, rpm, apk, pacman): the installers translate it.
-- **`LAKUTATA_INSTALL_DIR`** is the directory of the application.
+- **`LAKUTATA_INSTALL_DIR`** is the application directory.
 - **They run as root**; on Windows, as an administrator with NSIS and as the system account with Windows Installer.
   When a script fails, the installation (or the removal) fails.
-- **Linux and macOS**: the scripts run with the interpreter of their first line (`#!/bin/bash`), `/bin/sh` by default.
-  `linux.<package>.nativeScripts` run as the scripts of the package itself, with the arguments of the package manager
-  (and `preupgrade`, `postupgrade` for apk and archlinux). On macOS, the `uninstall` script runs the removal scripts.
+- **Linux and macOS**: scripts run with the interpreter named on their first line (`#!/bin/bash`), `/bin/sh` by default.
+  `linux.<package>.nativeScripts` run as the package's own scripts, with the package manager's arguments (and
+  `preupgrade`, `postupgrade` for apk and archlinux). On macOS, the `uninstall` script runs the removal scripts.
 - **Windows**: the scripts are PowerShell files (`.ps1`), run by Windows PowerShell. Windows Installer passes each one
   on a command line, which limits it to about 23 KB. `win.nsis.include` is an NSIS file (`.nsh`) that may define the
-  macros `customHeader`, `customInit`, `customInstall` (at the end of the installation), `customUnInit` and
-  `customUnInstall` (at the start of the removal).
-- **The archives** run no script: the tool warns when a script would not run in one of the installers it makes
+  macros `customHeader`, `customInit`, `customInstall` (at the end of installation), `customUnInit` and
+  `customUnInstall` (at the start of removal).
+- **The archives** run no script: the tool warns when a script would not run in one of the installers it builds
   (`! Some scripts of the application are not run by their installers: tar.gz (postinstall)`).
 
 ## 6. Signing
 
-- **macOS**: the `pkg` installers and the `dmg` images are not signed, and the program or the application they install
-  is signed ad hoc only. The Developer ID signature and the notarization, which distribution outside the machines of the
-  organization needs, are not made yet.
-- **Windows**: the NSIS and MSI installers are not signed: sign them with signtool before distributing them. The program
-  made with Node.js keeps the signature of `node.exe`, which no longer matches, and the tool warns of it.
+- **macOS**: `pkg` installers and `dmg` images are not signed, and the program or application they install is signed
+  only ad hoc. The Developer ID signature and notarization, which distribution outside the organization's machines
+  requires, are not performed yet.
+- **Windows**: NSIS and MSI installers are not signed; sign them with signtool before distributing them. A program built
+  with Node.js keeps the signature of `node.exe`, which no longer matches, and the tool warns about it.
 - **Linux**: the packages are not signed.
 
 ## 7. Other platforms
 
-The installers of the other platforms are made on them: a CI with a machine per platform, or, for Linux, a container
-of the architecture. The templates with the `installer` feature have both scripts:
+Installers for other platforms are built on those platforms: a CI with one machine per platform, or, for Linux, a
+container of each architecture. Templates with the `installer` feature have both scripts:
 
 ```json
 {
@@ -224,8 +224,8 @@ of the architecture. The templates with the `installer` feature have both script
 }
 ```
 
-`npm run package:linux` makes the Linux packages in a container (on macOS and Windows too) and copies them to
-`dist/installer`; `docker buildx build --platform linux/arm64 ...` makes those of another architecture. Its
+`npm run package:linux` builds the Linux packages in a container (on macOS and Windows too) and copies them to
+`dist/installer`; `docker buildx build --platform linux/arm64 ...` builds them for another architecture. Its
 `Dockerfile.installer`:
 
 ```dockerfile
@@ -238,8 +238,8 @@ FROM scratch
 COPY --from=build /installer /
 ```
 
-The `apk` packages are made the same way on `node:22-alpine`, with Bun when the application has native addons (the
-executables of Node.js do not load them on musl). A CI matrix makes the rest, for example with GitHub Actions:
+`apk` packages are built the same way on `node:22-alpine`, with Bun when the application has native addons (executables
+built with Node.js do not load them on musl). A CI matrix builds the rest, for example with GitHub Actions:
 
 ```yaml
 jobs:
@@ -263,46 +263,45 @@ jobs:
 
 ## 8. Electron applications
 
-With `"runtime": "electron"`, the installers are made by electron-builder, which the project installs with `electron`.
-The main process is bundled (Electron left out), and its native addons and resources (`lakutata.resources`: the
-renderer and the preload script, read through `resourcesPath()`) go into the resources of Electron. The `electron-react`
+With `"runtime": "electron"`, the installers are built by electron-builder, which the project installs alongside
+`electron`. The main process is bundled (without Electron), and its native addons and resources (`lakutata.resources`:
+the renderer and the preload script, read through `resourcesPath()`) go into Electron's resources. The `electron-react`
 and `electron-vue` templates are configured this way.
 
-- **The installers** are targets of electron-builder: `deb` on Linux, `dmg` on macOS and `nsis` on Windows by default
-  (`linux.targets`, `mac.targets`, `win.targets`). The name of the files is the name of the package, without its scope.
-- **`electron`** is merged into the configuration of electron-builder: icons, file associations, signing, updates.
-  `name`, `appId`, `productName`, the description, the maintainer, the homepage and the license are given to it too.
-- **An Electron application is not a service**: it runs in the session of its user, and `service` is refused.
+- **The installers** are electron-builder targets: `deb` on Linux, `dmg` on macOS and `nsis` on Windows by default
+  (`linux.targets`, `mac.targets`, `win.targets`). Their files are named after the package, without its scope.
+- **`electron`** is merged into the electron-builder configuration: icons, file associations, signing, updates. `name`,
+  `appId`, `productName`, the description, the maintainer, the homepage and the license are passed to it too.
+- **An Electron application is not a service**: it runs in its user's session, and `service` is rejected.
 - **The scripts** run in the `deb` and `rpm` packages (all four), the `pkg` (`preinstall`, `postinstall`) and the
   `nsis` installer (`preinstall`, `postinstall`, `preremove`); the other targets run none.
-- **Native addons** are copied as they are installed: electron-builder does not rebuild them. The addons built on
-  Node-API run as they are; install the Electron builds of the others before packing (`electron-rebuild`)
+- **Native addons** are copied in their installed form: electron-builder does not rebuild them. Node-API addons run
+  unchanged; install the Electron builds of the others before packing (`electron-rebuild`)
   ([Native Addons](NativeAddons.md), section 4).
-- On Linux arm64, the deb and rpm packages need the fpm of the system (`gem install fpm`, `USE_SYSTEM_FPM=true`), as the
-  `Dockerfile.installer` of the Electron templates installs it.
+- On Linux arm64, deb and rpm packages need the system's fpm (`gem install fpm`, `USE_SYSTEM_FPM=true`), which the
+  Electron templates' `Dockerfile.installer` installs.
 
 ## 9. NW.js applications
 
-With `"runtime": "nwjs"`, the installers hold an NW.js application made by the builder: the normal flavor of the NW.js
-of the application (its `lakutata.nwjs`, given by `lakutata nwjs use`), downloaded once into the cache of Lakutata and
-checked against the checksums of its release, with the application in it: its bundle for the Node.js of that NW.js, its
-native addons, its resources (`lakutata.resources`, read through `resourcesPath()`) and the manifest of NW.js. The
+With `"runtime": "nwjs"`, the installers hold an NW.js application built by the builder. It is the normal flavor of the
+application's NW.js (its `lakutata.nwjs`, set by `lakutata nwjs use`), downloaded once into the Lakutata cache and
+checked against its release checksums, with the application inside: its bundle for the Node.js that this NW.js includes,
+its native addons, its resources (`lakutata.resources`, read through `resourcesPath()`) and the NW.js manifest. The
 `nwjs-react` and `nwjs-vue` templates are configured this way.
 
-- **The runtime** is named after the application: on Windows, `<name>.exe`, whose icon and version information are
-  those of the application; on Linux, `<name>`; on macOS, `<productName>.app`, whose `Info.plist` gives its name, its
-  identifier (`appId`), its version and its icon, and which is signed again ad hoc.
-- **The installers** are those of a desktop application: `dmg` on macOS, `nsis` on Windows and `deb` on Linux by
-  default (also `pkg` and `tar.gz` on macOS, `msi` and `zip` on Windows, `rpm` and `tar.gz` on Linux). The Windows
-  installers add the application to the start menu and to the desktop; the `dmg` disk image holds it beside a link to
-  /Applications, where its user drags it, and the `pkg` package installs it there (an Intel application, on the Macs
-  of Apple silicon too); the Linux packages add its desktop entry and its icons, and depend on the libraries of
-  Chromium.
-- **The architecture** is the one of the machine, or the one of `--arch` (`x64`, `ia32`, `arm64`): `ia32` makes the
-  installers of 32-bit Windows, which install the application among the programs of 32 bits. A release of NW.js
-  without a build for the Macs of Apple silicon (0.72) is packaged for Intel.
+- **The runtime** is named after the application: on Windows, `<name>.exe`, whose icon and version information are the
+  application's; on Linux, `<name>`; on macOS, `<productName>.app`, whose `Info.plist` specifies its name, identifier
+  (`appId`), version and icon, and which is re-signed ad hoc.
+- **The installers** are those of a desktop application: `dmg` on macOS, `nsis` on Windows and `deb` on Linux by default
+  (also `pkg` and `tar.gz` on macOS, `msi` and `zip` on Windows, `rpm` and `tar.gz` on Linux). The Windows installers
+  add the application to the start menu and the desktop; the `dmg` disk image holds it beside a link to /Applications,
+  where its user drags it, and the `pkg` package installs it there (an Intel application, on Apple silicon Macs too);
+  the Linux packages add its desktop entry and icons, and depend on Chromium's libraries.
+- **The architecture** is the machine's, or the one specified by `--arch` (`x64`, `ia32`, `arm64`): `ia32` builds
+  installers for 32-bit Windows, which install the application among the 32-bit programs. An NW.js release without an
+  Apple silicon build (0.72) is packaged for Intel.
 - **An NW.js application is not a service**, and is not put in the PATH (`addToPath` is `false` by default).
-- **The scripts** run as for the other applications, but a macOS application is removed by deleting it: no removal
-  script runs there.
-- **Native addons** are made to load in NW.js: built again for its architecture, or with its headers when they use the
-  V8 API, and, on Windows, given the Node.js of NW.js ([Native Addons](NativeAddons.md), section 4).
+- **The scripts** run as for other applications, but a macOS application is removed by deleting it: no removal script
+  runs there.
+- **Native addons** are made to load in NW.js: rebuilt for its architecture, or with its headers when they use the V8
+  API, and, on Windows, set to load the Node.js that NW.js includes ([Native Addons](NativeAddons.md), section 4).

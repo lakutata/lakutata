@@ -1,13 +1,13 @@
 # Lakutata Entrypoint
 
-The `entrypoint` component connects the controllers to the transports. It holds the controllers and the adapters of
-the transports (HTTP, command line, service calls, schedules, queues…): each adapter receives the requests of its
-transport, and the entrypoint runs the matching action, with its middlewares, its validation and its access control.
+The `entrypoint` component connects controllers to transports. It holds the controllers and the transport adapters
+(HTTP, command line, service calls, schedules, queues…): each adapter receives its transport's requests, and the
+entrypoint runs the matching action, with its middlewares, validation and access control.
 
 ## 1. Declaring the entrypoint
 
-The `lakutata` package already declares a component named `entrypoint`. An application gives it its options with
-`buildEntrypoints`, under the same name, and lists it in `bootstrap`:
+The `lakutata` package already declares a component named `entrypoint`. An application specifies the component's options
+with `buildEntrypoints`, under the same name, and lists it in `bootstrap`:
 
 ```typescript
 import {Application} from 'lakutata'
@@ -43,10 +43,10 @@ A component is created the first time something needs it. No other object needs 
 | Option | Default | Meaning |
 |---|---|---|
 | `controllers` | `[]` | The controller classes |
-| `http`, `cli`, `service`, `schedule`, `queue`, `mcp`, `dbus` | | The adapters of the transports (below): one adapter, or an array of them |
-| `middlewares` | `[]` | The middlewares of every action (see [Middlewares and Access Control](Middlewares.md)) |
-| `rules` | `[]` | The access rules of the actions declared with `acl: true` (see [Middlewares and Access Control](Middlewares.md)) |
-| `shutdownTimeout` | `30000` | The milliseconds given to the requests in progress when the application stops (section 4) |
+| `http`, `cli`, `service`, `schedule`, `queue`, `mcp`, `dbus` | | The transport adapters (below): one adapter, or an array of adapters |
+| `middlewares` | `[]` | Middlewares for every action (see [Middlewares and Access Control](Middlewares.md)) |
+| `rules` | `[]` | Access rules for the actions declared with `acl: true` (see [Middlewares and Access Control](Middlewares.md)) |
+| `shutdownTimeout` | `30000` | The time, in milliseconds, allowed for requests in progress when the application stops (section 4) |
 | `httpActionGroups`, `cliActionGroups`, `serviceActionGroups` | `{}` | The groups the actions may use, with their names (section 5) |
 
 The adapters:
@@ -65,14 +65,14 @@ The adapters:
 | `service` | `grpcServiceEntrypoint()` | `@lakutata/grpc/service` | `@lakutata/grpc` | [gRPC](GRPC.md) |
 | `service` | `natsServiceEntrypoint()` | `@lakutata/nats` | `@lakutata/nats` | [NATS](NATS.md) |
 | `schedule` | `scheduleEntrypoint()` | `lakutata/com/entrypoint` | | [Scheduled Jobs](Schedules.md) |
-| `queue` | `queueEntrypoint()` | `lakutata/com/queue` | The client of the queue server | [Queues](Queue.md) |
+| `queue` | `queueEntrypoint()` | `lakutata/com/queue` | The client for the queue server | [Queues](Queue.md) |
 | `mcp` | `httpMCPEntrypoint()`, `stdioMCPEntrypoint()` | `@lakutata/mcp` | `@lakutata/mcp` | [MCP](MCP.md) |
 | `dbus` | `dbusEntrypoint()` | `@lakutata/dbus` | `@lakutata/dbus` | [D-Bus](DBus.md) |
 
 ## 3. Several adapters
 
-Each option accepts an array, to serve one transport in several ways. For example, the service actions over Socket.IO
-for the browsers and over JSON-RPC for the scripts, or the HTTP actions on two ports:
+Each option accepts an array, to serve one transport in several ways. For example, service actions over Socket.IO for
+browsers and over JSON-RPC for scripts, or HTTP actions on two ports:
 
 ```typescript
 import {buildEntrypoints} from 'lakutata/com/entrypoint'
@@ -93,39 +93,38 @@ export const entrypoint = buildEntrypoints({
 })
 ```
 
-Every adapter of a transport serves all the actions of that transport. The `name` option tells the adapters apart.
+Every adapter serves all the actions of its transport. The `name` option distinguishes the adapters.
 
 ## 4. Starting and stopping
 
-**When the application launches**, the entrypoint first checks the controllers. Each of these mistakes stops the
-launch with its exception:
+**When the application launches**, the entrypoint first checks the controllers. The launch fails on each of these
+mistakes, with the exception shown:
 
 - two actions of the same transport with the same name (`DuplicateActionNameException`);
 - an action in a group that its `*ActionGroups` option does not declare (`InvalidActionGroupException`);
-- a prefix that conflicts with the pattern of an action (`InvalidPrefixException`);
+- a prefix that conflicts with an action's pattern (`InvalidPrefixException`);
 - a middleware that is neither a function nor a `Middleware` class (`InvalidMiddlewareException`);
-- an adapter given under the key of another transport, or an option that is neither an option of the entrypoint nor a
-  transport (`InvalidEntrypointAdapterException`).
+- an adapter specified under another transport's key, or an option that is neither an entrypoint option nor a transport
+  (`InvalidEntrypointAdapterException`).
 
-Then the adapters start one after another, in the order of the options. One that fails, such as a server whose port is
-already in use, stops the launch. The command line and the scheduled jobs begin once the whole application has
+The adapters then start one after another, in the order of the options. If one fails to start, such as a server whose
+port is already in use, the launch fails. The command line and scheduled jobs begin once the whole application has
 launched.
 
-**When the application stops** (on `SIGTERM` or `SIGINT`, or after `app.exit()`), the adapters stop in the reverse
-order:
+**When the application stops** (on `SIGTERM` or `SIGINT`, or after `app.exit()`), the adapters stop in reverse order:
 
 1. they stop accepting new requests. Depending on the transport, a request that still arrives is refused with an
    `EntrypointStoppedException` (status 503 over HTTP);
 2. the requests in progress are given `shutdownTimeout` (30 seconds by default) to finish;
-3. the requests still running are aborted: their `this.signal` fires, and they are answered with an
+3. the requests still running are aborted: their `this.signal` fires, and they fail with an
    `EntrypointStoppedException`;
 4. the adapters close their servers and connections.
 
 ## 5. Groups and the list of the actions
 
-The `groups` option of an action puts it in groups. The access rules can use them (see [Middlewares and Access
-Control](Middlewares.md)), and the entrypoint can list the actions by group, to build an index of an API or a list of
-permissions. The groups of the HTTP, command line and service actions must be declared, with their names:
+An action's `groups` option puts it in groups. Access rules can use them (see [Middlewares and Access
+Control](Middlewares.md)), and the entrypoint can list actions by group, to build an API index or a permission list. The
+groups of HTTP, command-line and service actions must be declared, with their names:
 
 ```typescript
 import {Application} from 'lakutata'
@@ -170,29 +169,29 @@ Application.run(() => ({
 ```
 
 `getHttpActions()`, `getCliActions()` and `getServiceActions()` return `{groups, actions}`: `groups` holds the declared
-groups (`id`, `name` and their `actions`), `actions` every action of the transport. `getActions(channel)` lists the
-actions of any other transport (`getActions('schedule')`). Each action is described by:
+groups (`id`, `name` and their `actions`), `actions` every action of the transport. `getActions(channel)` lists any
+other transport's actions (`getActions('schedule')`). Each action is described by:
 
 | Property | Meaning |
 |---|---|
-| `id` | A stable id, computed from its controller, its method and its address |
+| `id` | A stable ID, computed from its controller, method and address |
 | `name`, `description`, `groups`, `acl` | Its options |
-| `controller`, `method` | The name of its controller class, and of its method |
-| `route` / `command` / `pattern` | Its address, prefix included |
-| `jsonSchema` | The JSON Schema of its DTO |
+| `controller`, `method` | The names of its controller class and its method |
+| `route` / `command` / `pattern` | Its address, including the prefix |
+| `jsonSchema` | Its DTO's JSON Schema |
 
 ## 6. Pushing events to the clients
 
-The service transports that keep their clients connected (Socket.IO, Electron, NW.js, the event stream of the HTTP
-service, JSON-RPC over WebSocket or stdio, gRPC) can receive events from the application.
-`entrypoint.notify(clientId, event, ...args)` sends an event to the client whose id an action found in
+Service transports that keep their clients connected (Socket.IO, Electron, NW.js, the HTTP service's event stream,
+JSON-RPC over WebSocket or stdio, gRPC) can receive events from the application.
+`entrypoint.notify(clientId, event, ...args)` sends an event to the client whose ID an action found in
 `this.context.clientId`, and returns whether that client received it. `entrypoint.broadcast(event, ...args)` sends it to
 every connected client, and returns their number. See [gRPC](GRPC.md) and [Service Calls](ServiceCalls.md).
 
 ## 7. Customizing the entrypoint
 
-A subclass of `Entrypoint` can replace the class of the component: declare it with `class`, and give the same options
-next to it.
+A subclass of `Entrypoint` can replace the component's class: declare it with `class`, and specify the same options next
+to it.
 
 ```typescript
 import {AccessControl, Entrypoint} from 'lakutata/com/entrypoint'
@@ -213,6 +212,6 @@ export class AuditedEntrypoint extends Entrypoint {
 //components: {entrypoint: {class: AuditedEntrypoint, controllers: [...], http: ...}}, bootstrap: ['entrypoint']
 ```
 
-An adapter for another transport implements the `EntrypointAdapter` interface of `@lakutata/entrypoint/channel`. The
-entrypoint functions of Lakutata 2.x (`buildHTTPEntrypoint`, `buildCLIEntrypoint`, `buildServiceEntrypoint`) are still
-accepted by the `http`, `cli` and `service` options.
+An adapter for another transport implements the `EntrypointAdapter` interface from `@lakutata/entrypoint/channel`. The
+`http`, `cli` and `service` options still accept the Lakutata 2.x entrypoint functions (`buildHTTPEntrypoint`,
+`buildCLIEntrypoint`, `buildServiceEntrypoint`).

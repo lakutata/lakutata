@@ -2,14 +2,14 @@
 
 English | [中文](README.zh-CN.md)
 
-gRPC for the Lakutata framework, written in TypeScript on top of the HTTP/2 module of Node.js, with no native addon and
-no generated code. It provides a client (`GRPCConnection`: unix sockets, TCP, TLS and mutual TLS; unary,
-server-streaming and bidirectional calls), a server (`GRPCServer`) and a schema-driven protobuf codec (`encode`,
-`decode`). The `@lakutata/grpc/service` subpath serves an application's service actions over gRPC
-(`grpcServiceEntrypoint`, through the `lakutata.service.v1.Service` service of `SERVICE_PROTO`, which any language can
-call) and lets another application invoke them (`GRPCServiceProxy`). The containerd component (`@lakutata/containerd`)
-and its BuildKit builds use this package. The umbrella package `lakutata` does not re-export it: import it from
-`@lakutata/grpc` and `@lakutata/grpc/service`.
+gRPC for the Lakutata framework, written in TypeScript on top of the Node.js HTTP/2 module, with no native addon and no
+generated code. It provides a client (`GRPCConnection`: unix sockets, TCP, TLS and mutual TLS; unary, server-streaming
+and bidirectional calls), a server (`GRPCServer`) and a schema-driven protobuf codec (`encode`, `decode`). The
+`@lakutata/grpc/service` subpath serves an application's service actions over gRPC (`grpcServiceEntrypoint`, through the
+`lakutata.service.v1.Service` service of `SERVICE_PROTO`, which any language can call) and lets another application
+invoke them (`GRPCServiceProxy`). The containerd component (`@lakutata/containerd`) and its BuildKit builds use this
+package. The umbrella package `lakutata` does not re-export it: import it from `@lakutata/grpc` and
+`@lakutata/grpc/service`.
 
 ## Installation
 
@@ -17,23 +17,23 @@ and its BuildKit builds use this package. The umbrella package `lakutata` does n
 npm install @lakutata/grpc
 ```
 
-The client, the server and the codec need nothing else (Node.js `>=18.10.0`). The service entrypoint and the
-service proxy run in a Lakutata application, so they need `lakutata`, which provides the package's peer dependencies
+The client, the server and the codec need nothing else (Node.js `>=18.10.0`). The service adapter and the service proxy
+run in a Lakutata application, so they require `lakutata`, which provides the package's peer dependencies
 `@lakutata/core` and `@lakutata/entrypoint` (optional for the other uses).
 
 ```shell
 npm install lakutata @lakutata/grpc
 ```
 
-Listening on a network interface instead of an address (the `interface` option of the service entrypoint, or
-`GRPCServer.listenWith()` with `listenOnAll()`) needs `@lakutata/netif` too.
+Listening on a network interface instead of an address (the service adapter's `interface` option, or
+`GRPCServer.listenWith()` with `listenOnAll()`) also requires `@lakutata/netif`.
 
 ## Usage
 
 ### The service actions over gRPC
 
-`grpcServiceEntrypoint` is the entrypoint's `service` adapter: the application's `@ServiceAction`s are invoked over
-gRPC by their patterns, as over the other service transports.
+`grpcServiceEntrypoint` is the entrypoint's `service` adapter: the application's `@ServiceAction`s are invoked over gRPC
+by their patterns, as over other service transports.
 
 ```typescript
 import {Application} from 'lakutata'
@@ -106,20 +106,20 @@ Application
     })
 ```
 
-- A client's id is the `id` metadata of its calls (`ServiceContext.clientId` in the actions); the proxy sends its
-  `clientId` (a random UUID by default). `grpcCallOfContext(context)` gives an action the whole gRPC call, with its
-  metadata and its deadline.
+- A client's ID is the `id` metadata of its calls (`ServiceContext.clientId` in the actions); the proxy sends its
+  `clientId` (a random UUID by default). `grpcCallOfContext(context)` provides an action with the whole gRPC call,
+  including its metadata and deadline.
 - An action's signal is aborted when the client cancels the call or its deadline passes; the call then ends with
   `CANCELLED` or `DEADLINE_EXCEEDED`.
-- A failed action is answered with its error (message, `errno` and other properties), which the proxy throws as a
-  `ServiceInvokeException`; transport failures are thrown as a `GRPCError` (`UNAVAILABLE`, `DEADLINE_EXCEEDED`…).
+- The adapter responds to a failed action with its error (message, `errno` and other properties), which the proxy throws
+  as a `ServiceInvokeException`; transport failures are thrown as a `GRPCError` (`UNAVAILABLE`, `DEADLINE_EXCEEDED`…).
 - Once the entrypoint stops, new invocations fail (the proxy throws a `ServiceInvokeException` whose `errno` is
   `E_ENTRYPOINT_STOPPED`) while those in progress complete; when it closes, the event streams end and the server
   closes.
 
 ### Calling the service from other languages
 
-`SERVICE_PROTO` is the `.proto` file of the service: generate clients for other languages from it.
+`SERVICE_PROTO` is the service's `.proto` file: generate clients for other languages from it.
 
 ```text
 service Service {
@@ -137,9 +137,9 @@ import {SERVICE_PROTO} from '@lakutata/grpc/service'
 writeFileSync('service.proto', SERVICE_PROTO)
 ```
 
-A call sends the JSON of the action's pattern and input in `InvokeRequest.data`; the result or the error comes back as
-JSON in `InvokeResponse.payload` or `InvokeResponse.error`; a client's id is its `id` metadata. With grpcurl (in its
-JSON, `bytes` fields are base64):
+A call sends the action's pattern and input as JSON in `InvokeRequest.data`; the result or the error is returned as JSON
+in `InvokeResponse.payload` or `InvokeResponse.error`; a client's ID is its `id` metadata. With grpcurl (in its JSON,
+`bytes` fields are base64):
 
 ```shell
 DATA=$(printf '{"cmd":"order.get","id":7}' | base64)
@@ -217,7 +217,7 @@ try {
 - Calls fail with a `GRPCError`: the server's status, or `UNAVAILABLE` (connection failed or lost), `CANCELLED` (signal
   aborted), `DEADLINE_EXCEEDED` (timeout passed), `RESOURCE_EXHAUSTED` (a response over `maxMessageSize`, unlimited by
   default) or `INTERNAL` (a response that cannot be decompressed or decoded).
-- Metadata values are sent as they are (no percent or base64 encoding).
+- Metadata values are sent unchanged (no percent or base64 encoding).
 
 ### The server
 
@@ -270,14 +270,14 @@ process.once('SIGTERM', (): void => void server.close(10000))
   the handler keeps running unless it watches the signal.
 - `server.serve(socket)` serves an HTTP/2 connection carried by another byte stream (a BuildKit session, for example).
 - `server.listenWith(inner => listenOnAll('eth1', inner, {port: 50051}))` listens on a network interface instead of an
-  address, whatever its addresses, with `listenOnAll()` of `@lakutata/netif` (or another implementation of
-  `IInterfaceListening` of `@lakutata/core`). It returns the listeners, which are closed with the server; handle their
+  address, whatever its addresses, with `listenOnAll()` from `@lakutata/netif` (or another implementation of
+  `IInterfaceListening` from `@lakutata/core`). It returns the listeners, which are closed with the server; handle their
   `error` events.
 
 ### The protobuf codec
 
-A `Schema` replaces the `.proto` file and its generated code: it lists the fields of a message by property name, with
-their numbers and types.
+A `Schema` replaces the `.proto` file and its generated code: it lists a message's fields by property name, with their
+numbers and types.
 
 ```typescript
 import {decode, encode, type Message, type Schema} from '@lakutata/grpc'
@@ -328,8 +328,8 @@ console.log(route.name, route.points, route.labels, route.started, route.data)
 | `GRPCServer` | `@lakutata/grpc` | The server: `method`, `listen`, `listenWith`, `serve`, `close`, `methods` |
 | `GRPCServerCall` | `@lakutata/grpc` | A call received by a server: `request`, `requests`, `send`, `finish`, `metadata`, `deadline`, `signal` |
 | `BidiStream` | `@lakutata/grpc` | A bidirectional call: `send`, `end`, `cancel`, `responses` |
-| `CallOptions` | `@lakutata/grpc` | The metadata, signal and timeout of a call |
-| `GRPCTLSOptions`, `GRPCServerTLSOptions` | `@lakutata/grpc` | The TLS options of a connection and of a server |
+| `CallOptions` | `@lakutata/grpc` | A call's metadata, signal and timeout |
+| `GRPCTLSOptions`, `GRPCServerTLSOptions` | `@lakutata/grpc` | TLS options for a connection and a server |
 | `GRPCMessageOptions`, `GRPCCompression` | `@lakutata/grpc` | The message size limit and compression |
 | `GRPCError`, `GRPCStatus` | `@lakutata/grpc` | A failed call, and the status codes |
 | `parseGRPCTimeout`, `formatGRPCTimeout` | `@lakutata/grpc` | Convert the `grpc-timeout` header from and to milliseconds |
@@ -338,7 +338,7 @@ console.log(route.name, route.points, route.labels, route.started, route.data)
 | `grpcServiceEntrypoint`, `GRPCServiceEntrypointOptions` | `@lakutata/grpc/service` | The service adapter that serves the service actions over gRPC |
 | `grpcCallOfContext` | `@lakutata/grpc/service` | The gRPC call behind a service context |
 | `GRPCServiceProxy`, `buildGRPCServiceProxy`, `BuildGRPCServiceProxyOptions` | `@lakutata/grpc/service` | The client component for a service: `invoke`, `on`, `once`, `off`, `id` |
-| `SERVICE_PROTO`, `SERVICE_METHODS` | `@lakutata/grpc/service` | The `.proto` file of the service and its method paths |
+| `SERVICE_PROTO`, `SERVICE_METHODS` | `@lakutata/grpc/service` | The service's `.proto` file and its method paths |
 
 The typings document each declaration, with examples.
 
@@ -349,7 +349,7 @@ The typings document each declaration, with examples.
 | `GRPCError` (`code`: a `GRPCStatus`, `path`) | A call fails: the server's status, or `UNAVAILABLE` (connection failed or lost, no status), `CANCELLED` (signal aborted, stream canceled, call closed), `DEADLINE_EXCEEDED` (timeout passed), `RESOURCE_EXHAUSTED` (a message over `maxMessageSize`), `INTERNAL` (a message that cannot be decompressed or decoded) or `UNKNOWN` (an HTTP status other than 200). A server handler throws it to end its call with that status. |
 | `ServiceInvokeException` (`E_SERVICE_INVOKE`, from `lakutata/com/entrypoint`) | `GRPCServiceProxy.invoke()`: the remote action failed; the exception carries the remote error's message and properties (`errno`…) |
 | `EntrypointStoppedException` (`E_ENTRYPOINT_STOPPED`) | An invocation arrives while the service's entrypoint is stopping (the proxy receives it as a `ServiceInvokeException` with this errno) |
-| `Error` | `new GRPCConnection()` with an address that is not a unix socket path, a `tcp://` URL or `host:port`, or with TLS over a unix socket; `decode()` with truncated or unexpected bytes; `GRPCServer.listen()` with the listen error (`EADDRINUSE`); `grpcServiceEntrypoint()` with `interface` when `@lakutata/netif` is not installed and no `interfaceListening` is given |
+| `Error` | `new GRPCConnection()` with an address that is not a unix socket path, a `tcp://` URL or `host:port`, or with TLS over a unix socket; `decode()` with truncated or unexpected bytes; `GRPCServer.listen()` with the listen error (`EADDRINUSE`); `grpcServiceEntrypoint()` with `interface` when `@lakutata/netif` is not installed and no `interfaceListening` is specified |
 | `TypeError` | `grpcServiceEntrypoint()` with `interface` and `host` or `socketPath`, or with `family`, `strict`, `onError` or `interfaceListening` without `interface` |
 
 A server ends a call to an unknown method, or one with an unsupported compression, with `UNIMPLEMENTED`; a request
