@@ -1,24 +1,24 @@
 # Lakutata Application Design
 
 This guide describes how to structure an application on Lakutata: the class each part of the application extends, where
-its logic and its state live, how the configuration reaches its objects, the order in which they are created, and how
-the application is tested. The recommendations follow the project templates and the [examples](examples/README.md);
+its logic and state live, how configuration reaches its objects, the order in which they are created, and how the
+application is tested. The recommendations follow the project templates and the [examples](examples/README.md);
 [Concepts](Concepts.md) explains the model they rely on.
 
 ## 1. The parts of an application
 
 | Part | Class | Directory | Responsibility |
 |---|---|---|---|
-| Actions | `Controller` | `controllers/` | Receive the validated input of a request, call the objects that do the work, return the result |
-| Services and resources | `Component` | `components/` | The state shared between requests, the logic several actions share, connections, files, timers |
-| Units of a request | `Provider` | | The state of one request, such as the signed-in user ([Middlewares and Access Control](Middlewares.md), section 3) |
+| Actions | `Controller` | `controllers/` | Receive a request's validated input, call the objects that do the work, return the result |
+| Services and resources | `Component` | `components/` | State shared between requests, logic that several actions share, connections, files, timers |
+| Units of a request | `Provider` | | One request's state, such as the signed-in user ([Middlewares and Access Control](Middlewares.md), section 3) |
 | Features with their own objects | `Module` | | A group of objects reached through one object ([Modules](Modules.md)) |
-| Contracts | `DTO` | `dtos/` | The input of the actions, the messages of the queues, the shape of results |
-| Errors | `Exception` | `exceptions/` | The errors of the application, each with its `errno` and, for HTTP clients, its `statusCode` |
-| Data | Entities, migrations | `entities/`, `migrations/` | The tables of the databases and their changes ([Entities, Queries and Transactions](Entities.md)) |
+| Contracts | `DTO` | `dtos/` | Action input, queue messages, the shape of results |
+| Errors | `Exception` | `exceptions/` | The application's errors, each with its `errno` and, for HTTP clients, its `statusCode` |
+| Data | Entities, migrations | `entities/`, `migrations/` | Database tables and their changes ([Entities, Queries and Transactions](Entities.md)) |
 | Cross-cutting rules | Middlewares | `middlewares/` | Authentication, languages, access control, applied to many actions |
 | Plain functions | None | `lib/` | Computations that need nothing from the container |
-| Options | `config()` | `config/` | The options of the application, read from the environment |
+| Options | `config()` | `config/` | The application's options, read from the environment |
 
 The `default` template creates `controllers/`, `dtos/`, `config/` and `tests/`; the `service` and `web-*` templates
 add `middlewares/`, the desktop templates `components/`, and the examples add the other directories as the application
@@ -29,8 +29,8 @@ needs them.
 A controller exists for one request only, so it cannot keep anything between requests. An action validates its input
 through its DTO, calls the objects that do the work, and returns their result:
 
-- **State kept between requests** (a list of items, a cache, the data of a file) belongs to a component, the one
-  instance that every request shares.
+- **State kept between requests** (a list of items, a cache, a file's data) belongs to a component, the one instance
+  that every request shares.
 - **Logic that several actions or transports share** belongs to a component, so that each action stays a call to it,
   whatever the transport.
 - **Resources** (a connection, a server, a timer, a device) belong to a component, which opens them in `init()` or
@@ -38,9 +38,9 @@ through its DTO, calls the objects that do the work, and returns their result:
 - **Code that a test replaces** belongs to a component, which a test can obtain and stub, or replace with another class.
 - **The state of one request** belongs to a provider, created for the request and destroyed with it.
 
-When the work of an action belongs to that action alone, such as the queries of the [REST API
-example](examples/RestAPI.md) or the monthly totals of the [mobile application example](examples/MobileApp.md), the
-action may perform it itself on the repositories of the database, where the state is kept. As soon as the work is
+When an action's work belongs to that action alone, such as the queries in the [REST API
+example](examples/RestAPI.md) or the monthly totals in the [mobile application example](examples/MobileApp.md), the
+action may perform it itself on the database repositories, where the state is kept. As soon as the work is
 shared, keeps state between requests, or must be replaced in tests, it moves to a component.
 
 Components that depend on platform features (a window, the clipboard, a native module) receive them as options or
@@ -60,7 +60,7 @@ platform ([A tray application with NW.js](examples/TrayApp.md)).
 ## 4. An example: an orders service
 
 The service below creates orders and finds them over HTTP. It follows the `default` template, with a component for the
-orders, and keeps them in memory to stay short; the [REST API example](examples/RestAPI.md) stores them in a database.
+orders, and keeps them in memory for brevity; the [REST API example](examples/RestAPI.md) stores them in a database.
 
 ```
 src/
@@ -141,7 +141,7 @@ export class Orders extends Component {
 }
 ```
 
-`src/controllers/OrderController.ts` translates the requests into calls of the component:
+`src/controllers/OrderController.ts` translates requests into calls to the component:
 
 ```typescript
 import {Controller} from 'lakutata/com/entrypoint'
@@ -213,13 +213,13 @@ The same actions can serve other transports by adding their decorators and adapt
 
 ## 5. Configuration
 
-The configuration of an application flows in one direction:
+An application's configuration flows in one direction:
 
-1. **The environment** gives the values that change between deployments: `PORT`, the address of a database, a token.
+1. **The environment** provides the values that change between deployments: `PORT`, a database address, a token.
 2. **`config()`** reads them, as parameters with defaults (`port = Number(process.env.PORT ?? 8080)`), and returns the
-   options of the application. Because it is a function, a test calls it with the values it needs: a port, an in-memory
+   application's options. Because it is a function, a test calls it with the values it needs: a port, an in-memory
    database, a temporary directory.
-3. **The declarations** in those options give each object its options: `{class: Orders}`, or
+3. **The declarations** in those options specify each object's options: `{class: Orders}`, or
    `{class: Mailer, host: 'smtp.example.com'}`.
 4. **The `@Configurable` properties** of each object receive them, validated by their schemas when the application
    launches ([Dependency Injection](Injection.md), section 2).
@@ -239,16 +239,16 @@ in order, and the application launches once its steps have completed:
 - an object that relies on the actions comes after the entrypoint: in the desktop example, the actions are served
   before the window loads its user interface (`['entrypoint', 'notes', 'window']`);
 - a component that only serves requests, such as `orders` above, needs no step: the first request creates it;
-- a component that works on its own (a poller, a window, a tray icon) is listed, since nothing else would create it.
+- a component that works independently (a poller, a window, a tray icon) is listed, since nothing else would create it.
 
-The options of every declared object are checked at launch whether or not `bootstrap` lists it.
+The options of every declared object are checked at launch, whether or not `bootstrap` lists it.
 
 ## 7. Testing
 
-The tests of the templates run with `node --test` on the compiled files (`npm test`).
+The templates' tests run with `node --test` on the compiled files (`npm test`).
 
-**The whole application.** A test starts the application with `config()` and a dedicated port, waits for the launch,
-sends requests, and disposes of the application:
+**The whole application.** A test launches the application with `config()` and a dedicated port, waits until it has
+launched, sends requests, and disposes of the application:
 
 ```typescript
 import {after, before, describe, it} from 'node:test'
@@ -318,12 +318,12 @@ the options of the module's declaration ([Modules](Modules.md), section 4).
 
 ## 8. Growing an application
 
-- **Features of several objects** become modules, which the rest of the application reaches through one object
+- **Features with several objects** become modules, which the rest of the application reaches through one object
   ([Modules](Modules.md)).
 - **Features shared between applications** become packages that export a component with a function that builds its
   declaration ([Dependency Injection](Injection.md), section 3).
 - **Applications with a user interface** are workspaces: the application in `packages/app`, the interface in
   `packages/ui`, and, for the mobile template, the channel between them in `packages/ipc`
   ([Project Structure](ProjectStructure.md), section 2).
-- **Services that call each other** share no code: the patterns of the actions and the shape of the messages form the
-  contract between them ([Calls between services](examples/ServiceCalls.md)).
+- **Services that call each other** share no code: the action patterns and message shapes form the contract between
+  them ([Calls between services](examples/ServiceCalls.md)).

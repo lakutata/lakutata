@@ -1,24 +1,25 @@
 # Getting Started
 
-This page creates a first Lakutata project from a template, then shows how to add the framework to an existing project
-and write an application by hand.
+This guide describes how to create a first Lakutata project from a template, and then how to add the framework to an
+existing project and write an application manually.
 
 ## 1. Requirements
 
-- Node.js 18.10 or later (`>=18.10.0`). A few features need a newer Node.js:
-  - the Fastify adapter: Fastify 5 needs Node.js 18.19, 19.9, 20 or later (the Express adapter needs nothing more);
-  - the Kafka transport of `@lakutata/queue`: Node.js 22.22, 24.6 or later, as `@platformatic/kafka` needs;
-  - the executables of Node.js (`lakutata package exe`, the installers): made by a Node.js 20.12, 21.7 or later, or with
-    `--node-program` naming one;
-  - `await using` with the objects of the framework: Node.js 18.18, 20.4 or later.
+- Node.js 18.10 or later (`>=18.10.0`). A few features require a newer Node.js:
+  - the Fastify adapter: Fastify 5 requires Node.js 18.19, 19.9, 20 or later (the Express adapter has no further
+    requirement);
+  - the Kafka driver of `@lakutata/queue`: Node.js 22.22, 24.6 or later, as required by `@platformatic/kafka`;
+  - Node.js executables (`lakutata package exe`, the installers): built by Node.js 20.12, 21.7 or later, or with
+    `--node-program` pointing to such a version;
+  - `await using` with framework objects: Node.js 18.18, 20.4 or later.
 
-  On Node.js 18 and 19, an application uses commander 13, @inquirer/prompts 7 and better-sqlite3 11: their next major
-  versions need Node.js 20 or later.
+  On Node.js 18 and 19, an application uses commander 13, @inquirer/prompts 7 and better-sqlite3 11, because their next
+  major versions require Node.js 20 or later.
 
-  The projects made by `lakutata create` declare Node.js `>=22.13.0`, which the tools of the web and desktop templates
-  need.
-- TypeScript, with its decorators (`experimentalDecorators`) and their metadata (`emitDecoratorMetadata`). The framework
-  publishes the compiler options it needs as `lakutata/tsconfig.json`; the templates use TypeScript 6.
+  Projects created by `lakutata create` declare Node.js `>=22.13.0`, as required by the tools in the web and desktop
+  templates.
+- TypeScript, with decorators (`experimentalDecorators`) and their metadata (`emitDecoratorMetadata`). The framework
+  publishes the compiler options it requires as `lakutata/tsconfig.json`; the templates use TypeScript 6.
 - ES modules (`"type": "module"`), as in the templates; the package also ships CommonJS builds.
 
 ## 2. Creating a project
@@ -29,15 +30,15 @@ cd my-app
 npm run dev
 ```
 
-`npm run dev` compiles the project and starts it; the log shows `my-app started in development mode`, and the
-application answers on port 8080:
+`npm run dev` compiles the project and launches the application. The log shows `my-app started in development mode`, and
+the application responds on port 8080:
 
 ```bash
 curl 'http://localhost:8080/example?name=you'
 # {"message":"Hello, you!"}
 ```
 
-The `default` template is a small HTTP application. Other templates start from another kind of application:
+The `default` template is a small HTTP application. Other templates create other kinds of applications:
 
 | Template | Application |
 |---|---|
@@ -46,31 +47,31 @@ The `default` template is a small HTTP application. Other templates start from a
 | `service` | An HTTP API deployed as a Docker image |
 | `web-react`, `web-vue` | An HTTP API serving a React or Vue single-page application (Vite) |
 | `web-next`, `web-nuxt` | An HTTP API serving a Next.js or Nuxt application from the same process |
-| `electron-react`, `electron-vue` | A desktop application: Electron, its main process serving a React or Vue renderer over IPC |
-| `nwjs-react`, `nwjs-vue` | A desktop application: NW.js, its background script serving a React or Vue user interface isolated in a webview |
-| `mobile-react` | A mobile application for Android, iOS and HarmonyOS: React Native, the Node.js inside it serving the user interface |
+| `electron-react`, `electron-vue` | An Electron desktop application whose main process serves a React or Vue renderer over IPC |
+| `nwjs-react`, `nwjs-vue` | An NW.js desktop application whose background script serves a React or Vue user interface isolated in a webview |
+| `mobile-react` | A React Native mobile application for Android, iOS and HarmonyOS, whose embedded Node.js serves the user interface |
 
 ```bash
 npx @lakutata/cli create --name shop --template service --with i18n,installer
 ```
 
-`--with` adds optional features: `i18n` (messages in several languages) to every template, `installer` (installers
-and a system service) to `cli`, `service` and the `web-*` templates, `win7` (NW.js 0.72, which runs on Windows 7) to
-the `nwjs-*` templates. In a terminal, the tool offers them when `--with`
-is not given. [Project Structure](ProjectStructure.md) describes the files of the templates, and
-[Command-Line Tool](Command.md) the options of `lakutata create`.
+`--with` adds optional features: `i18n` (messages in several languages) to every template, `installer` (installers and a
+system service) to `cli`, `service` and the `web-*` templates, and `win7` (NW.js 0.72, which runs on Windows 7) to the
+`nwjs-*` templates. In a terminal, the tool offers these features when `--with` is not specified. [Project
+Structure](ProjectStructure.md) describes the templates' files, and [Command-Line Tool](Command.md) describes the
+options of `lakutata create`.
 
-The scripts of the `default` template:
+The `default` template defines the following scripts:
 
 | Script | What it does |
 |---|---|
-| `npm run dev` | Compiles the project into `build/` and starts it |
+| `npm run dev` | Compiles the project into `build/` and launches the application |
 | `npm run build` | Compiles the project into `build/` |
-| `npm start` | Starts the compiled application |
+| `npm start` | Launches the compiled application |
 | `npm test` | Compiles the project and runs its tests (`node --test`) |
 
-The other templates are workspaces of several packages; their scripts work on every package, and `npm test` builds them
-before running their tests ([Project Structure](ProjectStructure.md), section 2).
+The other templates are multi-package workspaces: their scripts apply to every package, and `npm test` builds the
+packages before running their tests ([Project Structure](ProjectStructure.md), section 2).
 
 ## 3. Adding Lakutata to an existing project
 
@@ -79,9 +80,9 @@ npm install lakutata express
 npm install --save-dev typescript @types/node @types/express @lakutata/cli
 ```
 
-`express` is the library of the HTTP adapter used below. The adapters and drivers are optional dependencies, installed
-only when they are used: `fastify`, `commander` and `@inquirer/prompts` (command-line tools), `socket.io`, `ws`, the
-database drivers (`pg`, `mysql2`, `better-sqlite3`…), the cache stores (`redis`…).
+`express` is the library behind the HTTP adapter used below. Adapters and drivers are optional dependencies, installed
+only when they are used: `fastify`, `commander` and `@inquirer/prompts` (command-line tools), `socket.io`, `ws`,
+database drivers (`pg`, `mysql2`, `better-sqlite3`…) and cache stores (`redis`…).
 
 `tsconfig.json`:
 
@@ -96,9 +97,9 @@ database drivers (`pg`, `mysql2`, `better-sqlite3`…), the cache stores (`redis
 }
 ```
 
-Keep `include`: the published options compile JavaScript files too (`allowJs`), so without it a configuration file at
-the root of the project (`eslint.config.js`, `vite.config.ts`) breaks the build. In the `package.json`, set
-`"type": "module"` and add scripts such as those of the templates:
+Keep `include`: the published options also compile JavaScript files (`allowJs`), so without it the build fails on a
+configuration file in the project root (`eslint.config.js`, `vite.config.ts`). In `package.json`, set `"type": "module"`
+and add scripts similar to those in the templates:
 
 ```json
 {
@@ -112,8 +113,8 @@ the root of the project (`eslint.config.js`, `vite.config.ts`) breaks the build.
 }
 ```
 
-The relative imports of the sources end in `.js` (`import {config} from './config/Config.js'`), as Node.js resolves
-them in the compiled code.
+Relative imports in the source files end in `.js` (`import {config} from './config/Config.js'`), because Node.js
+resolves them in the compiled code.
 
 ## 4. A first application
 
@@ -160,22 +161,21 @@ curl 'http://localhost:8080/greet?name=you'
 # {"message":"Hello, you!"}
 ```
 
-- `GreetDTO` validates the input: `name` is optional, `world` by default ([DTO and Validation](DTOValidation.md)).
-- `GreetController` declares an action, here served over HTTP; the same method could also be a command of a command
-  line tool or a service action ([Controllers and Actions](Controllers.md)).
-- `Application.run()` declares the components of the application: the `entrypoint` component serves the controllers
-  through its adapters, and `bootstrap` creates it at launch ([Application](Application.md),
-  [Entrypoint](Entrypoint.md)).
+- `GreetDTO` validates the input: `name` is optional and defaults to `world` ([DTO and Validation](DTOValidation.md)).
+- `GreetController` declares an action, served here over HTTP. The same method could also be a command in a command-line
+  tool or a service action ([Controllers and Actions](Controllers.md)).
+- `Application.run()` declares the application's components: the `entrypoint` component serves the controllers through
+  its adapters, and `bootstrap` creates it at launch ([Application](Application.md), [Entrypoint](Entrypoint.md)).
 
 ## 5. Next
 
-- [Examples](examples/README.md): whole applications built from the templates, step by step.
-- [Concepts](Concepts.md) and [Application Design](ApplicationDesign.md): the model of the framework, and how to
-  structure an application on it.
-- [Project Structure](ProjectStructure.md): the files of a project and its scripts.
+- [Examples](examples/README.md): complete applications built from the templates, step by step.
+- [Concepts](Concepts.md) and [Application Design](ApplicationDesign.md): the framework's model, and how to structure an
+  application on it.
+- [Project Structure](ProjectStructure.md): a project's files and scripts.
 - [Application](Application.md), [Objects and Lifetimes](Objects.md) and [Dependency Injection](Injection.md): how an
   application is declared, and how its objects are created and obtain one another.
 - [Controllers and Actions](Controllers.md) and [HTTP](HTTP.md): actions, their input and their responses.
 - [Command-Line Tool](Command.md), [Workspaces](Workspaces.md), [Native Addons](NativeAddons.md),
-  [Packaging](Packaging.md) and [Installers](Installers.md): the `lakutata` command, the packages of a project, and the
-  packed applications.
+  [Packaging](Packaging.md) and [Installers](Installers.md): the `lakutata` command, a project's packages, and packed
+  applications.

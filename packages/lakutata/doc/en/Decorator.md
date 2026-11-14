@@ -17,7 +17,7 @@ Dependencies, options, actions and validations are declared with decorators (Typ
 
 ### 1.1 `@Inject`
 
-Sets a property to an object of the container when the decorated object is created, before its `init()`:
+Sets a property to an object from the container when the decorated object is created, before its `init()`:
 
 ```typescript
 import {Application, Component, type ILogger} from 'lakutata'
@@ -53,13 +53,13 @@ class Signup extends Component {
 }
 ```
 
-When a dependency cannot be resolved, the creation of the object fails with a `DependencyInjectionException`.
+When a dependency cannot be resolved, object creation fails with a `DependencyInjectionException`.
 
 ### 1.2 `@Configurable`
 
 `@Configurable(schema?, fn?)` makes a property an option of the object, set by the object's declaration
 (`{class: Server, port: 8080}`) or by the second argument of `getObject()`. The schema (`DTO.Any()` by default)
-validates (and converts) the value, which is then passed to `fn` when one is given, with the instance as `this`.
+validates (and converts) the value, which is then passed to `fn` when one is specified, with the instance as `this`.
 
 ```typescript
 import {Application, Component, DTO} from 'lakutata'
@@ -94,26 +94,26 @@ Application.run(() => ({
 ```
 
 - **Value**: the value configured for the property, else its initializer (`protected readonly host: string =
-  '127.0.0.1'`), else the default of its schema (`DTO.Number().default(80)`). The initializer is validated and
-  transformed like a configured value, and a subclass gives its own default with its own initializer.
-- **`maxListeners`**: every component has this configurable property (11 by default). Above this number of listeners on
-  one event, a warning reports a possible memory leak (0 disables the warning; the number of listeners is never
+  '127.0.0.1'`), else its schema's default (`DTO.Number().default(80)`). The initializer is validated and transformed
+  like a configured value, and a subclass specifies its own default with its own initializer.
+- **`maxListeners`**: every component has this configurable property (11 by default). When one event has more listeners
+  than this number, a warning reports a possible memory leak (0 disables the warning; the number of listeners is never
   limited). A component sets its own default with `protected readonly maxListeners: number = 0`, or its declaration sets
   it: `{class: MyComponent, maxListeners: 0}`.
-- **Startup check**: when the application launches, it checks the options of every object it declares
-  (components, providers and objects) before any of them is created, so a mistake shows up at startup even for an
+- **Launch check**: when the application launches, it checks the options of every object it declares
+  (components, providers and objects) before any of them is created, so a mistake shows up at launch even for an
   object that is never used:
-  - a value that does not match the schema of its `@Configurable` property fails the startup with an
-    `InvalidObjectOptionsException` listing every invalid option;
+  - when a value does not match the schema of its `@Configurable` property, the launch fails with an
+    `InvalidObjectOptionsException` that lists every invalid option;
   - an option that is not a `@Configurable` property of the class (a misspelled option name, for example) is ignored,
-    with a warning that lists the configurable properties of the class.
+    with a warning that lists the class's configurable properties.
 
   A class that reads its options without configurable properties (through `getConfigurableRecords()`) overrides the
   static `acceptsOption(name, value)` to accept them without a warning. Values checked by external (asynchronous) rules
-  are validated when the object is created. The check covers the options that the declarations give: a required option
-  that a declaration leaves out is reported when the object is created, since the second argument of `getObject()` may
-  still give it. The objects declared by a [module](Modules.md) are checked when the module is created.
-  `checkOptions: false` in the options of the application disables the check.
+  are validated when the object is created. The check covers the options that the declarations specify. A required
+  option that a declaration omits is reported when the object is created, because the second argument of `getObject()`
+  may still provide it. Objects declared by a [module](Modules.md) are checked when the module is created.
+  `checkOptions: false` in the application options disables the check.
 
 ### 1.3 `@Autoload`
 
@@ -128,7 +128,7 @@ requested outside a request, can inject the application but not the objects regi
 | Decorator | One instance… | Default of |
 |---|---|---|
 | `@Singleton(lock?)` | per container that registers the class | `Component` (locked) |
-| `@Scoped(lock?)` | per scope (a request of an entrypoint) | `Provider`, `Controller` (locked) |
+| `@Scoped(lock?)` | per scope (an entrypoint request) | `Provider`, `Controller` (locked) |
 | `@Transient(lock?)` | per resolution | `BaseObject` |
 
 `@Lifetime('SINGLETON' | 'SCOPED' | 'TRANSIENT', lock?)` is their long form. With `lock` set to `true`, subclasses
@@ -153,20 +153,20 @@ export class QueryBuilder extends Provider {
 
 ### 1.5 Properties of subclasses
 
-- **Inheritance**: a subclass inherits the `@Inject` and `@Configurable` properties of its parents. When a subclass
-  declares a property again, its declaration replaces those of its parents, whatever the decorator: the closest
-  declaration wins (a property injected by the parent and declared again with `@Configurable` is only configured, and
-  the other way round).
-- **The type of a property**: TypeScript lets a subclass narrow the type of a property it declares again (a
-  `MemoryStore` instead of a `Store`), but not change it to an unrelated type: `string` instead of `number` fails with
+- **Inheritance**: a subclass inherits its parents' `@Inject` and `@Configurable` properties. When a subclass declares
+  a property again, its declaration replaces its parents' declarations, regardless of the decorator. The closest
+  declaration takes precedence (a property injected by the parent and declared again with `@Configurable` is only
+  configured, and vice versa).
+- **Property types**: TypeScript lets a subclass narrow the type of a property it declares again (a `MemoryStore`
+  instead of a `Store`), but not change it to an unrelated type. Declaring it as `string` instead of `number` fails with
   `TS2416` (`Property 'port' in type 'BrokenServer' is not assignable to the same property in base type 'PlainServer'`),
   and no compiler option turns this off. A parent whose subclasses may need another type for a property declares it with
   a type parameter:
   - the parent declares a type parameter on the class, named after the property with `Type` at the end (`StoreType` for
-    `store`). Its constraint (`extends Store`) is the type the parent can rely on, and it limits the subclasses to
+    `store`). Its constraint (`extends Store`) is the type the parent can rely on, and it limits subclasses to
     compatible types; its default (`= Store`) lets a subclass that keeps the type extend the parent without a type
     argument;
-  - a subclass gives the type in its `extends` clause, and declares the property again only to change its decorator.
+  - a subclass specifies the type in its `extends` clause, and declares the property again only to change its decorator.
 
 ```typescript
 import {Component, DTO} from 'lakutata'
@@ -214,17 +214,17 @@ export class NamedPortServer extends Server<string> {
 
 In `MemoryRepository`, the IDE completes `this.store` as a `MemoryStore`, and in `Repository` as a `Store`. Without the
 type parameter in its parent, a subclass can only silence the error with `// @ts-expect-error` on the property, while
-the methods of the parent still use the property with its former type.
+the parent's methods still use the property with its former type.
 
 Declaring a property again without an initializer, as `NamedPortServer` does, compiles with
-`useDefineForClassFields: false`, which `lakutata/tsconfig.json` sets. With `true` (the default of TypeScript for
-`ES2022` and later targets), the compiler refuses it with `TS2612`; write `declare` before the property instead
+`useDefineForClassFields: false`, which `lakutata/tsconfig.json` sets. With `true` (TypeScript's default for
+`ES2022` and later targets), the compiler rejects it with `TS2612`; write `declare` before the property instead
 (`@Configurable(...) declare protected readonly port: string`), and the decorator still applies.
 
 ## 2. Controller actions (`lakutata/decorator/ctrl`)
 
-These decorators apply to the methods (and, for `@Prefix` and `@UseMiddlewares`, to the classes) of the subclasses of
-`Controller`; [Controllers and Actions](Controllers.md) describes them in detail.
+These decorators apply to methods (and, for `@Prefix` and `@UseMiddlewares`, to classes) of `Controller` subclasses;
+[Controllers and Actions](Controllers.md) describes them in detail.
 
 | Decorator | Address |
 |---|---|
@@ -233,8 +233,8 @@ These decorators apply to the methods (and, for `@Prefix` and `@UseMiddlewares`,
 | `@CLIAction(command, DTO?, options?)` | A CLI command (`'copy <source> [target]'`; the words before the name are groups) |
 | `@ServiceAction(pattern, DTO?, options?)` | A service pattern (`{cmd: 'order.get'}`) |
 | `@Schedule(schedule, options?)` | An interval (`'30s'`) or a cron expression (`'0 3 * * *'`) |
-| `@Prefix({route, command, pattern})` | Prefixes the addresses of the actions of a controller class |
-| `@UseMiddlewares(...middlewares)` | Middlewares of a controller class or of an action |
+| `@Prefix({route, command, pattern})` | Prefixes the action addresses of a controller class |
+| `@UseMiddlewares(...middlewares)` | Middlewares for a controller class or an action |
 
 The `options` are the action options: `acl`, `name`, `description`, `groups`, `rule`, `middlewares`.
 
@@ -259,25 +259,25 @@ class ItemController extends Controller {
 }
 ```
 
-The words of a CLI command before its name are its groups: `@CLIAction('package exe <name>', ExeDTO)` is the command
-`exe` of the group `package` (`tool package exe app`), and `tool package --help` lists the commands of the group,
-described by the `groups` option of the adapter (`commanderCLIEntrypoint({groups: {package: 'Package the
+In a CLI command, the words before the name are its groups: `@CLIAction('package exe <name>', ExeDTO)` is the `exe`
+command in the `package` group (`tool package exe app`), and `tool package --help` lists the group's commands,
+described by the adapter's `groups` option (`commanderCLIEntrypoint({groups: {package: 'Package the
 application'}})`, translated by the key `commands.package.description`).
 
 ## 3. Validation (`lakutata/decorator/dto`)
 
 | Decorator | Effect |
 |---|---|
-| `@Expect(schema)` | The schema of a property of a DTO (`DTO.String().required()`) |
+| `@Expect(schema)` | The schema of a DTO property (`DTO.String().required()`) |
 | `@IndexSignature(schema)` | A DTO class keeps the keys that have no schema, validating them against this schema |
-| `@Accept(...schemas)` | Validates the arguments of each call of a method, by position |
-| `@Return(schema)` | Validates the result of each call of a method |
+| `@Accept(...schemas)` | Validates a method's arguments on each call, by position |
+| `@Return(schema)` | Validates a method's result on each call |
 
 See [DTO and Validation](DTOValidation.md).
 
 ## 4. Assistants (`lakutata/decorator/asst`)
 
-`@Before(fn)` runs a function before each call of a method, with its arguments: an array it returns replaces the
+`@Before(fn)` runs a function before each method call, with its arguments: an array it returns replaces the
 arguments. `@After(fn)` runs a function after each call, with its result: a value it returns other than `undefined`
 replaces the result. The functions are called with the instance as `this`; they may be async only when the method is.
 
@@ -314,12 +314,12 @@ and access is allowed. See [Mutex](Mutex.md).
 ## 6. Queues (`lakutata/com/queue`)
 
 `@QueueAction(queue, dto?, options?)` makes a controller action the consumer of a queue: the `queueEntrypoint` adapter
-delivers the messages of the queue to it. A message is acknowledged when the action returns, retried after a failure,
-and sent to the dead-letter queue once its retries are used up. See [Queues](Queue.md).
+delivers the queue's messages to it. A message is acknowledged when the action returns, retried after a failure,
+and sent to the dead-letter queue once its retries are exhausted. See [Queues](Queue.md).
 
 ## 7. Database entities (`lakutata/decorator/orm`)
 
-`lakutata/decorator/orm` re-exports the decorators of TypeORM:
+`lakutata/decorator/orm` re-exports TypeORM's decorators:
 
 - Entities: `@Entity`, `@ViewEntity`, `@ChildEntity`, `@TableInheritance`, `@Unique`, `@Index`, `@Check`, `@Exclusion`.
 - Columns: `@Column`, `@PrimaryColumn`, `@PrimaryGeneratedColumn`, `@Generated`, `@ObjectIdColumn`,

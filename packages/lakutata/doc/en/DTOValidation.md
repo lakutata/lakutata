@@ -1,9 +1,9 @@
 # Lakutata DTO and Validation
 
 A **DTO** (data transfer object) is a class whose properties are declared with validation schemas. The framework uses
-DTOs to validate the options of objects (`@Configurable`), the arguments and results of methods (`@Accept`, `@Return`)
-and the input of controller actions. `DTO` is exported by `lakutata` and the decorators by `lakutata/decorator/dto`; the
-validation engine is the framework's own, with the API of joi (extended with bigints and the numeric types below).
+DTOs to validate object options (`@Configurable`), method arguments and results (`@Accept`, `@Return`) and controller
+action input. `DTO` is exported by `lakutata` and the decorators by `lakutata/decorator/dto`; the framework uses its own
+validation engine, with joi's API (extended with bigints and the numeric types below).
 
 ## 1. Defining a DTO
 
@@ -41,19 +41,19 @@ class CustomerDTO extends DTO {
 
 ### The schemas
 
-The schemas are built by the static methods of `DTO`: `DTO.String()`, `DTO.Number()`, `DTO.BigInt()`, `DTO.Boolean()`,
+Schemas are built by the static methods of `DTO`: `DTO.String()`, `DTO.Number()`, `DTO.BigInt()`, `DTO.Boolean()`,
 `DTO.Date()`, `DTO.Binary()`, `DTO.Symbol()`, `DTO.Object()`, `DTO.Array()`, `DTO.Alternatives()`, `DTO.Any()`,
 `DTO.Function()`, `DTO.AsyncFunction()`, `DTO.Class()`, `DTO.InstanceOf()`, `DTO.Cron()`, `DTO.Glob()`, `DTO.Ref()`,
-`DTO.Link()`… Their rules are those of joi (`.required()`, `.optional()`, `.default()`, `.valid()`, `.min()`,
+`DTO.Link()`… They use joi's rules (`.required()`, `.optional()`, `.default()`, `.valid()`, `.min()`,
 `.max()`, `.pattern()`, `.email()`, `.uri()`…).
 
 - **Strict by default**: a value of the wrong type is rejected, not converted (the string `'5'` is not the number 5).
   Call `.strict(false)` to convert, for example for HTTP query strings and route parameters, which are always strings.
 - **Numeric types**: `DTO.Number()` provides the integer types `int8`, `uint8`, `int16`, `uint16`, `int32`, `uint32`,
-  `int64` and `uint64` (the 64-bit types limited to the safe integers of JavaScript), and the floating point types
+  `int64` and `uint64` (the 64-bit types are limited to JavaScript's safe integers), and the floating point types
   `float` (32-bit range) and `double`.
 - **Validation options**: by default, validation stops at the first error (`abortEarly`) and unknown keys are removed
-  (`stripUnknown`). `MyDTO.options({...})` returns the schema of a DTO with other options.
+  (`stripUnknown`). `MyDTO.options({...})` returns a DTO's schema with other options.
 - **A DTO class as a schema**: `MyDTO.Schema()` is its object schema, `MyDTO.required()` and `MyDTO.optional()` the same
   schema marked required or optional. A DTO class is accepted wherever a schema is expected (`@Accept`, `@Return`, the
   action decorators).
@@ -98,10 +98,10 @@ own by default) and the validation options.
 
 | Decorator | Applies to | Effect |
 |---|---|---|
-| `@Expect(schema)` | A property of a DTO | Declares the schema of the property |
+| `@Expect(schema)` | A DTO property | Declares the property's schema |
 | `@IndexSignature(schema)` | A DTO class | Keeps the keys that have no `@Expect` schema, validating them against this schema, instead of removing them |
-| `@Accept(...schemas)` | A method | Validates the arguments of each call, by position; throws `InvalidMethodAcceptException` |
-| `@Return(schema)` | A method | Validates the result of each call (awaited for an async method); throws `InvalidMethodReturnException`, also when the method returns `undefined`, whatever the schema |
+| `@Accept(...schemas)` | A method | Validates the arguments on each call, by position; throws `InvalidMethodAcceptException` |
+| `@Return(schema)` | A method | Validates the result on each call (awaited for an async method); throws `InvalidMethodReturnException`, also when the method returns `undefined`, regardless of the schema |
 
 `@Accept` and `@Return` pass the validated values on to the method (or to its caller), with defaults applied and unknown
 keys removed. When a DTO class validates an argument or a result, the value passed on is a plain object, not an instance
@@ -153,15 +153,15 @@ class Bank extends Component {
 
 ## 4. DTOs in the framework
 
-- **Object options**: `@Configurable(schema)` (from `lakutata/decorator/di`) validates an option of a component or a
-  provider; see [Dependency Injection](Injection.md).
-- **Controller actions**: the DTO given to `@GET`, `@POST`, `@CLIAction`, `@ServiceAction`… validates the input of the
-  action; invalid input gets a 400 response. See [Controllers and Actions](Controllers.md).
-- **Pagination** (`lakutata/dtos`): `PaginationSearchDTO` and `PaginationResultDTO` are the input and the result of
+- **Object options**: `@Configurable(schema)` (from `lakutata/decorator/di`) validates a component or provider
+  option; see [Dependency Injection](Injection.md).
+- **Controller actions**: the DTO passed to `@GET`, `@POST`, `@CLIAction`, `@ServiceAction`… validates the action's
+  input; invalid input results in a 400 response. See [Controllers and Actions](Controllers.md).
+- **Pagination** (`lakutata/dtos`): `PaginationSearchDTO` and `PaginationResultDTO` are the input and result of
   paginated actions, and `paginator` computes the pages; `FlexibleDTO` is a DTO that accepts any key.
 - **Validation messages**: error messages can be translated; `registerValidationMessages`, `runInValidationLanguage` and
-  `currentValidationLanguage` (from `lakutata`) manage their languages, and the language middleware of the I18n
-  component sets the language of each request (see [Internationalization (i18n)](I18n.md)).
+  `currentValidationLanguage` (from `lakutata`) manage their languages, and the I18n component's language
+  middleware sets each request's language (see [Internationalization (i18n)](I18n.md)).
 
 ## 5. JSON Schema and OpenAPI
 
@@ -193,10 +193,10 @@ toJsonSchema(DTO.String().email(), {target: 'openapi-3.0'})   //any schema, or a
 - The JSON Schema describes the values the schema accepts without conversion, and ajv (with ajv-formats) and other
   validators accept those values. What JSON Schema cannot express (custom rules, references to other values,
   conversions) is left out, so the JSON Schema may also accept values the schema rejects, never the reverse.
-- Unknown keys follow the validation options: with the defaults of Lakutata (`allowUnknown`, `stripUnknown`), objects
+- Unknown keys follow the validation options: with Lakutata's defaults (`allowUnknown`, `stripUnknown`), objects
   accept them; pass `preferences` to convert a schema for other options.
-- The numeric types become integer bounds (`int8` to `uint64`) and float ranges; in OpenAPI they also get the formats
-  `int32`, `int64`, `float` and `double`.
+- The numeric types become integer bounds (`int8` to `uint64`) and float ranges; in OpenAPI they also receive the
+  formats `int32`, `int64`, `float` and `double`.
 
 ### 5.2 Import
 
@@ -224,11 +224,11 @@ const openApiDocument: Record<string, unknown> = JSON.parse(readFileSync('openap
 const {Pet, Person} = DTO.fromOpenAPI(openApiDocument)
 ```
 
-- Imported schemas validate as JSON Schema does: values are not converted (unless `convert: true` is given), unknown
+- Imported schemas validate as JSON Schema does: values are not converted (unless `convert: true` is specified), unknown
   keys follow `additionalProperties`, formats are checked as ajv-formats checks them, and defaults are applied.
 - References are resolved by JSON pointer, `$anchor` and `$id` (pass other documents in `schemas`, and an OpenAPI
   document in `document`); recursive references are supported.
-- The version is read from `$schema`, or given with `dialect` (default: 2020-12).
+- The version is read from `$schema`, or specified with `dialect` (default: 2020-12).
 - Converting a Lakutata schema to JSON Schema loses information (custom rules, conversions): to store a schema and
   restore it exactly, keep its `describe()` output (a JSON value unless it contains functions) and rebuild it with
   `DTO.Build(description)`.

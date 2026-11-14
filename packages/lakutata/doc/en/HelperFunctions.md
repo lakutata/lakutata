@@ -3,8 +3,8 @@
 `lakutata/utils` (package `@lakutata/utils`) exports the helpers the framework and its applications share: strings,
 objects, arrays and sets, hashes and encodings, UUIDs, IP addresses, globs, statistics, and `Time`
 (see [Time](Time.md)). They are plain functions and classes with no dependencies: import them wherever they are needed,
-inside an application or not; nothing needs to be registered. The README of `@lakutata/utils` and the type declarations
-of each helper give the details, including the errors they throw.
+inside an application or not; nothing needs to be registered. The `@lakutata/utils` README and each helper's type
+declarations provide the details, including the errors they throw.
 
 ```typescript
 import {Application, Component, Time} from 'lakutata'
@@ -53,14 +53,14 @@ Application
 |---|---|
 | `ObjectPath.get()`, `.set()`, `.has()` | Reads, sets and tests a nested property by its path (`'a.b[0].c'`) |
 | `cloneDeep(value)` | A deep copy that keeps classes, collections and circular references |
-| `objectHash(value, options?)` | A hash of a value by its content, whatever the order of its keys |
+| `objectHash(value, options?)` | A hash of a value based on its content, regardless of key order |
 | `sortArray(array, ...options)` | Sorts an array in place, by its items or their properties (`by`, `order`, `customOrders`, `computed`) |
 | `sortKeys(object, options?)` | A copy of a plain object with its keys sorted by a comparison (`deep`, `compare`) |
 | `sortObject(object, options?)` | A copy of a plain object with its keys in alphabetical order (`deep`, `order: 'asc' \| 'desc'`) |
 | `uniqueArray(array)` | The array without its duplicates |
 | `mergeArray`, `mergeSet`, `mergeMap` | Merge two arrays, sets or maps into a new one |
 | `arrayToSet`, `setToArray`, `objectToMap` | Conversions between collections |
-| `getObjectPropertyPaths`, `getObjectNestingDepth`, `isEmptyObject` | The paths of the leaf values of an object, its depth, whether it has no own property |
+| `getObjectPropertyPaths`, `getObjectNestingDepth`, `isEmptyObject` | The paths to an object's leaf values, its depth, whether it has no own property |
 | `objectConstructor`, `objectPrototype`, `objectParentConstructor(s)`, `isSubclassOf` | Classes and their ancestors |
 | `Statistics` | Means, quantiles, deviations, regressions, distributions and random samples of numbers |
 
@@ -93,7 +93,7 @@ console.log(uniqueArray([3, 1, 3, 2]), Object.keys(sortObject({b: 1, a: 2})))
 
 | Helper | What it does |
 |---|---|
-| `md5(text)`, `sha1(text)`, `sha256(text)` | The digest of a string, as a `Buffer` (for checksums; for passwords and secrets, see [Security](Security.md)) |
+| `md5(text)`, `sha1(text)`, `sha256(text)` | A string's digest, as a `Buffer` (for checksums; for passwords and secrets, see [Security](Security.md)) |
 | `MessagePack` | Serializes values to and from MessagePack bytes or strings |
 | `UUID` | Generates (`v1`, `v3`, `v4`, `v5`, `v6`), validates, parses and stringifies UUIDs |
 | `URLBuilder` | Parses a URL of any scheme into its attributes, or builds one from them |
@@ -124,7 +124,7 @@ console.log(UUID.validate(UUID.v4()))
 | `gracefulExit` | Exits the process once cleanup functions have run |
 | `pathExists(path)`, `isPath(text)` | Whether a file or directory exists; whether a string looks like a path |
 | `Glob(patterns, options?)`, `GlobSync`, `isGlobString` | The files matching glob patterns; whether a string is a glob pattern |
-| `isPromise`, `isPromiseLike`, `isAbortError` | Whether a value is a promise or a thenable; whether an error is an abort error of Node.js |
+| `isPromise`, `isPromiseLike`, `isAbortError` | Whether a value is a promise or a thenable; whether an error is a Node.js abort error |
 | `isSymbol`, `isNativeFunction`, `isHTML`, `isXML` | Type guards |
 | `As<T>(value)`, `DevNull(...args)` | A cast for the type checker only; a function that ignores its arguments |
 

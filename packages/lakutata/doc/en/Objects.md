@@ -1,10 +1,10 @@
 # Lakutata Objects and Lifetimes
 
-Every object of an application (components, providers, controllers) is created by an IoC container; you never call
-`new`. This page covers the classes of these objects, their lifetimes and scopes, how they are created and destroyed,
-and how to use them without an application. They come from the package `@lakutata/core`, which `lakutata`,
-`lakutata/decorator/di`, `lakutata/decorator/dto` and `lakutata/decorator/asst` re-export; its README and the type
-declarations of each export give the details.
+Every object in an application (components, providers, controllers) is created by an IoC container; you never call
+`new`. This guide describes the classes of these objects, their lifetimes and scopes, how they are created and
+destroyed, and how to use them without an application. They come from the `@lakutata/core` package, which `lakutata`,
+`lakutata/decorator/di`, `lakutata/decorator/dto` and `lakutata/decorator/asst` re-export; its README and each export's
+type declarations provide the details.
 
 ## 1. The classes
 
@@ -15,16 +15,16 @@ declarations of each export give the details.
 | `Component` | A long-lived service shared by the whole application (a logger, a database, an entrypoint); also an event emitter | `@Singleton` (locked) |
 | `Module` | A component that declares its own components, providers and objects ([Modules](Modules.md)) | `@Singleton` (locked) |
 | `Application` | The root module: it declares the components, providers and objects, and is created by `Application.run()` | |
-| `Controller` (`lakutata/com/entrypoint`) | A provider that handles the requests of an entrypoint | `@Scoped` (locked) |
+| `Controller` (`lakutata/com/entrypoint`) | A provider that handles an entrypoint's requests | `@Scoped` (locked) |
 
-[Concepts](Concepts.md) shows how these classes extend one another, and why each of them exists.
+[Concepts](Concepts.md) shows how these classes extend one another, and why each exists.
 
 ## 2. Lifetimes
 
 | Decorator (`lakutata/decorator/di`) | One instance… |
 |---|---|
 | `@Singleton()` | per container that registers the class, shared by everything that uses it, including its scopes |
-| `@Scoped()` | per scope (`container.createScope()`; each request of an entrypoint is a scope); outside a scope, one per container that registers the class |
+| `@Scoped()` | per scope (`container.createScope()`; each entrypoint request is a scope); outside a scope, one per container that registers the class |
 | `@Transient()` | per resolution, never cached |
 
 Subclasses inherit the lifetime. `Component` locks its lifetime: a subclass that declares a different one throws a
@@ -32,13 +32,13 @@ Subclasses inherit the lifetime. `Component` locks its lifetime: a subclass that
 2.x, one instance shared by all scopes, like the `ServiceProxy` of `@lakutata/nats`). A long-lived object that owns
 resources (connections, subscriptions, servers) is better written as a `Component`. A singleton that injects a scoped
 object receives the instance of the container that registers the scoped class (the application's container, for a
-provider the application declares), never the instance of a request, even when the singleton is first requested during
+provider the application declares), never a request's instance, even when the singleton is first requested during
 a request. `@Lifetime('SINGLETON' | 'SCOPED' | 'TRANSIENT', lock)` is the long form of the three decorators.
 
 ## 3. Scopes
 
-A scope is a child container that holds its own instances of the scoped objects and shares the singletons and
-registrations of its parent. The entrypoint creates a scope for each request: the request's controller and the providers
+A scope is a child container that holds its own instances of scoped objects and shares its parent's singletons and
+registrations. The entrypoint creates a scope for each request: the request's controller and the providers
 it injects are created in it and destroyed when the request ends. A component can create its own scope with its
 protected `createScope()`. Destroy such a scope once it is no longer needed; otherwise it is destroyed with the
 component.
@@ -50,18 +50,18 @@ once the object is ready. Creation goes through these steps:
 
 1. its `@Inject` properties are resolved;
 2. its `@Configurable` properties receive their configured values, validated (and converted) by their schemas; a
-   property that is not configured keeps its initializer, or the default of its schema when it has none;
-3. its `init()` runs (an error thrown here fails the creation);
+   property that is not configured keeps its initializer, or its schema's default when it has none;
+3. its `init()` runs (creation fails with any error thrown here);
 4. its `startup()` runs. By then other objects can already obtain it, but they wait for `startup()` to finish (and fail
    with its error if it throws). The exception is anything requested from inside `startup()`, directly or through the
-   objects it creates: those get the object at once, which is how an object requested there can inject it back (an
-   entrypoint starts its adapters in `startup()`, and their hooks obtain an authenticator that injects the entrypoint).
-   The method is named `startup` rather than `start` so that classes with a `start()` method of their own, such as the
-   containers of `@lakutata/docker`, are not started by the framework;
+   objects it creates: those receive the object immediately, which is how an object requested there can inject it back
+   (an entrypoint starts its adapters in `startup()`, and their hooks obtain an authenticator that injects the
+   entrypoint). The method is named `startup` rather than `start` so that classes with their own `start()` method, such
+   as `@lakutata/docker` containers, are not started by the framework;
 5. once the application has launched (and the object has started), its `launched()` runs; it is not awaited, and its
    errors are logged.
 
-An object is torn down by `dispose()`, or along with the object, scope or application that owns it. Teardown waits
+An object is destroyed by `dispose()`, or along with the object, scope or application that owns it. Teardown waits
 for `startup()` to end, then runs `beforeDestroy()`, destroys the objects it owns, and finally runs `destroy()`.
 
 Each object owns a container. The objects it owns are the transient objects it obtains with `this.getObject()`, the
@@ -69,10 +69,10 @@ scoped objects it requests with options (the second argument of `getObject()`), 
 `buildObject()`. A singleton, and the scoped instance shared within a scope, belong to the container that registers
 them: they are not destroyed with the object that requested them.
 
-When a container is destroyed (a request ending, the application stopping), the `beforeDestroy()` hooks of all its
-objects run first, concurrently; the objects are then destroyed in no particular order, even when one depends on
-another. An object therefore stops using its dependencies in `beforeDestroy()`, and releases only its own resources in
-`destroy()`.
+When a container is destroyed (at the end of a request or when the application stops), all its objects'
+`beforeDestroy()` hooks run first, concurrently; the objects are then destroyed in no particular order, even when one
+depends on another. An object therefore stops using its dependencies in `beforeDestroy()`, and releases only its own
+resources in `destroy()`.
 
 ```typescript
 import {Application, Component, type ILogger} from 'lakutata'
@@ -154,4 +154,4 @@ await container.destroy()
 ```
 
 `container.register()` and `registerNamed()` register a class without creating it, `get()` resolves an object, `build()`
-always creates a new instance whatever the lifetime, and `createScope()` creates a scope.
+always creates a new instance regardless of its lifetime, and `createScope()` creates a scope.

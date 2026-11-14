@@ -1,8 +1,8 @@
 # Lakutata Dependency Injection
 
 An object does not create the objects it uses: it declares them, and the container provides them when it creates the
-object. This page covers `@Inject` and `@Autoload`, the options of objects (`@Configurable`), and sharing a feature
-between applications as a package. [Decorators](Decorator.md), section 1, gives every rule of these decorators.
+object. This guide describes `@Inject` and `@Autoload`, object options (`@Configurable`), and sharing a feature
+between applications as a package. [Decorators](Decorator.md), section 1, describes every rule for these decorators.
 
 ## 1. Injecting objects
 
@@ -10,7 +10,7 @@ between applications as a package. [Decorators](Decorator.md), section 1, gives 
 
 - `@Inject()`: the object registered under the property name;
 - `@Inject('name')` or `@Inject(symbol)`: the object registered under that name;
-- `@Inject(SomeClass)`: the object registered for the class (`@Inject(Application)` gives the application);
+- `@Inject(SomeClass)`: the object registered for the class (`@Inject(Application)` injects the application);
 - `@Inject('name', transform)`: the value returned by `transform(object)` (it may be async).
 
 A class marked `@Autoload()` is registered the first time it is requested, instead of failing: a transient class in the
@@ -18,8 +18,7 @@ container that requests it, a scoped class in the nearest scope, a singleton in 
 holds the application, above the container of the objects the application declares. A singleton registered this way,
 like a scoped class requested outside a request, can therefore inject the application but not the objects registered
 in the application, such as the preset `log`; a component that needs them is declared in the application options
-instead. A dependency that cannot be
-resolved fails the creation with a `DependencyInjectionException`.
+instead. Creation fails with a `DependencyInjectionException` when a dependency cannot be resolved.
 
 ```typescript
 import {Application, BaseObject, Component, type ILogger} from 'lakutata'
@@ -59,7 +58,7 @@ Application.run(() => ({
 }))
 ```
 
-Code that is not itself an object of the container (an `onLaunched` handler, for example) gets objects with
+Code that is not itself an object in the container (an `onLaunched` handler, for example) obtains objects with
 `app.getObject(name)`; `app.getObject(SomeClass)` works for a class registered on its own, such as an autoloaded class,
 not for a component declared under a name.
 
@@ -67,13 +66,13 @@ not for a component declared under a name.
 
 `@Configurable(schema, fn?)` turns a property into an option of the object. Its value comes from the object's
 declaration (`{class: Mailer, host: 'smtp.example.com'}`) or from the second argument of `getObject()`; the schema
-validates it, and `fn`, when given, transforms it. The application checks the options of the objects it declares when
-it launches: an invalid value stops the launch with an `InvalidObjectOptionsException`, and an option that matches no
-configurable property produces a warning. Only the options that the declarations give are checked at that point: a
-required option that a declaration leaves out is reported when the object is created, with an `InvalidValueException`,
-because it may still be given by the second argument of `getObject()`. That argument applies when the call creates the
-object: a singleton that already exists keeps its options (a warning says so outside production), and a scoped class
-requested with options gives a new instance, owned by the requester.
+validates it, and `fn`, when specified, transforms it. When the application launches, it checks the options of the
+objects it declares: the launch fails with an `InvalidObjectOptionsException` when a value is invalid, and an option
+that matches no configurable property produces a warning. Only the options that the declarations specify are checked at
+that point. A required option that a declaration omits is reported with an `InvalidValueException` when the object is
+created, because the second argument of `getObject()` may still provide it. That argument applies when the call creates
+the object: a singleton that already exists keeps its options (a warning says so outside production), and requesting a
+scoped class with options creates a new instance, owned by the requester.
 
 ```typescript
 import {Application, Component, DTO, type ILogger} from 'lakutata'
@@ -116,16 +115,16 @@ Application
     })
 ```
 
-[Decorators](Decorator.md), section 1.2, gives the order in which a value is chosen (the configured value, the
-initializer, the default of the schema) and the checks made at launch.
+[Decorators](Decorator.md), section 1.2, describes the order in which a value is chosen (the configured value, the
+initializer, the schema's default) and the checks performed at launch.
 
 ## 3. Sharing features between applications
 
 To use a feature in several applications, put it in a package. The package exports a `Component` (or a `Provider`) and
-a function that builds its declaration, the way the packages of the framework do (`buildDatabaseOptions` of
-`lakutata/com/database`, `buildQueueOptions` of `lakutata/com/queue`). The application declares the component under a
-name of its choice and passes the options to the function. The component's `@Configurable` schemas check the options
-when the application launches, and the other objects inject the component by its name.
+a function that builds its declaration, as the framework's packages do (`buildDatabaseOptions` from
+`lakutata/com/database`, `buildQueueOptions` from `lakutata/com/queue`). The application declares the component under a
+name it chooses and passes the options to the function. The component's `@Configurable` schemas check the options
+when the application launches, and other objects inject the component by name.
 
 ```typescript
 import {Application, Component, type ComponentOptions, DTO} from 'lakutata'
