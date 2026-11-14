@@ -44,8 +44,8 @@ A component is created the first time something needs it. No other object needs 
 |---|---|---|
 | `controllers` | `[]` | The controller classes |
 | `http`, `cli`, `service`, `schedule`, `queue`, `mcp`, `dbus` | | The adapters of the transports (below): one adapter, or an array of them |
-| `middlewares` | `[]` | The middlewares of every action (see [Middlewares](Middlewares.md)) |
-| `rules` | `[]` | The access rules of the actions declared with `acl: true` (see [Middlewares](Middlewares.md)) |
+| `middlewares` | `[]` | The middlewares of every action (see [Middlewares and Access Control](Middlewares.md)) |
+| `rules` | `[]` | The access rules of the actions declared with `acl: true` (see [Middlewares and Access Control](Middlewares.md)) |
 | `shutdownTimeout` | `30000` | The milliseconds given to the requests in progress when the application stops (section 4) |
 | `httpActionGroups`, `cliActionGroups`, `serviceActionGroups` | `{}` | The groups the actions may use, with their names (section 5) |
 
@@ -55,19 +55,19 @@ The adapters:
 |---|---|---|---|---|
 | `http` | `expressHTTPEntrypoint()` | `lakutata/adapter/express` | `express` | [HTTP](HTTP.md) |
 | `http` | `fastifyHTTPEntrypoint()` | `lakutata/adapter/fastify` | `fastify` | [HTTP](HTTP.md) |
-| `cli` | `commanderCLIEntrypoint()` | `lakutata/adapter/commander` | `commander` | [CLI](CLI.md) |
-| `service` | `httpServiceEntrypoint()` | `lakutata/com/entrypoint` | | [ServiceCalls](ServiceCalls.md) |
-| `service` | `socketIOServiceEntrypoint()` | `lakutata/adapter/socket.io` | `socket.io` | [ServiceCalls](ServiceCalls.md) |
-| `service` | `jsonRPCServiceEntrypoint()` | `lakutata/adapter/jsonrpc` | `ws`, for WebSocket | [ServiceCalls](ServiceCalls.md) |
-| `service` | `electronIPCServiceEntrypoint()` | `lakutata/adapter/electron` | (Electron) | [ServiceCalls](ServiceCalls.md) |
-| `service` | `nwjsServiceEntrypoint()` | `lakutata/adapter/nwjs` | (NW.js) | [ServiceCalls](ServiceCalls.md) |
-| `service` | `reactNativeServiceEntrypoint()` | `lakutata/adapter/react-native` | | [ServiceCalls](ServiceCalls.md) |
-| `service` | `grpcServiceEntrypoint()` | `@lakutata/grpc/service` | `@lakutata/grpc` | [GRPC](GRPC.md) |
+| `cli` | `commanderCLIEntrypoint()` | `lakutata/adapter/commander` | `commander` | [Command Line](CLI.md) |
+| `service` | `httpServiceEntrypoint()` | `lakutata/com/entrypoint` | | [Service Calls](ServiceCalls.md) |
+| `service` | `socketIOServiceEntrypoint()` | `lakutata/adapter/socket.io` | `socket.io` | [Service Calls](ServiceCalls.md) |
+| `service` | `jsonRPCServiceEntrypoint()` | `lakutata/adapter/jsonrpc` | `ws`, for WebSocket | [Service Calls](ServiceCalls.md) |
+| `service` | `electronIPCServiceEntrypoint()` | `lakutata/adapter/electron` | (Electron) | [Service Calls](ServiceCalls.md) |
+| `service` | `nwjsServiceEntrypoint()` | `lakutata/adapter/nwjs` | (NW.js) | [Service Calls](ServiceCalls.md) |
+| `service` | `reactNativeServiceEntrypoint()` | `lakutata/adapter/react-native` | | [Service Calls](ServiceCalls.md) |
+| `service` | `grpcServiceEntrypoint()` | `@lakutata/grpc/service` | `@lakutata/grpc` | [gRPC](GRPC.md) |
 | `service` | `natsServiceEntrypoint()` | `@lakutata/nats` | `@lakutata/nats` | [NATS](NATS.md) |
-| `schedule` | `scheduleEntrypoint()` | `lakutata/com/entrypoint` | | [Schedules](Schedules.md) |
-| `queue` | `queueEntrypoint()` | `lakutata/com/queue` | The client of the queue server | [Queue](Queue.md) |
+| `schedule` | `scheduleEntrypoint()` | `lakutata/com/entrypoint` | | [Scheduled Jobs](Schedules.md) |
+| `queue` | `queueEntrypoint()` | `lakutata/com/queue` | The client of the queue server | [Queues](Queue.md) |
 | `mcp` | `httpMCPEntrypoint()`, `stdioMCPEntrypoint()` | `@lakutata/mcp` | `@lakutata/mcp` | [MCP](MCP.md) |
-| `dbus` | `dbusEntrypoint()` | `@lakutata/dbus` | `@lakutata/dbus` | [DBus](DBus.md) |
+| `dbus` | `dbusEntrypoint()` | `@lakutata/dbus` | `@lakutata/dbus` | [D-Bus](DBus.md) |
 
 ## 3. Several adapters
 
@@ -123,9 +123,9 @@ order:
 
 ## 5. Groups and the list of the actions
 
-The `groups` option of an action puts it in groups. The access rules can use them (see [Middlewares](Middlewares.md)),
-and the entrypoint can list the actions by group, to build an index of an API or a list of permissions. The groups of
-the HTTP, command line and service actions must be declared, with their names:
+The `groups` option of an action puts it in groups. The access rules can use them (see [Middlewares and Access
+Control](Middlewares.md)), and the entrypoint can list the actions by group, to build an index of an API or a list of
+permissions. The groups of the HTTP, command line and service actions must be declared, with their names:
 
 ```typescript
 import {Application} from 'lakutata'
@@ -179,7 +179,7 @@ actions of any other transport (`getActions('schedule')`). Each action is descri
 | `name`, `description`, `groups`, `acl` | Its options |
 | `controller`, `method` | The name of its controller class, and of its method |
 | `route` / `command` / `pattern` | Its address, prefix included |
-| `jsonSchema` | The JSON schema of its DTO |
+| `jsonSchema` | The JSON Schema of its DTO |
 
 ## 6. Pushing events to the clients
 
@@ -187,7 +187,7 @@ The service transports that keep their clients connected (Socket.IO, Electron, N
 service, JSON-RPC over WebSocket or stdio, gRPC) can receive events from the application.
 `entrypoint.notify(clientId, event, ...args)` sends an event to the client whose id an action found in
 `this.context.clientId`, and returns whether that client received it. `entrypoint.broadcast(event, ...args)` sends it to
-every connected client, and returns their number. See [GRPC](GRPC.md) and [ServiceCalls](ServiceCalls.md).
+every connected client, and returns their number. See [gRPC](GRPC.md) and [Service Calls](ServiceCalls.md).
 
 ## 7. Customizing the entrypoint
 
@@ -214,5 +214,5 @@ export class AuditedEntrypoint extends Entrypoint {
 ```
 
 An adapter for another transport implements the `EntrypointAdapter` interface of `@lakutata/entrypoint/channel`. The
-entrypoint functions of lakutata 2.x (`buildHTTPEntrypoint`, `buildCLIEntrypoint`, `buildServiceEntrypoint`) are still
+entrypoint functions of Lakutata 2.x (`buildHTTPEntrypoint`, `buildCLIEntrypoint`, `buildServiceEntrypoint`) are still
 accepted by the `http`, `cli` and `service` options.

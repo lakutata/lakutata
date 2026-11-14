@@ -2,7 +2,7 @@
 
 English | [中文](README.zh-CN.md)
 
-The MCP channel for the [lakutata](https://github.com/lakutata/lakutata) framework. The
+The MCP channel for the [Lakutata](https://github.com/lakutata/lakutata) framework. The
 [Model Context Protocol](https://modelcontextprotocol.io) (MCP) is how AI applications (Claude Desktop, Claude Code,
 IDEs, agents) give a model access to the tools, data and prompts of other programs. This package serves an
 application's controller actions as the tools, resources and prompts of an MCP server, over stdio or Streamable HTTP.
@@ -103,13 +103,13 @@ expects.
 
 - A tool's name is prefixed with the `mcp` prefix of its controller (`@Prefix({mcp})`), joined by `_`
   (`device_status`). Names are 1 to 128 letters, digits, `_`, `-` or `.`.
-- A tool's input schema is the JSON schema of its DTO (describe the properties with `.description()`). The DTO
+- A tool's input schema is the JSON Schema of its DTO (describe the properties with `.description()`). The DTO
   validates the input after the middlewares, as on the other channels.
 - A tool's description is the `description` option; without it, the model sees the action's name
   (`ControllerClass:method` by default). Write what the tool does and when to use it.
 - `title`, `readOnly`, `destructive`, `idempotent` and `openWorld` are passed to the clients, which use them to decide
   whether the user must confirm a call.
-- `output` is the DTO of the result, and its JSON schema becomes the tool's output schema. The action must then return
+- `output` is the DTO of the result, and its JSON Schema becomes the tool's output schema. The action must then return
   an object (a plain object or a DTO instance), which becomes the structured content of the result. Any other value (a
   string, an array, nothing) is answered with an error result that names the action and the type it returned.
 - The action options (`name`, `description`, `acl`, `rule`, `middlewares`…) are accepted as well.

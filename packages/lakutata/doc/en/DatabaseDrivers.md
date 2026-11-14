@@ -13,7 +13,7 @@ one for your database alongside it.
 | Microsoft SQL Server | `mssql` | `mssql` (12) |
 | Oracle | `oracle` | `oracledb` (6.3 or later, or 7) |
 | MongoDB | `mongodb` | `mongodb` (7) |
-| MongoDB embedded in the application | `mongo-embedded` | `@lakutata/mongo-embedded`, compiled when installed (Python 3 and a C++17 compiler); see [MongoEmbedded](MongoEmbedded.md) |
+| MongoDB embedded in the application | `mongo-embedded` | `@lakutata/mongo-embedded`, compiled when installed (Python 3 and a C++17 compiler); see [Embedded MongoDB](MongoEmbedded.md) |
 | SAP HANA | `sap` | `@sap/hana-client` (2.14 or later) |
 | Google Cloud Spanner | `spanner` | `@google-cloud/spanner` (8) |
 | Amazon Aurora through the Data API | `aurora-mysql`, `aurora-postgres` | `typeorm-aurora-data-api-driver` (3) |
@@ -24,7 +24,7 @@ npm install lakutata pg
 
 There is no `sqlite` type: SQLite files use `better-sqlite3`, or `sqljs` where a native module cannot run. TypeORM also
 has drivers for the JavaScript of the mobile platforms (`capacitor`, `cordova`, `expo`, `nativescript`, `react-native`);
-lakutata does not use them. A mobile application of the `mobile-react` template runs the lakutata application in a
+Lakutata does not use them. A mobile application of the `mobile-react` template runs the Lakutata application in a
 Node.js instead, with the drivers of this page (see [The mobile applications](#the-mobile-applications)).
 
 ## What applies to every driver
@@ -33,9 +33,9 @@ Node.js instead, with the drivers of this page (see [The mobile applications](#t
   is reported by the driver when the database connects.
 - `extra` is passed to the client of the driver (its pool, its connection), after the other options: it reaches the
   settings that TypeORM has no option for.
-- `driver` gives the driver module itself (`driver: require('pg')`), instead of letting lakutata load the package.
+- `driver` gives the driver module itself (`driver: require('pg')`), instead of letting Lakutata load the package.
 - Every example below declares a `Database` component. The options are the same for the `Database` provider (see
-  [Database](Database.md)).
+  [Databases](Database.md)).
 
 ## PostgreSQL
 
@@ -296,7 +296,7 @@ These drivers come from TypeORM as they are:
 
 ## The mobile applications
 
-A mobile application of the `mobile-react` template runs its lakutata application in the Node.js it embeds (Node.js
+A mobile application of the `mobile-react` template runs its Lakutata application in the Node.js it embeds (Node.js
 24.20), where the drivers of this page work as on a computer. The table gives what was verified on the emulators of
 Android (API 36), iOS (27.2) and HarmonyOS: a database written, closed, then opened again.
 

@@ -1,6 +1,6 @@
 # Lakutata 工作区
 
-由多个包组成的项目（应用、它的 Web 界面、共享库、原生插件）就是一个工作区：一个仓库，根目录的 `package.json` 列出各个包所在的目录。包管理器（npm、pnpm 或 yarn）负责把这些包互相链接起来；`lakutata` 命令按依赖顺序运行它们的脚本，给它们统一版本号，并添加新的包。lerna 中这类项目用得到的那部分功能，它都提供了。除 `default` 以外的模板创建的都是工作区（见 [ProjectStructure](ProjectStructure.md) 第 2 节）。
+由多个包组成的项目（应用、它的 Web 界面、共享库、原生插件）就是一个工作区：一个仓库，根目录的 `package.json` 列出各个包所在的目录。包管理器（npm、pnpm 或 yarn）负责把这些包互相链接起来；`lakutata` 命令按依赖顺序运行它们的脚本，给它们统一版本号，并添加新的包。lerna 中这类项目用得到的那部分功能，它都提供了。除 `default` 以外的模板创建的都是工作区（见[项目结构](ProjectStructure.md)第 2 节）。
 
 ## 1. 工作区
 
@@ -134,7 +134,7 @@ Next: npm install (links the package), then npm run rebuild -w @shop/shared
 - **私有**：这个包是 `"private": true`。要发布它，请删掉这一行（`npm publish -w @shop/shared`）。
 - **不安装任何东西**：之后请按命令的提示，运行工作区所用包管理器的安装命令（`pnpm install`、`yarn install`），其他包才能看到新的包。
 
-`lakutata add <name> --native gyp|cmake|rust` 则创建原生插件，见 [NativeAddons](NativeAddons.md)。
+`lakutata add <name> --native gyp|cmake|rust` 则创建原生插件，见[原生插件](NativeAddons.md)。
 
 ## 5. 从 lerna 迁移
 

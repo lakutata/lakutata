@@ -9,7 +9,7 @@ again when they change and when the interface is unplugged and plugged back, and
 connections that come through another interface. Any server of Node.js works (`http`, `https`, `http2`, `tls`, Express,
 Fastify), and UDP sockets too. The package also lists the interfaces of the machine with their state and tells when they
 change. It is a native addon for Linux, macOS and Windows, compiled when the package is installed. It belongs to the
-[lakutata](https://github.com/lakutata/lakutata) family but needs no lakutata application: import it and use it.
+[Lakutata](https://github.com/lakutata/lakutata) family but needs no Lakutata application: import it and use it.
 
 ## Installation
 
@@ -51,7 +51,7 @@ The interface may not exist yet (a USB adapter not plugged in) or have no addres
 returns at once and the interface is listened on as soon as it can be. While it waits, the listener keeps the process
 alive, as a listening server does.
 
-The entrypoints of lakutata (Express, Fastify, the service adapters, gRPC, MCP) do this through their `interface`
+The entrypoints of Lakutata (Express, Fastify, the service adapters, gRPC, MCP) do this through their `interface`
 option: `expressHTTPEntrypoint({port: 8080, interface: 'eth1'})`. The package implements `IInterfaceListening` of
 `@lakutata/core`, the contract they listen through, and its `InterfaceListener` is an `IInterfaceListener`.
 

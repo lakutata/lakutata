@@ -178,7 +178,7 @@ class JobController extends Controller {
 
 A run that throws does not stop the job: its next runs happen as planned. By default, the error is logged by the
 application's logger (the component `log`), or written to the console without one. The options of the adapter replace
-this behaviour:
+this behavior:
 
 ```typescript
 import {scheduleEntrypoint} from 'lakutata/com/entrypoint'

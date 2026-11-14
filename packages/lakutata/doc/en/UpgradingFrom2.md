@@ -5,7 +5,7 @@ steps, the renamed and moved APIs, the behavior that changes without a compile e
 
 It is for the projects that depend on the package `lakutata` at version 2. A project on Lakutata 1.x depends instead on
 `@lakutata/core` at version 1 and on `@lakutata-component/*` or `@lakutata-module/*` packages: it follows
-[UpgradingFrom1](UpgradingFrom1.md), not this page.
+[Upgrading from Lakutata 1.x](UpgradingFrom1.md), not this page.
 
 ## 1. Telling 2.x from 3.x
 
@@ -53,7 +53,7 @@ that the project declares and the one installed. There is no upgrade command: th
 
 - **Relative imports** end in `.js` (`import {config} from './config/Config.js'`), as in the ES module projects of 2.x.
 - **The libraries of the features used** are optional peer dependencies of `lakutata`, which the project installs (a
-  2.x project already has those that its own transports import); see [GettingStarted](GettingStarted.md), section 3:
+  2.x project already has those that its own transports import); see [Getting Started](GettingStarted.md), section 3:
 
 | Used | Install |
 |---|---|
@@ -143,7 +143,7 @@ The packages published apart from `lakutata` in 2.x are renamed the same way:
 
 ### The application and its objects
 
-See [Application](Application.md) and [Objects](Objects.md).
+See [Application](Application.md) and [Objects and Lifetimes](Objects.md).
 
 - **The mode** (`app.mode()`) is the `MODE` environment variable, else `NODE_ENV`, else the `mode` option, else
   `development`, written back to both variables. 2.x took the option (`development` by default) and overwrote
@@ -191,7 +191,7 @@ See [Application](Application.md) and [Objects](Objects.md).
 
 ### The entrypoint
 
-See [HTTP](HTTP.md), section 8, and [ServiceCalls](ServiceCalls.md).
+See [HTTP](HTTP.md), section 8, and [Service Calls](ServiceCalls.md).
 
 - **The transport functions of 2.x still work** under `http`, `cli` and `service` (renamed `buildHTTPEntrypoint`…).
   They are called when the entrypoint starts and their promise is awaited: the launch waits for the server, a rejection
@@ -216,7 +216,7 @@ See [HTTP](HTTP.md), section 8, and [ServiceCalls](ServiceCalls.md).
 
 ### The components
 
-See [Database](Database.md), [DockerIntegration](DockerIntegration.md) and [Logger](Logger.md).
+See [Databases](Database.md), [Docker Integration](DockerIntegration.md) and [Logging](Logger.md).
 
 - **Database**: a `null` or `undefined` value in a where condition is still left out (`invalidWhereValuesBehavior`),
   so `findOneBy({id: undefined})` returns the first row: check the values taken from requests. With table or column
@@ -276,7 +276,7 @@ Application
   same kind, to compare its `package.json`, `tsconfig.json` and scripts, and for Electron its preload script. `--init`
   creates it in an existing directory, keeps the files already there and lists the ones it did not copy.
 - `lakutata migration generate|create|run|revert|show` runs the migrations (the `MIGRATION_*` environment variables of
-  2.x still work); `lakutata package bundle|exe|installer` packs the application. See [Command](Command.md).
+  2.x still work); `lakutata package bundle|exe|installer` packs the application. See [Command-Line Tool](Command.md).
 
 ## 6. Checking the upgrade
 

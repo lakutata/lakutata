@@ -18,7 +18,7 @@ rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/Greet
 rm packages/app/src/middlewares/Authenticate.ts
 ```
 
-项目是一个工作区（见 [ProjectStructure](../ProjectStructure.md)）：`packages/app` 是应用，`packages/ui` 是 React 页面。这里删掉了模板中的示例控制器，也删掉了中间件 `Authenticate.ts`：它要求请求带上一个令牌，而浏览器中的页面无法保管这样的秘密。任何能访问到应用的人都能使用这份清单，在家庭网络中这没有问题；其他场合的做法见第 11 节。
+项目是一个工作区（见[项目结构](../ProjectStructure.md)）：`packages/app` 是应用，`packages/ui` 是 React 页面。这里删掉了模板中的示例控制器，也删掉了中间件 `Authenticate.ts`：它要求请求带上一个令牌，而浏览器中的页面无法保管这样的秘密。任何能访问到应用的人都能使用这份清单，在家庭网络中这没有问题；其他场合的做法见第 11 节。
 
 ## 2. 清单
 
@@ -70,7 +70,7 @@ export class ShoppingList extends Component {
 }
 ```
 
-控制器只在一个请求期间存在（见 [Controllers](../Controllers.md)），所以清单不能放在控制器里，而是放在组件中：组件只创建一次，由整个应用共用（见 [Objects](../Objects.md)）。清单保存在内存中，应用停止后就会丢失（见第 11 节）。
+控制器只在一个请求期间存在（见[控制器与动作](../Controllers.md)），所以清单不能放在控制器里，而是放在组件中：组件只创建一次，由整个应用共用（见[对象与生命周期](../Objects.md)）。清单保存在内存中，应用停止后就会丢失（见第 11 节）。
 
 ## 3. 输入
 
@@ -97,7 +97,7 @@ export class ItemIdDTO extends DTO {
 }
 ```
 
-每个动作在运行前都会用 DTO 校验输入，拒绝不合法的输入（见 [DTOValidation](../DTOValidation.md)）：
+每个动作在运行前都会用 DTO 校验输入，拒绝不合法的输入（见 [DTO 与数据校验](../DTOValidation.md)）：
 
 - 规则默认是严格的：只写 `.trim()` 时，`'  Bread  '` 会被拒绝；加上 `.strict(false)` 后，它会去掉两端的空格，只含空格的名称去掉空格后为空，会被拒绝；
 - 路由中的 `:id` 是文本：`.strict(false)` 把 `'1'` 转换为数字 1。
@@ -334,7 +334,7 @@ export function App() {
 npm run dev
 ```
 
-这条命令同时运行两个包的 `dev` 脚本（见 [Workspaces](../Workspaces.md)）：应用先构建，再在 8080 端口监听；Vite 在 http://localhost:5173 上直接用源码提供页面，源码改动后浏览器中的页面会随之更新。打开 http://localhost:5173 即可。模板中的 `vite.config.ts` 把 `/api` 下的请求转发给应用：
+这条命令同时运行两个包的 `dev` 脚本（见[工作区](../Workspaces.md)）：应用先构建，再在 8080 端口监听；Vite 在 http://localhost:5173 上直接用源码提供页面，源码改动后浏览器中的页面会随之更新。打开 http://localhost:5173 即可。模板中的 `vite.config.ts` 把 `/api` 下的请求转发给应用：
 
 ```typescript
 server: {
@@ -499,7 +499,7 @@ curl -I localhost:8080/assets/index-D0SES_81.js
 }
 ```
 
-打包后的应用会带上它的资源，`resourcesPath()` 给出资源所在的目录，`uiDirectory()`（见第 5 节）就在那里找到页面（见 [Packaging](../Packaging.md)）。以单文件包为例：
+打包后的应用会带上它的资源，`resourcesPath()` 给出资源所在的目录，`uiDirectory()`（见第 5 节）就在那里找到页面（见[打包](../Packaging.md)）。以单文件包为例：
 
 ```bash
 npm install --save-dev @lakutata/builder
@@ -516,5 +516,5 @@ npx lakutata package bundle
 `dist/app.cjs` 和 `dist/app.resources` 就是整个应用：把它们一起复制到装有 Node.js 的机器上，运行 `node app.cjs` 就能提供 API 和页面，不需要 `node_modules`。
 
 - `npm run docker:build` 用模板中的 `Dockerfile` 构建应用的镜像，页面也包含在内。
-- 应用停止后清单就会丢失：可以像 [带数据库的 REST API](RestAPI.md) 那样把它保存到数据库中。
-- 任何能访问到应用的人都能修改清单。在家庭网络之外，请把它放在要求登录的反向代理后面，或者在中间件中验证用户身份（见 [Middlewares](../Middlewares.md)）。
+- 应用停止后清单就会丢失：可以像[带数据库的 REST API](RestAPI.md) 那样把它保存到数据库中。
+- 任何能访问到应用的人都能修改清单。在家庭网络之外，请把它放在要求登录的反向代理后面，或者在中间件中验证用户身份（见[中间件与访问控制](../Middlewares.md)）。

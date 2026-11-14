@@ -2,7 +2,7 @@
 
 English | [中文](README.zh-CN.md)
 
-The builder for lakutata applications. The `package bundle`, `package exe` and `package installer` commands of
+The builder for Lakutata applications. The `package bundle`, `package exe` and `package installer` commands of
 `@lakutata/cli` use it, and a project's scripts can call it directly:
 
 ```js
@@ -26,7 +26,7 @@ what they load at run time, into a native tree. The tree also holds the files th
 which the bundler does not follow: the scripts it runs on their own (workers, worker pools, `fork()`,
 `require(path.join(__dirname, 'x.js'))`) are bundled, and its data files and directories are copied. The builder finds
 the paths built from a module's location and rewrites them; whatever it cannot ship is listed in the `warnings` of the
-result. At run time, `resourcesPath()` from lakutata locates the application's resources, declared by
+result. At run time, `resourcesPath()` from `lakutata` locates the application's resources, declared by
 `lakutata.resources` in its `package.json`. The installers are configured by `lakutata.installer` in the same file. See
 `lakutata package bundle`, `lakutata package exe` and `lakutata package installer` in the `@lakutata/cli`
 documentation.

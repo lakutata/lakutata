@@ -1,4 +1,4 @@
-# Thermal Printers
+# Lakutata Thermal Printers
 
 Receipts, labels and wristbands are written in HTML and CSS, rendered to the printer's own dots, and sent as its
 commands. Three packages do it:
@@ -257,7 +257,7 @@ async function serial(): Promise<void> {
 | `ThermalOptionException` | Options the engine refuses: media, commands |
 | `ThermalContentException` | HTML it cannot render: a picture that cannot be read, a file outside `baseDir` |
 | `ThermalFontException` | A font it cannot use |
-| `ThermalTimeoutException`, `ThermalCancelledException` | A rendering past its `timeout`, or cancelled by its `signal` |
+| `ThermalTimeoutException`, `ThermalCancelledException` | A rendering past its `timeout`, or canceled by its `signal` |
 | `ThermalPrinterConnectionException` | A printer that cannot be reached, or takes no data for its stall timeout |
 | `ThermalPrinterOptionException` | A printer definition that is not one |
 | `SerialException` | A serial port or Bluetooth device that fails; its `code` names the error, `disconnected` an unplugged device |

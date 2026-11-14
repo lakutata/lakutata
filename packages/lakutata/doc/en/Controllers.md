@@ -85,10 +85,10 @@ $ node dist/index.js order 42
 1. The adapter receives the request and looks for the action at its address. When there is none, the transport answers
    that it is not found (404 over HTTP).
 2. A new scope is created for the request.
-3. The middlewares run (see [Middlewares](Middlewares.md)).
+3. The middlewares run (see [Middlewares and Access Control](Middlewares.md)).
 4. A new instance of the controller is created in the scope.
 5. The DTO of the action validates the input (section 4).
-6. The access control checks the request (see [Middlewares](Middlewares.md)).
+6. The access control checks the request (see [Middlewares and Access Control](Middlewares.md)).
 7. The method is called with the input, and what it returns is the response (section 5).
 8. The scope is destroyed, with the objects created in it.
 
@@ -107,7 +107,7 @@ Inside the method, two properties describe the request:
   | `CLIContext` | `'CLI'` | `command` (the command as declared) |
   | `ServiceContext` | `'SERVICE'` | `clientId`, `input` (the whole message) |
   | `ScheduleContext` | `'SCHEDULE'` | `schedule`, `scheduledAt`, `run` |
-  | `QueueContext` (`lakutata/com/queue`) | `'QUEUE'` | See [Queue](Queue.md) |
+  | `QueueContext` (`lakutata/com/queue`) | `'QUEUE'` | See [Queues](Queue.md) |
 
   Every context also has `data`, the input as it arrived (before validation), and `locale`, the language of the
   request when the I18n middleware is used.
@@ -121,11 +121,11 @@ Inside the method, two properties describe the request:
 | Decorator | Address | Guide |
 |---|---|---|
 | `@GET(route)`, `@POST`, `@PUT`, `@PATCH`, `@DELETE`, `@HEAD`, `@OPTIONS`, `@HTTPAction(route, methods)` | An HTTP route | [HTTP](HTTP.md) |
-| `@CLIAction(command)` | A command | [CLI](CLI.md) |
-| `@ServiceAction(pattern)` | A service pattern | [ServiceCalls](ServiceCalls.md), [GRPC](GRPC.md), [NATS](NATS.md) |
-| `@Schedule(schedule)` | An interval or a cron expression | [Schedules](Schedules.md) |
-| `@QueueAction(queue)` (`lakutata/com/queue`) | A message queue | [Queue](Queue.md) |
-| `@MCPTool(name)` (`@lakutata/mcp`), `@DBusMethod(...)` (`@lakutata/dbus`) | An MCP tool, a D-Bus method | [MCP](MCP.md), [DBus](DBus.md) |
+| `@CLIAction(command)` | A command | [Command Line](CLI.md) |
+| `@ServiceAction(pattern)` | A service pattern | [Service Calls](ServiceCalls.md), [gRPC](GRPC.md), [NATS](NATS.md) |
+| `@Schedule(schedule)` | An interval or a cron expression | [Scheduled Jobs](Schedules.md) |
+| `@QueueAction(queue)` (`lakutata/com/queue`) | A message queue | [Queues](Queue.md) |
+| `@MCPTool(name)` (`@lakutata/mcp`), `@DBusMethod(...)` (`@lakutata/dbus`) | An MCP tool, a D-Bus method | [MCP](MCP.md), [D-Bus](DBus.md) |
 
 The decorators of the first five rows come from `lakutata/decorator/ctrl`, unless the table names another subpath.
 They take the address first, then the DTO class of the input, then the action options; the DTO and the options can be
@@ -137,7 +137,7 @@ The action options:
 |---|---|---|
 | `name` | `'ControllerClass:method'` | The name of the action, unique for each transport |
 | `description` | | A description: the help of a command, the listing of the actions |
-| `middlewares` | | The middlewares of this action (see [Middlewares](Middlewares.md)) |
+| `middlewares` | | The middlewares of this action (see [Middlewares and Access Control](Middlewares.md)) |
 | `acl` | `false` | Check the request with the access rules of the entrypoint |
 | `rule` | | An access rule of this action: `(context, input) => Promise<boolean>` |
 | `groups` | | The groups of the action, used by the access rules and the listings (see [Entrypoint](Entrypoint.md)) |
@@ -158,7 +158,7 @@ The DTO of the action then validates it:
 
 - the values of the query and of the route parameters are text: a schema that expects a number or a boolean needs
   `.strict(false)` to convert `'42'` or `'true'`. The command line gives its arguments and options the type of their
-  property itself ([CLI](CLI.md));
+  property itself ([Command Line](CLI.md));
 - the defaults are applied, and the keys the DTO does not declare are removed (`extra` above);
 - an invalid input stops the request with an `InvalidValueException`, answered with the status 400 over HTTP. The
   message names the first invalid value: `"product" is required`. With the I18n middleware, it is in the language of

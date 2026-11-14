@@ -1,4 +1,4 @@
-# LDAP
+# Lakutata LDAP
 
 An application signs its users in against a directory (OpenLDAP, Active Directory, 389 Directory Server…), reads and
 writes it, or serves a directory of its own to other software (SSSD, Keycloak, Gitea, Jenkins, Grafana, NAS devices…).
@@ -318,8 +318,8 @@ one row per value.
 - A sorted search is sorted by the backend, which reads only the entries of the window (`window`): a window by an offset
   is ordered, counted and cut by the database on a sort key kept with each value; otherwise the backend reads the values
   of the sort keys and orders the entries by them as the server would. After the schema changes the ordering rule of an
-  attribute, its values written before keep their old sort keys until they are written again. An entry without a value of
-  a sort key comes after the others, and before them in reverse (RFC 2891). With `access.check` (unless
+  attribute, its values written before keep their old sort keys until they are written again. An entry without a value
+  of a sort key comes after the others, and before them in reverse (RFC 2891). With `access.check` (unless
   `access.checkReads` is false, as for a check that does not decide reads), or an interceptor that removes entries from
   searches, the server sorts and windows a virtual list view itself, within `limits.sortCandidates`, so that its counts
   leave out what the session may not read.
@@ -375,7 +375,7 @@ one row per value.
 ## 8. Plugins, interceptors and backends
 
 The plugins and interceptors are those of the engine (section 13 of LDAP Engine: memberOf, referential integrity,
-unique values, the password policy, audit, constraints…). The component takes each as an object, or as a lakutata
+unique values, the password policy, audit, constraints…). The component takes each as an object, or as a Lakutata
 class with its options, built in the component's container:
 
 ```typescript
@@ -420,8 +420,8 @@ const options = buildLDAPServerOptions({
   it may inject the application's components (a database, a logger).
 - The directory backend does the work of `MemberOfPlugin`, `ReferentialIntegrityPlugin`, `IdAllocationPlugin` and
   `LastBindPlugin` itself, in the transaction of each write: these plugins leave its chain, and the others run for it.
-- `interceptors` takes interceptors alone: objects, placements, or lakutata classes with their options.
-- A backend of one's own (section 14 of LDAP Engine) is an object, or a lakutata class with its options,
+- `interceptors` takes interceptors alone: objects, placements, or Lakutata classes with their options.
+- A backend of one's own (section 14 of LDAP Engine) is an object, or a Lakutata class with its options,
   `{class: DevicesBackend, suffix: 'ou=devices,dc=example,dc=com'}`, built in the container of the component: it may
   inject the application's components, its database among them. Several backends serve several suffixes.
 
@@ -456,13 +456,13 @@ const options = buildLDAPServerOptions({
 
 ## 10. The engine alone
 
-Outside a lakutata application, `@lakutata/ldap-engine` gives the same client and server as functions:
+Outside a Lakutata application, `@lakutata/ldap-engine` gives the same client and server as functions:
 `createLDAPClient()`, `connectLDAP()` and `createLDAPServer()`. The [LDAP Engine](LDAPEngine.md) guide describes them.
 
 ## 11. Platforms
 
 Node.js `>=18.10.0`, Bun, Electron and NW.js. The engine has no native code. The directory backend runs on the
-databases of `lakutata/orm`, with what their drivers need in Electron and Bun ([DatabaseDrivers](DatabaseDrivers.md)):
+databases of `lakutata/orm`, with what their drivers need in Electron and Bun ([Database Drivers](DatabaseDrivers.md)):
 in Bun, where better-sqlite3 does not load, it runs on `sqljs`, PostgreSQL or MySQL.
 
 ## Exceptions

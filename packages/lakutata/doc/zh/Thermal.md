@@ -1,4 +1,4 @@
-# 热敏打印机
+# Lakutata 热敏打印机
 
 小票、标签和腕带用 HTML 和 CSS 编排，渲染成打印机自己的点阵，再以打印机的指令发出去。由三个包完成：
 
@@ -187,7 +187,7 @@ console.log(escpos.length)
 
 ## 8. 串口和蓝牙设备
 
-`@lakutata/serial` 把串口作为流打开，用于打印机和其他任何串口设备（它有单独的指南 [Serial](Serial.md)）：
+`@lakutata/serial` 把串口作为流打开，用于打印机和其他任何串口设备（它有单独的指南[串口](Serial.md)）：
 
 ```typescript
 import {listSerialPorts, openBluetoothSerial, openSerialPort} from '@lakutata/serial'

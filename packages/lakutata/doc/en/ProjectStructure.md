@@ -89,7 +89,7 @@ The other templates add to this layout:
   (the actions are under `/api`). The `lakutata.resources` of the application ship the built pages in its packed forms.
 - `web-next` and `web-nuxt`: `packages/ui`, a Next.js or Nuxt application that the application renders in the same
   process.
-- `cli`: a command line tool (`commanderCLIEntrypoint`), with the scripts `package:bundle` and `package:exe` that pack
+- `cli`: a command-line tool (`commanderCLIEntrypoint`), with the scripts `package:bundle` and `package:exe` that pack
   it into `dist/` ([Packaging](Packaging.md)).
 - `electron-react` and `electron-vue`: the main process of Electron in `packages/app` (its window and its service
   actions over IPC), the renderer in `packages/ui`, and the scripts that make the installers.
@@ -117,7 +117,7 @@ outputs of the interfaces.
 
 | Feature | Templates | What it adds |
 |---|---|---|
-| `i18n` | all | The messages of the languages in `src/locales` (`en`, `zh-CN`), the `i18n` component, the language middleware, and the scripts `i18n:check` and `i18n:types` ([I18n](I18n.md)) |
+| `i18n` | all | The messages of the languages in `src/locales` (`en`, `zh-CN`), the `i18n` component, the language middleware, and the scripts `i18n:check` and `i18n:types` ([Internationalization (i18n)](I18n.md)) |
 | `installer` | `cli`, `service`, `web-*` | The `lakutata.installer` of the application, the scripts that make the installers (on the machine, and for Linux in Docker), and for the services a system service ([Installers](Installers.md)) |
 | `win7` | `nwjs-*` | NW.js 0.72.0 instead of the release the template was published with: the last release running on Windows 7, 8 and 8.1, and the script `package:ia32` that makes the installers of 32-bit Windows |
 

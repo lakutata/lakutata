@@ -2,7 +2,7 @@
 
 An object does not create the objects it uses: it declares them, and the container provides them when it creates the
 object. This page covers `@Inject` and `@Autoload`, the options of objects (`@Configurable`), and sharing a feature
-between applications as a package. [Decorator](Decorator.md), section 1, gives every rule of these decorators.
+between applications as a package. [Decorators](Decorator.md), section 1, gives every rule of these decorators.
 
 ## 1. Injecting objects
 
@@ -116,7 +116,7 @@ Application
     })
 ```
 
-[Decorator](Decorator.md), section 1.2, gives the order in which a value is chosen (the configured value, the
+[Decorators](Decorator.md), section 1.2, gives the order in which a value is chosen (the configured value, the
 initializer, the default of the schema) and the checks made at launch.
 
 ## 3. Sharing features between applications

@@ -2,7 +2,7 @@
 
 English | [中文](README.zh-CN.md)
 
-Barcodes and QR codes for the [lakutata](https://github.com/lakutata/lakutata) framework: a component that generates
+Barcodes and QR codes for the [Lakutata](https://github.com/lakutata/lakutata) framework: a component that generates
 them (PNG, SVG or pixels) and reads them from images, in a native addon built on [zint](https://zint.org.uk) (the
 generation) and [zxing-cpp](https://github.com/zxing-cpp/zxing-cpp) (the reading). Every format it generates, it reads
 back: 32 linear and matrix formats, from EAN-13 and Code 128 to QR Code, Data Matrix, PDF417 and Aztec. The work runs in
@@ -26,7 +26,7 @@ npm install @lakutata/barcode
 - Node.js `>=18.10.0`.
 - The addon uses Node-API, so Bun and the main process of Electron load the addon node-gyp built for Node.js, without a
   rebuild.
-- In a mobile application of React Native (the mobile template of lakutata), `lakutata mobile stage` compiles the addon
+- In a mobile application of React Native (the mobile template of Lakutata), `lakutata mobile stage` compiles the addon
   for Android, iOS and HarmonyOS, with the NDK, Xcode and the toolchain of DevEco Studio.
 
 ## Usage
@@ -172,13 +172,13 @@ default options; the options of the configuration do not apply to it.
 | `drainTimeout` | how long its destruction waits for the operations running; 10000 milliseconds by default |
 
 Every call also takes a `signal` and a `timeout`, which count from the call. An operation waiting for its turn is
-dropped when it is cancelled or timed out; one already running cannot be stopped (zint and zxing-cpp have no
+dropped when it is canceled or timed out; one already running cannot be stopped (zint and zxing-cpp have no
 checkpoint): its promise is rejected at once and its result discarded when it ends. The addon runs its operations in
 its own threads (`LAKUTATA_BARCODE_THREADS`, else the processors less one), not in the thread pool of libuv.
 
 ### Without the container
 
-A script, a test or code outside of a lakutata application takes the component from a `Container`:
+A script, a test or code outside of a Lakutata application takes the component from a `Container`:
 
 ```typescript
 import {Container} from 'lakutata'
@@ -213,7 +213,7 @@ await container.destroy()
 | `BarcodeTimeoutException` | The time limit of the operation passed |
 | `BarcodeCancelledException` | The signal of the operation aborted, or the component destroyed |
 | `BarcodeException` | The base of the others, thrown itself for an internal error of the addon |
-| `InvalidMethodAcceptException` (lakutata) | An argument of the wrong type: an unknown format, a color not written `#RRGGBB`, a `scale` that is not an integer from 1 to 100 |
+| `InvalidMethodAcceptException` (`lakutata`) | An argument of the wrong type: an unknown format, a color not written `#RRGGBB`, a `scale` that is not an integer from 1 to 100 |
 
 ## See also
 

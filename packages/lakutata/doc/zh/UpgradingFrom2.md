@@ -2,7 +2,7 @@
 
 本页说明如何把项目从 Lakutata 2.x（最后一个版本是 2.0.126）升级到 3.x：怎样区分两个版本、升级步骤、改名和移动了的 API、编译器不会报告的行为变化，以及如何检查升级结果。
 
-本页只适用于依赖 `lakutata` 包 2.x 版本的项目。Lakutata 1.x 的项目依赖的是 1.x 版本的 `@lakutata/core`，以及 `@lakutata-component/*` 或 `@lakutata-module/*` 包：这类项目请看 [UpgradingFrom1](UpgradingFrom1.md)，不要按本页升级。
+本页只适用于依赖 `lakutata` 包 2.x 版本的项目。Lakutata 1.x 的项目依赖的是 1.x 版本的 `@lakutata/core`，以及 `@lakutata-component/*` 或 `@lakutata-module/*` 包：这类项目请看[从 Lakutata 1.x 升级](UpgradingFrom1.md)，不要按本页升级。
 
 ## 1. 区分 2.x 和 3.x
 
@@ -38,7 +38,7 @@
 ```
 
 - **相对导入**以 `.js` 结尾（`import {config} from './config/Config.js'`），和 2.x 的 ES 模块项目一样。
-- **所用功能的库**是 `lakutata` 的可选对等依赖，需要项目自己安装（2.x 项目已经装了自己的传输方式所导入的那些）；见 [GettingStarted](GettingStarted.md) 第 3 节：
+- **所用功能的库**是 `lakutata` 的可选对等依赖，需要项目自己安装（2.x 项目已经装了自己的传输方式所导入的那些）；见[快速开始](GettingStarted.md)第 3 节：
 
 | 使用了 | 安装 |
 |---|---|
@@ -114,7 +114,7 @@ ORM 从 TypeORM 0.3.24 升级到 TypeORM 1.1.2，其源码已并入 `@lakutata/o
 
 ### 应用及其对象
 
-见 [Application](Application.md) 和 [Objects](Objects.md)。
+见[应用](Application.md)和[对象与生命周期](Objects.md)。
 
 - **运行模式**（`app.mode()`）依次取环境变量 `MODE`、`NODE_ENV`、`mode` 选项，都没有时为 `development`，并写回这两个环境变量。2.x 使用的是 `mode` 选项（默认为 `development`），并用它覆盖 `NODE_ENV`：现在设置了 `NODE_ENV=production` 的部署环境会以生产模式运行，不论选项怎么写。
 - **SIGTERM 和 SIGINT** 会让应用平稳退出（运行 `onDone`，入口停止，对象被销毁，退出码为 0）；2.x 把它们交给 Node.js 处理。请删除应用自己的 `process.on('SIGTERM', …)`，或者设置 `shutdownSignals: false`。`onDone` 处理函数会收到第三个参数 `{code, signal?}`。
@@ -138,7 +138,7 @@ ORM 从 TypeORM 0.3.24 升级到 TypeORM 1.1.2，其源码已并入 `@lakutata/o
 
 ### 入口
 
-见 [HTTP](HTTP.md) 第 8 节和 [ServiceCalls](ServiceCalls.md)。
+见 [HTTP](HTTP.md) 第 8 节和[服务调用](ServiceCalls.md)。
 
 - **2.x 的传输方式函数仍然可用**，放在 `http`、`cli` 和 `service` 下（改名为 `buildHTTPEntrypoint` 等）。入口启动时调用它们，并等待它们返回的 promise：启动会等待服务器就绪，promise 被拒绝（例如端口被占用）时启动失败，而等待一个长时间运行的命令（`await program.parseAsync()`）的函数会让启动一直等到命令结束。请不要 `await` 这个调用，或者改用 `commanderCLIEntrypoint()`。
 - **改用适配器**：手写的 Express 服务器的中间件和路由放进 `expressHTTPEntrypoint()` 的 `before` 钩子，请求体的大小限制放进 `body`，它构造的输入放进 `input`。响应会变化：HTTP 适配器用错误的状态码和 `{errno, errMsg}` 响应错误，而 `jsonEnvelope({actionErrorStatus: 200, extra})` 能给出 2.x 应用常常自己写的 `{errno, errMsg, data}` 封套（见下面的例子）。服务适配器（HTTP 服务、Socket.IO、JSON-RPC、Electron）以 `{success, error, payload}` 响应。
@@ -148,7 +148,7 @@ ORM 从 TypeORM 0.3.24 升级到 TypeORM 1.1.2，其源码已并入 `@lakutata/o
 
 ### 组件
 
-见 [Database](Database.md)、[DockerIntegration](DockerIntegration.md) 和 [Logger](Logger.md)。
+见[数据库](Database.md)、[Docker 集成](DockerIntegration.md)和[日志](Logger.md)。
 
 - **数据库**：where 条件中值为 `null` 或 `undefined` 的字段仍然会被忽略（`invalidWhereValuesBehavior`），所以 `findOneBy({id: undefined})` 会返回第一行：请检查从请求中取得的值。表名或列名含有非 ASCII 字符时，TypeORM 1 生成索引和约束名称的方式不同：`namingStrategy: new NamingStrategyV03()`（来自 `lakutata/orm`）保留 TypeORM 0.3 的名称。
 - **Docker**：`exec()` 的结果是 `{exitCode, stdout, stderr}`（2.x 是字符串形式的输出）；`exec()` 和 `createTTY()` 中字符串形式的 `cmd` 通过 `/bin/sh -c` 运行，`createTTY()` 默认运行 `/bin/sh`（2.x 是 `bash`）。
@@ -199,7 +199,7 @@ Application
 ## 5. 有用的工具
 
 - `lakutata create --name probe --template <模板> --path <一个临时目录>` 创建一个同类的全新 3.x 项目，用来对照它的 `package.json`、`tsconfig.json` 和脚本，Electron 项目还可以对照它的预加载脚本。`--init` 在已有的目录中创建项目，保留目录中已有的文件，并列出没有复制的文件。
-- `lakutata migration generate|create|run|revert|show` 运行数据库迁移（2.x 的 `MIGRATION_*` 环境变量仍然有效）；`lakutata package bundle|exe|installer` 打包应用。见 [Command](Command.md)。
+- `lakutata migration generate|create|run|revert|show` 运行数据库迁移（2.x 的 `MIGRATION_*` 环境变量仍然有效）；`lakutata package bundle|exe|installer` 打包应用。见[命令行工具](Command.md)。
 
 ## 6. 检查升级结果
 

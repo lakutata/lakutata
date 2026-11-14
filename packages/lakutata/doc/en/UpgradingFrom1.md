@@ -6,8 +6,8 @@ with a different API, so a 1.x project is ported to it rather than upgraded in p
 it and what each part of 1.x becomes.
 
 It is for the projects that depend on `@lakutata/core` at version 1. A project that depends on the package `lakutata` at
-version 2 follows [UpgradingFrom2](UpgradingFrom2.md), not this page. The 1.x packages covered are those published on
-npm (`@lakutata/core` 1.0.60, `@lakutata-module/service` 1.2.7, `@lakutata-module/api` 1.0.29,
+version 2 follows [Upgrading from Lakutata 2.x](UpgradingFrom2.md), not this page. The 1.x packages covered are those
+published on npm (`@lakutata/core` 1.0.60, `@lakutata-module/service` 1.2.7, `@lakutata-module/api` 1.0.29,
 `@lakutata-component/typeorm` 1.1.19, `@lakutata-component/cacher` 1.0.15, `@lakutata/cli` 1.0.37); builds of these
 packages obtained elsewhere may have APIs that this page does not cover.
 
@@ -30,8 +30,8 @@ which brings its own `@lakutata/core`.
 ## 2. The way to port
 
 1. **Create a 3.x project** next to the 1.x one, from the template of its kind: `service` for a service or a gateway
-   (an HTTP API, a health check, a `Dockerfile`), `cli` for a command line tool
-   ([GettingStarted](GettingStarted.md)):
+   (an HTTP API, a health check, a `Dockerfile`), `cli` for a command-line tool
+   ([Getting Started](GettingStarted.md)):
 
    ```bash
    npx @lakutata/cli create --name orders --template service
@@ -52,7 +52,7 @@ all change at once.
 
 ## 3. The application and its objects
 
-See [Application](Application.md), [Objects](Objects.md) and [Injection](Injection.md).
+See [Application](Application.md), [Objects and Lifetimes](Objects.md) and [Dependency Injection](Injection.md).
 
 | 1.x | 3.x |
 |---|---|
@@ -150,7 +150,7 @@ export class Orders extends Component {
 | `@lakutata-module/api` | `lakutata/adapter/express` or `lakutata/adapter/fastify`, with `@GET`, `@POST`… (section 6) |
 | `@lakutata-component/typeorm` | `lakutata/com/database`, `lakutata/orm`, `lakutata/decorator/orm` (section 8) |
 | `@lakutata-component/cacher` | `lakutata/com/cacher` (section 8) |
-| `@lakutata/cli` 1.0 (`lakutata`, `lakutata-deploy`) | `@lakutata/cli` 3: `lakutata create`, `run`, `migration`, `package`… ([Command](Command.md)); no deploy command |
+| `@lakutata/cli` 1.0 (`lakutata`, `lakutata-deploy`) | `@lakutata/cli` 3: `lakutata create`, `run`, `migration`, `package`… ([Command-Line Tool](Command.md)); no deploy command |
 | The other `@lakutata-component/*` packages | No counterpart: keep what they did in the application, or use another library |
 
 Import only from these subpaths: 3.x does not support imports from the files inside a package (1.x projects sometimes
@@ -161,12 +161,12 @@ imported from `/distro/…`, `/src/…` or `/build/…` of a package).
 In 1.x, each application had a `service` module: it registered its controllers with a registry application (backed by
 Redis), and called the actions of the others with `invoke({serviceId, data, timeout})`; its channels carried events
 between the services. In 3.x there is no registry application: the `entrypoint` component serves the service actions
-over a transport, and a proxy calls them ([ServiceCalls](ServiceCalls.md)):
+over a transport, and a proxy calls them ([Service Calls](ServiceCalls.md)):
 
 - **NATS** ([NATS](NATS.md)) is the closest to the 1.x model: the services share one NATS server, address each other
   by their application id (as the `serviceId` of 1.x), balance the calls between the instances of a service, and
   publish events. Its `ServiceProxy` calls another service; the NATS server replaces the registry application.
-- **The HTTP service** with `HTTPServiceProxy`, or **gRPC** ([GRPC](GRPC.md)), call a service at a known address.
+- **The HTTP service** with `HTTPServiceProxy`, or **gRPC** ([gRPC](GRPC.md)), call a service at a known address.
 
 A 1.x controller of the service module:
 
@@ -234,7 +234,7 @@ Application.run(() => ({
 - **The input.** The action receives the message without the keys of its pattern: a method that read `inp.batch` or
   `inp._act` reads them from `this.context.input`, the whole message. Fields that a gateway added to every message (the
   id of the user, of the organization) stay ordinary fields of the DTOs, or move to a middleware
-  ([Middlewares](Middlewares.md)).
+  ([Middlewares and Access Control](Middlewares.md)).
 - **Calls.** `this.app.Modules.service.invoke({serviceId, data, timeout})` becomes `this.users.invoke(message, timeout)`
   on an injected proxy. A failed action throws a `ServiceInvokeException` that carries the `errno` and the other
   properties of the remote error. The `transform` option and the chains of several invoke objects have no counterpart:
@@ -246,9 +246,9 @@ Application.run(() => ({
   (`nats.publish(subject, payload)`) and subscribe with the id of the service as the queue group
   (`nats.subscribe(subject, handler, {queue: app.appId})`): the instances of a service share the group.
 - **Work shared by the instances.** A job that one instance of a service must take, such as the processing of a
-  stream of data, fits a message queue ([Queue](Queue.md)): the instances of a group share its messages, with retries.
+  stream of data, fits a message queue ([Queues](Queue.md)): the instances of a group share its messages, with retries.
 - **A clock service.** An application that published timer ticks to the others is replaced by `@Schedule` in each
-  service, with `exclusive` for the jobs that must run in one instance only ([Schedules](Schedules.md)).
+  service, with `exclusive` for the jobs that must run in one instance only ([Scheduled Jobs](Schedules.md)).
 
 ## 6. The HTTP API
 
@@ -316,12 +316,12 @@ Application.run(() => ({
   needs a middleware that adds them.
 - A server that a 1.x component started itself (an HTTP server for Socket.IO, another web framework) can stay in a
   component, started in `startup()` and closed in `destroy()`. A `socketIOServiceEntrypoint()` can also share the
-  server of the HTTP adapter and serve the service actions over Socket.IO ([ServiceCalls](ServiceCalls.md), section 4).
+  server of the HTTP adapter and serve the service actions over Socket.IO ([Service Calls](ServiceCalls.md), section 4).
 
 ## 7. Validation
 
 The `Validator` of 1.x builds yup schemas; 3.x validates with DTO classes, whose schemas have the API of joi
-([DTOValidation](DTOValidation.md)). A 1.x pair of a schema and a type becomes one DTO class:
+([DTO and Validation](DTOValidation.md)). A 1.x pair of a schema and a type becomes one DTO class:
 
 | 1.x (`Validator`, yup) | 3.x (`DTO`) |
 |---|---|
@@ -347,8 +347,8 @@ The `Validator` of 1.x builds yup schemas; 3.x validates with DTO classes, whose
 
 ## 8. Databases and caches
 
-**The database.** The `TypeOrmComponent` of 1.x becomes the `Database` component, declared with
-`buildDatabaseOptions()` ([Database](Database.md), [Entities](Entities.md)). The ORM is TypeORM 1.1 (1.x used 0.3):
+**The database.** The `TypeOrmComponent` of 1.x becomes the `Database` component, declared with `buildDatabaseOptions()`
+([Databases](Database.md), [Entities, Queries and Transactions](Entities.md)). The ORM is TypeORM 1.1 (1.x used 0.3):
 
 | 1.x | 3.x |
 |---|---|

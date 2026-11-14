@@ -20,7 +20,7 @@ rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/Greet
 echo '*.sqlite' >> .gitignore
 ```
 
-项目是一个工作区，服务在 `packages/app` 中（见 [ProjectStructure](../ProjectStructure.md)）。服务通过 `better-sqlite3` 驱动使用 SQLite，所以要安装这个驱动；[DatabaseDrivers](../DatabaseDrivers.md) 中的其他数据库用法相同，只是驱动和选项不同。这里还删掉了模板中的示例控制器，并让 git 忽略数据库文件。
+项目是一个工作区，服务在 `packages/app` 中（见[项目结构](../ProjectStructure.md)）。服务通过 `better-sqlite3` 驱动使用 SQLite，所以要安装这个驱动；[数据库驱动](../DatabaseDrivers.md)中的其他数据库用法相同，只是驱动和选项不同。这里还删掉了模板中的示例控制器，并让 git 忽略数据库文件。
 
 ## 2. 实体
 
@@ -48,7 +48,7 @@ export class Task {
 }
 ```
 
-实体是一个类，它的装饰器（来自 `lakutata/decorator/orm`）描述对应的表：`tasks` 表有一个由数据库生成的 id、一个标题、是否已完成，以及创建时间（见 [Entities](../Entities.md)）。
+实体是一个类，它的装饰器（来自 `lakutata/decorator/orm`）描述对应的表：`tasks` 表有一个由数据库生成的 id、一个标题、是否已完成，以及创建时间（见[实体、查询与事务](../Entities.md)）。
 
 ## 3. 输入
 
@@ -95,7 +95,7 @@ export class TaskSearchDTO extends PaginationSearchDTO {
 }
 ```
 
-每个动作在运行前都会用 DTO 校验输入，不合法的输入会得到 400 错误（见 [DTOValidation](../DTOValidation.md)）：
+每个动作在运行前都会用 DTO 校验输入，不合法的输入会得到 400 错误（见 [DTO 与数据校验](../DTOValidation.md)）：
 
 - HTTP 动作的输入由路由参数、请求体和查询字符串合并而成；
 - 路由参数和查询字符串都是文本：`.strict(false)` 把 `'1'` 转换为数字 1，把 `'false'` 转换为布尔值，否则这些规则会拒绝文本；
@@ -119,7 +119,7 @@ export class TaskNotFoundException extends Exception {
 }
 ```
 
-异常有一个 `errno`，客户端用它判断是哪种错误；还有回复这个错误时使用的 HTTP 状态码（见 [Exceptions](../Exceptions.md)）。异常的消息在抛出时给出。
+异常有一个 `errno`，客户端用它判断是哪种错误；还有回复这个错误时使用的 HTTP 状态码（见[异常](../Exceptions.md)）。异常的消息在抛出时给出。
 
 ## 5. 控制器
 
@@ -221,7 +221,7 @@ export class TaskController extends Controller {
 ```
 
 - `@Prefix({route: '/tasks'})` 把控制器的路由放在 `/tasks` 之下；每个动作有自己的 HTTP 方法、路由和 DTO（见 [HTTP](../HTTP.md)）。
-- `@Inject('database')` 把服务的 `database` 组件交给控制器：这是一个 TypeORM 连接，通过它的仓储读写实体（见 [Database](../Database.md)）。
+- `@Inject('database')` 把服务的 `database` 组件交给控制器：这是一个 TypeORM 连接，通过它的仓储读写实体（见[数据库](../Database.md)）。
 - `paginator()`（来自 `lakutata/dtos`）构建一页结果：其中的条目，以及 `meta`，包括条目数、总数、limit 和 offset。
 - 动作返回的值就是结果；抛出的异常就是这个请求的错误。
 
@@ -329,7 +329,7 @@ export class Migrations1792247417843 implements MigrationInterface {
 }
 ```
 
-迁移和服务一起编译。服务连接的数据库还没运行过这个迁移时，就会运行它。实体改动后，用同样的方法生成下一个迁移（见 [Migrations](../Migrations.md)）。
+迁移和服务一起编译。服务连接的数据库还没运行过这个迁移时，就会运行它。实体改动后，用同样的方法生成下一个迁移（见[迁移](../Migrations.md)）。
 
 ## 8. 运行
 
@@ -454,5 +454,5 @@ app │ ℹ pass 4
 ## 10. 在生产环境中
 
 - `npm start` 运行构建好的服务（`NODE_ENV=production` 决定它的模式），`npm run docker:build` 用模板中的 `Dockerfile` 构建镜像。请把 `DATABASE` 指向卷上的路径，这样容器重建后任务数据仍然保留。
-- 模板的 `installer` 功能（`lakutata create --with installer`）可以制作安装包，让服务随系统启动（见 [Installers](../Installers.md)）。
+- 模板的 `installer` 功能（`lakutata create --with installer`）可以制作安装包，让服务随系统启动（见[安装包](../Installers.md)）。
 - 换用其他数据库，就是换一个驱动和 `buildDatabaseOptions()` 的选项；迁移要针对那个数据库生成。

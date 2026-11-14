@@ -2,7 +2,7 @@
 
 English | [中文](README.zh-CN.md)
 
-The cache component of the lakutata framework: a key-value cache whose entries expire (TTLs are in milliseconds),
+The cache component of the Lakutata framework: a key-value cache whose entries expire (TTLs are in milliseconds),
 with a cache-aside `wrap()` method that can refresh values in the background, and events. It is backed by one or more
 stores: memory, a JSON file, Redis, Memcache, MongoDB, SQLite, PostgreSQL or MySQL. Several stores form tiers, with the
 fastest first. The umbrella package `lakutata` re-exports it as `lakutata/com/cacher`.

@@ -185,7 +185,7 @@ export class NamedPortServer extends Server<string> {
 
 ## 2. 控制器动作（`lakutata/decorator/ctrl`）
 
-这些装饰器用于 `Controller` 子类的方法（`@Prefix` 和 `@UseMiddlewares` 也可用于类）；详见 [Controllers](Controllers.md)。
+这些装饰器用于 `Controller` 子类的方法（`@Prefix` 和 `@UseMiddlewares` 也可用于类）；详见[控制器与动作](Controllers.md)。
 
 | 装饰器 | 地址 |
 |---|---|
@@ -231,7 +231,7 @@ CLI 命令名称前面的词是命令分组：`@CLIAction('package exe <name>', 
 | `@Accept(...schemas)` | 每次调用方法时按位置校验参数 |
 | `@Return(schema)` | 每次调用方法时校验返回值 |
 
-见 [DTOValidation](DTOValidation.md)。
+见 [DTO 与数据校验](DTOValidation.md)。
 
 ## 4. 辅助装饰器（`lakutata/decorator/asst`）
 
@@ -264,11 +264,11 @@ class Prices extends Component {
 
 ## 5. 锁（`lakutata/com/mutex`）
 
-`@Synchronized` 让控制器动作在 `Mutex` 组件的锁的保护下执行，锁在输入校验和访问控制通过之后获取。见 [Mutex](Mutex.md)。
+`@Synchronized` 让控制器动作在 `Mutex` 组件的锁的保护下执行，锁在输入校验和访问控制通过之后获取。见[互斥锁](Mutex.md)。
 
 ## 6. 消息队列（`lakutata/com/queue`）
 
-`@QueueAction(queue, dto?, options?)` 让控制器动作成为一个队列的消费者：`queueEntrypoint` 适配器把队列的消息投递给它。动作正常返回时确认消息，失败后重试，重试次数用完后把消息送进死信队列。见 [Queue](Queue.md)。
+`@QueueAction(queue, dto?, options?)` 让控制器动作成为一个队列的消费者：`queueEntrypoint` 适配器把队列的消息投递给它。动作正常返回时确认消息，失败后重试，重试次数用完后把消息送进死信队列。见[消息队列](Queue.md)。
 
 ## 7. 数据库实体（`lakutata/decorator/orm`）
 
@@ -302,4 +302,4 @@ export class User {
 }
 ```
 
-见 [Entities](Entities.md)。
+见[实体、查询与事务](Entities.md)。

@@ -12,7 +12,7 @@ part of `lakutata`: install it on its own. What it is like:
 - **Read** from PNG, JPEG, GIF, BMP, WebP and TGA images, or from pixels; every code of an image, with its position.
 - **A component**, `Barcode`, injected without being registered, with the default options; the components registered
   under names in the configuration have defaults, a time limit and a concurrency of their own. Every call can take a
-  time limit, and can be cancelled.
+  time limit, and can be canceled.
 - **A native addon** built on [zint](https://zint.org.uk) and [zxing-cpp](https://github.com/zxing-cpp/zxing-cpp),
   compiled when the package is installed on Linux, macOS and Windows, and by `lakutata mobile stage` for the mobile
   applications of Android, iOS and HarmonyOS; it also runs in Bun and in the main process of Electron. Its work runs in

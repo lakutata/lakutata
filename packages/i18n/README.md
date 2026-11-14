@@ -2,7 +2,7 @@
 
 English | [中文](README.zh-CN.md)
 
-The internationalization component of the lakutata framework. It holds the application's messages for each language,
+The internationalization component of the Lakutata framework. It holds the application's messages for each language,
 by key, written in [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/) and
 formatted for their language by the built-in `Intl` of Node.js (numbers, currencies, dates, plurals, selects), with no
 third-party library. It also provides the middleware that chooses the language of each request (so that the request's

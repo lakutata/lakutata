@@ -283,7 +283,7 @@ await scope.expression('(x + y + z + 1)^500').expandAsync({signal: controller.si
 - `timeout` (an option of `createMath()`, or of one call; none by default) rejects the operation with
   `MathTimeoutException`, and an aborted `signal` with `MathCancelledException`. The time spent waiting for a free
   thread does not count.
-- A cancelled operation stops at the next point where it checks for a cancellation, between the steps of its work. A
+- A canceled operation stops at the next point where it checks for a cancellation, between the steps of its work. A
   single step (a decomposition of a matrix by Eigen, a derivative by SymEngine) runs to its end, and the thread is free
   only then: the promise is rejected at the time limit, while the work may go on for a while.
 - `concurrency` (an option of `createMath()`) limits how many operations of a scope run at the same time; the others
@@ -292,7 +292,7 @@ await scope.expression('(x + y + z + 1)^500').expandAsync({signal: controller.si
 ## 12. In an application
 
 A controller calls the package as any other code does. With a formula from a client, use an asynchronous operation and
-the `signal` of the request: when the client leaves, the operation is cancelled.
+the `signal` of the request: when the client leaves, the operation is canceled.
 
 ```typescript
 import {Application, DTO} from 'lakutata'
@@ -347,7 +347,7 @@ $ curl -X POST localhost:8080/solve -H 'Content-Type: application/json' -d '{"eq
   `JSON.stringify()` writes as an object (`{"0": 1, "1": 1}`): send `Array.from(vector)`.
 - The bundles, the executables and the installers made by `lakutata package` carry the compiled addon
   (`build/Release/math.node`). Build them on each target platform, after installing the package there; the rules of
-  the native addons apply (see [Packaging](Packaging.md) and [NativeAddons](NativeAddons.md)).
+  the native addons apply (see [Packaging](Packaging.md) and [Native Addons](NativeAddons.md)).
 - The package runs in Node.js `>=18.10.0`, in Bun and in the main process of Electron, which load the
   addon compiled for Node.js; not in the renderers of Electron nor in the browsers. In Bun, terminating a worker thread
   while operations of the addon still run in it ends the whole process with a fatal error of Node-API (a bug of Bun
@@ -390,5 +390,5 @@ The README of the package lists every case.
 | `MathDivisionByZeroException` | `E_MATH_DIVISION_BY_ZERO` | A division by zero while computing decimals, a modulus of 0 |
 | `MathNotSupportedException` | `E_MATH_NOT_SUPPORTED` | An operation the package does not do for this formula (section 13) |
 | `MathArgumentException` | `E_MATH_ARGUMENT` | An argument that is not valid: variables left where a number is asked, matrices of the wrong dimensions |
-| `MathTimeoutException`, `MathCancelledException` | `E_MATH_TIMEOUT`, `E_MATH_CANCELLED` | An asynchronous operation past its time limit, or cancelled |
+| `MathTimeoutException`, `MathCancelledException` | `E_MATH_TIMEOUT`, `E_MATH_CANCELLED` | An asynchronous operation past its time limit, or canceled |
 | `MathException` | `E_MATH_INTERNAL` | An internal error of the addon |

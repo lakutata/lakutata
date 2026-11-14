@@ -1,6 +1,6 @@
 # Lakutata HTTP
 
-HTTP 适配器用 Express 或 Fastify 提供控制器的 HTTP 动作（`@GET`、`@POST`……）。本指南介绍 HTTP 特有的内容：两个适配器及其选项、路由、请求如何变成动作的输入、响应、错误，以及 Web 框架本身的功能。控制器及其动作见 [Controllers](Controllers.md)，中间件和访问控制见 [Middlewares](Middlewares.md)，适配器的启动和停止见 [Entrypoint](Entrypoint.md)。
+HTTP 适配器用 Express 或 Fastify 提供控制器的 HTTP 动作（`@GET`、`@POST`……）。本指南介绍 HTTP 特有的内容：两个适配器及其选项、路由、请求如何变成动作的输入、响应、错误，以及 Web 框架本身的功能。控制器及其动作见[控制器与动作](Controllers.md)，中间件和访问控制见[中间件与访问控制](Middlewares.md)，适配器的启动和停止见[入口](Entrypoint.md)。
 
 ## 1. 第一个 HTTP API
 
@@ -137,11 +137,11 @@ HTTP/1.1 400 Bad Request
 | Web 框架自身错误的 `errno` | `E_UNKNOWN` | 它自己的错误码，比如 `FST_ERR_CTP_BODY_TOO_LARGE` |
 | 应用停止时，传入的 Express 应用或 Fastify 实例 | 保持不变 | 被关闭 |
 
-应用停止时（见 [Entrypoint](Entrypoint.md) 第 4 节），适配器不再接受新的连接，并结束事件流；Fastify 还会对已打开的连接上仍然到达的请求返回 503。正在处理的请求可以在入口的 `shutdownTimeout` 内完成（超时后以 503 响应），之后最多再有一秒来发送响应，然后剩下的连接被关闭，WebSocket 连接也一样。
+应用停止时（见[入口](Entrypoint.md)第 4 节），适配器不再接受新的连接，并结束事件流；Fastify 还会对已打开的连接上仍然到达的请求返回 503。正在处理的请求可以在入口的 `shutdownTimeout` 内完成（超时后以 503 响应），之后最多再有一秒来发送响应，然后剩下的连接被关闭，WebSocket 连接也一样。
 
 ### 按网口监听
 
-有多个网口的设备，常常只在其中一个网口上提供页面，而这个网口的地址来自 DHCP，会变。设置 `interface` 后，适配器监听的是这个网口，而不是某个地址：不管网口现在是什么地址，地址变化、网口拔掉再插回，都会继续监听。默认用的是 `@lakutata/netif` 包，需要另外安装，它会编译一个原生插件（见 [Netif](Netif.md)）。
+有多个网口的设备，常常只在其中一个网口上提供页面，而这个网口的地址来自 DHCP，会变。设置 `interface` 后，适配器监听的是这个网口，而不是某个地址：不管网口现在是什么地址，地址变化、网口拔掉再插回，都会继续监听。默认用的是 `@lakutata/netif` 包，需要另外安装，它会编译一个原生插件（见[网口](Netif.md)）。
 
 ```typescript
 import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
@@ -158,7 +158,7 @@ export const http = expressHTTPEntrypoint({
 |---|---|---|
 | `interface` | | 网口的名字（`'eth1'`；Windows 上是网络连接的名字）、`{mac: '52:54:00:12:34:56'}` 或 `{index: 3}`；多个网口放在数组里，这时 `port` 不能是 `0`。不能和 `host` 一起设置 |
 | `family` | `'both'` | `'IPv4'`、`'IPv6'` 或两者都监听 |
-| `strict` | `false` | 如果系统挡不住从别的网口发往这个网口地址的连接，就让启动失败，并在挡不住的期间停止监听（见 [Netif](Netif.md) 第 2 节） |
+| `strict` | `false` | 如果系统挡不住从别的网口发往这个网口地址的连接，就让启动失败，并在挡不住的期间停止监听（见[网口](Netif.md)第 2 节） |
 | `onError` | 应用的日志 | 接收应用运行期间重新监听时的错误，比如端口被别的程序占用；适配器会自己重试 |
 | `interfaceListening` | `@lakutata/netif` | 换用另一种按网口监听的实现：一个 `IInterfaceListening`，也就是 lakutata 定义、`@lakutata/netif` 实现的接口 |
 
@@ -173,7 +173,7 @@ export const http = expressHTTPEntrypoint({
 | `@GET(route)`、`@POST`、`@PUT`、`@PATCH`、`@DELETE`、`@HEAD`、`@OPTIONS` | 与名字相同的方法 |
 | `@HTTPAction(route, method)` | 一个方法（`'purge'`），或者一组方法（`['get', 'post']`） |
 
-它们接下来的参数是输入的 DTO 和动作的选项，两者都可以省略（见 [Controllers](Controllers.md) 第 3 节）。
+它们接下来的参数是输入的 DTO 和动作的选项，两者都可以省略（见[控制器与动作](Controllers.md)第 3 节）。
 
 ```typescript
 import {DTO} from 'lakutata'
@@ -203,7 +203,7 @@ class LibraryController extends Controller {
 ```
 
 - 路由使用 Web 框架的语法：在两个框架中，`:id` 都表示一个参数；通配符的写法不同（第 2 节）。
-- `@Prefix({route})` 给控制器的所有路由加上前缀（见 [Controllers](Controllers.md) 第 6 节）。
+- `@Prefix({route})` 给控制器的所有路由加上前缀（见[控制器与动作](Controllers.md)第 6 节）。
 - `GET` 动作也会响应同一路由的 `HEAD` 请求（不带响应体），除非这个路由有自己的 `HEAD` 动作。
 - 如果请求的方法在它的路由上没有对应的动作，请求以 404（`E_ROUTE_NOT_FOUND`）响应，而不是 405。没有任何机制会自动响应 `OPTIONS`：在添加处理 CORS 的中间件之前，浏览器的预检请求都会失败（第 7 节）。
 
@@ -309,7 +309,7 @@ data: line two
 |---|---|---|
 | 400 | `E_INVALID_VALUE` | DTO 拒绝了输入 |
 | 400 | `E_UNKNOWN`（Express）、`FST_ERR_CTP_INVALID_JSON_BODY`（Fastify） | 请求体的 JSON 格式错误 |
-| 403 | `E_ACCESS_DENY` | 访问控制拒绝了请求（见 [Middlewares](Middlewares.md)） |
+| 403 | `E_ACCESS_DENY` | 访问控制拒绝了请求（见[中间件与访问控制](Middlewares.md)） |
 | 404 | `E_ROUTE_NOT_FOUND` | 没有动作对应这个路由和方法 |
 | 413 | `E_UNKNOWN`（Express）、`FST_ERR_CTP_BODY_TOO_LARGE`（Fastify） | 请求体超过上限 |
 | 415 | `FST_ERR_CTP_INVALID_MEDIA_TYPE` | Fastify 不解析这种类型的请求体 |

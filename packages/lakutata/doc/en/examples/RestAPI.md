@@ -2,7 +2,7 @@
 
 This example builds a service that keeps a list of tasks: an HTTP API to create tasks, list them a page at a time,
 mark them done and delete them, stored in a SQLite database. It starts from the `service` template and shows the
-everyday parts of a lakutata service: an entity and its migration, the DTOs that validate the input, an exception with
+everyday parts of a Lakutata service: an entity and its migration, the DTOs that validate the input, an exception with
 its HTTP status, a controller, and the tests.
 
 | Method | Route | What it does |
@@ -23,9 +23,9 @@ rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/Greet
 echo '*.sqlite' >> .gitignore
 ```
 
-The project is a workspace whose service is `packages/app` ([ProjectStructure](../ProjectStructure.md)). The service
+The project is a workspace whose service is `packages/app` ([Project Structure](../ProjectStructure.md)). The service
 uses SQLite through the `better-sqlite3` driver, installed here; any other database of
-[DatabaseDrivers](../DatabaseDrivers.md) works the same, with its own driver and options. The example controller of the
+[Database Drivers](../DatabaseDrivers.md) works the same, with its own driver and options. The example controller of the
 template is removed, and the database file is kept out of git.
 
 ## 2. The entity
@@ -55,7 +55,8 @@ export class Task {
 ```
 
 An entity is a class whose decorators (from `lakutata/decorator/orm`) describe its table: `tasks`, with an id given by
-the database, a title, whether it is done, and the date it was created on ([Entities](../Entities.md)).
+the database, a title, whether it is done, and the date it was created on ([Entities, Queries and
+Transactions](../Entities.md)).
 
 ## 3. The input
 
@@ -103,7 +104,7 @@ export class TaskSearchDTO extends PaginationSearchDTO {
 ```
 
 Each action validates its input with a DTO before it runs, and refuses invalid input with a 400 error
-([DTOValidation](../DTOValidation.md)):
+([DTO and Validation](../DTOValidation.md)):
 
 - the input of an HTTP action merges the route parameters, the body and the query string;
 - the route parameters and the query string are text: `.strict(false)` converts `'1'` to the number 1 and `'false'` to
@@ -234,7 +235,7 @@ export class TaskController extends Controller {
 - `@Prefix({route: '/tasks'})` puts the routes of the controller under `/tasks`; each action has its verb, its route
   and its DTO ([HTTP](../HTTP.md)).
 - `@Inject('database')` gives the controller the `database` component of the service: a TypeORM connection, whose
-  repositories read and write the entities ([Database](../Database.md)).
+  repositories read and write the entities ([Databases](../Database.md)).
 - `paginator()` (from `lakutata/dtos`) builds the page: the items, and `meta` with their count, the total, the limit
   and the offset.
 - An action returns its result; a thrown exception is the error of the request.

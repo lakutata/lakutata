@@ -19,7 +19,7 @@ npm install better-sqlite3 -w app
 rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/GreetDTO.ts
 ```
 
-项目的根目录就是 React Native 应用，包含原生项目 `android`、`ios` 和 `harmony`；应用的各部分是工作区中的包（见 [ProjectStructure](../ProjectStructure.md)）：`packages/app` 是 Node.js 端，`packages/ui` 是用户界面，`packages/ipc` 负责把两者连起来。项目的 README 列出了每个系统在电脑上需要的工具：带 NDK 的 Android SDK、Xcode、DevEco Studio。Node.js 端通过这里安装的 `better-sqlite3` 使用 SQLite：它是一个 C++ 插件，`lakutata mobile stage` 会用这些工具为每个系统从源码编译它（见 [DatabaseDrivers](../DatabaseDrivers.md) 的“手机应用”一节）。这里删掉了模板中的示例控制器。
+项目的根目录就是 React Native 应用，包含原生项目 `android`、`ios` 和 `harmony`；应用的各部分是工作区中的包（见[项目结构](../ProjectStructure.md)）：`packages/app` 是 Node.js 端，`packages/ui` 是用户界面，`packages/ipc` 负责把两者连起来。项目的 README 列出了每个系统在电脑上需要的工具：带 NDK 的 Android SDK、Xcode、DevEco Studio。Node.js 端通过这里安装的 `better-sqlite3` 使用 SQLite：它是一个 C++ 插件，`lakutata mobile stage` 会用这些工具为每个系统从源码编译它（见[数据库驱动](../DatabaseDrivers.md)的“手机应用”一节）。这里删掉了模板中的示例控制器。
 
 ## 2. 实体
 
@@ -54,7 +54,7 @@ export class Expense {
 }
 ```
 
-实体是一个类，它的装饰器描述对应的表（见 [Entities](../Entities.md)）。金额是以分为单位的整数：12.50 就是 1250，合计时相加的是整数，没有小数的舍入误差。日期是 `YYYY-MM-DD` 格式的文本，所以一个月的支出就是日期以 `2026-11-` 开头的那些。
+实体是一个类，它的装饰器描述对应的表（见[实体、查询与事务](../Entities.md)）。金额是以分为单位的整数：12.50 就是 1250，合计时相加的是整数，没有小数的舍入误差。日期是 `YYYY-MM-DD` 格式的文本，所以一个月的支出就是日期以 `2026-11-` 开头的那些。
 
 ## 3. 迁移
 
@@ -88,7 +88,7 @@ export class Migrations1793722916138 implements MigrationInterface {
 }
 ```
 
-数据库在每个用户的设备上，应用更新时必须把它更新到最新：表结构的变化通过迁移完成，绝不能用 `synchronize`，因为它可能连同数据一起删掉某一列（见 [Migrations](../Migrations.md)）。这个迁移是应用根据实体自己生成的，用的是 `lakutata migration` 命令（见 [Migrations](../Migrations.md) 第 2 节），在电脑上运行，电脑上的数据库是 `packages/app/data/expenses.sqlite`：
+数据库在每个用户的设备上，应用更新时必须把它更新到最新：表结构的变化通过迁移完成，绝不能用 `synchronize`，因为它可能连同数据一起删掉某一列（见[迁移](../Migrations.md)）。这个迁移是应用根据实体自己生成的，用的是 `lakutata migration` 命令（见[迁移](../Migrations.md)第 2 节），在电脑上运行，电脑上的数据库是 `packages/app/data/expenses.sqlite`：
 
 ```bash
 npx lakutata migration generate --package app
@@ -140,7 +140,7 @@ export class MonthDTO extends DTO {
 }
 ```
 
-每个动作运行前都先用 DTO 校验输入（见 [DTOValidation](../DTOValidation.md)）。消息是 JSON，值会保留原来的类型：`amount` 必须是整数，`12.5` 会被拒绝，报错 `"amount" must be an integer`。日期是设备上的日期，由用户界面给出：今天是哪一天，不由 Node.js 端替用户决定。
+每个动作运行前都先用 DTO 校验输入（见 [DTO 与数据校验](../DTOValidation.md)）。消息是 JSON，值会保留原来的类型：`amount` 必须是整数，`12.5` 会被拒绝，报错 `"amount" must be an integer`。日期是设备上的日期，由用户界面给出：今天是哪一天，不由 Node.js 端替用户决定。
 
 ## 5. 异常
 
@@ -157,7 +157,7 @@ export class ExpenseNotFoundException extends Exception {
 }
 ```
 
-异常带有 `errno`，用户界面根据这个代码判断错误（见 [Exceptions](../Exceptions.md)）。用户界面收到的错误和抛出时一样，带有全部属性：`ipc.invoke()` 返回的 Promise 会以这个错误拒绝。
+异常带有 `errno`，用户界面根据这个代码判断错误（见[异常](../Exceptions.md)）。用户界面收到的错误和抛出时一样，带有全部属性：`ipc.invoke()` 返回的 Promise 会以这个错误拒绝。
 
 ## 6. 控制器
 
@@ -227,9 +227,9 @@ export class ExpenseController extends Controller {
 }
 ```
 
-- 每个 `@ServiceAction` 由一条消息调用（见 [ServiceCalls](../ServiceCalls.md) 第 2 节）：用户界面用 `ipc.invoke({cmd: 'expenses.month', month: '2026-11'})` 发送消息，经由原生模块及其套接字到达 Node.js。
+- 每个 `@ServiceAction` 由一条消息调用（见[服务调用](../ServiceCalls.md)第 2 节）：用户界面用 `ipc.invoke({cmd: 'expenses.month', month: '2026-11'})` 发送消息，经由原生模块及其套接字到达 Node.js。
 - `this.entrypoint.broadcast()` 向所有客户端推送 `expenses.changed`：包括用户界面，以及开发时的工具（见第 10 节）。参数是有变化的月份，所以正在显示其他月份的用户界面不用重新加载。
-- `Like` 来自 `lakutata/orm`，即 TypeORM 的 API（见 [Database](../Database.md)）。
+- `Like` 来自 `lakutata/orm`，即 TypeORM 的 API（见[数据库](../Database.md)）。
 
 ## 7. 应用的选项
 
@@ -473,7 +473,7 @@ npm run android     # 或：npm run ios、npm run harmony
 
 ## 10. 在电脑上试用
 
-`npm run dev -w app` 在电脑上运行 Node.js 端，数据库放在 `packages/app/data` 中，并通过 HTTP 在 9000 端口（`DEV_PORT`）提供动作，供 curl 或 Postman 等工具使用：`POST /` 发送消息，`GET /events` 接收某个客户端的事件（见 [ServiceCalls](../ServiceCalls.md) 第 4 节）。
+`npm run dev -w app` 在电脑上运行 Node.js 端，数据库放在 `packages/app/data` 中，并通过 HTTP 在 9000 端口（`DEV_PORT`）提供动作，供 curl 或 Postman 等工具使用：`POST /` 发送消息，`GET /events` 接收某个客户端的事件（见[服务调用](../ServiceCalls.md)第 4 节）。
 
 ```bash
 npm run dev -w app

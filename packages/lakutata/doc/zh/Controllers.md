@@ -72,17 +72,17 @@ $ node dist/index.js order 42
 ```
 
 - 控制器继承 `lakutata/com/entrypoint` 中的 `Controller`。
-- 控制器列在 `buildEntrypoints` 的 `controllers` 选项里，和各传输方式的适配器放在一起（见 [Entrypoint](Entrypoint.md)）。入口必须列在 `bootstrap` 里，否则它不会被启动。
+- 控制器列在 `buildEntrypoints` 的 `controllers` 选项里，和各传输方式的适配器放在一起（见[入口](Entrypoint.md)）。入口必须列在 `bootstrap` 里，否则它不会被启动。
 - 没有对应的适配器时，传输方式的装饰器不起作用：上面如果没有 `cli`，`@CLIAction` 就会被忽略。
 
 ## 2. 请求的处理过程
 
 1. 适配器收到请求，按地址查找动作。找不到时，传输方式会回复“找不到”（HTTP 是 404）。
 2. 为这个请求创建一个新的作用域。
-3. 执行中间件（见 [Middlewares](Middlewares.md)）。
+3. 执行中间件（见[中间件与访问控制](Middlewares.md)）。
 4. 在这个作用域里创建控制器的一个新实例。
 5. 动作的 DTO 校验输入（第 4 节）。
-6. 访问控制检查请求（见 [Middlewares](Middlewares.md)）。
+6. 访问控制检查请求（见[中间件与访问控制](Middlewares.md)）。
 7. 用输入调用方法，方法的返回值就是响应（第 5 节）。
 8. 销毁作用域，以及在其中创建的对象。
 
@@ -98,7 +98,7 @@ $ node dist/index.js order 42
   | `CLIContext` | `'CLI'` | `command`（声明时的命令） |
   | `ServiceContext` | `'SERVICE'` | `clientId`、`input`（完整的消息） |
   | `ScheduleContext` | `'SCHEDULE'` | `schedule`、`scheduledAt`、`run` |
-  | `QueueContext`（`lakutata/com/queue`） | `'QUEUE'` | 见 [Queue](Queue.md) |
+  | `QueueContext`（`lakutata/com/queue`） | `'QUEUE'` | 见[消息队列](Queue.md) |
 
   所有上下文都有 `data`（输入到达时的样子，尚未校验）和 `locale`（使用 I18n 中间件时，请求的语言）。
 - `this.signal` 是一个 `AbortSignal`（它的类型允许 `undefined`，所以要写成 `this.signal?.`）。请求被中止时它会触发：客户端离开、gRPC 调用的截止时间已过，或者应用正在停止而 `shutdownTimeout` 已用完。触发之后，动作的结果会被丢弃；耗时长的动作应该检查它并提前结束。
@@ -108,11 +108,11 @@ $ node dist/index.js order 42
 | 装饰器 | 地址 | 指南 |
 |---|---|---|
 | `@GET(route)`、`@POST`、`@PUT`、`@PATCH`、`@DELETE`、`@HEAD`、`@OPTIONS`、`@HTTPAction(route, methods)` | HTTP 路由 | [HTTP](HTTP.md) |
-| `@CLIAction(command)` | 命令 | [CLI](CLI.md) |
-| `@ServiceAction(pattern)` | 服务模式 | [ServiceCalls](ServiceCalls.md)、[GRPC](GRPC.md)、[NATS](NATS.md) |
-| `@Schedule(schedule)` | 间隔或 cron 表达式 | [Schedules](Schedules.md) |
-| `@QueueAction(queue)`（`lakutata/com/queue`） | 消息队列 | [Queue](Queue.md) |
-| `@MCPTool(name)`（`@lakutata/mcp`）、`@DBusMethod(...)`（`@lakutata/dbus`） | MCP 工具、D-Bus 方法 | [MCP](MCP.md)、[DBus](DBus.md) |
+| `@CLIAction(command)` | 命令 | [命令行](CLI.md) |
+| `@ServiceAction(pattern)` | 服务模式 | [服务调用](ServiceCalls.md)、[gRPC](GRPC.md)、[NATS](NATS.md) |
+| `@Schedule(schedule)` | 间隔或 cron 表达式 | [定时任务](Schedules.md) |
+| `@QueueAction(queue)`（`lakutata/com/queue`） | 消息队列 | [消息队列](Queue.md) |
+| `@MCPTool(name)`（`@lakutata/mcp`）、`@DBusMethod(...)`（`@lakutata/dbus`） | MCP 工具、D-Bus 方法 | [MCP](MCP.md)、[D-Bus](DBus.md) |
 
 除非表中注明了其他子路径，前五行的装饰器都来自 `lakutata/decorator/ctrl`。它们依次接受地址、输入的 DTO 类和动作选项，DTO 和选项都可以省略。`@Schedule` 是例外：它不接受 DTO，因为定时任务没有输入。
 
@@ -122,10 +122,10 @@ $ node dist/index.js order 42
 |---|---|---|
 | `name` | `'控制器类名:方法名'` | 动作名，在同一传输方式中必须唯一 |
 | `description` | | 说明：命令的帮助、动作列表中的描述 |
-| `middlewares` | | 这个动作的中间件（见 [Middlewares](Middlewares.md)） |
+| `middlewares` | | 这个动作的中间件（见[中间件与访问控制](Middlewares.md)） |
 | `acl` | `false` | 用入口的访问规则检查请求 |
 | `rule` | | 这个动作自己的访问规则：`(context, input) => Promise<boolean>` |
-| `groups` | | 动作所属的分组，访问规则和动作列表会用到（见 [Entrypoint](Entrypoint.md)） |
+| `groups` | | 动作所属的分组，访问规则和动作列表会用到（见[入口](Entrypoint.md)） |
 
 ## 4. 输入
 
@@ -141,7 +141,7 @@ $ node dist/index.js order 42
 
 然后由动作的 DTO 校验：
 
-- 查询参数和路由参数的值都是文本：要求数字或布尔值的规则需要 `.strict(false)`，才能转换 `'42'` 或 `'true'`。命令行则会自行把参数和选项转换成对应属性的类型（见 [CLI](CLI.md)）；
+- 查询参数和路由参数的值都是文本：要求数字或布尔值的规则需要 `.strict(false)`，才能转换 `'42'` 或 `'true'`。命令行则会自行把参数和选项转换成对应属性的类型（见[命令行](CLI.md)）；
 - 补上默认值，去掉 DTO 没有声明的键（上例中的 `extra`）；
 - 输入不合法时，请求以 `InvalidValueException` 结束，HTTP 返回状态码 400。消息指出第一个不合法的值：`"product" is required`。使用 I18n 中间件时，消息是请求的语言。
 

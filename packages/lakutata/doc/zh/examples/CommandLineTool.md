@@ -16,7 +16,7 @@ cd tally
 rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/GreetDTO.ts
 ```
 
-项目是一个工作区，工具在 `packages/app` 中（见 [ProjectStructure](../ProjectStructure.md)）。需要的依赖模板里都有：`commander` 负责读取命令行，`@inquirer/prompts` 负责在终端中提问。CSV 文件由工具自带的一个小解析器读取，所以不用再安装别的包。这里删掉了模板中的示例命令和它的 DTO。
+项目是一个工作区，工具在 `packages/app` 中（见[项目结构](../ProjectStructure.md)）。需要的依赖模板里都有：`commander` 负责读取命令行，`@inquirer/prompts` 负责在终端中提问。CSV 文件由工具自带的一个小解析器读取，所以不用再安装别的包。这里删掉了模板中的示例命令和它的 DTO。
 
 ## 2. 输入
 
@@ -66,12 +66,12 @@ export class JsonDTO extends FileDTO {
 }
 ```
 
-每个命令都有一个 DTO，DTO 的属性就是命令的参数和选项（见 [CLI](../CLI.md)）：
+每个命令都有一个 DTO，DTO 的属性就是命令的参数和选项（见[命令行](../CLI.md)）：
 
 - `file` 写在命令里（`'stats <file>'`），所以它是参数。其他属性都是选项，以属性名命名：`--delimiter`、`--column`、`--decimals`……
 - 选项的形式由属性的类型决定：数字写成 `--decimals 3`，布尔值是开关 `--numbers`，数组写成 `--columns product units`。
 - 帮助中会显示每个属性的 `.description()`、默认值和允许的取值（`.valid()`）。
-- 命令行上都是文本：适配器先把每个值转换为对应属性的类型，再交给 DTO 校验（见 [DTOValidation](../DTOValidation.md)），所以数字不需要 `.strict(false)`。
+- 命令行上都是文本：适配器先把每个值转换为对应属性的类型，再交给 DTO 校验（见 [DTO 与数据校验](../DTOValidation.md)），所以数字不需要 `.strict(false)`。
 - `StatsDTO` 和 `JsonDTO` 继承自 `FileDTO`：每个命令都接受文件和分隔符。
 - `column` 是必填的，也没有默认值：在终端中运行时如果缺少这个选项，工具会提问（见第 7 节）。
 
@@ -90,7 +90,7 @@ export class CsvException extends Exception {
 }
 ```
 
-文件和列的错误都用 `CsvException` 表示（见 [Exceptions](../Exceptions.md)）。异常的消息是一个模板，抛出时用传入的值填充：`new CsvException('The file {file} does not exist', {file: file})`。在命令行上，失败的命令会输出 `error:` 加上这条消息，并以退出码 1 结束。
+文件和列的错误都用 `CsvException` 表示（见[异常](../Exceptions.md)）。异常的消息是一个模板，抛出时用传入的值填充：`new CsvException('The file {file} does not exist', {file: file})`。在命令行上，失败的命令会输出 `error:` 加上这条消息，并以退出码 1 结束。
 
 ## 4. 读取 CSV 文件
 
@@ -289,7 +289,7 @@ export class CsvController extends Controller {
 }
 ```
 
-- 每个 `@CLIAction` 声明一个命令：命令名和参数（`'stats <file>'`）、DTO，以及 `description`，即帮助中这个命令的说明（见 [Controllers](../Controllers.md)）。
+- 每个 `@CLIAction` 声明一个命令：命令名和参数（`'stats <file>'`）、DTO，以及 `description`，即帮助中这个命令的说明（见[控制器与动作](../Controllers.md)）。
 - 动作收到的是校验后的输入，已经补上默认值：没有给出时，`delimiter` 为 `','`，`decimals` 为 2。
 - 动作的返回值写到 stdout：字符串原样输出（`columns`，以及默认的 `stats`），其他值输出为带缩进的 JSON（`stats --format json`、`json`）。
 - 抛出的异常就是这个命令的错误。
@@ -614,5 +614,5 @@ node tally.cjs stats sales.csv --column units --format json
 ```
 
 - 单文件包是 CommonJS 文件，所以源码中不能使用顶层 `await`。
-- `npm run package:exe` 生成 `dist/tally`，这是一个不需要安装 Node.js 就能运行的可执行文件：Node.js 已经嵌在里面（约 110 MB）。它只能在生成它的平台上运行，其他平台的可执行文件怎么生成，项目的 README 里有说明（见 [Packaging](../Packaging.md)）。
-- 模板的 `installer` 功能（`lakutata create --with installer`）可以生成安装包，即各个系统的软件包（deb、rpm、pkg、msi 等），它们会把 `tally` 加入 PATH（见 [Installers](../Installers.md)）。
+- `npm run package:exe` 生成 `dist/tally`，这是一个不需要安装 Node.js 就能运行的可执行文件：Node.js 已经嵌在里面（约 110 MB）。它只能在生成它的平台上运行，其他平台的可执行文件怎么生成，项目的 README 里有说明（见[打包](../Packaging.md)）。
+- 模板的 `installer` 功能（`lakutata create --with installer`）可以生成安装包，即各个系统的软件包（deb、rpm、pkg、msi 等），它们会把 `tally` 加入 PATH（见[安装包](../Installers.md)）。

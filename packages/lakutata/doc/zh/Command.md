@@ -46,29 +46,29 @@ lakutata create --name tool --template cli --package-manager none --no-git
 
 ### `lakutata templates`、`info` 和 `clean`
 
-- `lakutata templates` 列出官方模板及其可选功能。列表来自 npm 仓库，缓存一天（`--refresh` 会重新获取）。模板里有什么见 [ProjectStructure](ProjectStructure.md)。
+- `lakutata templates` 列出官方模板及其可选功能。列表来自 npm 仓库，缓存一天（`--refresh` 会重新获取）。模板里有什么见[项目结构](ProjectStructure.md)。
 - `lakutata info` 显示工具、框架（能访问仓库时还显示最新版本）和 Node.js 的版本，以及当前目录的项目所用的框架版本。
 - `lakutata clean [paths...]` 在任何平台上删除当前目录所在包中的路径；不给路径时，删除其 `tsconfig.json` 的 `outDir` 和 `declarationDir`。它拒绝删除包以外的路径，以及 `src`、`node_modules`、`package.json` 和 `.git`。模板在 `build` 或 `rebuild` 脚本中调用它。
 
 ## 3. 工作区与原生插件
 
-`lakutata list`、`run`、`version` 和 `add` 作用于工作区，即包含多个包的仓库：它们列出工作区的包，按依赖顺序在每个包中运行脚本，给所有包统一版本号，并添加新的包。见 [Workspaces](Workspaces.md)。
+`lakutata list`、`run`、`version` 和 `add` 作用于工作区，即包含多个包的仓库：它们列出工作区的包，按依赖顺序在每个包中运行脚本，给所有包统一版本号，并添加新的包。见[工作区](Workspaces.md)。
 
-`lakutata add <name> --native gyp|cmake|rust` 添加一个用 C++ 或 Rust 编写的原生插件，`lakutata native <link|include|define> <value>` 给它链接库。见 [NativeAddons](NativeAddons.md)。
+`lakutata add <name> --native gyp|cmake|rust` 添加一个用 C++ 或 Rust 编写的原生插件，`lakutata native <link|include|define> <value>` 给它链接库。见[原生插件](NativeAddons.md)。
 
 `lakutata ffi generate <header>` 根据 C 头文件生成 `@lakutata/ffi` 原生库的类。见 [FFI](FFI.md) 第 9 节。
 
 ## 4. 迁移与翻译
 
-`lakutata migration <action>` 生成、创建、执行、回滚和查看应用的数据库迁移。它用应用的 `dev` 脚本构建并启动应用，此时应用只连接数据库。见 [Migrations](Migrations.md) 第 2 节。
+`lakutata migration <action>` 生成、创建、执行、回滚和查看应用的数据库迁移。它用应用的 `dev` 脚本构建并启动应用，此时应用只连接数据库。见[迁移](Migrations.md)第 2 节。
 
-`lakutata i18n <action>` 检查应用各语言的消息，生成键名的类型声明，以及添加新语言。见 [I18n](I18n.md#命令行工具) 的“命令行工具”一节。
+`lakutata i18n <action>` 检查应用各语言的消息，生成键名的类型声明，以及添加新语言。见[国际化（i18n）](I18n.md#命令行工具)的“命令行工具”一节。
 
 ## 5. 打包
 
-`lakutata package bundle` 和 `package exe` 把编译好的应用打包成单个 JavaScript 文件，或者不需要安装 Node.js 就能运行的可执行文件，见 [Packaging](Packaging.md)。`lakutata package installer` 制作应用的安装包，安装包还可以把应用注册为服务，见 [Installers](Installers.md)。
+`lakutata package bundle` 和 `package exe` 把编译好的应用打包成单个 JavaScript 文件，或者不需要安装 Node.js 就能运行的可执行文件，见[打包](Packaging.md)。`lakutata package installer` 制作应用的安装包，安装包还可以把应用注册为服务，见[安装包](Installers.md)。
 
-NW.js 应用所用的 NW.js 版本由 `lakutata nwjs use <版本>` 设置（`latest`、`win7` 或某个版本，`lakutata nwjs versions` 会列出这些版本），版本会写进应用的 `package.json`。`lakutata nwjs run [args...]` 在这个 NW.js 的 sdk 版本（带 DevTools）中运行编译好的应用，原生插件会被处理成能在其中加载，并把参数传给应用。应用的安装包里是 normal 版本（见 [Installers](Installers.md) 第 9 节）。
+NW.js 应用所用的 NW.js 版本由 `lakutata nwjs use <版本>` 设置（`latest`、`win7` 或某个版本，`lakutata nwjs versions` 会列出这些版本），版本会写进应用的 `package.json`。`lakutata nwjs run [args...]` 在这个 NW.js 的 sdk 版本（带 DevTools）中运行编译好的应用，原生插件会被处理成能在其中加载，并把参数传给应用。应用的安装包里是 normal 版本（见[安装包](Installers.md)第 9 节）。
 
 按 `mobile-react` 模板布局的 React Native 手机应用运行在它的原生模块内嵌的 libnode 中。`lakutata mobile node <android|ios|harmony>` 从 lakutata/libnode 的 Release 下载一个系统的 libnode；`lakutata mobile stage <platform>` 把应用的 Node.js 项目生成到系统的原生工程读取它的位置；`lakutata mobile run <platform>` 构建应用并在模拟器或设备上运行；`lakutata mobile deploy <platform>` 把 Node.js 项目放进那里已安装的应用，再重新启动应用。
 
@@ -86,4 +86,4 @@ NW.js 应用所用的 NW.js 版本由 `lakutata nwjs use <版本>` 设置（`lat
 | `LAKUTATA_MOBILE_NODE_DIR` | 手机应用使用自己的 libnode，用 lakutata/libnode 仓库编译（每个系统一个目录：`android`、`ios`、`harmony`），代替 Release 中的 libnode |
 | `NO_COLOR` | 关闭颜色 |
 
-工具运行的脚本和应用，拿到的是工具启动时的环境变量。打包后的应用所用的环境变量见 [Packaging](Packaging.md) 第 6 节。
+工具运行的脚本和应用，拿到的是工具启动时的环境变量。打包后的应用所用的环境变量见[打包](Packaging.md)第 6 节。

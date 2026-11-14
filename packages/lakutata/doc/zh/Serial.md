@@ -1,4 +1,4 @@
-# Lakutata Serial
+# Lakutata 串口
 
 `@lakutata/serial` 包用来和串口设备通信：秤、扫码枪、PLC、调制解调器、Arduino 和 ESP32 这类开发板、打印机。串口打开后是一个 Node.js 的流：写入的数据从线路发出，线路收到的数据可以读出。经典蓝牙设备可以按地址打开，得到同样的流。它不属于 `lakutata`，也不需要应用。它的特点是：
 
@@ -175,7 +175,7 @@ Application.run(() => ({
 ```
 
 - 控制器用 `@Inject('scale')` 拿到这个组件，用 `current()` 回答请求。
-- 串口或蓝牙连接的热敏打印机，由 `@lakutata/thermal-printer` 自己打开串口（见 [Thermal](Thermal.md)）。
+- 串口或蓝牙连接的热敏打印机，由 `@lakutata/thermal-printer` 自己打开串口（见[热敏打印机](Thermal.md)）。
 
 ## 7. 系统、运行环境和打包
 
@@ -183,7 +183,7 @@ Application.run(() => ({
 - 转接器被拔掉，Linux 和 macOS 上会立即报告，Windows 上在一秒内报告。
 - **Linux**：用户要在串口所属的组里（Debian 和 Ubuntu 上是 `dialout`，Arch 上是 `uucp`）。Ubuntu 22.04 和 Linux Mint 21 上，`brltty` 软件包会占用 CH340 转接器；ModemManager 会用几秒钟探测新插的串口。转接器里有因流控发不出去的数据时，内核在关闭串口时最多会再占用它 30 秒（`closing_wait`），`close()` 要等内核放开串口才会完成。
 - **Windows**：有些驱动在串口关闭后要稍等一会儿才释放它，隔一小会儿再打开即可。
-- `lakutata package` 生成的打包文件、可执行文件和安装程序会带上编译好的插件：请在每个目标平台上安装这个包后再打包（见 [Packaging](Packaging.md) 和 [NativeAddons](NativeAddons.md)）。
+- `lakutata package` 生成的打包文件、可执行文件和安装程序会带上编译好的插件：请在每个目标平台上安装这个包后再打包（见[打包](Packaging.md)和[原生插件](NativeAddons.md)）。
 
 ## 8. 异常
 

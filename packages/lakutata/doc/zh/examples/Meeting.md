@@ -21,7 +21,7 @@ npm install socket.io-client --save-dev -w app
 npm install @lakutata/webrtc socket.io-client -w ui
 ```
 
-项目是一个工作区（见 [ProjectStructure](../ProjectStructure.md)）：`packages/app` 是应用，`packages/ui` 是 React 页面。这里删掉了模板中的示例控制器，也删掉了中间件 `Authenticate.ts`：参加会议的人给的是名字，不是令牌（在公网上要加些什么，见第 8 节）。
+项目是一个工作区（见[项目结构](../ProjectStructure.md)）：`packages/app` 是应用，`packages/ui` 是 React 页面。这里删掉了模板中的示例控制器，也删掉了中间件 `Authenticate.ts`：参加会议的人给的是名字，不是令牌（在公网上要加些什么，见第 8 节）。
 
 应用装上 `@lakutata/webrtc`（信令和媒体服务器）和 `socket.io`（信令所走的 Socket.IO 服务端）；它的测试装上 `socket.io-client`，用来在 Node.js 里加入会议。页面装上 `@lakutata/webrtc`，只引用其中的浏览器入口 `@lakutata/webrtc/client`，以及 `socket.io-client`。
 
@@ -114,7 +114,7 @@ export function config(port: number = Number(process.env.PORT ?? 8080)): Applica
 - `sfu` 是媒体服务器。它以自己的成员身份加入每个房间；页面看到它后就连接它，而不再互相连接，它把每个人的音频和视频转发给其他人，转发时不解码。它的连接使用 UDP 的 40000 到 40999 端口，每个人在本机的每个地址上各占一个端口，并以这些地址作为候选地址（`PUBLIC_ADDRESS` 再加一个）。
 - `SignalingController` 通过 Socket.IO 适配器处理信令的请求（`webrtc.join`、`webrtc.signal`……）。`socketIOServiceEntrypoint({server})` 把 Socket.IO 挂到 express 的 HTTP 服务器上，这个服务器由 `before` 给出：页面、它的信令和健康检查共用 8080 端口。
 
-应用先启动 `sfu`，它会把自己挂到 `signaling` 上，然后启动 entrypoint，开始监听。其余部分来自模板：`uiDirectory()` 和 `fallback` 提供构建好的页面，`jsonEnvelope` 包装动作的结果（[WebApp](WebApp.md) 里有说明）。
+应用先启动 `sfu`，它会把自己挂到 `signaling` 上，然后启动 entrypoint，开始监听。其余部分来自模板：`uiDirectory()` 和 `fallback` 提供构建好的页面，`jsonEnvelope` 包装动作的结果（[带界面的 Web 应用](WebApp.md)里有说明）。
 
 ## 3. 会议
 

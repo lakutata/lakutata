@@ -1,4 +1,4 @@
-# Lakutata Math
+# Lakutata 数学计算
 
 `@lakutata/math` 包在 Node.js 里做数学计算，符号计算和数值计算都有：公式的代数和微积分运算、方程和不等式、任意精度的十进制数、矩阵、统计和概率分布、数值解法、单位、数论。它不属于 `lakutata`，也不需要应用：在任何地方导入它的函数就能调用。它的特点是：
 
@@ -275,10 +275,10 @@ $ curl -X POST localhost:8080/solve -H 'Content-Type: application/json' -d '{"eq
 {"errno":"E_MATH_SYNTAX","errMsg":"Unexpected *"}
 ```
 
-- 这个包的异常没有 `statusCode`，所以上面写错的公式得到的响应是状态码 500 和 `{"errno": "E_MATH_SYNTAX", …}`。如果要用 400 回应客户端公式里的错误，请在动作里捕获 `MathException`，再抛出应用自己的异常（见 [Exceptions](Exceptions.md)）；`E_MATH_INTERNAL` 是原生插件的内部错误，保持原样。
+- 这个包的异常没有 `statusCode`，所以上面写错的公式得到的响应是状态码 500 和 `{"errno": "E_MATH_SYNTAX", …}`。如果要用 400 回应客户端公式里的错误，请在动作里捕获 `MathException`，再抛出应用自己的异常（见[异常](Exceptions.md)）；`E_MATH_INTERNAL` 是原生插件的内部错误，保持原样。
 - 公式的长度限制不了它的计算量：`(x + 1)^100000` 很短。能限制计算量的是时限。
 - 这个包的值通过 `toJSON()` 转成 JSON：表达式、方程、十进制数和带单位的值转成它们的文本，解转成文本数组，矩阵转成它的各行。向量是 `Float64Array`，`JSON.stringify()` 会把它写成对象（`{"0": 1, "1": 1}`）：请发送 `Array.from(vector)`。
-- `lakutata package` 打出的单文件包、可执行文件和安装包都带着编译好的原生插件（`build/Release/math.node`）。请在每个目标平台上安装这个包之后再打包；原生插件的规则同样适用（见 [Packaging](Packaging.md) 和 [NativeAddons](NativeAddons.md)）。
+- `lakutata package` 打出的单文件包、可执行文件和安装包都带着编译好的原生插件（`build/Release/math.node`）。请在每个目标平台上安装这个包之后再打包；原生插件的规则同样适用（见[打包](Packaging.md)和[原生插件](NativeAddons.md)）。
 - 这个包可以在 Node.js `>=18.10.0`、Bun 和 Electron 的主进程中运行，后两者直接加载为 Node.js 编译的插件；不能在 Electron 的渲染进程和浏览器中运行。在 Bun 里，worker 线程里的插件运算还没结束就终止这个线程的话，整个进程会因为 Node-API 的致命错误退出（这是 Bun 1.4 的问题）。
 
 ## 13. 验证方式，以及不支持的情况

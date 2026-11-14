@@ -111,8 +111,8 @@ export async function pay(orderId: number, charge: () => Promise<void>): Promise
 }
 ```
 
-The logger writes the causes after the error (see [Logger](Logger.md), section 2), and the HTTP adapters read the status
-along the causes: the first client error (4xx) found wins (see [HTTP](HTTP.md), section 6).
+The logger writes the causes after the error (see [Logging](Logger.md), section 2), and the HTTP adapters read the
+status along the causes: the first client error (4xx) found wins (see [HTTP](HTTP.md), section 6).
 
 ## 4. What the clients receive
 
@@ -121,10 +121,10 @@ When an action fails, its transport reports the exception:
 | Transport | The client receives |
 |---|---|
 | HTTP | The status `statusCode` and `{errno, errMsg}` (see [HTTP](HTTP.md), section 6) |
-| Socket.IO, Electron, NW.js, the HTTP service, NATS, gRPC | The whole error: all its own properties (see [ServiceCalls](ServiceCalls.md), section 3) |
+| Socket.IO, Electron, NW.js, the HTTP service, NATS, gRPC | The whole error: all its own properties (see [Service Calls](ServiceCalls.md), section 3) |
 | JSON-RPC | An error with the code `-32602` for an invalid input, `-32601` when no action matches, `-32001` while the application stops, `-32000` otherwise, and the whole error as its `data` |
-| The command line | `error: <message>` on the standard error, and the exit code 1 (see [CLI](CLI.md)) |
-| Schedules | No client: the exception is given to `onError`, or logged (see [Schedules](Schedules.md)) |
+| The command line | `error: <message>` on the standard error, and the exit code 1 (see [Command Line](CLI.md)) |
+| Schedules | No client: the exception is given to `onError`, or logged (see [Scheduled Jobs](Schedules.md)) |
 
 - Choose `statusCode` by what the client can do about the error: 400 to 499 when the request is wrong (404 for a
   missing resource, 409 for a conflict), 500 and above when the application failed.
@@ -133,9 +133,8 @@ When an action fails, its transport reports the exception:
 ## 5. Translating and recognizing an exception
 
 With the `I18nMiddleware`, the message of an exception is translated into the language of the request, from the key
-`errors.<errno>` and the parameters of its template (see
-[I18n](I18n.md#exception-messages)). Out of a request, `exceptionParams(exception)`, from `lakutata`, gives
-those parameters.
+`errors.<errno>` and the parameters of its template (see [Internationalization (i18n)](I18n.md#exception-messages)). Out
+of a request, `exceptionParams(exception)`, from `lakutata`, gives those parameters.
 
 To recognize an exception, use `instanceof` within the application, and `errno` across processes: the clients receive
 the properties of an error, not its class. The proxies of the HTTP service, NATS and gRPC throw a

@@ -1,4 +1,4 @@
-# Lakutata Command Line Tool
+# Lakutata Command-Line Tool
 
 The **`lakutata` command** (package `@lakutata/cli`) creates projects from templates, runs scripts across the packages
 of a workspace and gives them versions, adds packages and native addons, runs the migrations of an application, checks
@@ -64,7 +64,7 @@ dependencies).
 ### `lakutata templates`, `info` and `clean`
 
 - `lakutata templates` lists the official templates and their features. The list comes from the npm registry and is
-  kept for a day (`--refresh` fetches it again). [ProjectStructure](ProjectStructure.md) describes what the templates
+  kept for a day (`--refresh` fetches it again). [Project Structure](ProjectStructure.md) describes what the templates
   contain.
 - `lakutata info` shows the versions of the tool, of the framework (with the latest ones when the registry can be
   reached) and of Node.js, and the version of the framework that the project of the current directory uses.
@@ -79,7 +79,7 @@ packages, run a script in each of them in the order of their dependencies, give 
 [Workspaces](Workspaces.md).
 
 `lakutata add <name> --native gyp|cmake|rust` adds a native addon written in C++ or Rust, and
-`lakutata native <link|include|define> <value>` links libraries to it. See [NativeAddons](NativeAddons.md).
+`lakutata native <link|include|define> <value>` links libraries to it. See [Native Addons](NativeAddons.md).
 
 `lakutata ffi generate <header>` writes the class of a native library of `@lakutata/ffi` from its C header. See
 [FFI](FFI.md), section 9.
@@ -91,7 +91,7 @@ application. It builds and starts the application with its `dev` script, in a mo
 connected. See [Migrations](Migrations.md), section 2.
 
 `lakutata i18n <action>` checks the messages of the languages of an application, declares the types of their keys, and
-adds a language. See [I18n](I18n.md#command-line-tools).
+adds a language. See [Internationalization (i18n)](I18n.md#command-line-tools).
 
 ## 5. Packaging
 
@@ -100,9 +100,9 @@ that runs without Node.js: see [Packaging](Packaging.md). `lakutata package inst
 register it as a service: see [Installers](Installers.md).
 
 An NW.js application gets its version of NW.js from `lakutata nwjs use <version>` (`latest`, `win7` or a version, which
-`lakutata nwjs versions` lists), which writes it into its `package.json`. `lakutata nwjs run [args...]` runs the compiled
-application in the sdk flavor of that NW.js (with the DevTools), its native addons made to load in it, and gives it the
-arguments. Its installers hold the normal flavor ([Installers](Installers.md), section 9).
+`lakutata nwjs versions` lists), which writes it into its `package.json`. `lakutata nwjs run [args...]` runs the
+compiled application in the sdk flavor of that NW.js (with the DevTools), its native addons made to load in it, and
+gives it the arguments. Its installers hold the normal flavor ([Installers](Installers.md), section 9).
 
 A mobile application of React Native laid out as the `mobile-react` template runs in a libnode that its native module
 embeds. `lakutata mobile node <android|ios|harmony>` downloads the libnode of a system from the releases of

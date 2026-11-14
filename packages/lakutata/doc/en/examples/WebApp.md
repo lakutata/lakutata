@@ -23,7 +23,7 @@ rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/Greet
 rm packages/app/src/middlewares/Authenticate.ts
 ```
 
-The project is a workspace ([ProjectStructure](../ProjectStructure.md)): `packages/app` is the application, and
+The project is a workspace ([Project Structure](../ProjectStructure.md)): `packages/app` is the application, and
 `packages/ui` the React page. The example controller of the template is removed, and so is its middleware
 `Authenticate.ts`, which asks for a token that a page in a browser cannot keep secret. Anyone who can reach the
 application can use the list, which is fine on a home network; section 11 says what to do elsewhere.
@@ -78,9 +78,9 @@ export class ShoppingList extends Component {
 }
 ```
 
-A controller lives for one request only ([Controllers](../Controllers.md)), so it cannot keep the list. A component
-keeps it instead: it is created once and shared by the whole application ([Objects](../Objects.md)). The list is held
-in memory, so it is lost when the application stops (section 11).
+A controller lives for one request only ([Controllers and Actions](../Controllers.md)), so it cannot keep the list. A
+component keeps it instead: it is created once and shared by the whole application ([Objects and
+Lifetimes](../Objects.md)). The list is held in memory, so it is lost when the application stops (section 11).
 
 ## 3. The input
 
@@ -107,7 +107,7 @@ export class ItemIdDTO extends DTO {
 }
 ```
 
-Each action validates its input with a DTO, and refuses invalid input ([DTOValidation](../DTOValidation.md)):
+Each action validates its input with a DTO, and refuses invalid input ([DTO and Validation](../DTOValidation.md)):
 
 - the schemas are strict: `.trim()` alone would refuse `'  Bread  '`. With `.strict(false)`, it removes the spaces, and
   a name made of spaces only is refused as empty;
@@ -554,8 +554,8 @@ npx lakutata package bundle
 - `npm run docker:build` builds the image of the application with the `Dockerfile` of the template, page included.
 - The list is lost when the application stops: keep it in a database, as in
   [A REST API with a database](RestAPI.md).
-- Anyone who can reach the application can change the list. Outside a home network, put it behind a reverse proxy
-  that asks for a login, or authenticate the users in a middleware ([Middlewares](../Middlewares.md)).
+- Anyone who can reach the application can change the list. Outside a home network, put it behind a reverse proxy that
+  asks for a login, or authenticate the users in a middleware ([Middlewares and Access Control](../Middlewares.md)).
 
 <!--
 check:

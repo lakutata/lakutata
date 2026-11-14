@@ -23,7 +23,7 @@ npm test -w @acme/capture
 
 | Build system | Its files | Building it needs |
 |---|---|---|
-| `gyp` (the default) | `binding.gyp`, `cpp/binding.cc` | Python and a C++ toolchain: the Xcode command line tools on macOS, build-essential on Linux, the Visual Studio Build Tools on Windows |
+| `gyp` (the default) | `binding.gyp`, `cpp/binding.cc` | Python and a C++ toolchain: the Xcode command-line tools on macOS, build-essential on Linux, the Visual Studio Build Tools on Windows |
 | `cmake` | `CMakeLists.txt`, `cpp/binding.cc` | CMake and a C++ toolchain |
 | `rust` | `Cargo.toml`, `build.rs`, `rust/lib.rs` | Rust (rustup) |
 

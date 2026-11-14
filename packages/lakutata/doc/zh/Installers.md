@@ -1,6 +1,6 @@
 # Lakutata 安装包
 
-`lakutata package installer` 制作应用的安装包：系统的软件包（deb、rpm、apk、pkg、msi 等），它们安装应用的可执行文件，把程序加入 PATH，还可以把应用注册为随系统启动的服务。安装包在应用的 `package.json` 中配置，和其他打包命令一样，项目需要安装 `@lakutata/builder`（见 [Packaging](Packaging.md)）。
+`lakutata package installer` 制作应用的安装包：系统的软件包（deb、rpm、apk、pkg、msi 等），它们安装应用的可执行文件，把程序加入 PATH，还可以把应用注册为随系统启动的服务。安装包在应用的 `package.json` 中配置，和其他打包命令一样，项目需要安装 `@lakutata/builder`（见[打包](Packaging.md)）。
 
 ## 1. 制作安装包
 
@@ -228,7 +228,7 @@ jobs:
 - **`electron`** 会合并到 electron-builder 的配置中：图标、文件关联、签名、更新等。`name`、`appId`、`productName`、描述、维护者、主页和许可证也会传给它。
 - **Electron 应用不是服务**：它在用户的会话中运行，设置 `service` 会被拒绝。
 - **脚本**在 `deb` 和 `rpm` 软件包（全部四种）、`pkg`（`preinstall`、`postinstall`）和 `nsis` 安装程序（`preinstall`、`postinstall`、`preremove`）中执行；其他目标都不执行。
-- **原生插件**按安装时的样子复制：electron-builder 不会重新构建它们。基于 Node-API 的插件可以直接运行；其他插件请在打包前安装它们为 Electron 构建的版本（`electron-rebuild`）（见 [NativeAddons](NativeAddons.md) 第 4 节）。
+- **原生插件**按安装时的样子复制：electron-builder 不会重新构建它们。基于 Node-API 的插件可以直接运行；其他插件请在打包前安装它们为 Electron 构建的版本（`electron-rebuild`）（见[原生插件](NativeAddons.md)第 4 节）。
 - 在 Linux arm64 上，deb 和 rpm 软件包需要系统中的 fpm（`gem install fpm`、`USE_SYSTEM_FPM=true`），Electron 模板的 `Dockerfile.installer` 就是这样安装它的。
 
 ## 9. NW.js 应用
@@ -240,4 +240,4 @@ jobs:
 - **架构**默认是本机的架构，也可以用 `--arch` 指定（`x64`、`ia32`、`arm64`）：`ia32` 制作 32 位 Windows 的安装包，应用安装在 32 位程序的目录中。没有 Apple 芯片 Mac 构建的 NW.js 版本（如 0.72），会打包成 Intel 版。
 - **NW.js 应用不是服务**，也不会加入 PATH（`addToPath` 默认为 `false`）。
 - **脚本**和其他应用一样执行，只是 macOS 上的应用是直接删除的：那里不会执行卸载脚本。
-- **原生插件**会被处理成能在 NW.js 中加载：为它的架构重新构建，使用 V8 API 的插件用它的头文件重新构建；在 Windows 上，插件加载的是 NW.js 的 Node.js（见 [NativeAddons](NativeAddons.md) 第 4 节）。
+- **原生插件**会被处理成能在 NW.js 中加载：为它的架构重新构建，使用 V8 API 的插件用它的头文件重新构建；在 Windows 上，插件加载的是 NW.js 的 Node.js（见[原生插件](NativeAddons.md)第 4 节）。

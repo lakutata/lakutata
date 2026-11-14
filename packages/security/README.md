@@ -2,7 +2,7 @@
 
 English | [中文](README.zh-CN.md)
 
-The security toolkit of the lakutata framework, built on `node:crypto`: password hashing with bcrypt (`PasswordHash`),
+The security toolkit of the Lakutata framework, built on `node:crypto`: password hashing with bcrypt (`PasswordHash`),
 message signatures with HMAC (`Mac`) and authenticated encryption with AES-256-GCM (`Crypt`), both with key rotation,
 plus lower-level functions (HMAC signatures, random keys, constant-time comparison, encryption with a key or a
 password). The umbrella package `lakutata` re-exports it as `lakutata/security`, and `PasswordHash` alone as

@@ -2,7 +2,7 @@
 
 English | [中文](README.zh-CN.md)
 
-Thermal printers for the [lakutata](https://github.com/lakutata/lakutata) framework. A manager component finds the
+Thermal printers for the [Lakutata](https://github.com/lakutata/lakutata) framework. A manager component finds the
 printers (USB printers, the print queues of the system, serial and Bluetooth ports) and opens them from definitions an
 application saves as JSON. Each opened printer is an object that renders receipts, labels and wristbands written in
 HTML (by [`@lakutata/thermal`](../thermal)), encodes them as the printer's commands (ESC/POS, TSPL or ZPL), and sends

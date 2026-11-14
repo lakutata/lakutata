@@ -48,7 +48,7 @@ curl 'http://localhost:8080/example?name=you'
 npx @lakutata/cli create --name shop --template service --with i18n,installer
 ```
 
-`--with` 加入可选功能：所有模板都有 `i18n`（多语言消息），`cli`、`service` 和 `web-*` 模板还有 `installer`（安装包和系统服务），`nwjs-*` 模板还有 `win7`（能在 Windows 7 上运行的 NW.js 0.72）。在终端里没有给出 `--with` 时，工具会列出这些功能供选择。模板中的文件见 [ProjectStructure](ProjectStructure.md)，`lakutata create` 的选项见 [Command](Command.md)。
+`--with` 加入可选功能：所有模板都有 `i18n`（多语言消息），`cli`、`service` 和 `web-*` 模板还有 `installer`（安装包和系统服务），`nwjs-*` 模板还有 `win7`（能在 Windows 7 上运行的 NW.js 0.72）。在终端里没有给出 `--with` 时，工具会列出这些功能供选择。模板中的文件见[项目结构](ProjectStructure.md)，`lakutata create` 的选项见[命令行工具](Command.md)。
 
 `default` 模板的脚本：
 
@@ -59,7 +59,7 @@ npx @lakutata/cli create --name shop --template service --with i18n,installer
 | `npm start` | 启动编译好的应用 |
 | `npm test` | 编译项目并运行测试（`node --test`） |
 
-其他模板是包含多个包的工作区，它们的脚本作用于每个包，`npm test` 也会先构建各个包再运行测试（见 [ProjectStructure](ProjectStructure.md) 第 2 节）。
+其他模板是包含多个包的工作区，它们的脚本作用于每个包，`npm test` 也会先构建各个包再运行测试（见[项目结构](ProjectStructure.md)第 2 节）。
 
 ## 3. 在已有项目中加入 Lakutata
 
@@ -144,15 +144,15 @@ curl 'http://localhost:8080/greet?name=you'
 # {"message":"Hello, you!"}
 ```
 
-- `GreetDTO` 校验输入：`name` 可选，默认为 `world`（[DTOValidation](DTOValidation.md)）。
-- `GreetController` 声明一个动作，这里通过 HTTP 提供；同一个方法也可以同时作为命令行工具的命令或服务动作（[Controllers](Controllers.md)）。
-- `Application.run()` 声明应用的组件：`entrypoint` 组件通过它的适配器对外提供控制器，`bootstrap` 在启动时创建它（[Application](Application.md)、[Entrypoint](Entrypoint.md)）。
+- `GreetDTO` 校验输入：`name` 可选，默认为 `world`（[DTO 与数据校验](DTOValidation.md)）。
+- `GreetController` 声明一个动作，这里通过 HTTP 提供；同一个方法也可以同时作为命令行工具的命令或服务动作（[控制器与动作](Controllers.md)）。
+- `Application.run()` 声明应用的组件：`entrypoint` 组件通过它的适配器对外提供控制器，`bootstrap` 在启动时创建它（[应用](Application.md)、[入口](Entrypoint.md)）。
 
 ## 5. 接下来
 
 - [示例](examples/README.md)：一步步从模板构建完整的应用。
-- [核心概念](Concepts.md) 和 [应用设计](ApplicationDesign.md)：框架的对象模型，以及如何基于这一模型组织应用。
-- [ProjectStructure](ProjectStructure.md)：项目中的文件和脚本。
-- [Application](Application.md)、[Objects](Objects.md) 和 [Injection](Injection.md)：怎样声明应用，以及应用中的对象如何创建、如何获取彼此。
-- [Controllers](Controllers.md) 和 [HTTP](HTTP.md)：动作、它们的输入和响应。
-- [Command](Command.md)、[Workspaces](Workspaces.md)、[NativeAddons](NativeAddons.md)、[Packaging](Packaging.md) 和 [Installers](Installers.md)：`lakutata` 命令、项目中的各个包，以及打包后的应用。
+- [核心概念](Concepts.md)和[应用设计](ApplicationDesign.md)：框架的对象模型，以及如何基于这一模型组织应用。
+- [项目结构](ProjectStructure.md)：项目中的文件和脚本。
+- [应用](Application.md)、[对象与生命周期](Objects.md)和[依赖注入](Injection.md)：怎样声明应用，以及应用中的对象如何创建、如何获取彼此。
+- [控制器与动作](Controllers.md)和 [HTTP](HTTP.md)：动作、它们的输入和响应。
+- [命令行工具](Command.md)、[工作区](Workspaces.md)、[原生插件](NativeAddons.md)、[打包](Packaging.md)和[安装包](Installers.md)：`lakutata` 命令、项目中的各个包，以及打包后的应用。

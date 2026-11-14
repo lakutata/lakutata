@@ -194,7 +194,7 @@ A call that fails at the gRPC level is thrown as a `GRPCError` from `@lakutata/g
 |---|---|
 | `UNAVAILABLE` | The service cannot be reached |
 | `DEADLINE_EXCEEDED` | The deadline passed |
-| `CANCELLED` | The call was cancelled |
+| `CANCELLED` | The call was canceled |
 | `RESOURCE_EXHAUSTED` | A message is larger than `maxMessageSize` |
 | `UNIMPLEMENTED` | An unknown method, or a compression the server does not support |
 
@@ -251,7 +251,7 @@ seconds by default) to complete. Then the event streams end and the server close
 
 ## 8. The lower layers
 
-The package also has the layers the service is built on, usable without lakutata: `GRPCConnection`, a client for any
+The package also has the layers the service is built on, usable without Lakutata: `GRPCConnection`, a client for any
 gRPC server (unary, server streaming and bidirectional calls, metadata, TLS); `GRPCServer`; and `encode`/`decode`, a
 protobuf codec driven by schemas. The README of `@lakutata/grpc` describes them. `GRPCServer.listenWith()` listens
 through the listeners of network interfaces (`listenOnAll()` of `@lakutata/netif`), as the adapter does.

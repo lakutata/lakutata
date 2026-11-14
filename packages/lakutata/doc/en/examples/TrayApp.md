@@ -2,8 +2,8 @@
 
 This example builds a clipboard history that lives in the tray of the system: it keeps the texts copied in any program,
 and its window lists them, searches them, copies one to the clipboard again and pins the ones to keep. It starts from
-the `nwjs-react` template and shows what an NW.js application made with lakutata is made of: its background script, a
-lakutata application that runs as long as the application does, with or without a window (here it reads the clipboard
+the `nwjs-react` template and shows what an NW.js application made with Lakutata is made of: its background script, a
+Lakutata application that runs as long as the application does, with or without a window (here it reads the clipboard
 and keeps the icon in the tray with its menu); its window, whose React user interface calls the actions of the
 application and receives its events; and the tests of the application, which run without NW.js.
 
@@ -26,8 +26,8 @@ cd clips
 rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/GreetDTO.ts
 ```
 
-The project is a workspace ([ProjectStructure](../ProjectStructure.md)): `packages/app` is the background script of
-NW.js, a lakutata application; `packages/ui` is the user interface, a React page built by Vite; `packages/resources`
+The project is a workspace ([Project Structure](../ProjectStructure.md)): `packages/app` is the background script of
+NW.js, a Lakutata application; `packages/ui` is the user interface, a React page built by Vite; `packages/resources`
 holds the icon. The application needs no other package: the clipboard and the tray come from NW.js, and the history is a
 JSON file written with `node:fs`. The example controller of the template is removed.
 
@@ -64,9 +64,9 @@ export class PinClipDTO extends ClipIdDTO {
 }
 ```
 
-Each action validates its input with a DTO before it runs ([DTOValidation](../DTOValidation.md)). A clip is named by its
-id, a UUID given by the history: `.uuid()` refuses any other string, `"id" must be a valid GUID`. A message is JSON, so
-its values keep their types: `pinned` must be a boolean.
+Each action validates its input with a DTO before it runs ([DTO and Validation](../DTOValidation.md)). A clip is named
+by its id, a UUID given by the history: `.uuid()` refuses any other string, `"id" must be a valid GUID`. A message is
+JSON, so its values keep their types: `pinned` must be a boolean.
 
 ## 3. The exception
 
@@ -84,7 +84,7 @@ export class ClipNotFoundException extends Exception {
 ```
 
 An exception has an `errno`, the code that the user interface checks ([Exceptions](../Exceptions.md)). The window
-receives the error as it was thrown, with all its properties ([ServiceCalls](../ServiceCalls.md), section 3):
+receives the error as it was thrown, with all its properties ([Service Calls](../ServiceCalls.md), section 3):
 `error.errno` is `'E_CLIP_NOT_FOUND'`. The service transports always answer with an envelope, whatever the status of the
 error, so the exception needs no `statusCode`.
 
@@ -276,18 +276,19 @@ export class History extends Component {
 }
 ```
 
-- A component is created once and shared by the whole application ([Objects](../Objects.md)): it keeps the clips, which
-  outlive the requests, while a controller lives for one request only ([Controllers](../Controllers.md), section 2).
-- The component knows nothing of NW.js. Its options give it what it uses ([Injection](../Injection.md)): `clipboard`,
-  the functions that read and write the text of the clipboard (the clipboard of NW.js in the application, section 8; a
-  variable in the tests, section 11), and `file`, where the history is kept.
+- A component is created once and shared by the whole application ([Objects and Lifetimes](../Objects.md)): it keeps the
+  clips, which outlive the requests, while a controller lives for one request only ([Controllers and
+  Actions](../Controllers.md), section 2).
+- The component knows nothing of NW.js. Its options give it what it uses ([Dependency Injection](../Injection.md)):
+  `clipboard`, the functions that read and write the text of the clipboard (the clipboard of NW.js in the application,
+  section 8; a variable in the tests, section 11), and `file`, where the history is kept.
 - NW.js does not tell when the clipboard changes, so `init()` reads it every `interval` milliseconds. A text other than
   the last one read is a copy; the text that the clipboard holds when the application starts is not one, and neither is
   the text that `copy()` writes itself.
 - A text copied again moves to the top instead of being added twice. Beyond `limit` clips, the oldest ones are dropped,
   except the pinned ones.
 - Each change saves the file and tells it: `this.entrypoint.broadcast()` pushes `clips.changed` to the window
-  ([ServiceCalls](../ServiceCalls.md), section 5), and `this.emit('changed')` tells the other components, such as the
+  ([Service Calls](../ServiceCalls.md), section 5), and `this.emit('changed')` tells the other components, such as the
   tray (section 6). The file is written to a file beside it (`history.json.tmp`), then renamed over it, so that a crash
   never leaves it half written; the writes wait for each other, and `destroy()` waits for the last one when the
   application stops.
@@ -339,7 +340,7 @@ export class ClipController extends Controller {
 ```
 
 Each `@ServiceAction` is called by a message: `{cmd: 'clips.pin', id: '…', pinned: true}` calls `pin()` with
-`{id: '…', pinned: true}`, validated by `PinClipDTO` ([ServiceCalls](../ServiceCalls.md), section 2). The actions are
+`{id: '…', pinned: true}`, validated by `PinClipDTO` ([Service Calls](../ServiceCalls.md), section 2). The actions are
 short: the work is done by the `history` component, which the controller injects. An action that returns nothing, such
 as `remove()`, answers `{success: true, error: null}`.
 
@@ -847,7 +848,7 @@ menu of the tray (the name `Clips` in the menu bar of macOS).
 
 In development, the actions are also served over HTTP on port 9000 (`DEV_PORT`), so you can try them with curl or
 Postman: `POST /` sends a message, and `GET /events` streams the events of a client as Server-Sent Events
-([ServiceCalls](../ServiceCalls.md), section 4). After copying `git log --oneline -5`, then
+([Service Calls](../ServiceCalls.md), section 4). After copying `git log --oneline -5`, then
 `https://docs.nwjs.io/References/Tray/`, run in another terminal:
 
 ```bash
@@ -1050,7 +1051,7 @@ system, the tray and the window, is tried out with `npm run dev`.
   has no HTTP entrypoint (`devPort` is given only in the sdk flavor of `lakutata nwjs run`).
 - The application runs in the version of NW.js given by `lakutata.nwjs` in `packages/app/package.json`;
   `npm run nwjs:use -- <version>` gives it another one, such as `win7`, NW.js 0.72, the last release that runs on
-  Windows 7, 8 and 8.1 ([ProjectStructure](../ProjectStructure.md)).
+  Windows 7, 8 and 8.1 ([Project Structure](../ProjectStructure.md)).
 
 <!--
 check:

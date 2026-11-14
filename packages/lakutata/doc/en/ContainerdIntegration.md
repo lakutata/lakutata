@@ -6,7 +6,7 @@ without Docker and without nerdctl. It targets the Linux machines that run conta
 the component talks to the socket of containerd (its gRPC client is written in TypeScript, no native addon), and does
 by itself what nerdctl does on top of it (pulling from the registries, unpacking the layers, generating the OCI
 specifications of the containers, their logs). Its API follows that of the Docker component
-([DockerIntegration](DockerIntegration.md)). The README of `@lakutata/containerd` gives every option.
+([Docker Integration](DockerIntegration.md)). The README of `@lakutata/containerd` gives every option.
 
 The containers it creates are the same as the containers nerdctl creates: they carry its labels (`nerdctl/name`,
 `nerdctl/hostname`…), so `nerdctl ps` and `ctr containers ls` list them.

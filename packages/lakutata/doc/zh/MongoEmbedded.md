@@ -166,7 +166,7 @@ await client.db().createCollection('events', {capped: true, size: 16 * 1024 * 10
 
 ## 9. 不支持的功能
 
-与 TypeORM 中的 MongoDB 服务器相同，没有关系，没有查询构造器；`synchronize` 只创建索引，迁移需要手写（见 [Migrations](Migrations.md)）。
+与 TypeORM 中的 MongoDB 服务器相同，没有关系，没有查询构造器；`synchronize` 只创建索引，迁移需要手写（见[迁移](Migrations.md)）。
 
 MongoDB 8.0 的功能中，它没有聚簇集合、GridFS、Atlas Search，也不支持版本 1 和 2 的全文索引。它只有一个成员：`w: 2` 这样的写关注会在写入完成后以 `EmbeddedWriteConcernError` 失败。
 

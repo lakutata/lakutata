@@ -206,7 +206,7 @@ error: option '--times <value>' argument 'x' is invalid. Not a number.
 | `noCommand` | `'help'` | 没有参数时：`'help'` 输出帮助并以退出码 1 退出，`'ignore'` 什么都不执行，应用继续运行 |
 | `exit` | `'application'` | 命令执行完之后：`'application'` 停止应用并以命令的退出码退出，`'process'` 只设置 `process.exitCode`，`'none'` 什么都不做，传入函数则接收退出码 |
 | `configure` | | `(program) => void`，在命令添加完、读取参数之前，用 Commander 的 program 调用：可以加全局选项、钩子 |
-| `translate` | | 翻译帮助和提问（见 [I18n](I18n.md#命令行程序的帮助和提示)） |
+| `translate` | | 翻译帮助和提问（见[国际化（i18n）](I18n.md#命令行程序的帮助和提示)） |
 | `middlewares` | | 这个适配器的命令专用的中间件，在入口的中间件之后执行 |
 | `name` | | 适配器的名字，用来区分多个适配器 |
 

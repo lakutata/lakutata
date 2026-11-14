@@ -4,7 +4,7 @@ A project made of several packages (an application, its web interface, shared li
 workspace: one repository whose root `package.json` lists the directories of its packages. The package manager (npm,
 pnpm or yarn) links the packages to each other; the `lakutata` command runs their scripts in the order of their
 dependencies, gives them one version, and adds new packages. It covers the part of lerna that these projects use.
-Every template but `default` makes a workspace ([ProjectStructure](ProjectStructure.md), section 2).
+Every template but `default` makes a workspace ([Project Structure](ProjectStructure.md), section 2).
 
 ## 1. A workspace
 
@@ -171,19 +171,19 @@ any package: `import {greet} from '@shop/shared'`.
 - **Nothing is installed**: run the install of the package manager of the workspace afterwards, as the command says
   (`pnpm install`, `yarn install`), so that the other packages see the new one.
 
-`lakutata add <name> --native gyp|cmake|rust` creates a native addon instead: see [NativeAddons](NativeAddons.md).
+`lakutata add <name> --native gyp|cmake|rust` creates a native addon instead: see [Native Addons](NativeAddons.md).
 
 ## 5. Coming from lerna
 
-| lerna | lakutata |
+| lerna | `lakutata` |
 |---|---|
 | `lerna run rebuild` | `lakutata run rebuild` |
 | `lerna run dev --parallel` | `lakutata run dev --parallel` |
 | `lerna version patch --no-git-tag-version --no-push -y` | `lakutata version patch --yes` |
 | `lerna version patch` | `lakutata version patch --git` (the tag is not pushed) |
 
-- A workspace can keep its `lerna.json`: lakutata reads and writes its `version` only. The packages come from the
+- A workspace can keep its `lerna.json`: `lakutata` reads and writes its `version` only. The packages come from the
   `workspaces` of the root `package.json` (or `pnpm-workspace.yaml`), not from the `packages` of `lerna.json`.
-- lakutata gives all the packages one version: a `lerna.json` with `"version": "independent"` cannot be bumped.
+- `lakutata` gives all the packages one version: a `lerna.json` with `"version": "independent"` cannot be bumped.
 - It does not write changelogs, cache builds, select the packages changed since a release, or publish: publish with
   `npm publish -w <package>`. Workspaces that need these keep lerna (or nx, turborepo) alongside it.

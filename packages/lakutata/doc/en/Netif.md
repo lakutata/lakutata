@@ -9,7 +9,7 @@ application. What it is like:
 
 - **Any server**: `http`, `https`, `http2`, `tls`, Express and Fastify take the connections of the interface as their
   own; UDP sockets too, for the services that work on one interface (DHCP, mDNS, SSDP).
-- **The entrypoints of lakutata** take an `interface` option, which serves the controllers of an application on one
+- **The entrypoints of Lakutata** take an `interface` option, which serves the controllers of an application on one
   interface (section 5).
 - **The system refuses the other interfaces where it can**: on Linux the sockets are bound to the interface, and a
   connection that reaches its address through another interface is refused. On Windows and macOS the addresses of the
@@ -145,7 +145,7 @@ address of the interface; on macOS such sockets receive no broadcast and no mult
 
 ## 5. In an application
 
-The entrypoints of lakutata that listen on a port take an `interface` option: `expressHTTPEntrypoint()`,
+The entrypoints of Lakutata that listen on a port take an `interface` option: `expressHTTPEntrypoint()`,
 `fastifyHTTPEntrypoint()`, `httpServiceEntrypoint()`, `socketIOServiceEntrypoint()`, `jsonRPCServiceEntrypoint()`,
 `grpcServiceEntrypoint()` of `@lakutata/grpc` and `httpMCPEntrypoint()` of `@lakutata/mcp`. The actions of the
 controllers are then served on that interface, whatever its addresses:
@@ -248,7 +248,7 @@ Application.run(() => ({
 - **Electron**: in the main process.
 - The bundles, the executables and the installers made by `lakutata package` carry the compiled addon
   (`build/Release/netif.node`): build them on each target platform, after installing the package there (see
-  [Packaging](Packaging.md) and [NativeAddons](NativeAddons.md)).
+  [Packaging](Packaging.md) and [Native Addons](NativeAddons.md)).
 
 ## 7. Exceptions
 

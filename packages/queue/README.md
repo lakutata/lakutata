@@ -2,10 +2,10 @@
 
 English | [中文](README.zh-CN.md)
 
-Message queues for the [lakutata](https://www.npmjs.com/package/lakutata) framework. The `Queue` component adds
+Message queues for the [Lakutata](https://www.npmjs.com/package/lakutata) framework. The `Queue` component adds
 messages, and controller actions declared with `@QueueAction` process them through the `queueEntrypoint` adapter, with
 the same input DTOs, access control and middlewares as the other channels. A message is acknowledged when its action
-returns and delivered again after a failure; once its attempts are used up, it goes to the dead letter queue
+returns and delivered again after a failure; once its attempts are used up, it goes to the dead-letter queue
 `<queue>.dead`. The value the action returns is the message's result (`queue.request()`, `queue.result()`) and can be
 passed on to another queue (`output`). The umbrella package `lakutata` exposes this package as `lakutata/com/queue`.
 
@@ -99,7 +99,7 @@ Semantics:
   name the group.
 - **Stopping.** When the application stops, the consumers stop and the messages being processed are given time to
   complete (the entrypoint's `shutdownTimeout`). Those still running after that are delivered again later, neither
-  acknowledged nor sent to the dead letter queue. Messages that `consume()` is still processing when the component is
+  acknowledged nor sent to the dead-letter queue. Messages that `consume()` is still processing when the component is
   destroyed are aborted (through their signal) and also delivered again later.
 - **Time limit.** Processing that exceeds its `timeout` fails with `QueueProcessingTimeoutException` and is retried: its
   signal is aborted, and whatever it returns afterwards is dropped.
@@ -116,7 +116,7 @@ Semantics:
 
 - **Memory** keeps the messages in the process: they are lost when it exits, and the instances of an application do not
   share them. A message added before its queue has any group is kept for the first group, and only for that one: a
-  dead letter queue that a second group starts consuming later gives it only new letters. Its `backlog` option caps
+  dead-letter queue that a second group starts consuming later gives it only new letters. Its `backlog` option caps
   how many of them are kept (1000 for each queue by default; beyond that, the oldest are dropped). A delivery abandoned
   when the application stops does not count as an attempt.
 - **Redis** (BullMQ): there is one BullMQ queue for each queue and group, under the key `prefix` (`lakutata` by

@@ -149,7 +149,7 @@ on. Each package's README lists its exceptions.
   `NativeAddons.md`, `Packaging.md`, `Installers.md`; and the examples, in `doc/en/examples` and `doc/zh/examples`:
   whole applications built from the templates.
 - `@lakutata/cli`: creating, building and packaging applications.
-- The official Agent Skill for AI coding assistants that work on lakutata projects:
+- The official Agent Skill for AI coding assistants that work on Lakutata projects:
   [lakutata.com/skill](https://lakutata.com/skill/).
 
 ## License

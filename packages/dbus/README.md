@@ -2,7 +2,7 @@
 
 English | [中文](README.zh-CN.md)
 
-The D-Bus channel of the [lakutata](https://github.com/lakutata/lakutata) framework. The application owns a service
+The D-Bus channel of the [Lakutata](https://github.com/lakutata/lakutata) framework. The application owns a service
 name on a bus (the system bus, the session bus or a private bus) and serves its controllers as interfaces of D-Bus
 objects, with methods, properties and signals. The package also provides a D-Bus client component that calls other
 services on a bus, reads their properties and listens to their signals. The protocol is implemented by

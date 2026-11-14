@@ -1,6 +1,6 @@
 # Lakutata 服务调用
 
-服务动作（`@ServiceAction`）通过消息而不是 URL 来调用：消息是一个对象，其中一部分键用来选择动作，称为**模式**，其余的键就是输入。同一组动作可以同时通过多种传输方式提供：本指南介绍的普通 HTTP、Socket.IO、JSON-RPC 2.0（基于 HTTP、WebSocket 或标准输入输出）、Electron 的 IPC、NW.js 的窗口和 React Native 手机应用的界面，以及在各自指南中介绍的 gRPC、NATS 和 WebRTC 的数据通道。控制器及其动作见 [Controllers](Controllers.md)，入口及其适配器见 [Entrypoint](Entrypoint.md)。
+服务动作（`@ServiceAction`）通过消息而不是 URL 来调用：消息是一个对象，其中一部分键用来选择动作，称为**模式**，其余的键就是输入。同一组动作可以同时通过多种传输方式提供：本指南介绍的普通 HTTP、Socket.IO、JSON-RPC 2.0（基于 HTTP、WebSocket 或标准输入输出）、Electron 的 IPC、NW.js 的窗口和 React Native 手机应用的界面，以及在各自指南中介绍的 gRPC、NATS 和 WebRTC 的数据通道。控制器及其动作见[控制器与动作](Controllers.md)，入口及其适配器见[入口](Entrypoint.md)。
 
 ## 1. 第一个服务
 
@@ -122,7 +122,7 @@ class OrderController extends Controller {
 - 模式中的字符串值可以是通配符：`*` 匹配任意多个字符，`?` 匹配一个字符。
 - 值按文本比较：模式 `{version: 2}` 与 `version: '2'` 匹配。
 - 模式可以嵌套对象，最多两层；嵌套对象的键逐个比较。
-- `@Prefix({pattern})` 把一个模式合并到控制器所有动作的模式中（见 [Controllers](Controllers.md) 第 6 节）。
+- `@Prefix({pattern})` 把一个模式合并到控制器所有动作的模式中（见[控制器与动作](Controllers.md)第 6 节）。
 - 没有任何模式匹配的消息，以 `ControllerActionNotFoundException`（`E_CONTROLLER_ACTION_NOT_FOUND`）失败。
 - 消息是 JSON，值保留各自的类型：与 HTTP 请求的查询参数不同，期望数字的校验规则不会把 `"2"` 转换成数字。
 
@@ -167,11 +167,11 @@ export async function call<T>(message: Record<string, unknown>): Promise<T> {
 | `electronIPCServiceEntrypoint()` | `lakutata/adapter/electron` | （Electron） | `ipcRenderer.invoke()` | IPC 消息 |
 | `nwjsServiceEntrypoint()` | `lakutata/adapter/nwjs` | （NW.js） | 窗口的宿主页面对桥接对象的一次调用 | 调用宿主页面交给它的函数 |
 | `reactNativeServiceEntrypoint()` | `lakutata/adapter/react-native` | | 宿主发来的一行 JSON | 一行行 JSON |
-| `grpcServiceEntrypoint()` | `@lakutata/grpc/service` | `@lakutata/grpc` | 见 [GRPC](GRPC.md) | gRPC 流 |
+| `grpcServiceEntrypoint()` | `@lakutata/grpc/service` | `@lakutata/grpc` | 见 [gRPC](GRPC.md) | gRPC 流 |
 | `natsServiceEntrypoint()` | `@lakutata/nats` | `@lakutata/nats` | 见 [NATS](NATS.md) | NATS 消息 |
 | `webrtcServiceEntrypoint()` | `@lakutata/webrtc` | `@lakutata/webrtc` | 数据通道上的 JSON-RPC 2.0 请求，见 [WebRTC](WebRTC.md) | 通知 |
 
-每个适配器还接受 `name`，用来区分多个适配器，以及 `middlewares`，在入口的中间件之后执行（见 [Middlewares](Middlewares.md)）。
+每个适配器还接受 `name`，用来区分多个适配器，以及 `middlewares`，在入口的中间件之后执行（见[中间件与访问控制](Middlewares.md)）。
 
 ### HTTP 服务
 
@@ -533,6 +533,6 @@ class TaskController extends Controller {
 
 ## 6. 停止与离开
 
-- 应用停止时，新的请求以 `EntrypointStoppedException`（`E_ENTRYPOINT_STOPPED`；JSON-RPC 中错误码为 `-32001`）失败，正在处理的请求有入口的 `shutdownTimeout` 来完成（见 [Entrypoint](Entrypoint.md) 第 4 节）。
+- 应用停止时，新的请求以 `EntrypointStoppedException`（`E_ENTRYPOINT_STOPPED`；JSON-RPC 中错误码为 `-32001`）失败，正在处理的请求有入口的 `shutdownTimeout` 来完成（见[入口](Entrypoint.md)第 4 节）。
 - 客户端在收到响应之前离开时（socket 断开、窗口关闭、HTTP 连接关闭、数据通道关闭），它的请求的 `this.signal` 会被中止。
 - 传输方式不限制调用的时间：客户端自己设置超时，比如上文的 `socket.timeout(5000)`。

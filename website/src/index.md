@@ -30,7 +30,7 @@ features:
   - title: Batteries included
     details: Databases (TypeORM), caching, locks, message queues (Redis, NATS, RabbitMQ, Kafka), internationalization, logging, Docker and containerd, hashing and encryption.
   - title: From the first line to the installer
-    details: The lakutata command creates a project from a template, bundles it, and builds executables and installers.
+    details: The Lakutata command-line tool creates a project from a template, bundles it, and builds executables and installers.
   - title: Typed and documented
     details: ESM and CommonJS builds, complete type declarations, and an example for every public API.
 ---

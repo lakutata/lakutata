@@ -1,6 +1,6 @@
 # Lakutata 应用
 
-**应用**是 Lakutata 程序的根对象。`Application.run()` 在一个新的根容器中创建它，注册它声明的对象，依次执行 bootstrap 步骤，并在收到退出信号时优雅地结束。本页介绍应用的选项、链式 API、生命周期、运行模式和打包后的应用。应用创建的对象见 [Objects](Objects.md)，对象之间如何获取彼此见 [Injection](Injection.md)。
+**应用**是 Lakutata 程序的根对象。`Application.run()` 在一个新的根容器中创建它，注册它声明的对象，依次执行 bootstrap 步骤，并在收到退出信号时优雅地结束。本页介绍应用的选项、链式 API、生命周期、运行模式和打包后的应用。应用创建的对象见[对象与生命周期](Objects.md)，对象之间如何获取彼此见[依赖注入](Injection.md)。
 
 ## 1. 选项
 
@@ -70,8 +70,8 @@ Application
 
 ## 5. 打包后的应用
 
-`lakutata package bundle`、`package exe` 和 `package installer` 把编译好的应用打包成单文件包、可执行文件或安装包。以打包形式运行时，`isPackaged()`（来自 `lakutata`）返回 `true`，`resourcesPath()` 返回资源所在的目录，资源就是 `package.json` 的 `lakutata.resources` 中声明的文件；未打包时，它返回 `undefined`，应用从这些文件的构建位置读取它们。详见 [Packaging](Packaging.md)。
+`lakutata package bundle`、`package exe` 和 `package installer` 把编译好的应用打包成单文件包、可执行文件或安装包。以打包形式运行时，`isPackaged()`（来自 `lakutata`）返回 `true`，`resourcesPath()` 返回资源所在的目录，资源就是 `package.json` 的 `lakutata.resources` 中声明的文件；未打包时，它返回 `undefined`，应用从这些文件的构建位置读取它们。详见[打包](Packaging.md)。
 
 ## 6. 入口
 
-`entrypoint` 组件（`lakutata/com/entrypoint`）通过 HTTP、CLI、服务传输、定时任务和消息队列对外提供控制器。用 `buildEntrypoints({controllers, http, cli, service, schedule, queue})` 配置它，并把它列入 `bootstrap`；详见 [Entrypoint](Entrypoint.md)。
+`entrypoint` 组件（`lakutata/com/entrypoint`）通过 HTTP、CLI、服务传输、定时任务和消息队列对外提供控制器。用 `buildEntrypoints({controllers, http, cli, service, schedule, queue})` 配置它，并把它列入 `bootstrap`；详见[入口](Entrypoint.md)。

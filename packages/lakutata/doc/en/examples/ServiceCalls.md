@@ -22,7 +22,7 @@ rm orders/packages/app/src/controllers/ExampleController.ts orders/packages/app/
 ```
 
 The two projects sit side by side, each a workspace whose service is `packages/app`
-([ProjectStructure](../ProjectStructure.md)); the paths below start with the name of their project. They share no code:
+([Project Structure](../ProjectStructure.md)); the paths below start with the name of their project. They share no code:
 the action patterns and the shape of the messages are the contract between them. Nothing is installed: the HTTP
 service transport and its proxy are part of lakutata.
 
@@ -123,9 +123,9 @@ export class Stock extends Component {
 }
 ```
 
-- The stock is a component ([Objects](../Objects.md)): one instance for the whole service, while a controller lives for
-  one request. It is kept in memory, starting from the quantities of its `products` option (a `@Configurable`
-  property), which `init()` copies.
+- The stock is a component ([Objects and Lifetimes](../Objects.md)): one instance for the whole service, while a
+  controller lives for one request. It is kept in memory, starting from the quantities of its `products` option (a
+  `@Configurable` property), which `init()` copies.
 - `reserve()` checks every item before it changes the stock: an order is reserved whole, or not at all.
 - The order id makes the reservation happen only once: a call sent again, after a timeout for example, gets the same
   result and reserves nothing more.
@@ -167,9 +167,9 @@ export class ReserveDTO extends DTO {
 }
 ```
 
-The DTOs validate the input of the actions as they do over HTTP ([DTOValidation](../DTOValidation.md)). A message is
-JSON, so its values keep their types: no `.strict(false)` is needed. `.unique('product')` refuses an order that lists a
-product twice.
+The DTOs validate the input of the actions as they do over HTTP ([DTO and Validation](../DTOValidation.md)). A message
+is JSON, so its values keep their types: no `.strict(false)` is needed. `.unique('product')` refuses an order that lists
+a product twice.
 
 **`inventory/packages/app/src/controllers/StockController.ts`**
 
@@ -209,10 +209,10 @@ export class StockController extends Controller {
 }
 ```
 
-- `@ServiceAction(pattern, DTO)` gives an action its pattern ([ServiceCalls](../ServiceCalls.md)). A message matches it
+- `@ServiceAction(pattern, DTO)` gives an action its pattern ([Service Calls](../ServiceCalls.md)). A message matches it
   when it holds the keys of the pattern with the same values; its other keys are the input of the action.
 - `@Prefix({pattern: {resource: 'stock'}})` merges `resource: 'stock'` into the patterns of all the controller's
-  actions ([Controllers](../Controllers.md)): the `get` action answers the message
+  actions ([Controllers and Actions](../Controllers.md)): the `get` action answers the message
   `{"resource": "stock", "act": "get", "product": "lamp"}`, and its input is `{"product": "lamp"}`.
 - What the action returns is the `payload` of the response, and the exception it throws is its `error`.
 
@@ -248,10 +248,10 @@ export async function authenticate(invocation: ActionInvocation, next: Next): Pr
 
 The template's middleware checked the HTTP requests; here it checks the service calls. `httpRequestOfContext()` gives
 the HTTP request that carries a call, with its headers. When the environment has an `API_TOKEN`, a call without
-`Authorization: Bearer <API_TOKEN>` is refused with `E_UNAUTHORIZED` before its input is validated
-([Middlewares](../Middlewares.md)). The services that call the inventory are given this token. To let each caller reach
+`Authorization: Bearer <API_TOKEN>` is refused with `E_UNAUTHORIZED` before its input is validated ([Middlewares and
+Access Control](../Middlewares.md)). The services that call the inventory are given this token. To let each caller reach
 only some of the actions, give each caller its own token and add an access rule that checks the action groups
-([Middlewares](../Middlewares.md), section 4).
+([Middlewares and Access Control](../Middlewares.md), section 4).
 
 ## 5. The options of the inventory
 
@@ -357,7 +357,7 @@ export class Inventory extends Component {
 }
 ```
 
-The orders service calls the inventory through an `HTTPServiceProxy` ([ServiceCalls](../ServiceCalls.md), section 4),
+The orders service calls the inventory through an `HTTPServiceProxy` ([Service Calls](../ServiceCalls.md), section 4),
 registered in its options as the `inventoryService` component (section 8). The proxy posts the messages and reads the
 responses. `Inventory` is a component of the orders service on top of it: it decides what the inventory's errors mean
 for an order.
@@ -644,9 +644,9 @@ describe('inventory', (): void => {
 ```
 
 The tests of the orders service do not need the inventory. They start a stand-in for it in the same process: an
-entrypoint in a container of its own ([Objects](../Objects.md), section 5), with an action of the same pattern as the
-inventory's. A process runs one application, here the orders service, so the stand-in is not an application. It checks
-the token as the inventory does, and the last two tests change its token, then stop it:
+entrypoint in a container of its own ([Objects and Lifetimes](../Objects.md), section 5), with an action of the same
+pattern as the inventory's. A process runs one application, here the orders service, so the stand-in is not an
+application. It checks the token as the inventory does, and the last two tests change its token, then stop it:
 
 **`orders/packages/app/src/tests/App.spec.ts`**
 
@@ -813,8 +813,8 @@ app │ ℹ pass 5
 - The stock is kept in memory, and the orders are not kept at all: store them in a database
   ([A REST API with a database](RestAPI.md)). There, the order id, as a unique key of the reservations, keeps an order
   from being reserved twice.
-- Other transports serve the same actions: Socket.IO, JSON-RPC ([ServiceCalls](../ServiceCalls.md)), NATS
-  ([NATS](../NATS.md)) or gRPC ([GRPC](../GRPC.md)), each an adapter of the `service` option. The proxies of NATS and
+- Other transports serve the same actions: Socket.IO, JSON-RPC ([Service Calls](../ServiceCalls.md)), NATS
+  ([NATS](../NATS.md)) or gRPC ([gRPC](../GRPC.md)), each an adapter of the `service` option. The proxies of NATS and
   gRPC have the same `invoke()` and throw the same `ServiceInvokeException`: register `inventoryService` with their
   builders instead and change the type of the proxy in `Inventory.ts`; the rest of `Inventory.ts` stays.
 

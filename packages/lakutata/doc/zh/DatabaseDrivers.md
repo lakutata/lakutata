@@ -12,7 +12,7 @@
 | Microsoft SQL Server | `mssql` | `mssql`（12） |
 | Oracle | `oracle` | `oracledb`（6.3 或更高，或 7） |
 | MongoDB | `mongodb` | `mongodb`（7） |
-| 嵌入应用内的 MongoDB | `mongo-embedded` | `@lakutata/mongo-embedded`，安装时编译（需要 Python 3 和支持 C++17 的编译器）；见 [MongoEmbedded](MongoEmbedded.md) |
+| 嵌入应用内的 MongoDB | `mongo-embedded` | `@lakutata/mongo-embedded`，安装时编译（需要 Python 3 和支持 C++17 的编译器）；见[嵌入式 MongoDB](MongoEmbedded.md) |
 | SAP HANA | `sap` | `@sap/hana-client`（2.14 或更高） |
 | Google Cloud Spanner | `spanner` | `@google-cloud/spanner`（8） |
 | 通过 Data API 访问的 Amazon Aurora | `aurora-mysql`、`aurora-postgres` | `typeorm-aurora-data-api-driver`（3） |
@@ -28,7 +28,7 @@ npm install lakutata pg
 - 连接选项会原样交给 TypeORM，TypeORM 不会检查它们：缺少主机或密码时，由驱动在连接数据库时报错。
 - `extra` 会传给驱动的客户端（连接池、连接），放在其他选项之后：用它设置 TypeORM 没有提供选项的配置。
 - `driver` 直接给出驱动模块本身（`driver: require('pg')`），不由 lakutata 去加载驱动包。
-- 下面的每个示例都声明一个 `Database` 组件。`Database` 提供者的选项相同（见 [Database](Database.md)）。
+- 下面的每个示例都声明一个 `Database` 组件。`Database` 提供者的选项相同（见[数据库](Database.md)）。
 
 ## PostgreSQL
 
@@ -252,7 +252,7 @@ export const db = buildDatabaseOptions({
 - 实体要有一个 `@ObjectIdColumn()`，即它的 `_id`。它的类型是 `lakutata/orm` 中的 `ObjectId`：在 ES 模块中 `import {ObjectId} from 'bson'` 得到的是另一个类，实体的 id 不是它的实例。
 - `getRepository()` 返回 `MongoRepository`，它带有 MongoDB 的方法（使用 MongoDB 操作符的 `find`、`aggregate`、`createCursor`……）。
 - TypeORM 对 MongoDB 不支持：查询构造器、`query()`、关系和级联、树形仓储、流式查询。**`transaction()` 会在没有事务的情况下执行它的函数**：函数失败时，已经写入的内容不会撤销。
-- `synchronize` 只创建索引。迁移需要手写（见 [Migrations](Migrations.md)）。
+- `synchronize` 只创建索引。迁移需要手写（见[迁移](Migrations.md)）。
 
 ## SAP HANA、Google Cloud Spanner 与 Amazon Aurora
 
@@ -307,5 +307,5 @@ export function config(): ApplicationOptions {
 ```
 
 - sql.js 1.15 把它的 asm.js 版本标为已弃用：每次加载都会打印一条警告，作者请无法放弃它的用户到 [sql-js/sql.js#635](https://github.com/sql-js/sql.js/issues/635) 说明情况。他们推荐的替代版本 `sql-wasm-inline.js` 需要 WebAssembly，而鸿蒙的 Node.js 没有。应用要长期保存的数据库，最好用 `better-sqlite3`，它在三个系统上都可用。
-- sql.js 的 WebAssembly 版本从它的模块旁边的 `sql-wasm.wasm` 读取，而应用的单文件包里没有这个文件：在 `lakutata.resources` 中把它声明为资源（`from` 是 npm 把 `sql.js` 装在工作区里的位置），再把它在资源中的路径交给 `sqlJsConfig.locateFile`（见 [Packaging](Packaging.md) 第 6 节）。
+- sql.js 的 WebAssembly 版本从它的模块旁边的 `sql-wasm.wasm` 读取，而应用的单文件包里没有这个文件：在 `lakutata.resources` 中把它声明为资源（`from` 是 npm 把 `sql.js` 装在工作区里的位置），再把它在资源中的路径交给 `sqlJsConfig.locateFile`（见[打包](Packaging.md)第 6 节）。
 - 数据库服务器通过设备的网络连接；在模拟器上，用 `adb reverse`（Android）或 `hdc rport`（鸿蒙）连到电脑。

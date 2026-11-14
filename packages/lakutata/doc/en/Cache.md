@@ -5,7 +5,7 @@ It keeps them in the memory of the process, in a file, or on a server that the i
 Redis, Memcache, MongoDB, SQLite, PostgreSQL or MySQL. Several stores make tiers, the fastest first. Its `wrap()` method
 returns a cached value, or computes it and caches it when it is missing.
 
-It is not the query cache of the databases (the `cache` option of a `Database`, see [Database](Database.md)).
+It is not the query cache of the databases (the `cache` option of a `Database`, see [Databases](Database.md)).
 
 ## 1. A first cache
 
@@ -59,7 +59,7 @@ Application
   (`@Inject('cache')`) or get it with `getObject('cache')`. The whole application shares one instance.
 - Without `stores`, the cache keeps its entries in the memory of the process.
 - The durations are numbers of milliseconds.
-- The queues can keep the results of their messages in a cache (see [Queue](Queue.md), section 1).
+- The queues can keep the results of their messages in a cache (see [Queues](Queue.md), section 1).
 
 ## 2. Options
 
@@ -239,7 +239,7 @@ The values are kept as they are, not copied (section 7). Each process has its ow
 | `clearBatchSize` | `1000` | How many keys `clear()` scans and deletes at a time |
 | `noNamespaceAffectsAll` | `false` | Whether `clear()` without a namespace empties the whole database (`FLUSHDB`) |
 
-- The keys are `{namespace}::{namespace}:{key}` (the format of lakutata 2.x), or the key itself without a namespace.
+- The keys are `{namespace}::{namespace}:{key}` (the format of Lakutata 2.x), or the key itself without a namespace.
   Redis deletes the expired entries itself.
 - Without a namespace, `clear()` deletes the string keys of the database that are outside the namespaces (the keys
   without `::`): the namespaced keys and the keys of the other types (hashes, lists…) stay. With

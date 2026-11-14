@@ -1,7 +1,7 @@
-# A command line tool
+# A command-line tool
 
-This example builds `tally`, a command line tool for CSV files: it lists the columns of a file, computes the statistics
-of a numeric column, and converts the rows to JSON. It starts from the `cli` template and shows the parts of a lakutata
+This example builds `tally`, a command-line tool for CSV files: it lists the columns of a file, computes the statistics
+of a numeric column, and converts the rows to JSON. It starts from the `cli` template and shows the parts of a Lakutata
 tool: the commands with their arguments and options (`@CLIAction` and its DTO), input validation, asking for a missing
 option in the terminal, output and exit codes, the tests, and a bundle that runs without `node_modules`.
 
@@ -19,7 +19,7 @@ cd tally
 rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/GreetDTO.ts
 ```
 
-The project is a workspace whose tool is `packages/app` ([ProjectStructure](../ProjectStructure.md)). Its dependencies
+The project is a workspace whose tool is `packages/app` ([Project Structure](../ProjectStructure.md)). Its dependencies
 are already there: `commander`, which reads the command line, and `@inquirer/prompts`, which asks the questions in a
 terminal. The tool reads the CSV files with a small parser of its own, so nothing else is installed. The example
 command of the template and its DTO are removed.
@@ -72,7 +72,7 @@ export class JsonDTO extends FileDTO {
 }
 ```
 
-Each command takes a DTO, whose properties are its arguments and its options ([CLI](../CLI.md)):
+Each command takes a DTO, whose properties are its arguments and its options ([Command Line](../CLI.md)):
 
 - `file` is named in the commands (`'stats <file>'`), so it is an argument. The other properties are options of the
   same name: `--delimiter`, `--column`, `--decimals`…
@@ -80,7 +80,7 @@ Each command takes a DTO, whose properties are its arguments and its options ([C
   flag), `--columns product units` for an array.
 - The help shows the `.description()` of each property, its default and its allowed values (`.valid()`).
 - The command line is text: the adapter converts each value to the type of its property before the DTO validates the
-  input ([DTOValidation](../DTOValidation.md)), so the numbers need no `.strict(false)`.
+  input ([DTO and Validation](../DTOValidation.md)), so the numbers need no `.strict(false)`.
 - `StatsDTO` and `JsonDTO` extend `FileDTO`: every command takes the file and the delimiter.
 - `column` is required and has no default: in a terminal, the tool asks for it when it is missing (section 7).
 
@@ -306,7 +306,7 @@ export class CsvController extends Controller {
 ```
 
 - Each `@CLIAction` declares a command: its name and its arguments (`'stats <file>'`), its DTO, and its
-  `description`, the line that the help shows for the command ([Controllers](../Controllers.md)).
+  `description`, the line that the help shows for the command ([Controllers and Actions](../Controllers.md)).
 - The action receives the validated input, with the defaults applied: `delimiter` is `','` and `decimals` is 2 when
   they are not given.
 - What it returns is written to stdout: a string as it is (`columns`, and `stats` by default), any other value as
@@ -624,7 +624,7 @@ npm run package:bundle
 ✔ ../../dist/tally.cjs (1.1 MB): node ../../dist/tally.cjs
 ```
 
-The script builds the tool, then `lakutata package bundle` writes it, with lakutata, commander and
+The script builds the tool, then `lakutata package bundle` writes it, with `lakutata`, commander and
 `@inquirer/prompts`, into one JavaScript file: `dist/tally.cjs` at the root of the project (the printed path is
 relative to `packages/app`, where the script runs). Node.js runs it from any directory, without `node_modules`; here,
 from a directory next to the project:

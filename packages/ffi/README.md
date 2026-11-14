@@ -2,7 +2,7 @@
 
 English | [中文](README.zh-CN.md)
 
-Native libraries for the [lakutata](https://github.com/lakutata/lakutata) framework: the C functions of `.so`, `.dylib`
+Native libraries for the [Lakutata](https://github.com/lakutata/lakutata) framework: the C functions of `.so`, `.dylib`
 and `.dll` files called from Node.js, the main process of Electron and Bun, without compiling anything. A library is
 declared with the C declarations of its headers (structs, unions, enums, typedefs, pointers to functions, prototypes,
 `#define`), and each library is a component of the application. It is built on [koffi](https://koffi.dev/). The
@@ -106,7 +106,7 @@ await libc.close()
 
 ### Generating the class from the header
 
-For a library with many functions, the class is generated from its header by the command line tool of lakutata
+For a library with many functions, the class is generated from its header by the command-line tool of Lakutata
 (`@lakutata/cli`), or by `generateNativeLibrary()` of `@lakutata/ffi/generator`:
 
 ```shell

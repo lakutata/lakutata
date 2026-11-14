@@ -2,7 +2,7 @@
 
 English | [中文](README.zh-CN.md)
 
-The NATS component of the lakutata framework. It provides a connection to a NATS server to publish, subscribe and send
+The NATS component of the Lakutata framework. It provides a connection to a NATS server to publish, subscribe and send
 requests (with MessagePack or JSON payloads), serves an application's service channel over NATS
 (`natsServiceEntrypoint`), offers proxies that invoke the actions of other services and listen to their events
 (`ServiceProxy`), and relays large payloads through a JetStream object store. The umbrella package `lakutata` does not

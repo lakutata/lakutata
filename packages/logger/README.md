@@ -2,7 +2,7 @@
 
 English | [中文](README.zh-CN.md)
 
-The logger component of the lakutata framework. It writes pino's log format (one JSON object per line) or readable
+The logger component of the Lakutata framework. It writes pino's log format (one JSON object per line) or readable
 lines, colored on a terminal, to stdout or any writable streams, buffering them for speed and flushing them when the
 process exits. The umbrella package `lakutata` presets it as the `log` component of every application (created first,
 so the framework logs through it too) and re-exports it as `lakutata/com/logger`.

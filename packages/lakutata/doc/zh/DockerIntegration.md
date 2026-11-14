@@ -2,7 +2,7 @@
 
 **Docker 组件**（`lakutata/com/docker`，`@lakutata/docker` 包）通过 Docker Engine API 操作 Docker 守护进程，不需要 Docker CLI：拉取、构建（使用 BuildKit）、导入、导出、打标签和推送镜像，创建、运行和管理容器（exec、交互式 TTY、日志、统计、commit、导出文件），以及管理网络。它可以连接本地套接字，也可以通过 HTTP、HTTPS 或 SSH 连接远程守护进程。全部选项见 `@lakutata/docker` 的 README 和 `lakutata/com/docker` 的类型声明。
 
-这个组件没有预置：需要在应用的 `components` 中声明。只运行 containerd、没有 Docker 的机器（嵌入式 Linux 设备）见 [ContainerdIntegration](ContainerdIntegration.md)。
+这个组件没有预置：需要在应用的 `components` 中声明。只运行 containerd、没有 Docker 的机器（嵌入式 Linux 设备）见 [Containerd 集成](ContainerdIntegration.md)。
 
 ## 1. 环境要求与连接
 

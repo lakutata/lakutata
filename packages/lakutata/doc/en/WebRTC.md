@@ -201,7 +201,7 @@ In Electron, the renderer uses `@lakutata/webrtc/client` and connects to the sig
 
 ## 5. An application as a member
 
-`SignalingClient` joins the rooms from a lakutata application, with the peer connections of Node.js. A device, a
+`SignalingClient` joins the rooms from a Lakutata application, with the peer connections of Node.js. A device, a
 recorder, a bot or a test joins the rooms as the browsers do:
 
 ```typescript
@@ -224,10 +224,11 @@ export class Telemetry extends Component {
 ```
 
 An `http:` or `https:` URL uses Socket.IO (install `socket.io-client`), a `ws:` or `wss:` URL uses JSON-RPC over the
-global `WebSocket` of Node.js 22 and Bun, else over the `WebSocket` of the package `ws` (install `ws`). Its options: `url`, `id`
-(a random UUID by default), `path` (of Socket.IO), `auth` (more fields of the Socket.IO handshake, a token), `timeout`,
-and the options of its connections (`iceTransportPolicy`, `icePortRange`, `iceAdditionalHostAddresses`, `codecs`,
-`threads`). It is `@Transient`: each `getObject()` gives a new client, and `close()` leaves its rooms and disconnects.
+global `WebSocket` of Node.js 22 and Bun, else over the `WebSocket` of the package `ws` (install `ws`). Its options:
+`url`, `id` (a random UUID by default), `path` (of Socket.IO), `auth` (more fields of the Socket.IO handshake, a token),
+`timeout`, and the options of its connections (`iceTransportPolicy`, `icePortRange`, `iceAdditionalHostAddresses`,
+`codecs`, `threads`). It is `@Transient`: each `getObject()` gives a new client, and `close()` leaves its rooms and
+disconnects.
 
 ### Calling the actions of an application
 

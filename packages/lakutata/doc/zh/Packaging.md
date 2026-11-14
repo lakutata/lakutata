@@ -4,7 +4,7 @@
 
 - **单文件包**（bundle）：一个由 Node.js 运行的 JavaScript 文件；
 - **可执行文件**：一个程序，不需要安装 Node.js 就能运行；
-- **安装包**：系统的软件包（deb、rpm、pkg、msi 等），它安装可执行文件，把程序加入 PATH，还可以把它注册为服务（见 [Installers](Installers.md)）。
+- **安装包**：系统的软件包（deb、rpm、pkg、msi 等），它安装可执行文件，把程序加入 PATH，还可以把它注册为服务（见[安装包](Installers.md)）。
 
 `lakutata package bundle`、`package exe` 和 `package installer` 借助 `@lakutata/builder` 生成它们，项目需要安装它（`npm install --save-dev @lakutata/builder`；需要打包的模板已经带上了）。
 

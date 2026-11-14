@@ -208,7 +208,7 @@ export class Devices extends Component {
 
 在 D-Bus 方法中，`this.context` 是一个 `DBusContext`：它的 `type` 是 `'DBUS'`（`DBUS_CONTEXT_TYPE`），`path` 是被调用对象的路径，`interface` 和 `member` 指明方法，`data` 是收到的字典，未经校验。
 
-入口的访问规则适用于以 `acl: true` 声明的方法，前提是规则的 `supportContextTypes()` 包含 `DBUS_CONTEXT_TYPE`（见 [Middlewares](Middlewares.md)）。上下文不提供调用方的身份：访问规则无法检查调用方，这是系统总线上的总线策略要做的事。
+入口的访问规则适用于以 `acl: true` 声明的方法，前提是规则的 `supportContextTypes()` 包含 `DBUS_CONTEXT_TYPE`（见[中间件与访问控制](Middlewares.md)）。上下文不提供调用方的身份：访问规则无法检查调用方，这是系统总线上的总线策略要做的事。
 
 ## 7. 客户端
 

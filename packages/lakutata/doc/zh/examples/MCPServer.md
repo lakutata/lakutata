@@ -21,7 +21,7 @@ npm uninstall express @types/express
 rm src/controllers/ExampleController.ts src/dtos/GreetDTO.ts
 ```
 
-MCP 客户端把服务器作为单个进程运行，所以只包含一个应用的 `default` 模板正合适（见 [ProjectStructure](../ProjectStructure.md)）。`@lakutata/mcp` 通过 MCP 提供应用的动作，它不属于 `lakutata`（见 [MCP](../MCP.md)）。SDK 的 MCP 客户端 `@modelcontextprotocol/client` 只用于测试。服务器没有 HTTP 路由，所以删掉了 express 和模板中的示例控制器。
+MCP 客户端把服务器作为单个进程运行，所以只包含一个应用的 `default` 模板正合适（见[项目结构](../ProjectStructure.md)）。`@lakutata/mcp` 通过 MCP 提供应用的动作，它不属于 `lakutata`（见 [MCP](../MCP.md)）。SDK 的 MCP 客户端 `@modelcontextprotocol/client` 只用于测试。服务器没有 HTTP 路由，所以删掉了 express 和模板中的示例控制器。
 
 ## 2. 输入和结果
 
@@ -107,7 +107,7 @@ export class TagDTO extends DTO {
 }
 ```
 
-工具会把 DTO 的 JSON Schema 发给客户端，模型按这个 Schema 传入参数来调用工具；和所有动作一样，参数随后由 DTO 校验（见 [DTOValidation](../DTOValidation.md)）：
+工具会把 DTO 的 JSON Schema 发给客户端，模型按这个 Schema 传入参数来调用工具；和所有动作一样，参数随后由 DTO 校验（见 [DTO 与数据校验](../DTOValidation.md)）：
 
 - `.description()` 向模型说明参数的含义；默认值（`tags`、`query`、`limit`）也写在 Schema 中；
 - `NoteIdDTO` 既用于工具，也用于资源：工具的参数是 JSON（数字 `1`），资源的变量是文本（`note://1` 中的 `'1'`），由 `.strict(false)` 转换；
@@ -131,7 +131,7 @@ export class NoteNotFoundException extends Exception {
 }
 ```
 
-异常有一个 `errno` 和一个状态码（见 [Exceptions](../Exceptions.md)）。工具抛出这个异常时，模型收到一个标记为错误的结果 `E_NOTE_NOT_FOUND: The note 9 does not exist`，可以据此修正调用。读取资源时抛出这个异常，由于状态码是 404，客户端收到的是协议错误 `-32602`（参数无效）。
+异常有一个 `errno` 和一个状态码（见[异常](../Exceptions.md)）。工具抛出这个异常时，模型收到一个标记为错误的结果 `E_NOTE_NOT_FOUND: The note 9 does not exist`，可以据此修正调用。读取资源时抛出这个异常，由于状态码是 404，客户端收到的是协议错误 `-32602`（参数无效）。
 
 ## 4. 笔记
 
@@ -221,8 +221,8 @@ export class NoteStore extends Component {
 }
 ```
 
-- `NoteStore` 是一个组件：整个应用只有一个实例，而控制器是每个请求创建一个（见 [Objects](../Objects.md)）。
-- `@Configurable` 把 `file` 变成组件的选项：它的值在声明组件的地方给出（第 6 节），并在应用启动时校验（见 [Injection](../Injection.md)）。
+- `NoteStore` 是一个组件：整个应用只有一个实例，而控制器是每个请求创建一个（见[对象与生命周期](../Objects.md)）。
+- `@Configurable` 把 `file` 变成组件的选项：它的值在声明组件的地方给出（第 6 节），并在应用启动时校验（见[依赖注入](../Injection.md)）。
 - 每个客户端运行自己的服务器：如果 Claude Code 和 Claude Desktop 使用同一个文件，就会有两个进程读写它。所以每次调用都重新读取文件，而不是把笔记留在内存中；写入时先把全部笔记写到临时文件，再重命名覆盖原文件。
 
 ## 5. 控制器
@@ -370,9 +370,9 @@ export function config(file: string = process.env.NOTES_FILE ?? path.join(os.hom
 
 这是模板中的 `Config.ts`，改动如下：
 
-- 新增 `log` 组件，日志写到标准错误（见 [Logger](../Logger.md) 第 5 节）：通过 stdio 时，标准输出承载协议的消息，往里面写一行日志就会破坏这些消息，所以其他任何代码都不能写标准输出，连 `console.log()` 也不行。模板中的 `App.ts` 保持不变，它通过这个组件记录启动日志；
+- 新增 `log` 组件，日志写到标准错误（见[日志](../Logger.md)第 5 节）：通过 stdio 时，标准输出承载协议的消息，往里面写一行日志就会破坏这些消息，所以其他任何代码都不能写标准输出，连 `console.log()` 也不行。模板中的 `App.ts` 保持不变，它通过这个组件记录启动日志；
 - 新增 `notes` 组件和它的文件：环境变量 `NOTES_FILE`，没有时为主目录下的 `notes.json`。客户端会在它自己选择的目录中启动服务器，所以默认路径是绝对路径；
-- 入口的 `mcp` 适配器（见 [Entrypoint](../Entrypoint.md)）：默认是 `stdioMCPEntrypoint()`，设置了 `MCP_PORT` 时是监听 `127.0.0.1` 的 `httpMCPEntrypoint()`。如果同时设置了 `MCP_TOKEN`，`authenticate` 会要求请求带上它，没带的请求得到 401；
+- 入口的 `mcp` 适配器（见[入口](../Entrypoint.md)）：默认是 `stdioMCPEntrypoint()`，设置了 `MCP_PORT` 时是监听 `127.0.0.1` 的 `httpMCPEntrypoint()`。如果同时设置了 `MCP_TOKEN`，`authenticate` 会要求请求带上它，没带的请求得到 401；
 - `instructions`：客户端连接时收到这段说明，并交给模型。
 
 ## 7. 运行
@@ -599,6 +599,6 @@ npx lakutata package bundle
 ✔ dist/notes.cjs (0.9 MB): node dist/notes.cjs
 ```
 
-- 单文件包只有一个文件，不需要 `node_modules` 就能运行（见 [Packaging](../Packaging.md)），git 会忽略它。把它复制到任意位置，再把路径告诉客户端：`claude mcp add --scope user notes -- node /path/to/notes.cjs`。
-- 每次调用都会完整地读写笔记文件，这对个人笔记来说足够了。笔记很多，或者有多个客户端同时写入时，请把笔记保存在数据库中（见 [Database](../Database.md)）。
+- 单文件包只有一个文件，不需要 `node_modules` 就能运行（见[打包](../Packaging.md)），git 会忽略它。把它复制到任意位置，再把路径告诉客户端：`claude mcp add --scope user notes -- node /path/to/notes.cjs`。
+- 每次调用都会完整地读写笔记文件，这对个人笔记来说足够了。笔记很多，或者有多个客户端同时写入时，请把笔记保存在数据库中（见[数据库](../Database.md)）。
 - 要通过 HTTP 为其他机器提供服务，请在服务器前面放一个带 TLS 的代理，并在 `allowedHosts` 中列出客户端连接时使用的主机名（见 [MCP](../MCP.md) 第 6 节）。

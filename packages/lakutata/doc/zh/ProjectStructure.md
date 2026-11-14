@@ -39,7 +39,7 @@ Application
 | `build` | 删除 `build/`（`lakutata clean`），再把 `src/` 编译到其中（`tsc`） |
 | `start` | 启动编译好的应用（`node build/App.js`） |
 | `test` | 先 `build`，再运行测试（`node --test "build/tests/**/*.spec.js"`） |
-| `migration:generate`、`migration:create`、`migration:run`、`migration:revert`、`migration:show` | 数据库迁移（`lakutata migration`，见 [Migrations](Migrations.md)） |
+| `migration:generate`、`migration:create`、`migration:run`、`migration:revert`、`migration:show` | 数据库迁移（`lakutata migration`，见[迁移](Migrations.md)） |
 
 这个模板在 `tsconfig.json` 中写了自己的编译选项（取 `lakutata/tsconfig.json` 中它需要的那些，并使用 `module: "NodeNext"` 和 source map）；项目也可以像 `cli` 以外的工作区模板那样继承 `lakutata/tsconfig.json`。
 
@@ -77,7 +77,7 @@ shop/
 
 - `web-react` 和 `web-vue`：`packages/ui`，一个 Vite 应用。开发时，它的开发服务器（`http://localhost:5173`）把 `/api` 转发给应用；构建之后，由应用自己提供这些页面（动作都在 `/api` 之下）。应用的 `lakutata.resources` 会在打包时带上构建好的页面。
 - `web-next` 和 `web-nuxt`：`packages/ui`，一个 Next.js 或 Nuxt 应用，由应用在同一个进程中渲染。
-- `cli`：一个命令行工具（`commanderCLIEntrypoint`），带有 `package:bundle` 和 `package:exe` 脚本，把它打包到 `dist/`（[Packaging](Packaging.md)）。
+- `cli`：一个命令行工具（`commanderCLIEntrypoint`），带有 `package:bundle` 和 `package:exe` 脚本，把它打包到 `dist/`（[打包](Packaging.md)）。
 - `electron-react` 和 `electron-vue`：`packages/app` 中是 Electron 的主进程（它的窗口，以及通过 IPC 提供的服务动作），`packages/ui` 中是渲染进程，还有制作安装包的脚本。
 - `nwjs-react` 和 `nwjs-vue`：`packages/app` 中是 NW.js 的后台脚本（它的窗口：窗口的宿主页面在 `packages/app/host`，用 webview 承载用户界面；以及它的服务动作），`packages/ui` 中是用户界面，NW.js 的版本在 `packages/app/nwjs.json`（由 `npm run nwjs:use -- <版本>` 写入），还有制作安装包的脚本。
 - `mobile-react`：`packages/app` 中是应用，它运行在手机应用内嵌的 Node.js 里，为 React Native 界面提供服务动作；`packages/ui` 中是界面（`src/App.tsx`），三个系统共用；`packages/ipc` 连接界面和 Node.js，里面是内嵌 Node.js 的原生模块（`native`）和界面导入的 `ipc`（Electron 和 NW.js 自带这样的通道，React Native 没有，所以模板把它做成一个包）；根目录就是 React Native 应用本身：入口 `index.js`（登记 `packages/ui` 的组件）、`app.json`、Metro 和 Babel 的配置，以及原生工程（`android`、`ios`、`harmony`），应用的 ID（`lakutata create --bundle-id`）写在这些原生工程里；还有下载 libnode、在模拟器或设备上运行应用、部署 Node.js 一侧的脚本（`npm run node:android`、`npm run android`、`npm run deploy:android`，`ios` 和 `harmony` 也一样）。
@@ -90,8 +90,8 @@ shop/
 
 | 功能 | 模板 | 加入的内容 |
 |---|---|---|
-| `i18n` | 全部 | `src/locales` 中各语言的消息（`en`、`zh-CN`）、`i18n` 组件、语言中间件，以及 `i18n:check` 和 `i18n:types` 脚本（[I18n](I18n.md)） |
-| `installer` | `cli`、`service`、`web-*` | 应用的 `lakutata.installer`、制作安装包的脚本（在本机制作，以及在 Docker 中制作 Linux 的安装包），服务类模板还会注册系统服务（[Installers](Installers.md)） |
+| `i18n` | 全部 | `src/locales` 中各语言的消息（`en`、`zh-CN`）、`i18n` 组件、语言中间件，以及 `i18n:check` 和 `i18n:types` 脚本（[国际化（i18n）](I18n.md)） |
+| `installer` | `cli`、`service`、`web-*` | 应用的 `lakutata.installer`、制作安装包的脚本（在本机制作，以及在 Docker 中制作 Linux 的安装包），服务类模板还会注册系统服务（[安装包](Installers.md)） |
 | `win7` | `nwjs-*` | 用 NW.js 0.72.0 代替模板发布时的版本：它是最后一个能在 Windows 7、8 和 8.1 上运行的版本；还有制作 32 位 Windows 安装包的 `package:ia32` 脚本 |
 
 Electron 和 NW.js 模板不需要 `installer` 功能也能制作安装包。

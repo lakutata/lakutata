@@ -1,4 +1,4 @@
-# LDAP
+# Lakutata LDAP
 
 应用可以用目录服务（OpenLDAP、Active Directory、389 Directory Server……）验证用户登录、读写目录，也可以自己提供一个目录，给其他软件使用（SSSD、Keycloak、Gitea、Jenkins、Grafana、NAS 设备……）。由两个包完成：
 
@@ -361,7 +361,7 @@ const options = buildLDAPServerOptions({
 
 ## 11. 运行平台
 
-Node.js `>=18.10.0`、Bun、Electron 和 NW.js。引擎没有原生代码。目录后端运行在 `lakutata/orm` 的数据库上，在 Electron 和 Bun 里需要满足各个驱动的要求（[DatabaseDrivers](DatabaseDrivers.md)）：Bun 加载不了 better-sqlite3，可以用 `sqljs`、PostgreSQL 或 MySQL。
+Node.js `>=18.10.0`、Bun、Electron 和 NW.js。引擎没有原生代码。目录后端运行在 `lakutata/orm` 的数据库上，在 Electron 和 Bun 里需要满足各个驱动的要求（[数据库驱动](DatabaseDrivers.md)）：Bun 加载不了 better-sqlite3，可以用 `sqljs`、PostgreSQL 或 MySQL。
 
 ## 异常
 

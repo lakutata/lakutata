@@ -1,4 +1,4 @@
-# Lakutata Entrypoint
+# Lakutata 入口
 
 `entrypoint` 组件把控制器和各种传输方式连接起来。它持有控制器和各传输方式的适配器（HTTP、命令行、服务调用、定时任务、消息队列……）：每个适配器接收自己传输方式的请求，入口则执行对应的动作，连同它的中间件、校验和访问控制。
 
@@ -40,8 +40,8 @@ Application.run(() => ({
 |---|---|---|
 | `controllers` | `[]` | 控制器类 |
 | `http`、`cli`、`service`、`schedule`、`queue`、`mcp`、`dbus` | | 各传输方式的适配器（见下表）：一个适配器，或者适配器数组 |
-| `middlewares` | `[]` | 所有动作的中间件（见 [Middlewares](Middlewares.md)） |
-| `rules` | `[]` | 声明了 `acl: true` 的动作使用的访问规则（见 [Middlewares](Middlewares.md)） |
+| `middlewares` | `[]` | 所有动作的中间件（见[中间件与访问控制](Middlewares.md)） |
+| `rules` | `[]` | 声明了 `acl: true` 的动作使用的访问规则（见[中间件与访问控制](Middlewares.md)） |
 | `shutdownTimeout` | `30000` | 应用停止时，留给正在处理的请求的毫秒数（第 4 节） |
 | `httpActionGroups`、`cliActionGroups`、`serviceActionGroups` | `{}` | 动作可以使用的分组及其名称（第 5 节） |
 
@@ -51,19 +51,19 @@ Application.run(() => ({
 |---|---|---|---|---|
 | `http` | `expressHTTPEntrypoint()` | `lakutata/adapter/express` | `express` | [HTTP](HTTP.md) |
 | `http` | `fastifyHTTPEntrypoint()` | `lakutata/adapter/fastify` | `fastify` | [HTTP](HTTP.md) |
-| `cli` | `commanderCLIEntrypoint()` | `lakutata/adapter/commander` | `commander` | [CLI](CLI.md) |
-| `service` | `httpServiceEntrypoint()` | `lakutata/com/entrypoint` | | [ServiceCalls](ServiceCalls.md) |
-| `service` | `socketIOServiceEntrypoint()` | `lakutata/adapter/socket.io` | `socket.io` | [ServiceCalls](ServiceCalls.md) |
-| `service` | `jsonRPCServiceEntrypoint()` | `lakutata/adapter/jsonrpc` | `ws`（WebSocket 时） | [ServiceCalls](ServiceCalls.md) |
-| `service` | `electronIPCServiceEntrypoint()` | `lakutata/adapter/electron` | （Electron） | [ServiceCalls](ServiceCalls.md) |
-| `service` | `nwjsServiceEntrypoint()` | `lakutata/adapter/nwjs` | （NW.js） | [ServiceCalls](ServiceCalls.md) |
-| `service` | `reactNativeServiceEntrypoint()` | `lakutata/adapter/react-native` | | [ServiceCalls](ServiceCalls.md) |
-| `service` | `grpcServiceEntrypoint()` | `@lakutata/grpc/service` | `@lakutata/grpc` | [GRPC](GRPC.md) |
+| `cli` | `commanderCLIEntrypoint()` | `lakutata/adapter/commander` | `commander` | [命令行](CLI.md) |
+| `service` | `httpServiceEntrypoint()` | `lakutata/com/entrypoint` | | [服务调用](ServiceCalls.md) |
+| `service` | `socketIOServiceEntrypoint()` | `lakutata/adapter/socket.io` | `socket.io` | [服务调用](ServiceCalls.md) |
+| `service` | `jsonRPCServiceEntrypoint()` | `lakutata/adapter/jsonrpc` | `ws`（WebSocket 时） | [服务调用](ServiceCalls.md) |
+| `service` | `electronIPCServiceEntrypoint()` | `lakutata/adapter/electron` | （Electron） | [服务调用](ServiceCalls.md) |
+| `service` | `nwjsServiceEntrypoint()` | `lakutata/adapter/nwjs` | （NW.js） | [服务调用](ServiceCalls.md) |
+| `service` | `reactNativeServiceEntrypoint()` | `lakutata/adapter/react-native` | | [服务调用](ServiceCalls.md) |
+| `service` | `grpcServiceEntrypoint()` | `@lakutata/grpc/service` | `@lakutata/grpc` | [gRPC](GRPC.md) |
 | `service` | `natsServiceEntrypoint()` | `@lakutata/nats` | `@lakutata/nats` | [NATS](NATS.md) |
-| `schedule` | `scheduleEntrypoint()` | `lakutata/com/entrypoint` | | [Schedules](Schedules.md) |
-| `queue` | `queueEntrypoint()` | `lakutata/com/queue` | 队列服务器的客户端 | [Queue](Queue.md) |
+| `schedule` | `scheduleEntrypoint()` | `lakutata/com/entrypoint` | | [定时任务](Schedules.md) |
+| `queue` | `queueEntrypoint()` | `lakutata/com/queue` | 队列服务器的客户端 | [消息队列](Queue.md) |
 | `mcp` | `httpMCPEntrypoint()`、`stdioMCPEntrypoint()` | `@lakutata/mcp` | `@lakutata/mcp` | [MCP](MCP.md) |
-| `dbus` | `dbusEntrypoint()` | `@lakutata/dbus` | `@lakutata/dbus` | [DBus](DBus.md) |
+| `dbus` | `dbusEntrypoint()` | `@lakutata/dbus` | `@lakutata/dbus` | [D-Bus](DBus.md) |
 
 ## 3. 多个适配器
 
@@ -111,7 +111,7 @@ export const entrypoint = buildEntrypoints({
 
 ## 5. 分组与动作列表
 
-动作的 `groups` 选项把它放进分组。访问规则可以使用分组（见 [Middlewares](Middlewares.md)），入口也可以按分组列出动作，用来生成 API 目录或权限列表。HTTP、命令行和服务动作的分组必须连同名称一起声明：
+动作的 `groups` 选项把它放进分组。访问规则可以使用分组（见[中间件与访问控制](Middlewares.md)），入口也可以按分组列出动作，用来生成 API 目录或权限列表。HTTP、命令行和服务动作的分组必须连同名称一起声明：
 
 ```typescript
 import {Application} from 'lakutata'
@@ -167,7 +167,7 @@ Application.run(() => ({
 
 ## 6. 向客户端推送事件
 
-保持客户端连接的服务传输方式（Socket.IO、Electron、NW.js、HTTP 服务的事件流、WebSocket 或 stdio 上的 JSON-RPC、gRPC）可以接收应用推送的事件。`entrypoint.notify(clientId, event, ...args)` 把事件发给一个客户端，即某个动作从 `this.context.clientId` 读到的那个客户端，返回客户端是否收到；`entrypoint.broadcast(event, ...args)` 发给所有已连接的客户端，返回客户端的数量。见 [GRPC](GRPC.md) 和 [ServiceCalls](ServiceCalls.md)。
+保持客户端连接的服务传输方式（Socket.IO、Electron、NW.js、HTTP 服务的事件流、WebSocket 或 stdio 上的 JSON-RPC、gRPC）可以接收应用推送的事件。`entrypoint.notify(clientId, event, ...args)` 把事件发给一个客户端，即某个动作从 `this.context.clientId` 读到的那个客户端，返回客户端是否收到；`entrypoint.broadcast(event, ...args)` 发给所有已连接的客户端，返回客户端的数量。见 [gRPC](GRPC.md) 和[服务调用](ServiceCalls.md)。
 
 ## 7. 定制入口
 

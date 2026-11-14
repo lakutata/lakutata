@@ -195,4 +195,4 @@ export class StatsController extends Controller {
 - 动作的 `rule` 选项可以单独使用：没有 `acl` 时，只检查这一条规则。
 - 既没有 `acl` 也没有 `rule` 的动作不做检查。`acl: true` 的动作只要没有规则拒绝就允许访问。
 
-访问控制在中间件和输入校验之后、动作之前执行。要改变整个应用的判断方式，见 [Entrypoint](Entrypoint.md) 第 7 节。
+访问控制在中间件和输入校验之后、动作之前执行。要改变整个应用的判断方式，见[入口](Entrypoint.md)第 7 节。

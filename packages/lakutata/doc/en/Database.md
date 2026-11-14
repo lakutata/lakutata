@@ -1,6 +1,6 @@
 # Lakutata Databases
 
-The database layer of lakutata, the package `@lakutata/orm`, is built on [TypeORM](https://typeorm.io) 1. The source
+The database layer of Lakutata, the package `@lakutata/orm`, is built on [TypeORM](https://typeorm.io) 1. The source
 of TypeORM is part of the package, so no package `typeorm` is installed. `lakutata` re-exports it under four subpaths:
 
 | Subpath | What it provides |
@@ -10,9 +10,9 @@ of TypeORM is part of the package, so no package `typeorm` is installed. `lakuta
 | `lakutata/decorator/orm` | The decorators of the entities (`@Entity`, `@Column`, the relations…) |
 | `lakutata/orm` | The API of TypeORM: repositories, entity manager, find operators, migrations, errors |
 
-The driver of the database is installed separately: see [DatabaseDrivers](DatabaseDrivers.md). The entities, the
-queries and the transactions are described in [Entities](Entities.md), the changes of the schema in
-[Migrations](Migrations.md).
+The driver of the database is installed separately: see [Database Drivers](DatabaseDrivers.md). The entities, the
+queries and the transactions are described in [Entities, Queries and Transactions](Entities.md), the changes of the
+schema in [Migrations](Migrations.md).
 
 ## 1. The Database component
 
@@ -80,7 +80,7 @@ Application
 ## 2. The connection options
 
 The options are the ones of TypeORM, given to it as they are. The options of each driver are in
-[DatabaseDrivers](DatabaseDrivers.md); the common ones are:
+[Database Drivers](DatabaseDrivers.md); the common ones are:
 
 | Option | Default | Meaning |
 |---|---|---|
@@ -105,7 +105,8 @@ finds the first row of the table: check the values taken from a request before q
 
 **Paths with aliases.** A path given with an alias of the application (`@data/app.sqlite`, `@app/migrations/*.js`) is
 resolved when the database connects: the file of the database (`database`, the `location` of sql.js) and the globs of
-the entities, the migrations and the subscribers. The aliases are declared by `.alias()` ([Application](Application.md), section 2).
+the entities, the migrations and the subscribers. The aliases are declared by `.alias()` ([Application](Application.md),
+section 2).
 
 **Databases created with TypeORM 0.3.** If a table or column name has characters outside ASCII, TypeORM 1 names its
 indices and constraints differently, and generated migrations would rename them.

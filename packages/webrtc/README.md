@@ -2,7 +2,7 @@
 
 English | [中文](README.zh-CN.md)
 
-WebRTC for the [lakutata](https://www.npmjs.com/package/lakutata) framework, written in TypeScript with no native code:
+WebRTC for the [Lakutata](https://www.npmjs.com/package/lakutata) framework, written in TypeScript with no native code:
 it installs without a compiler and runs in Node.js, the main process of Electron and Bun. It has two entry points:
 
 - `@lakutata/webrtc`, for the applications: the signaling (rooms whose members exchange their offers, answers and

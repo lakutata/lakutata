@@ -2,7 +2,7 @@
 
 English | [中文](README.zh-CN.md)
 
-LDAP for the [lakutata](https://www.npmjs.com/package/lakutata) framework. The `LDAPServer` component serves a directory
+LDAP for the [Lakutata](https://www.npmjs.com/package/lakutata) framework. The `LDAPServer` component serves a directory
 from the application: its backends hold the entries (the `DirectoryBackend` keeps them in the application's database),
 and the application reads and writes them without the network.
 The `LDAPClient` component gives an application a pool of connections to an LDAP server (OpenLDAP, Active Directory,
@@ -51,7 +51,7 @@ Application.run(() => ({
 The component listens for LDAP (with StartTLS when `tls` is given) and LDAPS, on an address or on network interfaces
 (`interface: 'eth1'`, whatever its addresses). With `ldapiPath` it also listens on a Unix socket, which takes passwords
 as TLS does, for the clients on the same machine (SSSD, nslcd); `port: false` leaves out the port of LDAP. A backend, a plugin or an interceptor can be an object (the plugins of
-`@lakutata/ldap-engine`: `new MemberOfPlugin()`), or a lakutata class with its options
+`@lakutata/ldap-engine`: `new MemberOfPlugin()`), or a Lakutata class with its options
 (`{class: DevicesBackend, suffix: 'ou=devices,dc=example,dc=com'}`), built in the component's container.
 `connect()` gives a connection in the same process with the operations of the client, and `directory()` gives the
 directory helper on such a connection; both go through the same schema checks, password hashing and access control as the network requests.
@@ -197,9 +197,9 @@ local `ldapi` socket, unless it is given `requireTLS: false`.
 | `ldapiMode` | from the umask | The permissions of the socket, which decide who may connect (`0o666`: every user of the machine) |
 | `tls` | | The certificate and key of StartTLS and LDAPS (`cert`, `key`); for SASL EXTERNAL, `requestCert: true` and the CA of the client certificates in `ca` |
 | `interface`, `strict`, `family`, `onError`, `interfaceListening` | | Listen on network interfaces instead of an address |
-| `backends` | | The backends: objects, or lakutata classes with their options |
-| `plugins` | | The plugins: objects, or lakutata classes with their options (and `name`, `suffixes`) |
-| `interceptors` | | The interceptors alone: objects, placements, or lakutata classes with their options |
+| `backends` | | The backends: objects, or Lakutata classes with their options |
+| `plugins` | | The plugins: objects, or Lakutata classes with their options (and `name`, `suffixes`) |
+| `interceptors` | | The interceptors alone: objects, placements, or Lakutata classes with their options |
 | `schema` | core, cosine, inetorgperson | `bundled` (the bundled schemas by name; `rfc2307bis`, `openssh-lpk` and `ppolicy` are added by naming them, `[]` leaves the system schema alone), `directory` (a directory of schema files, loaded in the order of their names) and `files` (schemas of one's own: paths, texts, or documents of `readSchemaFile()`/`parseSchemaFile()`) |
 | `access` | | `admins`, `adminPasswords`, `passwordAdmins`, `anonymousRead`, `authenticatedRead`, `check` |
 | `limits` | | The size, time, message, request and connection limits |

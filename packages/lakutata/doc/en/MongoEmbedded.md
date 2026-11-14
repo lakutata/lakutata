@@ -2,9 +2,9 @@
 
 The `mongo-embedded` driver gives an application a MongoDB of its own, inside its process: the entities, the
 repositories and the query operators of MongoDB in TypeORM, with the documents stored in a file in a directory. There is
-no server to install or to run, which suits desktop and mobile applications, devices, command line tools and tests.
+no server to install or to run, which suits desktop and mobile applications, devices, command-line tools and tests.
 
-It is a part of lakutata, not of TypeORM. The database is the package `@lakutata/mongo-embedded`: SQLite stores the
+It is a part of Lakutata, not of TypeORM. The database is the package `@lakutata/mongo-embedded`: SQLite stores the
 documents in a native addon, on a thread of its own, and [mingo](https://github.com/kofrasa/mingo) runs the queries and
 the updates with the semantics of MongoDB. It behaves like MongoDB 8.0 running as a replica set of one member, with
 transactions, change streams, text and geospatial indexes, and collations.

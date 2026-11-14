@@ -154,14 +154,14 @@ class Bank extends Component {
 ## 4. DTOs in the framework
 
 - **Object options**: `@Configurable(schema)` (from `lakutata/decorator/di`) validates an option of a component or a
-  provider; see [Injection](Injection.md).
+  provider; see [Dependency Injection](Injection.md).
 - **Controller actions**: the DTO given to `@GET`, `@POST`, `@CLIAction`, `@ServiceAction`… validates the input of the
-  action; invalid input gets a 400 response. See [Controllers](Controllers.md).
+  action; invalid input gets a 400 response. See [Controllers and Actions](Controllers.md).
 - **Pagination** (`lakutata/dtos`): `PaginationSearchDTO` and `PaginationResultDTO` are the input and the result of
   paginated actions, and `paginator` computes the pages; `FlexibleDTO` is a DTO that accepts any key.
 - **Validation messages**: error messages can be translated; `registerValidationMessages`, `runInValidationLanguage` and
   `currentValidationLanguage` (from `lakutata`) manage their languages, and the language middleware of the I18n
-  component sets the language of each request (see [I18n](I18n.md)).
+  component sets the language of each request (see [Internationalization (i18n)](I18n.md)).
 
 ## 5. JSON Schema and OpenAPI
 
@@ -193,7 +193,7 @@ toJsonSchema(DTO.String().email(), {target: 'openapi-3.0'})   //any schema, or a
 - The JSON Schema describes the values the schema accepts without conversion, and ajv (with ajv-formats) and other
   validators accept those values. What JSON Schema cannot express (custom rules, references to other values,
   conversions) is left out, so the JSON Schema may also accept values the schema rejects, never the reverse.
-- Unknown keys follow the validation options: with the defaults of lakutata (`allowUnknown`, `stripUnknown`), objects
+- Unknown keys follow the validation options: with the defaults of Lakutata (`allowUnknown`, `stripUnknown`), objects
   accept them; pass `preferences` to convert a schema for other options.
 - The numeric types become integer bounds (`int8` to `uint64`) and float ranges; in OpenAPI they also get the formats
   `int32`, `int64`, `float` and `double`.
@@ -229,6 +229,6 @@ const {Pet, Person} = DTO.fromOpenAPI(openApiDocument)
 - References are resolved by JSON pointer, `$anchor` and `$id` (pass other documents in `schemas`, and an OpenAPI
   document in `document`); recursive references are supported.
 - The version is read from `$schema`, or given with `dialect` (default: 2020-12).
-- Converting a lakutata schema to JSON Schema loses information (custom rules, conversions): to store a schema and
+- Converting a Lakutata schema to JSON Schema loses information (custom rules, conversions): to store a schema and
   restore it exactly, keep its `describe()` output (a JSON value unless it contains functions) and rebuild it with
   `DTO.Build(description)`.

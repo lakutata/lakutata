@@ -13,11 +13,11 @@ components in every application: `log` (the `Logger`, which writes pino-compatib
 
 ## Where to start
 
-[GettingStarted](GettingStarted.md) creates a first project from a template and shows a first application;
+[Getting Started](GettingStarted.md) creates a first project from a template and shows a first application;
 [Concepts](Concepts.md) explains the model of the framework, and [Application Design](ApplicationDesign.md) how to
-structure an application on it; [ProjectStructure](ProjectStructure.md) describes the files of a project; the guides
+structure an application on it; [Project Structure](ProjectStructure.md) describes the files of a project; the guides
 below cover each part of the framework. The [examples](examples/README.md) build whole applications from the templates:
-a REST API, a command line tool, a web and a desktop application, calls between services, background jobs, an MCP server
+a REST API, a command-line tool, a web and a desktop application, calls between services, background jobs, an MCP server
 and a service on a device.
 
 ## The subpaths
@@ -48,11 +48,11 @@ and a service on a device.
 | `lakutata/utils` | The helper functions |
 
 Not part of this package: `@lakutata/cli` (the `lakutata` command for creating projects, running migrations and packing
-applications, see [Command](Command.md)), `@lakutata/grpc` (a gRPC client, server and service transport),
+applications, see [Command-Line Tool](Command.md)), `@lakutata/grpc` (a gRPC client, server and service transport),
 `@lakutata/nats` (a NATS component and service transport), `@lakutata/dbus` (D-Bus), `@lakutata/mcp` (the Model Context
 Protocol), `@lakutata/webrtc` (WebRTC: the signaling, a TURN server, a media server, peer connections), `@lakutata/ffi`
 (the C functions of native libraries), `@lakutata/math` (symbolic and numeric mathematics, as functions that need no
-lakutata application), `@lakutata/barcode` (barcodes and QR codes, generated and read in a native addon),
+Lakutata application), `@lakutata/barcode` (barcodes and QR codes, generated and read in a native addon),
 `@lakutata/netif` (servers and UDP sockets listening on a network interface whatever its addresses, the interfaces of
 the machine and their changes), `@lakutata/mongo-embedded` (the embedded MongoDB of the `mongo-embedded` databases, in a
 native addon), `@lakutata/thermal` and `@lakutata/thermal-printer` (thermal printers: receipts and labels written in
@@ -63,58 +63,58 @@ HTML, a manager component), `@lakutata/serial` (serial ports and Bluetooth devic
 
 | Guide | Topic |
 |---|---|
-| [GettingStarted](GettingStarted.md) | Requirements, creating a project, adding Lakutata to an existing project, a first application |
+| [Getting Started](GettingStarted.md) | Requirements, creating a project, adding Lakutata to an existing project, a first application |
 | [Concepts](Concepts.md) | The model of the framework: the application as a tree of objects, the base classes and the reasons for their design, lifetimes, options, actions and transports, the terms |
-| [ProjectStructure](ProjectStructure.md) | The files, scripts and features of the projects made from the templates, and templates of your own |
-| [ApplicationDesign](ApplicationDesign.md) | Structuring an application: the class of each part, where the logic and the state live, configuration, creation order, tests |
-| [UpgradingFrom2](UpgradingFrom2.md) | Upgrading a project from Lakutata 2.x (the package `lakutata` 2.x) |
-| [UpgradingFrom1](UpgradingFrom1.md) | Porting a project from Lakutata 1.x (`@lakutata/core` 1.x and the `@lakutata-module/*`, `@lakutata-component/*` packages) |
+| [Project Structure](ProjectStructure.md) | The files, scripts and features of the projects made from the templates, and templates of your own |
+| [Application Design](ApplicationDesign.md) | Structuring an application: the class of each part, where the logic and the state live, configuration, creation order, tests |
+| [Upgrading from Lakutata 2.x](UpgradingFrom2.md) | Upgrading a project from Lakutata 2.x (the package `lakutata` 2.x) |
+| [Upgrading from Lakutata 1.x](UpgradingFrom1.md) | Porting a project from Lakutata 1.x (`@lakutata/core` 1.x and the `@lakutata-module/*`, `@lakutata-component/*` packages) |
 | [Application](Application.md) | The application: its options, the fluent API, the lifecycle, the mode, packed applications |
-| [Objects](Objects.md) | Components, providers and their container: lifetimes, scopes, creation and teardown, a container without an application |
-| [Injection](Injection.md) | Dependency injection, the options of objects, sharing features between applications |
+| [Objects and Lifetimes](Objects.md) | Components, providers and their container: lifetimes, scopes, creation and teardown, a container without an application |
+| [Dependency Injection](Injection.md) | Dependency injection, the options of objects, sharing features between applications |
 | [Modules](Modules.md) | Modules: features with their own components and providers, how their objects are resolved, configuring them from the application |
-| [DTOValidation](DTOValidation.md) | DTOs and schemas: validating options, inputs and results |
+| [DTO and Validation](DTOValidation.md) | DTOs and schemas: validating options, inputs and results |
 | [Exceptions](Exceptions.md) | Declaring exceptions, their messages, what the clients receive, the exceptions of the framework |
-| [Logger](Logger.md) | The `log` component: writing lines, readable lines or JSON, destinations, another logger |
-| [Decorator](Decorator.md) | The decorators, by subpath |
+| [Logging](Logger.md) | The `log` component: writing lines, readable lines or JSON, destinations, another logger |
+| [Decorators](Decorator.md) | The decorators, by subpath |
 | [Time](Time.md) | The `Time` class |
-| [HelperFunctions](HelperFunctions.md) | The helper functions of `lakutata/utils` |
-| [Controllers](Controllers.md) | Controllers and actions: their addresses, input and results, prefixes, inheritance |
+| [Helper Functions](HelperFunctions.md) | The helper functions of `lakutata/utils` |
+| [Controllers and Actions](Controllers.md) | Controllers and actions: their addresses, input and results, prefixes, inheritance |
 | [Entrypoint](Entrypoint.md) | The entrypoint component: its options and adapters, starting and stopping, the list of the actions |
-| [Middlewares](Middlewares.md) | The middlewares and the access control of the actions |
+| [Middlewares and Access Control](Middlewares.md) | The middlewares and the access control of the actions |
 | [HTTP](HTTP.md) | The HTTP adapters: routes, input, responses, errors, the features of Express and Fastify |
-| [CLI](CLI.md) | Command line tools: commands, options, prompts, output and exit codes |
-| [ServiceCalls](ServiceCalls.md) | The service actions over HTTP, Socket.IO, JSON-RPC 2.0, Electron and NW.js: patterns, responses, clients and their events |
-| [GRPC](GRPC.md) | The service actions over gRPC (`@lakutata/grpc`), and calling them from other applications and languages |
+| [Command Line](CLI.md) | Command-line tools: commands, options, prompts, output and exit codes |
+| [Service Calls](ServiceCalls.md) | The service actions over HTTP, Socket.IO, JSON-RPC 2.0, Electron and NW.js: patterns, responses, clients and their events |
+| [gRPC](GRPC.md) | The service actions over gRPC (`@lakutata/grpc`), and calling them from other applications and languages |
 | [NATS](NATS.md) | The NATS component, the service actions over NATS (`@lakutata/nats`), the service proxies and their events |
-| [Schedules](Schedules.md) | Scheduled jobs: intervals, cron expressions, jobs run by one instance |
-| [Queue](Queue.md) | The message queues: producers, `@QueueAction` consumers, retries, dead letters, results |
-| [Database](Database.md) | The `Database` component and provider, the connection options, several databases |
-| [DatabaseDrivers](DatabaseDrivers.md) | The database drivers, one by one: what to install, their options, their limits |
-| [MongoEmbedded](MongoEmbedded.md) | A MongoDB inside the application (`@lakutata/mongo-embedded`), its documents in a file |
-| [Entities](Entities.md) | The entities, the queries, the transactions and the errors |
+| [Scheduled Jobs](Schedules.md) | Scheduled jobs: intervals, cron expressions, jobs run by one instance |
+| [Queues](Queue.md) | The message queues: producers, `@QueueAction` consumers, retries, dead letters, results |
+| [Databases](Database.md) | The `Database` component and provider, the connection options, several databases |
+| [Database Drivers](DatabaseDrivers.md) | The database drivers, one by one: what to install, their options, their limits |
+| [Embedded MongoDB](MongoEmbedded.md) | A MongoDB inside the application (`@lakutata/mongo-embedded`), its documents in a file |
+| [Entities, Queries and Transactions](Entities.md) | The entities, the queries, the transactions and the errors |
 | [Migrations](Migrations.md) | Writing, generating and running the migrations |
 | [Cache](Cache.md) | The `Cacher` component: `wrap()`, the stores and their tiers, what they keep |
 | [Mutex](Mutex.md) | Locks shared between processes and instances |
-| [I18n](I18n.md) | Messages in several languages |
-| [DockerIntegration](DockerIntegration.md) | The `Docker` component |
-| [ContainerdIntegration](ContainerdIntegration.md) | The `Containerd` component |
-| [Monitor](Monitor.md) | The CPU, memory, event loop and HTTP request monitors |
+| [Internationalization (i18n)](I18n.md) | Messages in several languages |
+| [Docker Integration](DockerIntegration.md) | The `Docker` component |
+| [Containerd Integration](ContainerdIntegration.md) | The `Containerd` component |
+| [Monitors](Monitor.md) | The CPU, memory, event loop and HTTP request monitors |
 | [Security](Security.md) | Hashing, ciphers, signatures, passwords |
-| [DBus](DBus.md) | A D-Bus service and client (`@lakutata/dbus`): methods, objects, properties, signals |
+| [D-Bus](DBus.md) | A D-Bus service and client (`@lakutata/dbus`): methods, objects, properties, signals |
 | [MCP](MCP.md) | The tools, resources and prompts of the Model Context Protocol (`@lakutata/mcp`), over stdio and HTTP |
 | [WebRTC](WebRTC.md) | Peer-to-peer connections and a media server (`@lakutata/webrtc`): the signaling, the TURN server, browsers and applications, the actions of an application called through data channels, WHIP and WHEP |
 | [FFI](FFI.md) | The C functions of native libraries (`@lakutata/ffi`): declarations copied from headers, structs, callbacks, memory, packaging |
 | [Barcode](Barcode.md) | Barcodes and QR codes (`@lakutata/barcode`): generating them as PNG, SVG or pixels, sizes for print, EAN, UPC and GS1, reading them from images |
-| [Thermal](Thermal.md) | Thermal printers (`@lakutata/thermal`, `@lakutata/thermal-printer`, `@lakutata/serial`): receipts, labels and wristbands written in HTML, choosing and saving printers, cutting, connections, serial ports and Bluetooth |
+| [Thermal Printers](Thermal.md) | Thermal printers (`@lakutata/thermal`, `@lakutata/thermal-printer`, `@lakutata/serial`): receipts, labels and wristbands written in HTML, choosing and saving printers, cutting, connections, serial ports and Bluetooth |
 | [LDAP](LDAP.md) | The LDAP components (`@lakutata/ldap`): signing users in against a directory from a controller, reading and writing it, serving a directory from the application's database, its schema, access and password policy, plugins of one's own, connecting SSSD, Keycloak and Gitea |
 | [Math](Math.md) | Mathematics (`@lakutata/math`): formulas and exact results, equations, decimals of any precision, matrices, statistics, numeric solutions, units |
 | [Netif](Netif.md) | Network interfaces (`@lakutata/netif`): a server listening on an interface whatever its addresses, the connections of the other interfaces refused, the interfaces and their changes, UDP on one interface |
 | [Serial](Serial.md) | Serial ports (`@lakutata/serial`): a port as a stream, its line and modem lines, finding a port by the ids of its USB adapter, unplugged devices, classic Bluetooth devices |
-| [LDAPEngine](LDAPEngine.md) | LDAP without an application (`@lakutata/ldap-engine`): the client and its pool, signing users in, Active Directory, filters, DNs, schemas, LDIF, a server with backends of one's own, plugins, the protocol |
-| [Command](Command.md) | The `lakutata` command: creating projects, migrations, translations, environment variables |
+| [LDAP Engine](LDAPEngine.md) | LDAP without an application (`@lakutata/ldap-engine`): the client and its pool, signing users in, Active Directory, filters, DNs, schemas, LDIF, a server with backends of one's own, plugins, the protocol |
+| [Command-Line Tool](Command.md) | The `lakutata` command: creating projects, migrations, translations, environment variables |
 | [Workspaces](Workspaces.md) | Projects of several packages: running their scripts, giving them a version, adding packages |
-| [NativeAddons](NativeAddons.md) | Native addons in C++ or Rust: creating them, linking libraries, shipping them |
+| [Native Addons](NativeAddons.md) | Native addons in C++ or Rust: creating them, linking libraries, shipping them |
 | [Packaging](Packaging.md) | Bundles and executables, and what a packed application reads at run time |
 | [Installers](Installers.md) | The installers of each platform, services, installer scripts, signing |
 

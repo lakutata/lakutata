@@ -2,7 +2,7 @@
 
 English | [中文](README.zh-CN.md)
 
-The utilities of the lakutata framework. `Time` is a date and time in an IANA time zone, with a moment-style API
+The utilities of the Lakutata framework. `Time` is a date and time in an IANA time zone, with a moment-style API
 (formatting, calendar arithmetic across daylight saving time changes, comparisons). The helpers, shared by the framework
 and its applications, cover strings, objects, arrays and sets, hashes and encodings, UUIDs, IP addresses, globs and
 statistics. They are plain functions and classes that can be used anywhere, inside an application or not. The umbrella

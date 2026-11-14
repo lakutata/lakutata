@@ -1,10 +1,10 @@
 # Lakutata HTTP
 
 The HTTP adapters serve the HTTP actions of the controllers (`@GET`, `@POST`…) with Express or Fastify. This guide
-covers what is particular to HTTP: the two adapters and their options, the routes, how a request becomes the input of
-an action, the responses, the errors, and the features of the web framework itself. The controllers and their actions
-are described in [Controllers](Controllers.md), the middlewares and the access control in
-[Middlewares](Middlewares.md), and the starting and stopping of the adapters in [Entrypoint](Entrypoint.md).
+covers what is particular to HTTP: the two adapters and their options, the routes, how a request becomes the input of an
+action, the responses, the errors, and the features of the web framework itself. The controllers and their actions are
+described in [Controllers and Actions](Controllers.md), the middlewares and the access control in [Middlewares and
+Access Control](Middlewares.md), and the starting and stopping of the adapters in [Entrypoint](Entrypoint.md).
 
 ## 1. A first HTTP API
 
@@ -173,7 +173,7 @@ export const http = expressHTTPEntrypoint({
 | `family` | `'both'` | `'IPv4'`, `'IPv6'` or both |
 | `strict` | `false` | Fails the start where the system cannot refuse the connections that reach the addresses of the interface through another interface, and stops listening while it cannot (see [Netif](Netif.md), section 2) |
 | `onError` | the log of the application | Receives the errors of listening again while the application runs, such as a port taken by another program; the adapter retries by itself |
-| `interfaceListening` | `@lakutata/netif` | Another implementation of the listening on interfaces: an `IInterfaceListening`, the contract of lakutata that `@lakutata/netif` implements |
+| `interfaceListening` | `@lakutata/netif` | Another implementation of the listening on interfaces: an `IInterfaceListening`, the contract of Lakutata that `@lakutata/netif` implements |
 
 - The interface may not exist yet when the application starts (a USB network adapter not plugged in): the start
   succeeds, and the adapter listens once the interface appears. Until then the `addresses` of the listeners are empty.
@@ -189,7 +189,7 @@ export const http = expressHTTPEntrypoint({
 | `@HTTPAction(route, method)` | One method (`'purge'`), or a list (`['get', 'post']`) |
 
 Each of them then takes the DTO of the input and the options of the action, both optional (see
-[Controllers](Controllers.md), section 3).
+[Controllers and Actions](Controllers.md), section 3).
 
 ```typescript
 import {DTO} from 'lakutata'
@@ -219,7 +219,8 @@ class LibraryController extends Controller {
 ```
 
 - A route uses the syntax of the web framework: `:id` is a parameter with both; the wildcards differ (section 2).
-- `@Prefix({route})` puts a prefix before the routes of a controller (see [Controllers](Controllers.md), section 6).
+- `@Prefix({route})` puts a prefix before the routes of a controller (see [Controllers and Actions](Controllers.md),
+  section 6).
 - A `GET` action also answers the `HEAD` requests of its route, without a body, unless the route has a `HEAD` action.
 - A request whose method has no action on its route is answered with 404 (`E_ROUTE_NOT_FOUND`), not 405. Nothing
   answers `OPTIONS` by itself: the preflight requests of the browsers fail until a CORS middleware answers them
@@ -349,7 +350,7 @@ An error is answered with a status and `{errno, errMsg}`:
 |---|---|---|
 | 400 | `E_INVALID_VALUE` | The DTO refused the input |
 | 400 | `E_UNKNOWN` (Express), `FST_ERR_CTP_INVALID_JSON_BODY` (Fastify) | The JSON of the body is malformed |
-| 403 | `E_ACCESS_DENY` | The access control refused the request (see [Middlewares](Middlewares.md)) |
+| 403 | `E_ACCESS_DENY` | The access control refused the request (see [Middlewares and Access Control](Middlewares.md)) |
 | 404 | `E_ROUTE_NOT_FOUND` | No action has this route and method |
 | 413 | `E_UNKNOWN` (Express), `FST_ERR_CTP_BODY_TOO_LARGE` (Fastify) | The body is over the limit |
 | 415 | `FST_ERR_CTP_INVALID_MEDIA_TYPE` | Fastify does not parse this type of body |
@@ -499,7 +500,7 @@ export const http = expressHTTPEntrypoint({
 With Fastify, `fallback` is a handler of your own, `(request, reply) => …`, which receives every request outside the
 paths of the actions.
 
-## 8. From lakutata 2.x
+## 8. From Lakutata 2.x
 
 An HTTP entrypoint function of 2.x (`buildHTTPEntrypoint`) keeps working: it is called in the startup of the entrypoint
 (the objects it gets, such as an authenticator injecting the entrypoint, are available) and awaited, so the application

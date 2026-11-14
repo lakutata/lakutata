@@ -2,7 +2,7 @@
 
 English | [中文](README.zh-CN.md)
 
-The command line tool of the [lakutata](https://github.com/lakutata/lakutata) framework.
+The command-line tool of the [Lakutata](https://github.com/lakutata/lakutata) framework.
 
 ```bash
 npx @lakutata/cli create --name my-app
@@ -39,7 +39,7 @@ lakutata create --name my-service --template service --with i18n --yes
 
 Every official template has the `i18n` feature: the messages of the application in several languages
 (`lakutata/com/i18n`), in `src/locales` (`en.json`, `zh-CN.json`) and bundled with the code. Each request is answered in
-its own language, including its validation errors (command line tools and desktop applications use the language of the
+its own language, including its validation errors (command-line tools and desktop applications use the language of the
 environment). The feature also adds the `i18n:check` and `i18n:types` scripts. The `cli`, `service` and `web-*`
 templates also have the `installer` feature: the `lakutata.installer` configuration of the application and the scripts
 that make its installers (on the machine, and for Linux in Docker), and, in the `service` and `web-*` templates, a
@@ -61,7 +61,7 @@ A template package keeps its files in its `template/` directory. npm packages ca
 names, so `_gitignore`, `_npmrc`… are renamed `.gitignore`, `.npmrc`… when the project is created. The text files are
 filled with the information of the project: `{$APP_NAME}`, `{$APP_ID}`, `{$APP_DESC}`, `{$APP_AUTHOR}`,
 `{$APP_LICENSE}` and `{$LAKUTATA_VERSION}` (the minor version of the framework, `3.1.0` for 3.1.2: a patch releases
-only the packages it changes, so `^{$LAKUTATA_VERSION}` finds every package of lakutata).
+only the packages it changes, so `^{$LAKUTATA_VERSION}` finds every package of Lakutata).
 
 A template can have optional features, which `lakutata create --with <features>` enables (or which the user chooses in
 a terminal):
@@ -205,7 +205,7 @@ version, ` (private)` when it is private, its directory and the packages of the 
 
 ### From lerna
 
-| lerna | lakutata |
+| lerna | `lakutata` |
 |---|---|
 | `lerna run rebuild` | `lakutata run rebuild` |
 | `lerna version patch --no-git-tag-version --no-push -y` | `lakutata version patch --yes` |
@@ -339,7 +339,7 @@ data), are declared in the `lakutata.resources` of its `package.json`, as a list
 ```
 
 `from` is a file or a directory of the project, and `to` its path among the resources, in `dist/<name>.resources/`,
-which is distributed with the bundle. The application finds them through `resourcesPath()` of lakutata (`undefined`
+which is distributed with the bundle. The application finds them through `resourcesPath()` of `lakutata` (`undefined`
 when it does not run packed, which `isPackaged()` tells).
 
 ### `lakutata package exe`
@@ -422,7 +422,7 @@ platforms (the Linux ones can be made in a container). They are configured by th
 
 The configuration is checked before anything is built, the options of the installers that are not made included.
 
-The Linux packages are made by nFPM (downloaded once into the cache of lakutata, for x64 and arm64; `LAKUTATA_NFPM`
+The Linux packages are made by nFPM (downloaded once into the cache of Lakutata, for x64 and arm64; `LAKUTATA_NFPM`
 gives another copy, and one for the other architectures) in `dist/installer` (`--outdir`). They install the application
 in `/opt/<name>`, with the C++ runtime library as a dependency. The executables link the C library of the system they
 are made on, so make the packages for glibc systems on a glibc system, and the `apk` packages on Alpine, with Bun
@@ -438,7 +438,7 @@ organization needs, are not made yet).
 The Windows installers are made on Windows: the NSIS installer (`<name>-<version>-<arch>-setup.exe`) and the Windows
 Installer package (`.msi`, made by WiX, for deployment in organizations) install the application in
 `C:\Program Files\<name>` and its data in `C:\ProgramData\<name>`; they are removed like other Windows programs. Their
-tools are downloaded once into the cache of lakutata (NSIS 3, WiX 3, WinSW; `LAKUTATA_NSIS`, `LAKUTATA_WIX` and
+tools are downloaded once into the cache of Lakutata (NSIS 3, WiX 3, WinSW; `LAKUTATA_NSIS`, `LAKUTATA_WIX` and
 `LAKUTATA_WINSW` give other copies). The executables made with Node.js (`"runtime": "node"`) keep the signature of
 Node.js, which no longer matches: sign them (signtool) before distributing them.
 
@@ -552,13 +552,13 @@ removed by deleting it, without a removal script).
 ## NW.js
 
 An NW.js application (the `nwjs-react` and `nwjs-vue` templates) runs in the version of NW.js of its `package.json`,
-`"lakutata": {"nwjs": {"version": "0.119.2"}}`. The runtimes of NW.js are downloaded once into the cache of lakutata
+`"lakutata": {"nwjs": {"version": "0.119.2"}}`. The runtimes of NW.js are downloaded once into the cache of Lakutata
 (from `https://dl.nwjs.io`, or the mirror of `LAKUTATA_NWJS_MIRROR`) and checked against the checksums of their release.
-lakutata runs on the releases whose Node.js is 18.10 or later.
+Lakutata runs on the releases whose Node.js is 18.10 or later.
 
 ### `lakutata nwjs versions`
 
-List the releases of NW.js lakutata runs on, newest first: their date, their Node.js, their Chromium and their builds,
+List the releases of NW.js Lakutata runs on, newest first: their date, their Node.js, their Chromium and their builds,
 the latest and the last one running on Windows 7 (`win7`, 0.72.0) marked. It lists the ten latest and the one of
 Windows 7, every release with `--all`. The list of the releases (`https://nwjs.io/versions.json`, or the one of
 `LAKUTATA_NWJS_VERSIONS`) is cached for a day.
@@ -595,7 +595,7 @@ Download the libnode of a system (`android`, `ios` or `harmony`) from the releas
 [lakutata/libnode](https://github.com/lakutata/libnode) and put it into `packages/ipc/native/node/out/<platform>`, which
 the native projects build against; for HarmonyOS, `libnode.so` is put into the libraries of the HAP too
 (`harmony/entry/libs/arm64-v8a`). Its archives (`libnode_<platform>_<arch>.tar.gz`, one per architecture) are checked
-with the `SHA256SUMS` of the release and kept in the cache of lakutata (`~/.cache/lakutata/mobile`): they are downloaded
+with the `SHA256SUMS` of the release and kept in the cache of Lakutata (`~/.cache/lakutata/mobile`): they are downloaded
 once. `lakutata mobile stage` downloads the libnode of a system when the project has none yet.
 
 - `LAKUTATA_LIBNODE_MIRROR` gives a mirror of the releases, its files laid out as on GitHub
@@ -678,7 +678,7 @@ its entrypoints. `create` only writes a file.
 
 | Action | |
 |---|---|
-| `generate` | migrations for the changes of the entities: the application compares the entities with its databases and writes the migrations into the directory, one file `<timestamp>-<database name>.ts` per changed database (what `cross-env MIGRATION_GENERATE=./src/migrations npm run dev` did in lakutata 2.x); when nothing changed, nothing is generated and the command fails |
+| `generate` | migrations for the changes of the entities: the application compares the entities with its databases and writes the migrations into the directory, one file `<timestamp>-<database name>.ts` per changed database (what `cross-env MIGRATION_GENERATE=./src/migrations npm run dev` did in Lakutata 2.x); when nothing changed, nothing is generated and the command fails |
 | `create <name>` | an empty migration to write by hand (`up` and `down`): `<timestamp>-<name>.ts`, with the class `<Name><timestamp>` |
 | `show` | the migrations in the options of the databases, run (`[X]`) or pending (`[ ]`) |
 | `run` | the pending migrations (`up`) |
@@ -740,10 +740,10 @@ matches. The names of the commands and options, and the other results and errors
 | `LAKUTATA_NWJS_VERSIONS` | the list of the releases of NW.js (`https://nwjs.io/versions.json` by default) |
 | `LAKUTATA_LANG` | the language of the tool (`zh-CN`, `zh-TW`, `en`), by default that of the environment |
 
-The tool is itself a lakutata application: its commands are the CLI actions of its controllers, served by the
+The tool is itself a Lakutata application: its commands are the CLI actions of its controllers, served by the
 commander adapter of the entrypoint.
 
 ## See also
 
-- The guides on the website: [Command Line Tool](https://lakutata.com/guide/Command) and
+- The guides on the website: [Command-Line Tool](https://lakutata.com/guide/Command) and
   [Workspaces](https://lakutata.com/guide/Workspaces).

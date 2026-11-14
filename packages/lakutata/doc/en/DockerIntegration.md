@@ -7,7 +7,7 @@ connects to a local socket, or to a remote daemon over HTTP, HTTPS or SSH. The R
 typings of `lakutata/com/docker` give every option.
 
 The component is not preset: declare it in the `components` of the application. For a machine running containerd
-without Docker (embedded Linux devices), see [ContainerdIntegration](ContainerdIntegration.md).
+without Docker (embedded Linux devices), see [Containerd Integration](ContainerdIntegration.md).
 
 ## 1. Requirements and connections
 

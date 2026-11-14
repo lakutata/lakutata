@@ -25,7 +25,7 @@ npm install socket.io-client --save-dev -w app
 npm install @lakutata/webrtc socket.io-client -w ui
 ```
 
-The project is a workspace ([ProjectStructure](../ProjectStructure.md)): `packages/app` is the application, and
+The project is a workspace ([Project Structure](../ProjectStructure.md)): `packages/app` is the application, and
 `packages/ui` the React page. The example controller of the template is removed, and so is its middleware
 `Authenticate.ts`: the people of a meeting give a name, not a token (section 8 says what to add on a public network).
 
@@ -133,7 +133,7 @@ This is the `Config.ts` of the template, with three components instead of the ex
 
 The application bootstraps `sfu`, which attaches itself to `signaling`, then the entrypoint, which starts listening. The
 rest comes from the template: `uiDirectory()` and `fallback` serve the built page, `jsonEnvelope` the results of the
-actions ([WebApp](WebApp.md) explains them).
+actions ([A web application with a user interface](WebApp.md) explains them).
 
 ## 3. The meeting
 

@@ -210,7 +210,7 @@ Application.run(() => ({
 
 - A controller gets the component with `@Inject('scale')` and answers with `current()`.
 - For thermal printers on a serial port or a Bluetooth link, `@lakutata/thermal-printer` opens the port itself (see
-  [Thermal](Thermal.md)).
+  [Thermal Printers](Thermal.md)).
 
 ## 7. Systems, runtimes and packaging
 
@@ -225,7 +225,7 @@ Application.run(() => ({
 - **Windows**: some drivers release a port a moment after it is closed; open it again after a short delay.
 - The bundles, the executables and the installers made by `lakutata package` carry the compiled addon: build them on
   each target platform, after installing the package there (see [Packaging](Packaging.md) and
-  [NativeAddons](NativeAddons.md)).
+  [Native Addons](NativeAddons.md)).
 
 ## 8. Exceptions
 

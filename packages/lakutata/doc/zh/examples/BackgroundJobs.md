@@ -19,7 +19,7 @@ rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/Greet
 echo 'data/' >> .gitignore
 ```
 
-项目是一个工作区，服务在 `packages/app` 中（见 [ProjectStructure](../ProjectStructure.md)）。队列（`lakutata/com/queue`）和锁（`lakutata/com/mutex`）都包含在 `lakutata` 包中，它们的内存驱动和文件驱动不需要其他包，所以这里什么都不用安装。这里还删掉了模板中的示例控制器，并让 git 忽略存放报表和锁的 `data` 目录。
+项目是一个工作区，服务在 `packages/app` 中（见[项目结构](../ProjectStructure.md)）。队列（`lakutata/com/queue`）和锁（`lakutata/com/mutex`）都包含在 `lakutata` 包中，它们的内存驱动和文件驱动不需要其他包，所以这里什么都不用安装。这里还删掉了模板中的示例控制器，并让 git 忽略存放报表和锁的 `data` 目录。
 
 ## 2. 输入
 
@@ -55,7 +55,7 @@ export class BuildReportDTO extends CreateReportDTO {
 ```
 
 - `CreateReportDTO` 是 `POST /reports` 的请求体。`pattern()` 的第二个参数是这条规则的名字，错误消息中会用到它：`"month" with value "2026-13" fails to match the YYYY-MM pattern`。
-- `BuildReportDTO` 是队列传递的消息：报表的 id 和月份。队列的动作和其他动作一样，用自己的 DTO 校验输入，这里的输入就是消息（见 [DTOValidation](../DTOValidation.md)）。
+- `BuildReportDTO` 是队列传递的消息：报表的 id 和月份。队列的动作和其他动作一样，用自己的 DTO 校验输入，这里的输入就是消息（见 [DTO 与数据校验](../DTOValidation.md)）。
 
 ## 3. 报表
 
@@ -194,7 +194,7 @@ export class ReportNotFoundException extends Exception {
 
 报表先是 `queued`（排队中），然后是 `running`（生成中），最后要么是 `done`（完成）并带有结果，要么是 `failed`（失败）并带有错误。`Reports` 组件把每份报表保存为一个 JSON 文件：
 
-- 组件只创建一次，由整个服务共用：HTTP 动作、队列动作和定时任务用的是同一个实例（见 [Objects](../Objects.md)）。它的 `@Configurable` 属性就是它的选项，在 `Config.ts` 中给出；目录由它的 `init()` 创建。
+- 组件只创建一次，由整个服务共用：HTTP 动作、队列动作和定时任务用的是同一个实例（见[对象与生命周期](../Objects.md)）。它的 `@Configurable` 属性就是它的选项，在 `Config.ts` 中给出；目录由它的 `init()` 创建。
 - 报表先写入临时文件，再重命名，所以请求不会读到写了一半的报表。
 - `clean()` 删除结束后已超过 `keep` 时长的报表，这就是定时任务要做的工作。它把当前时间作为参数，这样测试就能模拟明天执行时的情形。
 - 同一台机器上的各个服务实例共用这个目录。如果服务有数据库，报表就会是一张表，方法保持不变。
@@ -338,13 +338,13 @@ export class ReportController extends Controller {
 }
 ```
 
-一个控制器包含了三种传输方式的动作：HTTP、队列和定时任务。每个请求、每条消息、每次定时执行都会得到一个新的控制器实例，组件已经注入其中（见 [Controllers](../Controllers.md)）。
+一个控制器包含了三种传输方式的动作：HTTP、队列和定时任务。每个请求、每条消息、每次定时执行都会得到一个新的控制器实例，组件已经注入其中（见[控制器与动作](../Controllers.md)）。
 
 - `create()` 保存报表，用 `queue.add()` 向队列 `report.build` 添加一条消息，不等报表生成就立即回复：`Result.status()` 发送状态码 202（Accepted）、报表本身，以及指向这份报表的 `Location` 响应头（见 [HTTP](../HTTP.md)）。消息的 `jobId` 就是报表的 id。
-- `@QueueAction` 让 `build()` 成为队列 `report.build` 的消费者（见 [Queue](../Queue.md)）。它同时处理 2 条消息（`concurrency`），每条最长 1 分钟（`timeout`：超时后 `this.signal` 被中止，消息会重试）。它的上下文是 `QueueContext`，从中可以知道这是第几次尝试（`attempt`，第一次投递为 1），以及一共允许尝试几次（`attempts`）。
+- `@QueueAction` 让 `build()` 成为队列 `report.build` 的消费者（见[消息队列](../Queue.md)）。它同时处理 2 条消息（`concurrency`），每条最长 1 分钟（`timeout`：超时后 `this.signal` 被中止，消息会重试）。它的上下文是 `QueueContext`，从中可以知道这是第几次尝试（`attempt`，第一次投递为 1），以及一共允许尝试几次（`attempts`）。
 - 动作正常返回时消息被确认，动作的返回值就是这条消息的结果，由队列保存。动作抛出错误时，`build()` 把报表改回 `queued` 状态并记下错误，消息在等待 `backoff`（先 1 秒，再 2 秒）后重新投递，最多尝试 3 次。3 次都失败后，消息进入死信队列 `report.build.dead`，它和普通队列一样：`failed()` 消费其中的消息，把报表标为失败。
 - 消息至少投递一次：进程崩溃后，如果使用的是有服务端的驱动，这条消息会再次投递，`build()` 会把同一份报表再生成一遍，这不会造成问题。
-- `@Schedule` 按 cron 表达式的时间执行 `clean()`，也就是每 5 分钟一次（见 [Schedules](../Schedules.md)）。设置了 `exclusive: true` 后，每次执行前先尝试从 `mutex` 组件获取锁 `schedule:ReportController:clean`，没拿到锁的实例跳过这一次（见 [Mutex](../Mutex.md)）。
+- `@Schedule` 按 cron 表达式的时间执行 `clean()`，也就是每 5 分钟一次（见[定时任务](../Schedules.md)）。设置了 `exclusive: true` 后，每次执行前先尝试从 `mutex` 组件获取锁 `schedule:ReportController:clean`，没拿到锁的实例跳过这一次（见[互斥锁](../Mutex.md)）。
 
 ## 6. 服务的选项
 
@@ -410,7 +410,7 @@ export function config(port: number = Number(process.env.PORT ?? 8080), data: st
 - 新增 `mutex` 组件，使用 `file` 驱动：每把锁是 `data/locks` 中的一个文件，同一台机器上使用这个目录的各个进程共用这些锁；
 - 新增本例的 `reports` 和 `sales` 组件，以及它们的选项；
 - 用 `ReportController` 替换示例控制器；
-- 入口多了两个适配器：`queueEntrypoint('queue')` 把 `queue` 组件的消息投递给 `@QueueAction` 动作，`scheduleEntrypoint()` 执行 `@Schedule` 动作（见 [Entrypoint](../Entrypoint.md)）。没有对应的适配器，装饰器就不起作用；
+- 入口多了两个适配器：`queueEntrypoint('queue')` 把 `queue` 组件的消息投递给 `@QueueAction` 动作，`scheduleEntrypoint()` 执行 `@Schedule` 动作（见[入口](../Entrypoint.md)）。没有对应的适配器，装饰器就不起作用；
 - `jsonEnvelope()` 不再设置 `errorStatus`，这样错误保留各自的状态码（400、404），这是 REST 客户端所期望的。
 
 `bootstrap: ['entrypoint']` 在启动时创建入口，队列也随之创建：服务启动完成后，动作就开始消费消息。模板中的中间件 `Authenticate.ts` 保留不变：它是 HTTP 适配器的中间件，队列的消息和定时任务的执行都不经过它。
@@ -611,8 +611,8 @@ app │ ℹ pass 5
 
 本例的实例都运行在同一台机器上。部署到多台机器时，每个部分换用一个共享的驱动即可，动作的代码不变：
 
-- 队列：内存驱动只在一个进程中保存消息。一个实例只生成它自己收到的报表；它停止时仍在等待的消息会丢失，对应的报表停留在 `queued` 状态，定时任务也不会删除它们。换用 Redis（`driver: {type: 'redis', url: process.env.REDIS_URL}`，并运行 `npm install bullmq ioredis -w app`）后，消息在重启后仍然保留，任何实例都可以处理，结果也由各实例共享（见 [Queue](../Queue.md)）。
-- 锁：文件驱动只在一台机器的各进程之间共享。Redis（`driver: {type: 'redis', url}`，并运行 `npm install redis -w app`）或 PostgreSQL 可以在多台机器之间共享锁（见 [Mutex](../Mutex.md)）。
-- 报表：放进数据库的一张表（见 [带数据库的 REST API](RestAPI.md)），或者放在一个卷上，每个实例都把它挂载为 `DATA`。
+- 队列：内存驱动只在一个进程中保存消息。一个实例只生成它自己收到的报表；它停止时仍在等待的消息会丢失，对应的报表停留在 `queued` 状态，定时任务也不会删除它们。换用 Redis（`driver: {type: 'redis', url: process.env.REDIS_URL}`，并运行 `npm install bullmq ioredis -w app`）后，消息在重启后仍然保留，任何实例都可以处理，结果也由各实例共享（见[消息队列](../Queue.md)）。
+- 锁：文件驱动只在一台机器的各进程之间共享。Redis（`driver: {type: 'redis', url}`，并运行 `npm install redis -w app`）或 PostgreSQL 可以在多台机器之间共享锁（见[互斥锁](../Mutex.md)）。
+- 报表：放进数据库的一张表（见[带数据库的 REST API](RestAPI.md)），或者放在一个卷上，每个实例都把它挂载为 `DATA`。
 
 `npm start` 运行构建好的服务，`npm run docker:build` 用模板中的 `Dockerfile` 构建镜像。

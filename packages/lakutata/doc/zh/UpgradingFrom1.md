@@ -2,7 +2,7 @@
 
 Lakutata 1.x 是一组包：`@lakutata/core` 1.x、模块 `@lakutata-module/*`（`service`、`api`）、组件 `@lakutata-component/*`（`typeorm`、`cacher` 等）以及 `@lakutata/cli` 1.0。Lakutata 3 是 API 完全不同的另一个框架，所以 1.x 项目要移植到 3.x，而不是原地升级。本页说明移植的方法，以及 1.x 的各个部分在 3.x 中对应什么。
 
-本页只适用于依赖 1.x 版本 `@lakutata/core` 的项目。依赖 `lakutata` 包 2.x 版本的项目请看 [UpgradingFrom2](UpgradingFrom2.md)，不要按本页升级。本页涉及的 1.x 包是 npm 上发布的版本（`@lakutata/core` 1.0.60、`@lakutata-module/service` 1.2.7、`@lakutata-module/api` 1.0.29、`@lakutata-component/typeorm` 1.1.19、`@lakutata-component/cacher` 1.0.15、`@lakutata/cli` 1.0.37）；从其他地方获得的这些包的构建版本，可能有本页没有涉及的 API。
+本页只适用于依赖 1.x 版本 `@lakutata/core` 的项目。依赖 `lakutata` 包 2.x 版本的项目请看[从 Lakutata 2.x 升级](UpgradingFrom2.md)，不要按本页升级。本页涉及的 1.x 包是 npm 上发布的版本（`@lakutata/core` 1.0.60、`@lakutata-module/service` 1.2.7、`@lakutata-module/api` 1.0.29、`@lakutata-component/typeorm` 1.1.19、`@lakutata-component/cacher` 1.0.15、`@lakutata/cli` 1.0.37）；从其他地方获得的这些包的构建版本，可能有本页没有涉及的 API。
 
 ## 1. 识别 1.x 项目
 
@@ -19,7 +19,7 @@ Lakutata 1.x 是一组包：`@lakutata/core` 1.x、模块 `@lakutata-module/*`�
 
 ## 2. 移植的方法
 
-1. **创建一个 3.x 项目**，放在 1.x 项目旁边，选用与它同类的模板：服务或网关用 `service`（带 HTTP API、健康检查和 `Dockerfile`），命令行工具用 `cli`（见 [GettingStarted](GettingStarted.md)）：
+1. **创建一个 3.x 项目**，放在 1.x 项目旁边，选用与它同类的模板：服务或网关用 `service`（带 HTTP API、健康检查和 `Dockerfile`），命令行工具用 `cli`（见[快速开始](GettingStarted.md)）：
 
    ```bash
    npx @lakutata/cli create --name orders --template service
@@ -33,7 +33,7 @@ Lakutata 1.x 是一组包：`@lakutata/core` 1.x、模块 `@lakutata-module/*`�
 
 ## 3. 应用及其对象
 
-见 [Application](Application.md)、[Objects](Objects.md) 和 [Injection](Injection.md)。
+见[应用](Application.md)、[对象与生命周期](Objects.md)和[依赖注入](Injection.md)。
 
 | 1.x | 3.x |
 |---|---|
@@ -52,9 +52,9 @@ Lakutata 1.x 是一组包：`@lakutata/core` 1.x、模块 `@lakutata-module/*`�
 | `app.Logger.info`、`.warning`、`.error`、`.debug` 等（winston） | `@Inject('log')` 注入 `ILogger`：`info`、`warn`、`error`、`debug`、`trace`（`emerg`、`alert`、`crit` 改为 `error`，`notice` 改为 `info`） |
 | `app.Security.MD5()`、`SHA1()`、`SHA256()` | `lakutata/utils` 中的 `md5()`、`sha1()`、`sha256()`，它们返回 `Buffer`（用 `.toString('hex')` 转换）；带密钥时使用 `lakutata/security` 中的 `hmac()` |
 | `app.Security.generateRandomString()` | `lakutata/utils` 中的 `randomString()` |
-| `app.Security.encryptByPassword()`、`encryptByKey()` 及对应的 `decrypt…` | `lakutata/security` 中的同名函数（见 [Security](Security.md)） |
+| `app.Security.encryptByPassword()`、`encryptByKey()` 及对应的 `decrypt…` | `lakutata/security` 中的同名函数（见[安全](Security.md)） |
 | `app.Security.generatePasswordHash()`、`validatePassword()` | `lakutata/provider/passwordHash` 中的 `PasswordHash` provider |
-| `app.Formatter.asTimestamp()`、`asDateText()` | `lakutata` 中的 `Time`（见 [Time](Time.md)） |
+| `app.Formatter.asTimestamp()`、`asDateText()` | `lakutata` 中的 `Time`（见[时间（Time）](Time.md)） |
 | `app.JSON`、`app.MessagePack`、`app.HttpRequest`、`app.Shell` | `JSON`、`lakutata/utils` 中的 `MessagePack`、`fetch()`、Node.js 的 `child_process` |
 | `delay()` | `lakutata/utils` 中的 `delay()` |
 | 用 `app.emit()`、`app.on()` 作为事件总线 | 组件本身就是事件发射器：注入它，使用它的 `emit()` 和 `on()` |
@@ -117,7 +117,7 @@ export class Orders extends Component {
 }
 ```
 
-- 异常的 `errno` 保持不变，所以检查它的客户端照常工作。3.x 新增了 `statusCode`，即错误的 HTTP 状态码，并用模板生成错误消息（见 [Exceptions](Exceptions.md)）。
+- 异常的 `errno` 保持不变，所以检查它的客户端照常工作。3.x 新增了 `statusCode`，即错误的 HTTP 状态码，并用模板生成错误消息（见[异常](Exceptions.md)）。
 - 同一个类仍然可以用不同的名字、不同的选项声明多次（多个缓存、两个 HTTP 服务器）：每个声明都是独立的实例，按名字注入。
 
 ## 4. 包的对应关系
@@ -129,17 +129,17 @@ export class Orders extends Component {
 | `@lakutata-module/api` | `lakutata/adapter/express` 或 `lakutata/adapter/fastify`，配合 `@GET`、`@POST` 等（第 6 节） |
 | `@lakutata-component/typeorm` | `lakutata/com/database`、`lakutata/orm`、`lakutata/decorator/orm`（第 8 节） |
 | `@lakutata-component/cacher` | `lakutata/com/cacher`（第 8 节） |
-| `@lakutata/cli` 1.0（`lakutata`、`lakutata-deploy`） | `@lakutata/cli` 3：`lakutata create`、`run`、`migration`、`package` 等（见 [Command](Command.md)）；没有部署命令 |
+| `@lakutata/cli` 1.0（`lakutata`、`lakutata-deploy`） | `@lakutata/cli` 3：`lakutata create`、`run`、`migration`、`package` 等（见[命令行工具](Command.md)）；没有部署命令 |
 | 其他 `@lakutata-component/*` 包 | 没有对应项：在应用中自行实现它们的功能，或者改用其他库 |
 
 只能从这些子路径导入：3.x 不支持从包内部的文件导入（1.x 项目有时会从包的 `/distro/…`、`/src/…` 或 `/build/…` 导入）。
 
 ## 5. 服务调用
 
-在 1.x 中，每个应用都有一个 `service` 模块：它把自己的控制器注册到一个注册中心应用（基于 Redis），用 `invoke({serviceId, data, timeout})` 调用其他应用的动作；它的通道（channel）在服务之间传递事件。3.x 没有注册中心应用：`entrypoint` 组件通过某种传输方式提供服务动作，由代理调用它们（见 [ServiceCalls](ServiceCalls.md)）：
+在 1.x 中，每个应用都有一个 `service` 模块：它把自己的控制器注册到一个注册中心应用（基于 Redis），用 `invoke({serviceId, data, timeout})` 调用其他应用的动作；它的通道（channel）在服务之间传递事件。3.x 没有注册中心应用：`entrypoint` 组件通过某种传输方式提供服务动作，由代理调用它们（见[服务调用](ServiceCalls.md)）：
 
 - **NATS**（见 [NATS](NATS.md)）最接近 1.x 的模型：各个服务共用一个 NATS 服务器，按应用 id（相当于 1.x 的 `serviceId`）互相寻址，调用在一个服务的多个实例之间分摊，并且可以发布事件。它的 `ServiceProxy` 调用其他服务；NATS 服务器取代了注册中心应用。
-- **HTTP 服务**配合 `HTTPServiceProxy`，或者 **gRPC**（见 [GRPC](GRPC.md)），按已知的地址调用服务。
+- **HTTP 服务**配合 `HTTPServiceProxy`，或者 **gRPC**（见 [gRPC](GRPC.md)），按已知的地址调用服务。
 
 1.x 服务模块中的一个控制器：
 
@@ -200,11 +200,11 @@ Application.run(() => ({
 ```
 
 - **模式。** `@Prefix({pattern})` 加上 `@ServiceAction` 取代 `@Controller` 加上 `@PATTERN`，使用同样的键，所以调用方发送的消息不需要改变（用 `_action` 代替 `_act` 也一样）。模式中额外的键仍然会选中不同的动作：`{_act: 'query', batch: true}` 和 `{_act: 'query', batch: false}` 是两个动作。前缀和动作给同一个键设置不同的值时，3.x 会报错（1.x 中以控制器的值为准）。
-- **输入。** 动作收到的消息中不含它的模式中的键：原来读取 `inp.batch` 或 `inp._act` 的方法，要改为从完整的消息 `this.context.input` 中读取。网关给每条消息加上的字段（用户的 id、组织的 id）仍然作为 DTO 的普通字段，或者改由中间件处理（见 [Middlewares](Middlewares.md)）。
+- **输入。** 动作收到的消息中不含它的模式中的键：原来读取 `inp.batch` 或 `inp._act` 的方法，要改为从完整的消息 `this.context.input` 中读取。网关给每条消息加上的字段（用户的 id、组织的 id）仍然作为 DTO 的普通字段，或者改由中间件处理（见[中间件与访问控制](Middlewares.md)）。
 - **调用。** `this.app.Modules.service.invoke({serviceId, data, timeout})` 改为对注入的代理调用 `this.users.invoke(message, timeout)`。动作失败时抛出 `ServiceInvokeException`，它带有远端错误的 `errno` 和其他属性。`transform` 选项和由多个调用对象组成的调用链没有对应项：请用代码实现；`service.parallel(…)` 改为对多个调用使用 `Promise.all()`。1.x 的调用默认等待 60 秒，3.x 的代理默认等待 10 分钟：请给调用指定超时时间。
 - **事件。** 通道的 `triggerAll(event, …args)` 改为 NATS 组件的 `nats.emitServiceEvent(event, …args)`，每个实例都通过 `proxy.on(event, listener)` 或 `nats.onServiceEvent(serviceId, event, listener)` 接收。`triggerOne` 的效果是每个服务只有一个实例收到事件：请发布到自己的主题上（`nats.publish(subject, payload)`），并以服务的 id 作为队列组订阅（`nats.subscribe(subject, handler, {queue: app.appId})`），同一个服务的各个实例共用这个队列组。
-- **由多个实例分担的工作。** 必须由服务的某一个实例处理的工作（例如处理一个数据流），适合使用消息队列（见 [Queue](Queue.md)）：同一个组的各个实例分摊队列中的消息，并支持重试。
-- **时钟服务。** 原来向其他服务发布定时信号的应用，改为在每个服务中使用 `@Schedule`；只能在一个实例中运行的任务加上 `exclusive`（见 [Schedules](Schedules.md)）。
+- **由多个实例分担的工作。** 必须由服务的某一个实例处理的工作（例如处理一个数据流），适合使用消息队列（见[消息队列](Queue.md)）：同一个组的各个实例分摊队列中的消息，并支持重试。
+- **时钟服务。** 原来向其他服务发布定时信号的应用，改为在每个服务中使用 `@Schedule`；只能在一个实例中运行的任务加上 `exclusive`（见[定时任务](Schedules.md)）。
 
 ## 6. HTTP API
 
@@ -260,11 +260,11 @@ Application.run(() => ({
 
 - `statusOfError()` 和 `describeError()` 给出适配器本来会发送的状态码和 `{errno, errMsg}`；响应器决定响应的格式。1.x 的 `api` 模块的响应是 `{statusCode, code, error, payload, timestamp, server}`（或者经它的 `responseFormatter` 处理后的格式）：请写出客户端读取的那些字段。`jsonEnvelope()` 给出的则是 3.x 的封套 `{errno, errMsg, data}`。
 - `api` 模块允许任何来源的跨域请求（CORS），并对响应签名（`x-signature` 系列响应头）。3.x 的适配器不发送 CORS 响应头，除非用中间件加上（见 [HTTP](HTTP.md) 第 7 节）；校验签名的客户端需要一个加上这些响应头的中间件。
-- 1.x 组件自己启动的服务器（为 Socket.IO 启动的 HTTP 服务器、其他 Web 框架）可以继续留在组件中，在 `startup()` 中启动，在 `destroy()` 中关闭。`socketIOServiceEntrypoint()` 也可以共用 HTTP 适配器的服务器，通过 Socket.IO 提供服务动作（见 [ServiceCalls](ServiceCalls.md) 第 4 节）。
+- 1.x 组件自己启动的服务器（为 Socket.IO 启动的 HTTP 服务器、其他 Web 框架）可以继续留在组件中，在 `startup()` 中启动，在 `destroy()` 中关闭。`socketIOServiceEntrypoint()` 也可以共用 HTTP 适配器的服务器，通过 Socket.IO 提供服务动作（见[服务调用](ServiceCalls.md)第 4 节）。
 
 ## 7. 校验
 
-1.x 的 `Validator` 生成 yup schema；3.x 用 DTO 类校验，DTO 的 schema 采用 joi 的 API（见 [DTOValidation](DTOValidation.md)）。1.x 中成对出现的 schema 和类型，合并成一个 DTO 类：
+1.x 的 `Validator` 生成 yup schema；3.x 用 DTO 类校验，DTO 的 schema 采用 joi 的 API（见 [DTO 与数据校验](DTOValidation.md)）。1.x 中成对出现的 schema 和类型，合并成一个 DTO 类：
 
 | 1.x（`Validator`，yup） | 3.x（`DTO`） |
 |---|---|
@@ -287,7 +287,7 @@ Application.run(() => ({
 
 ## 8. 数据库和缓存
 
-**数据库。** 1.x 的 `TypeOrmComponent` 改为 `Database` 组件，用 `buildDatabaseOptions()` 声明（见 [Database](Database.md)、[Entities](Entities.md)）。ORM 是 TypeORM 1.1（1.x 使用的是 0.3）：
+**数据库。** 1.x 的 `TypeOrmComponent` 改为 `Database` 组件，用 `buildDatabaseOptions()` 声明（见[数据库](Database.md)、[实体、查询与事务](Entities.md)）。ORM 是 TypeORM 1.1（1.x 使用的是 0.3）：
 
 | 1.x | 3.x |
 |---|---|
@@ -298,14 +298,14 @@ Application.run(() => ({
 | `ConnectionOptions` | `MysqlDataSourceOptions` 等（`ConnectionOptions` 系列名字是已弃用的别名） |
 | `this.db.queryData(options, Entity)` 及其查询语言 | 没有对应项：把这种查询语言作为应用自己的组件保留下来，基于 TypeORM 的查询选项实现，分页使用 `paginator`（`lakutata/dtos`） |
 
-- **生产环境中的 `synchronize: true`** 会在每次启动时修改数据表。请关闭它，改用迁移（见 [Migrations](Migrations.md)）：先对生产数据库的副本生成第一个迁移（实体与数据表一致时，它应该是空的），之后由 `migrationsRun` 在启动时运行新的迁移。
+- **生产环境中的 `synchronize: true`** 会在每次启动时修改数据表。请关闭它，改用迁移（见[迁移](Migrations.md)）：先对生产数据库的副本生成第一个迁移（实体与数据表一致时，它应该是空的），之后由 `migrationsRun` 在启动时运行新的迁移。
 - **使用 `__dirname` 的 glob** 在 ES 模块中不存在：请逐个列出实体类，迁移文件的路径用 `import.meta.dirname` 构造。
 
-**缓存。** 1.x 的 `CacherComponent` 改为 `Cacher` 组件，用 `buildCacherOptions()` 声明（见 [Cache](Cache.md)）。`get(key)`、`set(key, value, ttl)` 和 `del(key)` 保留原来的名字（1.x 只能在选项中设置的存活时间，现在可以在每次 `set` 时给出），`wrap(key, fn)` 先读缓存、未命中时再计算。键不存在时返回 `undefined`，而 1.x 返回 `null`（存储出错时也是 `null`）；`null` 和 `false` 现在可以作为值缓存。键的构成方式也不同，1.x 写入的缓存条目在 3.x 中读不到：请从空缓存开始。
+**缓存。** 1.x 的 `CacherComponent` 改为 `Cacher` 组件，用 `buildCacherOptions()` 声明（见[缓存](Cache.md)）。`get(key)`、`set(key, value, ttl)` 和 `del(key)` 保留原来的名字（1.x 只能在选项中设置的存活时间，现在可以在每次 `set` 时给出），`wrap(key, fn)` 先读缓存、未命中时再计算。键不存在时返回 `undefined`，而 1.x 返回 `null`（存储出错时也是 `null`）；`null` 和 `false` 现在可以作为值缓存。键的构成方式也不同，1.x 写入的缓存条目在 3.x 中读不到：请从空缓存开始。
 
 ## 9. 配置、运行模式和入口
 
-- **一份配置。** 1.x 通过入口文件选择生产或开发环境（`App.ts` 调用 `Config(true)`，开发入口调用 `Config(false)`）。在 3.x 中，`config()` 只有一个函数，运行模式来自环境：依次是 `MODE`、`NODE_ENV`、`mode` 选项；`app.mode()` 给出当前的模式（见 [Application](Application.md)）。
+- **一份配置。** 1.x 通过入口文件选择生产或开发环境（`App.ts` 调用 `Config(true)`，开发入口调用 `Config(false)`）。在 3.x 中，`config()` 只有一个函数，运行模式来自环境：依次是 `MODE`、`NODE_ENV`、`mode` 选项；`app.mode()` 给出当前的模式（见[应用](Application.md)）。
 - **配置的值**来自环境变量，在 `config()` 中读取，或者作为 `@Configurable` 属性的默认值。声明不合法时，启动会以 `InvalidObjectOptionsException` 失败，并列出所有不合法的选项，所以缺少的环境变量会在启动时立即暴露，而不是等到第一次使用时。
 - **选项中接收应用、用来访问其他组件的函数**，改为注入：组件自己注入它需要的对象。
 - **写在配置代码中的凭据**，请移到环境变量或部署环境的密钥中。
@@ -313,7 +313,7 @@ Application.run(() => ({
 ## 10. 测试、构建和部署
 
 - **测试。** 1.x 中连接共享开发服务器、直接启动应用的 `npm test`，改为对编译后的测试运行 `node --test`：每个测试文件用 `Application.run(config(port))` 在自己的端口上启动应用，调用它，最后释放它；组件放在 `Container` 中单独测试；其他服务用替身代替（见[示例](examples/README.md)）。
-- **`package.json` 中的 `lakutata` 字段**在 1.x 中告诉命令行工具项目的类型（`type`）、目录和配置文件。在 3.x 中这个字段有别的含义（打包应用的 `resources` 和 `installer`，见 [Packaging](Packaging.md)）：请删除 1.x 的这个字段。
+- **`package.json` 中的 `lakutata` 字段**在 1.x 中告诉命令行工具项目的类型（`type`）、目录和配置文件。在 3.x 中这个字段有别的含义（打包应用的 `resources` 和 `installer`，见[打包](Packaging.md)）：请删除 1.x 的这个字段。
 - **Node.js、TypeScript 和模块系统。** Node.js `>=18.10.0`，与模板一样使用 TypeScript 6，ES 模块（`"type": "module"`，相对导入以 `.js` 结尾），`tsconfig.json` 继承 `lakutata/tsconfig.json`。
 - **端口。** 1.x 的服务模块监听自己的端口（默认 6912），注册中心监听另一个端口（6911）。3.x 的适配器监听各自选项中的端口，而使用 NATS 的服务只主动连接 NATS 服务器：`Dockerfile` 改为暴露这些端口。
 - **脚本。** 模板的脚本取代了 `shx rm -rf ./build`（改为 `lakutata clean`）、安装时编译的 `prepare`，以及开发入口；`lakutata-deploy` 没有对应项：`service` 模板带有 `Dockerfile` 和 `docker:build` 脚本，镜像由部署环境自己的工具推送。

@@ -22,7 +22,7 @@ cd notes
 rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/GreetDTO.ts
 ```
 
-项目是一个工作区（见 [ProjectStructure](../ProjectStructure.md)）：`packages/app` 是主进程，也是一个 lakutata 应用；`packages/ui` 是渲染进程，即由 Vite 构建的 React 页面；`packages/resources` 存放图标。应用不需要安装其他包：文件用 `node:fs` 读写，对话框由 Electron 提供。这里删掉了模板中的示例控制器。
+项目是一个工作区（见[项目结构](../ProjectStructure.md)）：`packages/app` 是主进程，也是一个 lakutata 应用；`packages/ui` 是渲染进程，即由 Vite 构建的 React 页面；`packages/resources` 存放图标。应用不需要安装其他包：文件用 `node:fs` 读写，对话框由 Electron 提供。这里删掉了模板中的示例控制器。
 
 ## 2. 输入
 
@@ -49,11 +49,11 @@ export class SaveNoteDTO extends NoteNameDTO {
 }
 ```
 
-每个动作在运行前都会用 DTO 校验输入（见 [DTOValidation](../DTOValidation.md)）：
+每个动作在运行前都会用 DTO 校验输入（见 [DTO 与数据校验](../DTOValidation.md)）：
 
 - 笔记就是文件夹中的 `<name>.md` 文件：这个模式不允许斜杠，也不允许 Windows 文件名中禁用的字符，所以名称无法指向文件夹之外。`.pattern()` 的第二个参数是这个模式在错误消息中显示的名字：`"name" with value "a/b" fails to match the file name pattern`；
 - `.allow('')` 允许空笔记；
-- 消息是 JSON，值会保留各自的类型，所以不需要像 HTTP 请求的查询字符串那样使用 `.strict(false)`（见 [ServiceCalls](../ServiceCalls.md) 第 2 节）。
+- 消息是 JSON，值会保留各自的类型，所以不需要像 HTTP 请求的查询字符串那样使用 `.strict(false)`（见[服务调用](../ServiceCalls.md)第 2 节）。
 
 ## 3. 异常
 
@@ -77,7 +77,7 @@ export class NoteNotFoundException extends Exception {
 }
 ```
 
-异常有一个 `errno`，渲染进程用它判断是哪种错误（见 [Exceptions](../Exceptions.md)）。通过 IPC 发送错误时，会带上它的全部属性（见 [ServiceCalls](../ServiceCalls.md) 第 3 节），渲染进程收到的就是抛出时的错误：`error.errno` 为 `'E_NOTE_NOT_FOUND'`。服务调用的传输方式总是以封套回复，不管错误的状态码是多少，所以这些异常不需要 `statusCode`。
+异常有一个 `errno`，渲染进程用它判断是哪种错误（见[异常](../Exceptions.md)）。通过 IPC 发送错误时，会带上它的全部属性（见[服务调用](../ServiceCalls.md)第 3 节），渲染进程收到的就是抛出时的错误：`error.errno` 为 `'E_NOTE_NOT_FOUND'`。服务调用的传输方式总是以封套回复，不管错误的状态码是多少，所以这些异常不需要 `statusCode`。
 
 ## 4. 笔记
 
@@ -229,9 +229,9 @@ export class Notes extends Component {
 }
 ```
 
-- 组件只创建一次，由整个应用共享（见 [Objects](../Objects.md)）。它保存着文件夹，而文件夹在请求结束之后仍然要用：控制器只存在于一次请求之内（见 [Controllers](../Controllers.md) 第 2 节）。
-- `settings` 是组件的选项，也就是记录文件夹的那个文件：它用 `@Configurable` 声明，值由应用的选项传入（见 [Injection](../Injection.md)）。应用启动时，`init()` 会读取这个文件。
-- `node:fs` 的 `watch()` 监视文件夹。文件夹中的文件有变化时，不论是应用保存的还是其他程序（编辑器、同步工具）改的，`this.entrypoint.broadcast()` 都会向每个窗口推送 `notes.changed`（见 [ServiceCalls](../ServiceCalls.md) 第 5 节）。保存一次文件往往会产生好几次变化，所以用定时器等变化稳定下来再推送。
+- 组件只创建一次，由整个应用共享（见[对象与生命周期](../Objects.md)）。它保存着文件夹，而文件夹在请求结束之后仍然要用：控制器只存在于一次请求之内（见[控制器与动作](../Controllers.md)第 2 节）。
+- `settings` 是组件的选项，也就是记录文件夹的那个文件：它用 `@Configurable` 声明，值由应用的选项传入（见[依赖注入](../Injection.md)）。应用启动时，`init()` 会读取这个文件。
+- `node:fs` 的 `watch()` 监视文件夹。文件夹中的文件有变化时，不论是应用保存的还是其他程序（编辑器、同步工具）改的，`this.entrypoint.broadcast()` 都会向每个窗口推送 `notes.changed`（见[服务调用](../ServiceCalls.md)第 5 节）。保存一次文件往往会产生好几次变化，所以用定时器等变化稳定下来再推送。
 - 应用停止时，`destroy()` 停止监视。
 
 ## 5. 控制器
@@ -325,7 +325,7 @@ export class NoteController extends Controller {
 }
 ```
 
-- 每个 `@ServiceAction` 都由消息调用：`{cmd: 'notes.save', name: 'Shopping', text: '- bread'}` 会把 `{name: 'Shopping', text: '- bread'}` 作为输入调用 `save()`，输入由 `SaveNoteDTO` 校验（见 [ServiceCalls](../ServiceCalls.md) 第 2 节）。动作都很短：实际工作由控制器注入的 `notes` 组件完成。
+- 每个 `@ServiceAction` 都由消息调用：`{cmd: 'notes.save', name: 'Shopping', text: '- bread'}` 会把 `{name: 'Shopping', text: '- bread'}` 作为输入调用 `save()`，输入由 `SaveNoteDTO` 校验（见[服务调用](../ServiceCalls.md)第 2 节）。动作都很短：实际工作由控制器注入的 `notes` 组件完成。
 - `folder.choose` 和 `notes.reveal` 用到只有主进程才有的 API：`dialog` 和 `shell`。和模板中的 `MainWindow` 一样，它们在运行时才导入 Electron，所以用 Node.js 运行的测试从不加载 Electron。
 - `ipcEventOfContext()` 返回请求的 IPC 事件。它的 `sender` 是发出调用的页面，`BrowserWindow.fromWebContents()` 由此找到页面所在的窗口，对话框就属于这个窗口（在 macOS 上，对话框附着在窗口上显示）。通过开发用的 HTTP 入口调用时（见第 9 节），动作没有 IPC 事件，对话框也就不属于任何窗口。
 - 没有返回值的动作（例如 `remove()`）回复 `{success: true, error: null}`。
@@ -582,7 +582,7 @@ export function App() {
 }
 ```
 
-- `window.ipc` 来自模板（`packages/ui/src/ipc.ts`），通过预加载脚本工作。`invoke()` 发送消息，返回动作的结果，或者抛出动作的错误（带有 `errno`）；`on()` 和 `off()` 监听主进程的事件（见 [ServiceCalls](../ServiceCalls.md) 第 4 节）。
+- `window.ipc` 来自模板（`packages/ui/src/ipc.ts`），通过预加载脚本工作。`invoke()` 发送消息，返回动作的结果，或者抛出动作的错误（带有 `errno`）；`on()` 和 `off()` 监听主进程的事件（见[服务调用](../ServiceCalls.md)第 4 节）。
 - 渲染进程与 Node.js 和 Electron 隔离：它自己不读文件，也不打开对话框，而是调用负责这些事情的动作。
 - 收到 `notes.changed` 时，它重新列出笔记：用编辑器保存的笔记也会出现在窗口中。
 - 错误（例如名称不合法）显示在笔记下方。
@@ -595,7 +595,7 @@ npm run dev
 
 这条命令启动 Vite 的开发服务器（它提供渲染进程，`packages/ui` 有改动时自动重新加载），同时启动 Electron，它的窗口加载渲染进程并打开 DevTools。主进程会输出 `notes started in development mode`。第一次运行时，窗口会请你选择一个文件夹；以后再启动，它会打开设置中记录的文件夹。
 
-开发时，动作还会通过 HTTP 在 9000 端口（`DEV_PORT`）上提供，方便用 curl 或 Postman 试用：`POST /` 发送消息，`GET /events` 以 Server-Sent Events 的形式输出推送给某个客户端的事件（见 [ServiceCalls](../ServiceCalls.md) 第 4 节）。在窗口中选好文件夹（里面已经有一条笔记 `Ideas`）之后，在另一个终端中执行：
+开发时，动作还会通过 HTTP 在 9000 端口（`DEV_PORT`）上提供，方便用 curl 或 Postman 试用：`POST /` 发送消息，`GET /events` 以 Server-Sent Events 的形式输出推送给某个客户端的事件（见[服务调用](../ServiceCalls.md)第 4 节）。在窗口中选好文件夹（里面已经有一条笔记 `Ideas`）之后，在另一个终端中执行：
 
 ```bash
 curl -N 'localhost:9000/events?id=me' &
@@ -743,6 +743,6 @@ app │ ℹ pass 5
 
 ## 11. 打包
 
-- `npm run package:host` 构建所有包，然后在 `dist/installer` 中生成当前平台的安装包：macOS 上是 `dmg`，Linux 上是 `deb`，Windows 上是 `nsis` 安装程序和一个便携版可执行文件。`npm run package:linux` 在 Docker 中生成 Linux 安装包，在任何平台上都可以运行。安装包由 electron-builder 根据 `packages/app/package.json` 中的 `lakutata.installer` 制作（见 [Installers](../Installers.md) 第 8 节）。
-- 主进程会连同它的依赖打包在一起。构建好的渲染进程和预加载脚本放进 Electron 的资源目录（由 `packages/app/package.json` 中的 `lakutata.resources` 指定），`resourcesPath()` 在那里找到它们（见 [Packaging](../Packaging.md) 第 6 节）。
+- `npm run package:host` 构建所有包，然后在 `dist/installer` 中生成当前平台的安装包：macOS 上是 `dmg`，Linux 上是 `deb`，Windows 上是 `nsis` 安装程序和一个便携版可执行文件。`npm run package:linux` 在 Docker 中生成 Linux 安装包，在任何平台上都可以运行。安装包由 electron-builder 根据 `packages/app/package.json` 中的 `lakutata.installer` 制作（见[安装包](../Installers.md)第 8 节）。
+- 主进程会连同它的依赖打包在一起。构建好的渲染进程和预加载脚本放进 Electron 的资源目录（由 `packages/app/package.json` 中的 `lakutata.resources` 指定），`resourcesPath()` 在那里找到它们（见[打包](../Packaging.md)第 6 节）。
 - 打包后的应用没有 HTTP 入口（只有 `app.isPackaged` 为 false 时才传入 `devPort`），设置仍然保存在同一个数据目录中。

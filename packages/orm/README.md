@@ -2,7 +2,7 @@
 
 English | [中文](README.zh-CN.md)
 
-The ORM of the lakutata framework, built on [TypeORM](https://typeorm.io) 1. It provides the `Database` component (a
+The ORM of the Lakutata framework, built on [TypeORM](https://typeorm.io) 1. It provides the `Database` component (a
 connection shared by the application), the `Database` provider (a connection of its own), the entity decorators, the
 TypeORM API (repositories, find operators, query builders, migrations), and the migration commands of an application
 (`MIGRATION_GENERATE`, `MIGRATION_RUN`, `MIGRATION_REVERT`, `MIGRATION_SHOW`).
@@ -38,7 +38,7 @@ The `sqljs` driver holds the whole database in memory. With the `location` optio
 when it connects, and writes it back after each change with `autoSave: true`, or when `saveDatabase()` of its entity
 manager (`SqljsEntityManager`) is called; `exportDatabase()` returns the database as a `Uint8Array`.
 
-`mongo-embedded`, added by lakutata, is the MongoDB support of TypeORM (entities with an `@ObjectIdColumn`, the MongoDB
+`mongo-embedded`, added by Lakutata, is the MongoDB support of TypeORM (entities with an `@ObjectIdColumn`, the MongoDB
 operators in find options, the `MongoRepository`) running on a database inside the process: the package
 `@lakutata/mongo-embedded`, which stores the documents with SQLite in a native addon and behaves like MongoDB 8.0 with
 one member (transactions, change streams, text and geospatial indexes, collations). Its addon is compiled when it is
@@ -474,7 +474,7 @@ The entities of a database are those of its connection options, plus, for a `Dat
 | `DataSourceOptions`, `PostgresDataSourceOptions`, `MysqlDataSourceOptions`… | `lakutata/orm` | The connection options of each driver (their TypeORM 0.3 names, `PostgresConnectionOptions`…, are deprecated) |
 | `QueryFailedError`, `EntityNotFoundError`, `TypeORMError`… | `lakutata/orm` | The TypeORM errors |
 
-The typings document the declarations of lakutata, with examples; the TypeORM declarations are documented by
+The typings document the declarations of Lakutata, with examples; the TypeORM declarations are documented by
 [TypeORM](https://typeorm.io).
 
 ## Errors

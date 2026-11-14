@@ -3,7 +3,7 @@
 This example builds a service for a small Linux machine, such as a Raspberry Pi or a gateway: it reads the load, the
 memory and the temperature of the machine every 10 seconds, keeps the last hour of readings in memory, and serves them
 over HTTP. It starts from the `service` template with its `installer` feature, and shows a scheduled action, components
-of its own with their options, the lakutata monitors, configuration through environment variables, and the packages that
+of its own with their options, the Lakutata monitors, configuration through environment variables, and the packages that
 install the service on the machine and start it with the system.
 
 | Method | Route | What it does |
@@ -20,8 +20,8 @@ cd telemetry
 rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/GreetDTO.ts
 ```
 
-The project is a workspace whose service is `packages/app` ([ProjectStructure](../ProjectStructure.md)). The `installer`
-feature adds what is needed to make the installers: the `lakutata.installer` configuration in
+The project is a workspace whose service is `packages/app` ([Project Structure](../ProjectStructure.md)). The
+`installer` feature adds what is needed to make the installers: the `lakutata.installer` configuration in
 `packages/app/package.json`, the `package:host` and `package:linux` scripts, `Dockerfile.installer`,
 `@lakutata/builder`, and the icon in `packages/resources`. The service needs no other package: the schedules and the
 monitors are part of lakutata. The example controller of the template is removed.
@@ -90,7 +90,7 @@ export class Sensors extends Component {
 }
 ```
 
-A component is a long-lived object, one for the whole application ([Objects](../Objects.md)). This one:
+A component is a long-lived object, one for the whole application ([Objects and Lifetimes](../Objects.md)). This one:
 
 - reads the load average over the last minute (`os.loadavg()`, always 0 on Windows), and the share of the memory in use;
 - reads the temperature of the CPU from a Linux thermal zone: a file that holds thousandths of a degree (`48312` for
@@ -178,7 +178,7 @@ export class ReadingsDTO extends DTO {
 
 `limit` is the number of readings to return: from 1 to 1000, 10 by default. The query string is text: `.strict(false)`
 converts `'3'` to the number 3, and an invalid value is refused before the action runs
-([DTOValidation](../DTOValidation.md)).
+([DTO and Validation](../DTOValidation.md)).
 
 ## 5. The controller
 
@@ -245,17 +245,17 @@ export class ReadingController extends Controller {
 }
 ```
 
-- A controller can hold the actions of several transports ([Controllers](../Controllers.md)): `sample()` is a
-  scheduled action, `list()` and `status()` are HTTP actions. Each run of `sample()` is handled like a request, with a
+- A controller can hold the actions of several transports ([Controllers and Actions](../Controllers.md)): `sample()` is
+  a scheduled action, `list()` and `status()` are HTTP actions. Each run of `sample()` is handled like a request, with a
   new controller.
-- `@Schedule({every, immediate: true})` runs `sample()` once at the start, then once every interval
-  ([Schedules](../Schedules.md)). `this.context` is the `ScheduleContext` of the run: its `scheduledAt`, the time the
-  run was planned for, becomes the time of the reading.
+- `@Schedule({every, immediate: true})` runs `sample()` once at the start, then once every interval ([Scheduled
+  Jobs](../Schedules.md)). `this.context` is the `ScheduleContext` of the run: its `scheduledAt`, the time the run was
+  planned for, becomes the time of the reading.
 - The interval is read from `SAMPLE_EVERY` when the class is defined, that is, when its module is loaded, so it comes
   from the environment the process starts with (the shell, or the environment file of the installed service). A value
   that is not a duration, such as `30` without a unit, stops the service at startup:
   `SyntaxError: Invalid duration "30": such as "500ms", "30s", "5m", "1h30m" or "1d"`.
-- The monitors measure the service itself, not the machine ([Monitor](../Monitor.md)): `usageAvg` is the mean CPU usage
+- The monitors measure the service itself, not the machine ([Monitors](../Monitor.md)): `usageAvg` is the mean CPU usage
   of the process since its start, in percent of one core, and `physicalUsed` is its resident memory, in bytes. They show
   whether the service stays light on a small machine.
 

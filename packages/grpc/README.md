@@ -2,7 +2,7 @@
 
 English | [中文](README.zh-CN.md)
 
-gRPC for the lakutata framework, written in TypeScript on top of the HTTP/2 module of Node.js, with no native addon and
+gRPC for the Lakutata framework, written in TypeScript on top of the HTTP/2 module of Node.js, with no native addon and
 no generated code. It provides a client (`GRPCConnection`: unix sockets, TCP, TLS and mutual TLS; unary,
 server-streaming and bidirectional calls), a server (`GRPCServer`) and a schema-driven protobuf codec (`encode`,
 `decode`). The `@lakutata/grpc/service` subpath serves an application's service actions over gRPC
@@ -18,7 +18,7 @@ npm install @lakutata/grpc
 ```
 
 The client, the server and the codec need nothing else (Node.js `>=18.10.0`). The service entrypoint and the
-service proxy run in a lakutata application, so they need `lakutata`, which provides the package's peer dependencies
+service proxy run in a Lakutata application, so they need `lakutata`, which provides the package's peer dependencies
 `@lakutata/core` and `@lakutata/entrypoint` (optional for the other uses).
 
 ```shell
@@ -346,7 +346,7 @@ The typings document each declaration, with examples.
 
 | Error | Thrown when |
 |---|---|
-| `GRPCError` (`code`: a `GRPCStatus`, `path`) | A call fails: the server's status, or `UNAVAILABLE` (connection failed or lost, no status), `CANCELLED` (signal aborted, stream cancelled, call closed), `DEADLINE_EXCEEDED` (timeout passed), `RESOURCE_EXHAUSTED` (a message over `maxMessageSize`), `INTERNAL` (a message that cannot be decompressed or decoded) or `UNKNOWN` (an HTTP status other than 200). A server handler throws it to end its call with that status. |
+| `GRPCError` (`code`: a `GRPCStatus`, `path`) | A call fails: the server's status, or `UNAVAILABLE` (connection failed or lost, no status), `CANCELLED` (signal aborted, stream canceled, call closed), `DEADLINE_EXCEEDED` (timeout passed), `RESOURCE_EXHAUSTED` (a message over `maxMessageSize`), `INTERNAL` (a message that cannot be decompressed or decoded) or `UNKNOWN` (an HTTP status other than 200). A server handler throws it to end its call with that status. |
 | `ServiceInvokeException` (`E_SERVICE_INVOKE`, from `lakutata/com/entrypoint`) | `GRPCServiceProxy.invoke()`: the remote action failed; the exception carries the remote error's message and properties (`errno`…) |
 | `EntrypointStoppedException` (`E_ENTRYPOINT_STOPPED`) | An invocation arrives while the service's entrypoint is stopping (the proxy receives it as a `ServiceInvokeException` with this errno) |
 | `Error` | `new GRPCConnection()` with an address that is not a unix socket path, a `tcp://` URL or `host:port`, or with TLS over a unix socket; `decode()` with truncated or unexpected bytes; `GRPCServer.listen()` with the listen error (`EADDRINUSE`); `grpcServiceEntrypoint()` with `interface` when `@lakutata/netif` is not installed and no `interfaceListening` is given |

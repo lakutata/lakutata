@@ -153,7 +153,7 @@ Application.run(() => ({
 - The logger does not close the streams, and does not rotate the files: leave that to the system (logrotate, the
   collector of the containers).
 - An application whose standard output belongs to a protocol (JSON-RPC over stdio, MCP over stdio) writes its logs to
-  the standard error: `log: {class: Logger, destinations: [process.stderr]}` (see [ServiceCalls](ServiceCalls.md),
+  the standard error: `log: {class: Logger, destinations: [process.stderr]}` (see [Service Calls](ServiceCalls.md),
   section 4).
 
 ## 6. Buffering

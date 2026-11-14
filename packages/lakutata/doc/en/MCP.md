@@ -103,12 +103,12 @@ Application.run(() => ({
 | `description` | What the tool does, for the model; without it, the model sees `ControllerClass:method` |
 | `title` | A name to display |
 | `readOnly`, `destructive`, `idempotent`, `openWorld` | Hints for the client: the tool changes nothing, makes changes that cannot be undone, gives the same result when called again, or reaches outside systems |
-| `output` | The DTO of the result: its JSON schema is sent, and the result is given as structured content too |
-| `acl`, `rule`, `middlewares`… | The options of every action (see [Controllers](Controllers.md), section 3) |
+| `output` | The DTO of the result: its JSON Schema is sent, and the result is given as structured content too |
+| `acl`, `rule`, `middlewares`… | The options of every action (see [Controllers and Actions](Controllers.md), section 3) |
 
 - A name has 1 to 128 letters, digits, `_`, `-` or `.`. `@Prefix({mcp: 'device'})` prefixes the names of the tools and
   of the prompts of a controller: `status` becomes `device_status`.
-- The arguments are described by the JSON schema of the DTO; `.description()` describes an argument to the model. The
+- The arguments are described by the JSON Schema of the DTO; `.description()` describes an argument to the model. The
   DTO validates them, as for every action.
 - A tool declared by two controllers is served by the one registered last, as on the other transports.
 
@@ -200,7 +200,7 @@ class ImportController extends Controller {
 - A method may serve several transports at once (`@GET` and `@MCPTool`): `this.context.type` is then `'MCP'`
   (`MCP_CONTEXT_TYPE`) for the MCP requests.
 - The access rules of the entrypoint apply to the MCP actions declared with `acl: true` when their
-  `supportContextTypes()` include `MCP_CONTEXT_TYPE` (see [Middlewares](Middlewares.md)).
+  `supportContextTypes()` include `MCP_CONTEXT_TYPE` (see [Middlewares and Access Control](Middlewares.md)).
 - The server does not ask the client for anything: there is no sampling, elicitation or logging to the client.
 
 **Notifications.** `MCPNotifier`, a component to inject (`@Inject(MCPNotifier)`), tells the clients that something

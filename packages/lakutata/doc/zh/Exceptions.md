@@ -104,7 +104,7 @@ export async function pay(orderId: number, charge: () => Promise<void>): Promise
 }
 ```
 
-日志会在错误之后写出它的原因（见 [Logger](Logger.md) 第 2 节）；HTTP 适配器会沿着原因查找状态码，第一个客户端错误（4xx）优先（见 [HTTP](HTTP.md) 第 6 节）。
+日志会在错误之后写出它的原因（见[日志](Logger.md)第 2 节）；HTTP 适配器会沿着原因查找状态码，第一个客户端错误（4xx）优先（见 [HTTP](HTTP.md) 第 6 节）。
 
 ## 4. 客户端收到什么
 
@@ -113,17 +113,17 @@ export async function pay(orderId: number, charge: () => Promise<void>): Promise
 | 传输方式 | 客户端收到 |
 |---|---|
 | HTTP | 状态码 `statusCode` 和 `{errno, errMsg}`（见 [HTTP](HTTP.md) 第 6 节） |
-| Socket.IO、Electron、NW.js、HTTP 服务、NATS、gRPC | 完整的错误：它所有的自身属性（见 [ServiceCalls](ServiceCalls.md) 第 3 节） |
+| Socket.IO、Electron、NW.js、HTTP 服务、NATS、gRPC | 完整的错误：它所有的自身属性（见[服务调用](ServiceCalls.md)第 3 节） |
 | JSON-RPC | 一个错误：输入不合法时错误码为 `-32602`，没有匹配的动作时为 `-32601`，应用正在停止时为 `-32001`，其他情况为 `-32000`；完整的错误放在 `data` 中 |
-| 命令行 | 标准错误中的 `error: <消息>`，退出码为 1（见 [CLI](CLI.md)） |
-| 定时任务 | 没有客户端：异常交给 `onError`，或者写入日志（见 [Schedules](Schedules.md)） |
+| 命令行 | 标准错误中的 `error: <消息>`，退出码为 1（见[命令行](CLI.md)） |
+| 定时任务 | 没有客户端：异常交给 `onError`，或者写入日志（见[定时任务](Schedules.md)） |
 
 - 选择 `statusCode` 时看错误出在哪一方：请求有误时用 400 到 499（资源不存在用 404，冲突用 409），应用自身出错时用 500 及以上。
 - 被 DTO 拒绝的输入是 `InvalidValueException`，它的状态码是 400，表示客户端的错误。
 
 ## 5. 翻译与识别异常
 
-使用 `I18nMiddleware` 时，异常的消息会按请求的语言翻译，翻译的键是 `errors.<errno>`，参数来自异常的模板（见 [I18n](I18n.md#异常消息的翻译) 中的“异常消息的翻译”一节）。在请求之外，`lakutata` 中的 `exceptionParams(exception)` 返回这些参数。
+使用 `I18nMiddleware` 时，异常的消息会按请求的语言翻译，翻译的键是 `errors.<errno>`，参数来自异常的模板（见[国际化（i18n）](I18n.md#异常消息的翻译)中的“异常消息的翻译”一节）。在请求之外，`lakutata` 中的 `exceptionParams(exception)` 返回这些参数。
 
 在应用内部用 `instanceof` 识别异常，跨进程时用 `errno`：客户端收到的是错误的属性，而不是它的类。HTTP 服务、NATS 和 gRPC 的代理抛出的 `ServiceInvokeException` 带有远端错误的 `errno`。
 
@@ -155,4 +155,4 @@ export function isMissingOrder(error: unknown): boolean {
 | `ServiceInvokeException` | `E_SERVICE_INVOKE` | 通过代理（HTTP 服务、NATS、gRPC）调用的动作失败；带有远端错误的各个属性 |
 | `ServiceUnavailableException` | `E_SERVICE_UNAVAILABLE` | `HTTPServiceProxy` 调用的服务没有给出响应（503） |
 
-每个包的 README 列出了它自己的异常。没有被任何代码捕获的异常，以及导致应用启动失败的异常，会交给应用的处理函数（`onUncaughtException`、`onFatalException`，见 [Application](Application.md) 第 2 节）。
+每个包的 README 列出了它自己的异常。没有被任何代码捕获的异常，以及导致应用启动失败的异常，会交给应用的处理函数（`onUncaughtException`、`onFatalException`，见[应用](Application.md)第 2 节）。

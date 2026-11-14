@@ -1,4 +1,4 @@
-# Lakutata LDAP Engine
+# Lakutata LDAP 引擎
 
 `@lakutata/ldap-engine` 包是用 TypeScript 写的 Node.js LDAP 库，包括三部分：访问目录服务（OpenLDAP、Active Directory、389 Directory Server、FreeIPA……）的客户端；一个服务器，它的条目由后端存放，存在哪里由后端决定；以及客户端和服务器共同使用的协议层。它不属于 `lakutata`，也不需要应用。它的特点是：
 

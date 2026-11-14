@@ -98,7 +98,7 @@ Application.run(() => ({
 | `title` | 用于显示的名字 |
 | `readOnly`、`destructive`、`idempotent`、`openWorld` | 给客户端的提示：工具不做任何修改、会做出不可撤销的修改、再次调用结果相同、会访问外部系统 |
 | `output` | 结果的 DTO：发送它的 JSON Schema，结果也会同时作为结构化内容给出 |
-| `acl`、`rule`、`middlewares`…… | 所有动作共有的选项（见 [Controllers](Controllers.md) 第 3 节） |
+| `acl`、`rule`、`middlewares`…… | 所有动作共有的选项（见[控制器与动作](Controllers.md)第 3 节） |
 
 - 名字由 1 到 128 个字母、数字、`_`、`-` 或 `.` 组成。`@Prefix({mcp: 'device'})` 给控制器中工具和提示词的名字加上前缀：`status` 变成 `device_status`。
 - 参数由 DTO 的 JSON Schema 描述；`.description()` 向模型说明一个参数。DTO 校验参数，与所有动作一样。
@@ -179,7 +179,7 @@ class ImportController extends Controller {
 
 - 客户端取消调用时，`this.signal` 会被中止。
 - 一个方法可以同时服务多种传输方式（`@GET` 和 `@MCPTool`）：对于 MCP 的请求，`this.context.type` 是 `'MCP'`（`MCP_CONTEXT_TYPE`）。
-- 入口的访问规则适用于以 `acl: true` 声明的 MCP 动作，前提是规则的 `supportContextTypes()` 包含 `MCP_CONTEXT_TYPE`（见 [Middlewares](Middlewares.md)）。
+- 入口的访问规则适用于以 `acl: true` 声明的 MCP 动作，前提是规则的 `supportContextTypes()` 包含 `MCP_CONTEXT_TYPE`（见[中间件与访问控制](Middlewares.md)）。
 - 服务器不会向客户端请求任何东西：没有采样（sampling）、征询（elicitation），也不向客户端发送日志。
 
 **通知。** `MCPNotifier` 是一个可以注入的组件（`@Inject(MCPNotifier)`），用来告诉客户端有内容变化：`resourceUpdated(uri)`、`resourcesChanged()`、`toolsChanged()`、`promptsChanged()`。在 stdio 上，只有订阅了某个 URI 的客户端才会收到这个资源的更新。在 HTTP 上，只有使用 2026-07-28 协议版本、并且监听变化的客户端才会收到通知。

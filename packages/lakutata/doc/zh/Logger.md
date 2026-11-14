@@ -35,7 +35,7 @@ Application
 ```
 
 - 按名字 `log` 注入它。类型可以写成 `Logger`，也可以写成 `lakutata` 中的 `ILogger`，这是应用的所有日志记录器都实现的接口。
-- 应用的处理函数（`onLaunched`、`onDone`、`onUncaughtException`、`onFatalException`）的第二个参数就是它（见 [Application](Application.md) 第 2 节）。
+- 应用的处理函数（`onLaunched`、`onDone`、`onUncaughtException`、`onFatalException`）的第二个参数就是它（见[应用](Application.md)第 2 节）。
 - 它的选项写在 `components` 的 `log` 中，不需要 `class`（第 4 节）。
 
 ## 2. 写一行日志
@@ -138,7 +138,7 @@ Application.run(() => ({
 ```
 
 - 日志记录器不会关闭这些流，也不会轮转文件：交给系统处理（logrotate、容器的日志收集器）。
-- 标准输出被协议占用的应用（基于 stdio 的 JSON-RPC、基于 stdio 的 MCP）要把日志写到标准错误：`log: {class: Logger, destinations: [process.stderr]}`（见 [ServiceCalls](ServiceCalls.md) 第 4 节）。
+- 标准输出被协议占用的应用（基于 stdio 的 JSON-RPC、基于 stdio 的 MCP）要把日志写到标准错误：`log: {class: Logger, destinations: [process.stderr]}`（见[服务调用](ServiceCalls.md)第 4 节）。
 
 ## 6. 缓冲
 

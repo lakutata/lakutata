@@ -1,6 +1,6 @@
 # Lakutata 辅助函数
 
-`lakutata/utils`（`@lakutata/utils` 包）导出框架及其应用共用的辅助工具：字符串、对象、数组和集合、哈希和编码、UUID、IP 地址、glob、统计，以及 `Time`（见 [Time](Time.md)）。它们是没有依赖的普通函数和类：在需要的地方直接导入即可，无论是否在应用中，都不需要注册。更多细节以及各函数抛出的错误见 `@lakutata/utils` 的 README 和各函数的类型声明。
+`lakutata/utils`（`@lakutata/utils` 包）导出框架及其应用共用的辅助工具：字符串、对象、数组和集合、哈希和编码、UUID、IP 地址、glob、统计，以及 `Time`（见[时间（Time）](Time.md)）。它们是没有依赖的普通函数和类：在需要的地方直接导入即可，无论是否在应用中，都不需要注册。更多细节以及各函数抛出的错误见 `@lakutata/utils` 的 README 和各函数的类型声明。
 
 ```typescript
 import {Application, Component, Time} from 'lakutata'
@@ -89,7 +89,7 @@ console.log(uniqueArray([3, 1, 3, 2]), Object.keys(sortObject({b: 1, a: 2})))
 
 | 函数 | 作用 |
 |---|---|
-| `md5(text)`、`sha1(text)`、`sha256(text)` | 字符串的摘要，返回 `Buffer`（用于校验和；密码和秘密请见 [Security](Security.md)） |
+| `md5(text)`、`sha1(text)`、`sha256(text)` | 字符串的摘要，返回 `Buffer`（用于校验和；密码和秘密请见[安全](Security.md)） |
 | `MessagePack` | 在值与 MessagePack 字节或字符串之间序列化和反序列化 |
 | `UUID` | 生成（`v1`、`v3`、`v4`、`v5`、`v6`）、校验、解析和格式化 UUID |
 | `URLBuilder` | 把任意协议的 URL 解析为各个属性，或由属性构建 URL |

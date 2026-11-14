@@ -224,7 +224,7 @@ Declaring a property again without an initializer, as `NamedPortServer` does, co
 ## 2. Controller actions (`lakutata/decorator/ctrl`)
 
 These decorators apply to the methods (and, for `@Prefix` and `@UseMiddlewares`, to the classes) of the subclasses of
-`Controller`; [Controllers](Controllers.md) describes them in detail.
+`Controller`; [Controllers and Actions](Controllers.md) describes them in detail.
 
 | Decorator | Address |
 |---|---|
@@ -273,7 +273,7 @@ application'}})`, translated by the key `commands.package.description`).
 | `@Accept(...schemas)` | Validates the arguments of each call of a method, by position |
 | `@Return(schema)` | Validates the result of each call of a method |
 
-See [DTOValidation](DTOValidation.md).
+See [DTO and Validation](DTOValidation.md).
 
 ## 4. Assistants (`lakutata/decorator/asst`)
 
@@ -315,7 +315,7 @@ and access is allowed. See [Mutex](Mutex.md).
 
 `@QueueAction(queue, dto?, options?)` makes a controller action the consumer of a queue: the `queueEntrypoint` adapter
 delivers the messages of the queue to it. A message is acknowledged when the action returns, retried after a failure,
-and sent to the dead letter queue once its retries are used up. See [Queue](Queue.md).
+and sent to the dead-letter queue once its retries are used up. See [Queues](Queue.md).
 
 ## 7. Database entities (`lakutata/decorator/orm`)
 
@@ -351,4 +351,4 @@ export class User {
 }
 ```
 
-See [Entities](Entities.md).
+See [Entities, Queries and Transactions](Entities.md).

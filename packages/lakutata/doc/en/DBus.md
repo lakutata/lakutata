@@ -238,8 +238,8 @@ of the object called, `interface` and `member` name the method, and `data` holds
 validation.
 
 The access rules of the entrypoint apply to the methods declared with `acl: true` when their `supportContextTypes()`
-include `DBUS_CONTEXT_TYPE` (see [Middlewares](Middlewares.md)). The context does not tell who calls: a rule cannot
-check the caller, which is the job of the bus policy on the system bus.
+include `DBUS_CONTEXT_TYPE` (see [Middlewares and Access Control](Middlewares.md)). The context does not tell who calls:
+a rule cannot check the caller, which is the job of the bus policy on the system bus.
 
 ## 7. The client
 

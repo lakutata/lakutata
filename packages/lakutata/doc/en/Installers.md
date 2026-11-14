@@ -277,14 +277,14 @@ and `electron-vue` templates are configured this way.
   `nsis` installer (`preinstall`, `postinstall`, `preremove`); the other targets run none.
 - **Native addons** are copied as they are installed: electron-builder does not rebuild them. The addons built on
   Node-API run as they are; install the Electron builds of the others before packing (`electron-rebuild`)
-  ([NativeAddons](NativeAddons.md), section 4).
+  ([Native Addons](NativeAddons.md), section 4).
 - On Linux arm64, the deb and rpm packages need the fpm of the system (`gem install fpm`, `USE_SYSTEM_FPM=true`), as the
   `Dockerfile.installer` of the Electron templates installs it.
 
 ## 9. NW.js applications
 
 With `"runtime": "nwjs"`, the installers hold an NW.js application made by the builder: the normal flavor of the NW.js
-of the application (its `lakutata.nwjs`, given by `lakutata nwjs use`), downloaded once into the cache of lakutata and
+of the application (its `lakutata.nwjs`, given by `lakutata nwjs use`), downloaded once into the cache of Lakutata and
 checked against the checksums of its release, with the application in it: its bundle for the Node.js of that NW.js, its
 native addons, its resources (`lakutata.resources`, read through `resourcesPath()`) and the manifest of NW.js. The
 `nwjs-react` and `nwjs-vue` templates are configured this way.
@@ -305,4 +305,4 @@ native addons, its resources (`lakutata.resources`, read through `resourcesPath(
 - **The scripts** run as for the other applications, but a macOS application is removed by deleting it: no removal
   script runs there.
 - **Native addons** are made to load in NW.js: built again for its architecture, or with its headers when they use the
-  V8 API, and, on Windows, given the Node.js of NW.js ([NativeAddons](NativeAddons.md), section 4).
+  V8 API, and, on Windows, given the Node.js of NW.js ([Native Addons](NativeAddons.md), section 4).

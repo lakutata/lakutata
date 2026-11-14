@@ -175,7 +175,7 @@ class Transfers extends Component {
 
 - 隔离级别可以省略：`'READ UNCOMMITTED'`、`'READ COMMITTED'`、`'REPEATABLE READ'`、`'SERIALIZABLE'`。
 - `createQueryRunner()` 提供一个独占的连接，用来手动控制事务（`startTransaction()`、`commitTransaction()`、`rollbackTransaction()`，最后 `release()`）。
-- 在 TypeORM 中 MongoDB 没有事务：在它上面，`transaction()` 会在没有事务的情况下执行函数。嵌入式 MongoDB 则在它自己的事务中执行（见 [MongoEmbedded](MongoEmbedded.md) 第 4 节）。
+- 在 TypeORM 中 MongoDB 没有事务：在它上面，`transaction()` 会在没有事务的情况下执行函数。嵌入式 MongoDB 则在它自己的事务中执行（见[嵌入式 MongoDB](MongoEmbedded.md) 第 4 节）。
 
 ## 4. 需要注意的值
 
@@ -200,7 +200,7 @@ class Transfers extends Component {
   }
   ```
 
-- **条件中的 `null` 和 `undefined`** 默认会被忽略：`findOneBy({id: undefined})` 会查到第一行。见 [Database](Database.md) 第 2 节。
+- **条件中的 `null` 和 `undefined`** 默认会被忽略：`findOneBy({id: undefined})` 会查到第一行。见[数据库](Database.md)第 2 节。
 - **日期。** 优先使用带时区的列（PostgreSQL 的 `timestamptz`）。在 MySQL 上，连接的 `timezone` 选项决定日期如何写入和读取。
 
 ## 5. 错误

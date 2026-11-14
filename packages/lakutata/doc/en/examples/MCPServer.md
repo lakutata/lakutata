@@ -25,7 +25,7 @@ rm src/controllers/ExampleController.ts src/dtos/GreetDTO.ts
 ```
 
 An MCP client runs the server as a single process, so the `default` template, which makes one application, fits it
-([ProjectStructure](../ProjectStructure.md)). `@lakutata/mcp` serves the actions of the application over MCP; it is not
+([Project Structure](../ProjectStructure.md)). `@lakutata/mcp` serves the actions of the application over MCP; it is not
 part of `lakutata` ([MCP](../MCP.md)). The SDK's MCP client, `@modelcontextprotocol/client`, is only for the tests. The
 server has no HTTP routes, so express and the example controller of the template are removed.
 
@@ -113,8 +113,8 @@ export class TagDTO extends DTO {
 }
 ```
 
-The client receives the JSON schema of each tool's DTO, and the model calls the tool with arguments that follow it; the
-DTO then validates them, as for every action ([DTOValidation](../DTOValidation.md)):
+The client receives the JSON Schema of each tool's DTO, and the model calls the tool with arguments that follow it; the
+DTO then validates them, as for every action ([DTO and Validation](../DTOValidation.md)):
 
 - `.description()` tells the model what an argument is; the defaults (`tags`, `query`, `limit`) are in the schema too;
 - `NoteIdDTO` serves both a tool, whose arguments are JSON (the number `1`), and the resource, whose variables are text
@@ -232,9 +232,9 @@ export class NoteStore extends Component {
 ```
 
 - `NoteStore` is a component: one instance for the whole application, while a controller is created for each request
-  ([Objects](../Objects.md)).
+  ([Objects and Lifetimes](../Objects.md)).
 - `@Configurable` makes `file` an option of the component: its value is given where the component is declared
-  (section 6) and validated when the application launches ([Injection](../Injection.md)).
+  (section 6) and validated when the application launches ([Dependency Injection](../Injection.md)).
 - Each client runs its own server: given the same file, Claude Code and Claude Desktop run two processes that share it.
   So the file is read at each call instead of being kept in memory, and the notes are written whole to a temporary file
   that is then renamed over it.
@@ -389,7 +389,7 @@ export function config(file: string = process.env.NOTES_FILE ?? path.join(os.hom
 
 This is the `Config.ts` of the template, with:
 
-- the `log` component, which writes to the standard error ([Logger](../Logger.md), section 5): over stdio, the standard
+- the `log` component, which writes to the standard error ([Logging](../Logger.md), section 5): over stdio, the standard
   output carries the messages of the protocol, and a log line there would break them. Nothing else may write there, not
   even `console.log()`. The `App.ts` of the template, unchanged, logs the startup through this component;
 - the `notes` component and its file: `NOTES_FILE`, or `notes.json` in the home directory. The client starts the server
@@ -640,7 +640,7 @@ npx lakutata package bundle
 - The bundle is a single file that runs without `node_modules` ([Packaging](../Packaging.md)); git ignores it. Copy it
   anywhere and give its path to the clients: `claude mcp add --scope user notes -- node /path/to/notes.cjs`.
 - The notes are read and written whole at each call, which suits the notes of one person. For many notes, or for several
-  clients that write at once, keep them in a database ([Database](../Database.md)).
+  clients that write at once, keep them in a database ([Databases](../Database.md)).
 - To serve other machines over HTTP, put a proxy with TLS in front of the server, and list in `allowedHosts` the host
   name that the clients connect to ([MCP](../MCP.md), section 6).
 

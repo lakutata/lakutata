@@ -9,7 +9,7 @@ distributions, numeric roots. The work is done by a native addon built on
 [SymEngine](https://github.com/symengine/symengine), [Boost](https://www.boost.org),
 [Eigen](https://eigen.tuxfamily.org) and [mpdecimal](https://www.bytereef.org/mpdecimal/), compiled when the package is
 installed. The long operations can run in the addon's own threads, with a time limit and a cancellation. It belongs to
-the [lakutata](https://github.com/lakutata/lakutata) family but needs no lakutata application. Its functions work on
+the [Lakutata](https://github.com/lakutata/lakutata) family but needs no Lakutata application. Its functions work on
 their own: import them from `@lakutata/math` and call them.
 
 ## Installation
@@ -503,7 +503,7 @@ returns the expression itself when no form is shorter. Shorter means fewer opera
 counts them (each addition, subtraction, product, division, sign, power and function), with ties broken by the shorter
 text. The forms it tries:
 
-- the fraction cancelled or factored, the polynomial expanded: `(x^2 - 1)/(x - 1)` is `x + 1`, `(x + 1)^2 - x^2 - 2x` is
+- the fraction canceled or factored, the polynomial expanded: `(x^2 - 1)/(x - 1)` is `x + 1`, `(x + 1)^2 - x^2 - 2x` is
   1;
 - exponentials whose arguments are multiples of one another, written as powers of a single exponential: `(e^(2x) -
   1)/(e^x - 1)` is `e^x + 1`;
@@ -520,7 +520,7 @@ The arguments of functions and the values of piecewise expressions are simplifie
 `e`); the conditions of piecewise expressions, and sums and products left as calls, stay as they are. An expression with
 an integer power of a sum above 16, or with a power whose exponent has a numerator above 256 (`e^(6561/256)`), is not
 expanded, and the fraction forms are not tried on it. Nothing that depends on the signs of the variables is done:
-`sqrt(x^2)` and `ln(x*y)` stay as they are (`sqrt(x^2)` is `abs(x)` only for real `x`). As in SymPy, a cancelled
+`sqrt(x^2)` and `ln(x*y)` stay as they are (`sqrt(x^2)` is `abs(x)` only for real `x`). As in SymPy, a canceled
 fraction may have a value where the expression had none (`x + 1` at 1). The result is not always the shortest form there
 is, and it can differ from SymPy's; simplified again, it stays the same.
 
@@ -576,7 +576,7 @@ falls to `tolerance` (1e-10 by default), within `maxIterations` iterations (10 t
 
 The operations that take long on large matrices have asynchronous versions (`solveAsync()`, `inverseAsync()`,
 `multiplyAsync()`…), which copy their arguments when they are called. A computation of Eigen cannot be interrupted: past
-the time limit or when the operation is cancelled, the promise is rejected, but its thread finishes the computation it
+the time limit or when the operation is canceled, the promise is rejected, but its thread finishes the computation it
 is in before it is free again. An operation made of several of them (`inverse()`, `leastSquares()`, `exponential()`)
 stops between two of them.
 
@@ -614,7 +614,7 @@ expression, it does not change: `with(row, column, value)` gives a matrix with a
   `nullspace`, `characteristicPolynomial`, `eigenvalues` (with their multiplicities) and `eigenvectors`. A matrix of
   numbers is eliminated with exact rationals. For a matrix with variables, the determinant and the characteristic
   polynomial come from Berkowitz's algorithm and the inverse from the adjugate, so that each element is a single
-  fraction of polynomials, whose common factors are not cancelled: `cancel()` cancels them, and `equals()` compares
+  fraction of polynomials, whose common factors are not canceled: `cancel()` cancels them, and `equals()` compares
   fractions (the inverse times the matrix equals the identity).
 - An element counts as 0 when it is 0 once expanded; as a constant, when its decimals cannot tell it from 0; with
   variables, when it is 0 for every value of them (it is computed exactly at two values). As in SymPy, a pivot that is 0
@@ -823,7 +823,7 @@ negated.
   value (`1/x` on `[-1, 2]`). Next to a root of a factor of degree 1 or 2 with rational coefficients, inside the
   interval or at one of its ends, the function is computed at its exact distance from the root, which a decimal may not
   give (the root -1/14 of `cbrt(x + 1/14)/(x + 1/14)`). A fraction of polynomials in the variable has its common factors
-  cancelled first: `(x^2 - 1)/(x - 1)` on `[0, 2]` is 4, where the rules would meet 0/0 at 1.
+  canceled first: `(x^2 - 1)/(x - 1)` on `[0, 2]` is 4, where the rules would meet 0/0 at 1.
 - `tolerance` bounds the estimate of the error, relative to the integral of `|f|`: about 1.5e-8 by default (the square
   root of the machine epsilon, as in SciPy), and the result is usually much more accurate than its estimate. An integral
   that diverges, that oscillates without end, or that doubles cannot resolve gives its best estimate with `converged:
@@ -946,7 +946,7 @@ The typings document every declaration, with examples.
 | `MathDivisionByZeroException` | A division by zero met while computing decimals (also by a value not shown to differ from 0, the logarithm of 0, 0 to a negative power, a logarithm in base 1, a function at one of its poles: `gamma()` of -2, `zeta()` of 1), a modulus of 0, terms of a continued fraction that divide by zero |
 | `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation, `gcd` or `lcm` of numbers that are not integers, a result of the number theory of more than 2^20 bits, `bernoulli(n)` and `bell(n)` above 2000, `harmonic(n)` above 50000, `stirlingSecondKind(n, k)` with `n` above 50000 or `n k` above 6250000, code with a function the language does not have, a complex number such as `2i`, a variable named like a reserved word of the language, eigenvalues whose computation does not converge, the decimals of `polygamma(n, x)` when `n` is not an integer, a decimal whose exponent is beyond the range of decimals (about ±10^18, ±4.25 × 10^8 on 32-bit systems: `exp()` of 10^19, also in `toDecimal()`), or a decimal value that needs more than 50000 digits beyond the ones asked (`sin(10^(10^6))`), the eigenvalues of a matrix of expressions that are not found exactly, a matrix raised to a power that is not an integer, an equation or an inequality of matrices, a polynomial of `poly` with a negative power, a complex or inexact coefficient, or degrees too high together for its dense form, a limit that is not found, an integral, a Laplace transform or an inverse one that is not found, the decimals of a special function of integrals whose value is complex (`Ci(-1)`), the decimals of a function of a complex number that `toComplexDecimal()` does not compute (`gamma(1 + i)`; also in `toDecimal()`, even where the value is real: `re(gamma(1 + i))`) |
 | `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked, a value that is not a decimal number where one is asked, a precision outside 1 to 100000, an interval, points or a tolerance of `integrate()` that are not valid, a problem or options of `solveODE()` that are not valid, a continued fraction of a value with variables, terms that are not integers, matrices or vectors of the wrong dimensions, a sparse matrix whose structure is not valid (also when its arrays were changed after it was made), no values where a statistic has none, parameters of a distribution that are not valid, a probability of a quantile outside 0 to 1, negative probabilities for `klDivergence`, the gcd or the lcm of no polynomial, a variable of `poly` that is not a name, a number where units alone are expected (`to('2 cm')`), the name of a physical constant that is not one, the options of `createMath()` that are not valid |
-| `MathTimeoutException`, `MathCancelledException` | An asynchronous operation past its time limit, or cancelled |
+| `MathTimeoutException`, `MathCancelledException` | An asynchronous operation past its time limit, or canceled |
 | `MathException` | The base of all of them; its `errno` is `E_MATH_INTERNAL` for an internal error of the addon |
 
 ## See also

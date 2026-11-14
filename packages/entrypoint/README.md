@@ -2,7 +2,7 @@
 
 English | [中文](README.zh-CN.md)
 
-The entrypoint of the lakutata framework: controllers and their actions, served by transports. One controller method can
+The entrypoint of the Lakutata framework: controllers and their actions, served by transports. One controller method can
 be an HTTP route, a CLI command, a service action (called over HTTP, Socket.IO, JSON-RPC, gRPC, NATS, Electron IPC,
 NW.js or React Native) and a scheduled job at the same time. Whatever the transport, a request goes through the same
 middlewares, its input is validated by the same DTO, and the same access control applies.

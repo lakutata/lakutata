@@ -5,7 +5,7 @@ its **pattern**, and whose other keys are the input. The same actions can be ser
 plain HTTP, Socket.IO, JSON-RPC 2.0 (over HTTP, WebSocket or the standard input and output), the IPC of Electron, the
 windows of NW.js and the user interface of a mobile application of React Native, as this guide describes, and gRPC, NATS
 and the data channels of WebRTC, which have their own guides. The controllers and their actions are described in
-[Controllers](Controllers.md), the entrypoint and its adapters in [Entrypoint](Entrypoint.md).
+[Controllers and Actions](Controllers.md), the entrypoint and its adapters in [Entrypoint](Entrypoint.md).
 
 ## 1. A first service
 
@@ -129,7 +129,7 @@ class OrderController extends Controller {
 - The values are compared as text: the pattern `{version: 2}` matches `version: '2'`.
 - A pattern may nest objects, two levels at most; their keys are compared one by one.
 - `@Prefix({pattern})` merges a pattern into the patterns of all the actions of a controller (see
-  [Controllers](Controllers.md), section 6).
+  [Controllers and Actions](Controllers.md), section 6).
 - A message that no pattern matches fails with `ControllerActionNotFoundException` (`E_CONTROLLER_ACTION_NOT_FOUND`).
 - A message is JSON, so its values keep their types: unlike the query of an HTTP request, `"2"` is not converted for a
   schema that expects a number.
@@ -182,12 +182,12 @@ export async function call<T>(message: Record<string, unknown>): Promise<T> {
 | `electronIPCServiceEntrypoint()` | `lakutata/adapter/electron` | (Electron) | `ipcRenderer.invoke()` | IPC messages |
 | `nwjsServiceEntrypoint()` | `lakutata/adapter/nwjs` | (NW.js) | A call of its bridge, by the host page of a window | Calls of the function the host page gives |
 | `reactNativeServiceEntrypoint()` | `lakutata/adapter/react-native` | | A line of JSON from the host | Lines of JSON |
-| `grpcServiceEntrypoint()` | `@lakutata/grpc/service` | `@lakutata/grpc` | See [GRPC](GRPC.md) | gRPC streams |
+| `grpcServiceEntrypoint()` | `@lakutata/grpc/service` | `@lakutata/grpc` | See [gRPC](GRPC.md) | gRPC streams |
 | `natsServiceEntrypoint()` | `@lakutata/nats` | `@lakutata/nats` | See [NATS](NATS.md) | NATS messages |
 | `webrtcServiceEntrypoint()` | `@lakutata/webrtc` | `@lakutata/webrtc` | A JSON-RPC 2.0 request on a data channel, see [WebRTC](WebRTC.md) | Notifications |
 
 Each adapter also takes `name`, to tell several adapters apart, and `middlewares`, run after those of the entrypoint
-(see [Middlewares](Middlewares.md)).
+(see [Middlewares and Access Control](Middlewares.md)).
 
 ### HTTP service
 

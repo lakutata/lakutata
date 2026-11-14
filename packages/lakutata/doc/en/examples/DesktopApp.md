@@ -2,7 +2,7 @@
 
 This example builds a desktop notes application: the notes are Markdown files in a folder that the user chooses, and
 the window lists, opens, saves and deletes them. It starts from the `electron-react` template and shows both sides of
-an Electron application made with lakutata: the main process, whose actions read and write the files, open a system
+an Electron application made with Lakutata: the main process, whose actions read and write the files, open a system
 dialog and push an event when the folder changes; and the React renderer, which calls these actions over IPC. It also
 shows tests of the main process that run without Electron.
 
@@ -26,7 +26,7 @@ cd notes
 rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/GreetDTO.ts
 ```
 
-The project is a workspace ([ProjectStructure](../ProjectStructure.md)): `packages/app` is the main process, a lakutata
+The project is a workspace ([Project Structure](../ProjectStructure.md)): `packages/app` is the main process, a Lakutata
 application; `packages/ui` is the renderer, a React page built by Vite; `packages/resources` holds the icon. The
 application needs no other package: it reads the files with `node:fs`, and its dialogs come from Electron. The example
 controller of the template is removed.
@@ -56,14 +56,14 @@ export class SaveNoteDTO extends NoteNameDTO {
 }
 ```
 
-Each action validates its input with a DTO before it runs ([DTOValidation](../DTOValidation.md)):
+Each action validates its input with a DTO before it runs ([DTO and Validation](../DTOValidation.md)):
 
 - a note is a file `<name>.md` in the folder: the pattern refuses slashes and the characters that Windows does not
   allow in file names, so a name cannot lead out of the folder. The second argument of `.pattern()` names the pattern
   in the error message: `"name" with value "a/b" fails to match the file name pattern`;
 - `.allow('')` accepts an empty note;
 - a message is JSON, so its values keep their types: no `.strict(false)` is needed, unlike the query string of an HTTP
-  request ([ServiceCalls](../ServiceCalls.md), section 2).
+  request ([Service Calls](../ServiceCalls.md), section 2).
 
 ## 3. The exceptions
 
@@ -88,7 +88,7 @@ export class NoteNotFoundException extends Exception {
 ```
 
 An exception has an `errno`, the code that the renderer checks ([Exceptions](../Exceptions.md)). Over IPC, the error is
-sent with all its properties ([ServiceCalls](../ServiceCalls.md), section 3), so the renderer receives it as it was
+sent with all its properties ([Service Calls](../ServiceCalls.md), section 3), so the renderer receives it as it was
 thrown: `error.errno` is `'E_NOTE_NOT_FOUND'`. The service transports always answer with an envelope, whatever the
 status of the error, so these exceptions need no `statusCode`.
 
@@ -242,14 +242,15 @@ export class Notes extends Component {
 }
 ```
 
-- A component is created once and shared by the whole application ([Objects](../Objects.md)). It keeps the folder,
-  which outlives the requests: a controller lives for one request only ([Controllers](../Controllers.md), section 2).
+- A component is created once and shared by the whole application ([Objects and Lifetimes](../Objects.md)). It keeps the
+  folder, which outlives the requests: a controller lives for one request only ([Controllers and
+  Actions](../Controllers.md), section 2).
 - `settings`, the file where the folder is remembered, is an option of the component: `@Configurable` declares it, and
-  the options of the application give its value ([Injection](../Injection.md)). `init()` reads the file when the
-  application starts.
+  the options of the application give its value ([Dependency Injection](../Injection.md)). `init()` reads the file when
+  the application starts.
 - `watch()` from `node:fs` watches the folder. When its files change, whether the application or another program (an
   editor, a sync tool) saved them, `this.entrypoint.broadcast()` pushes `notes.changed` to every window
-  ([ServiceCalls](../ServiceCalls.md), section 5). The timer waits for the changes to settle, as one save often causes
+  ([Service Calls](../ServiceCalls.md), section 5). The timer waits for the changes to settle, as one save often causes
   several of them.
 - `destroy()` stops watching when the application stops.
 
@@ -346,7 +347,7 @@ export class NoteController extends Controller {
 ```
 
 - Each `@ServiceAction` is called by a message: `{cmd: 'notes.save', name: 'Shopping', text: '- bread'}` calls `save()`
-  with `{name: 'Shopping', text: '- bread'}`, validated by `SaveNoteDTO` ([ServiceCalls](../ServiceCalls.md),
+  with `{name: 'Shopping', text: '- bread'}`, validated by `SaveNoteDTO` ([Service Calls](../ServiceCalls.md),
   section 2). The actions are short: the work is done by the `notes` component, which the controller injects.
 - `folder.choose` and `notes.reveal` use APIs that only the main process has: `dialog` and `shell`. Like the
   `MainWindow` of the template, they import Electron only when they run, so the tests, which run with Node.js, never
@@ -618,7 +619,7 @@ export function App() {
 
 - `window.ipc` comes from the template (`packages/ui/src/ipc.ts`), through the preload script. `invoke()` sends a
   message and returns the result of the action, or throws its error, `errno` included; `on()` and `off()` listen to
-  the events of the main process ([ServiceCalls](../ServiceCalls.md), section 4).
+  the events of the main process ([Service Calls](../ServiceCalls.md), section 4).
 - The renderer is isolated from Node.js and Electron: it reads no files and opens no dialogs itself, but calls the
   actions that do.
 - On `notes.changed`, it lists the notes again: a note saved by an editor appears in the window.
@@ -637,7 +638,7 @@ folder remembered in the settings.
 
 In development, the actions are also served over HTTP on port 9000 (`DEV_PORT`), so you can try them with curl or
 Postman: `POST /` sends a message, and `GET /events` streams the events of a client as Server-Sent Events
-([ServiceCalls](../ServiceCalls.md), section 4). Once a folder is chosen in the window (here, one that already holds a
+([Service Calls](../ServiceCalls.md), section 4). Once a folder is chosen in the window (here, one that already holds a
 note `Ideas`), run in another terminal:
 
 ```bash

@@ -3,7 +3,8 @@
 The **application** is the root object of a Lakutata program. `Application.run()` creates it in a new root container,
 registers the objects it declares, runs its bootstrap steps, and ends it gracefully on a shutdown signal. This page
 covers its options, the fluent API, the lifecycle, the mode and packed applications. The objects it creates are
-described in [Objects](Objects.md), and how they obtain one another in [Injection](Injection.md).
+described in [Objects and Lifetimes](Objects.md), and how they obtain one another in [Dependency
+Injection](Injection.md).
 
 ## 1. Options
 

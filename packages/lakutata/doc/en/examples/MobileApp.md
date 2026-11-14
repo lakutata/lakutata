@@ -2,7 +2,7 @@
 
 This example builds an expense book for Android, iOS and HarmonyOS: the user writes down what they spend, and sees the
 total of each month and of each category. It starts from the `mobile-react` template and shows the two sides of a mobile
-application made with lakutata: the Node.js side, a lakutata application running in the Node.js that the mobile
+application made with Lakutata: the Node.js side, a Lakutata application running in the Node.js that the mobile
 application embeds, which keeps the expenses in an SQLite database of the data directory of the application and brings
 the database up to date with its migrations; and the user interface of React Native, the same on the three systems,
 which calls the actions of the Node.js side through the native module and receives its events. It also shows the tests
@@ -27,11 +27,11 @@ rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/Greet
 ```
 
 The root of the project is the application of React Native, with its native projects `android`, `ios` and `harmony`; its
-parts are packages of a workspace ([ProjectStructure](../ProjectStructure.md)): `packages/app` is the Node.js side,
+parts are packages of a workspace ([Project Structure](../ProjectStructure.md)): `packages/app` is the Node.js side,
 `packages/ui` the user interface, and `packages/ipc` what connects them. The README of the project lists what each
 system needs on the computer: the Android SDK with its NDK, Xcode, DevEco Studio. The Node.js side uses SQLite through
 `better-sqlite3`, installed here: an addon in C++, which `lakutata mobile stage` builds from its sources for each system
-with those tools ([DatabaseDrivers](../DatabaseDrivers.md), section "The mobile applications"). The example controller
+with those tools ([Database Drivers](../DatabaseDrivers.md), section "The mobile applications"). The example controller
 of the template is removed.
 
 ## 2. The entity
@@ -67,9 +67,9 @@ export class Expense {
 }
 ```
 
-An entity is a class whose decorators describe its table ([Entities](../Entities.md)). An amount is an integer of cents:
-12.50 is 1250, and the totals add integers, without the rounding errors of decimal numbers. The day is text,
-`YYYY-MM-DD`, so the expenses of a month are those whose day starts with `2026-11-`.
+An entity is a class whose decorators describe its table ([Entities, Queries and Transactions](../Entities.md)). An
+amount is an integer of cents: 12.50 is 1250, and the totals add integers, without the rounding errors of decimal
+numbers. The day is text, `YYYY-MM-DD`, so the expenses of a month are those whose day starts with `2026-11-`.
 
 ## 3. The migration
 
@@ -162,10 +162,10 @@ export class MonthDTO extends DTO {
 }
 ```
 
-Each action validates its input with a DTO before it runs ([DTOValidation](../DTOValidation.md)). A message is JSON, so
-its values keep their types: `amount` must be an integer, and `12.5` is refused with `"amount" must be an integer`. The
-day is the one of the device, which the user interface gives: the Node.js side does not decide what today is for the
-user.
+Each action validates its input with a DTO before it runs ([DTO and Validation](../DTOValidation.md)). A message is
+JSON, so its values keep their types: `amount` must be an integer, and `12.5` is refused with `"amount" must be an
+integer`. The day is the one of the device, which the user interface gives: the Node.js side does not decide what today
+is for the user.
 
 ## 5. The exception
 
@@ -254,12 +254,13 @@ export class ExpenseController extends Controller {
 }
 ```
 
-- Each `@ServiceAction` is called by a message ([ServiceCalls](../ServiceCalls.md), section 2): the user interface sends
-  it with `ipc.invoke({cmd: 'expenses.month', month: '2026-11'})`, through the native module and its socket to Node.js.
+- Each `@ServiceAction` is called by a message ([Service Calls](../ServiceCalls.md), section 2): the user interface
+  sends it with `ipc.invoke({cmd: 'expenses.month', month: '2026-11'})`, through the native module and its socket to
+  Node.js.
 - `this.entrypoint.broadcast()` pushes `expenses.changed` to every client: the user interface, and the tools of the
   development (section 10). Its argument is the month that changed, so a user interface showing another month does not
   load it again.
-- `Like` comes from `lakutata/orm`, the API of TypeORM ([Database](../Database.md)).
+- `Like` comes from `lakutata/orm`, the API of TypeORM ([Databases](../Database.md)).
 
 ## 7. The options of the application
 
@@ -523,7 +524,7 @@ month still lists the expense, read from the database of the data directory. Hol
 
 `npm run dev -w app` runs the Node.js side on the computer, its database in `packages/app/data`, and serves its actions
 over HTTP on port 9000 (`DEV_PORT`) for tools such as curl or Postman: `POST /` sends a message, and `GET /events`
-streams the events of a client ([ServiceCalls](../ServiceCalls.md), section 4).
+streams the events of a client ([Service Calls](../ServiceCalls.md), section 4).
 
 ```bash
 npm run dev -w app

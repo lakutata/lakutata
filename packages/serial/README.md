@@ -2,7 +2,7 @@
 
 English | [中文](README.zh-CN.md)
 
-Serial ports for Node.js, part of the [lakutata](https://github.com/lakutata/lakutata) framework. You open a port as a
+Serial ports for Node.js, part of the [Lakutata](https://github.com/lakutata/lakutata) framework. You open a port as a
 stream, set its line (speed, data bits, parity, stop bits, flow control), read and set its modem lines, and list the
 ports of the system with the ids of their USB adapters. Classic Bluetooth devices (their serial port profile) open by
 their address as the same kind of stream. A small native addon does the system's part: termios on Linux
@@ -16,7 +16,7 @@ npm install @lakutata/serial
 ```
 
 - The addon is compiled during the installation (node-gyp): the machine needs Python 3 and a C++ compiler (Xcode's
-  command line tools on macOS, `build-essential` on Linux, Visual Studio's C++ build tools on Windows).
+  command-line tools on macOS, `build-essential` on Linux, Visual Studio's C++ build tools on Windows).
 - npm runs the installation script of the package; Bun and pnpm run it only for the dependencies they trust
   (`trustedDependencies` in the `package.json` for Bun, `pnpm approve-builds` for pnpm).
 - Node.js `>=18.10.0` or Bun, with `@lakutata/core` (its `Exception` is the base of the package's exception).

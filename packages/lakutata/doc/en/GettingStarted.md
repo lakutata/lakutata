@@ -42,7 +42,7 @@ The `default` template is a small HTTP application. Other templates start from a
 | Template | Application |
 |---|---|
 | `default` | A minimal application serving HTTP actions |
-| `cli` | A command line tool built into executables that run without Node.js |
+| `cli` | A command-line tool built into executables that run without Node.js |
 | `service` | An HTTP API deployed as a Docker image |
 | `web-react`, `web-vue` | An HTTP API serving a React or Vue single-page application (Vite) |
 | `web-next`, `web-nuxt` | An HTTP API serving a Next.js or Nuxt application from the same process |
@@ -57,8 +57,8 @@ npx @lakutata/cli create --name shop --template service --with i18n,installer
 `--with` adds optional features: `i18n` (messages in several languages) to every template, `installer` (installers
 and a system service) to `cli`, `service` and the `web-*` templates, `win7` (NW.js 0.72, which runs on Windows 7) to
 the `nwjs-*` templates. In a terminal, the tool offers them when `--with`
-is not given. [ProjectStructure](ProjectStructure.md) describes the files of the templates, and
-[Command](Command.md) the options of `lakutata create`.
+is not given. [Project Structure](ProjectStructure.md) describes the files of the templates, and
+[Command-Line Tool](Command.md) the options of `lakutata create`.
 
 The scripts of the `default` template:
 
@@ -70,7 +70,7 @@ The scripts of the `default` template:
 | `npm test` | Compiles the project and runs its tests (`node --test`) |
 
 The other templates are workspaces of several packages; their scripts work on every package, and `npm test` builds them
-before running their tests ([ProjectStructure](ProjectStructure.md), section 2).
+before running their tests ([Project Structure](ProjectStructure.md), section 2).
 
 ## 3. Adding Lakutata to an existing project
 
@@ -80,7 +80,7 @@ npm install --save-dev typescript @types/node @types/express @lakutata/cli
 ```
 
 `express` is the library of the HTTP adapter used below. The adapters and drivers are optional dependencies, installed
-only when they are used: `fastify`, `commander` and `@inquirer/prompts` (command line tools), `socket.io`, `ws`, the
+only when they are used: `fastify`, `commander` and `@inquirer/prompts` (command-line tools), `socket.io`, `ws`, the
 database drivers (`pg`, `mysql2`, `better-sqlite3`…), the cache stores (`redis`…).
 
 `tsconfig.json`:
@@ -160,9 +160,9 @@ curl 'http://localhost:8080/greet?name=you'
 # {"message":"Hello, you!"}
 ```
 
-- `GreetDTO` validates the input: `name` is optional, `world` by default ([DTOValidation](DTOValidation.md)).
+- `GreetDTO` validates the input: `name` is optional, `world` by default ([DTO and Validation](DTOValidation.md)).
 - `GreetController` declares an action, here served over HTTP; the same method could also be a command of a command
-  line tool or a service action ([Controllers](Controllers.md)).
+  line tool or a service action ([Controllers and Actions](Controllers.md)).
 - `Application.run()` declares the components of the application: the `entrypoint` component serves the controllers
   through its adapters, and `bootstrap` creates it at launch ([Application](Application.md),
   [Entrypoint](Entrypoint.md)).
@@ -172,9 +172,10 @@ curl 'http://localhost:8080/greet?name=you'
 - [Examples](examples/README.md): whole applications built from the templates, step by step.
 - [Concepts](Concepts.md) and [Application Design](ApplicationDesign.md): the model of the framework, and how to
   structure an application on it.
-- [ProjectStructure](ProjectStructure.md): the files of a project and its scripts.
-- [Application](Application.md), [Objects](Objects.md) and [Injection](Injection.md): how an application is declared,
-  and how its objects are created and obtain one another.
-- [Controllers](Controllers.md) and [HTTP](HTTP.md): actions, their input and their responses.
-- [Command](Command.md), [Workspaces](Workspaces.md), [NativeAddons](NativeAddons.md), [Packaging](Packaging.md) and
-  [Installers](Installers.md): the `lakutata` command, the packages of a project, and the packed applications.
+- [Project Structure](ProjectStructure.md): the files of a project and its scripts.
+- [Application](Application.md), [Objects and Lifetimes](Objects.md) and [Dependency Injection](Injection.md): how an
+  application is declared, and how its objects are created and obtain one another.
+- [Controllers and Actions](Controllers.md) and [HTTP](HTTP.md): actions, their input and their responses.
+- [Command-Line Tool](Command.md), [Workspaces](Workspaces.md), [Native Addons](NativeAddons.md),
+  [Packaging](Packaging.md) and [Installers](Installers.md): the `lakutata` command, the packages of a project, and the
+  packed applications.

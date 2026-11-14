@@ -3,7 +3,7 @@
 This example builds a service that makes reports in the background: a request queues a report and gets its id at once,
 a queue action builds the report, and the client asks for its state until it is done. A scheduled job deletes the old
 reports, in one instance of the service at a time. It starts from the `service` template and shows the queue component
-and its actions, the retries and the dead letter queue, a schedule, a lock shared by the instances, and the tests. No
+and its actions, the retries and the dead-letter queue, a schedule, a lock shared by the instances, and the tests. No
 server is needed: the queue is in memory, and the reports and the locks are files.
 
 | Action | Name | What it does |
@@ -23,7 +23,7 @@ rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/Greet
 echo 'data/' >> .gitignore
 ```
 
-The project is a workspace whose service is `packages/app` ([ProjectStructure](../ProjectStructure.md)). The queues
+The project is a workspace whose service is `packages/app` ([Project Structure](../ProjectStructure.md)). The queues
 (`lakutata/com/queue`) and the locks (`lakutata/com/mutex`) come with the `lakutata` package, and their memory and file
 drivers need no other package, so nothing is installed. The example controller of the template is removed, and the
 `data` directory, which holds the reports and the locks, is kept out of git.
@@ -64,7 +64,7 @@ export class BuildReportDTO extends CreateReportDTO {
 - `CreateReportDTO` is the body of `POST /reports`. The second argument of `pattern()` names the pattern in the error
   message: `"month" with value "2026-13" fails to match the YYYY-MM pattern`.
 - `BuildReportDTO` is the message that the queue carries: the id of the report and its month. A queue action validates
-  its message with its DTO, as any action validates its input ([DTOValidation](../DTOValidation.md)).
+  its message with its DTO, as any action validates its input ([DTO and Validation](../DTOValidation.md)).
 
 ## 3. The reports
 
@@ -204,8 +204,8 @@ export class ReportNotFoundException extends Exception {
 A report is `queued`, then `running`, and ends `done` with its result or `failed` with its error. The `Reports`
 component keeps each report in a JSON file:
 
-- A component is created once and shared by the whole service: the HTTP actions, the queue actions and the schedule
-  use the same instance ([Objects](../Objects.md)). Its `@Configurable` properties are its options, given in
+- A component is created once and shared by the whole service: the HTTP actions, the queue actions and the schedule use
+  the same instance ([Objects and Lifetimes](../Objects.md)). Its `@Configurable` properties are its options, given in
   `Config.ts`, and its `init()` creates the directory.
 - A report is written to a temporary file, then renamed, so a request never reads half a report.
 - `clean()` deletes the reports that finished more than `keep` ago; it is what the schedule runs. It takes the current
@@ -355,25 +355,25 @@ export class ReportController extends Controller {
 ```
 
 One controller holds the actions of three transports: HTTP, the queue and the schedule. Each request, message or run
-gets a new instance of the controller, with the components injected ([Controllers](../Controllers.md)).
+gets a new instance of the controller, with the components injected ([Controllers and Actions](../Controllers.md)).
 
 - `create()` saves the report, adds a message to the queue `report.build` with `queue.add()`, and answers without
   waiting for the build: `Result.status()` sends the status 202 (Accepted), the report, and a `Location` header that
   points to it ([HTTP](../HTTP.md)). The `jobId` of the message is the id of the report.
-- `@QueueAction` makes `build()` the consumer of the queue `report.build` ([Queue](../Queue.md)). It processes 2
+- `@QueueAction` makes `build()` the consumer of the queue `report.build` ([Queues](../Queue.md)). It processes 2
   messages at a time (`concurrency`), each for at most 1 minute (`timeout`: after that, `this.signal` is aborted and
   the message is retried). Its context, a `QueueContext`, gives the number of the current `attempt` (1 on the first
   delivery) and the `attempts` allowed.
 - A message is acknowledged when its action returns, and the value the action returns becomes the result of the
   message, which the queue keeps. When the action throws, `build()` puts the report back in the `queued` state with
   the error, and the message is delivered again after the `backoff` (1 s, then 2 s), up to 3 attempts. After the third
-  failed attempt, it goes to the dead letter queue `report.build.dead`, a queue like the others: `failed()` consumes
+  failed attempt, it goes to the dead-letter queue `report.build.dead`, a queue like the others: `failed()` consumes
   it and marks the report as failed.
 - A message is delivered at least once: after a crash, a server-backed driver delivers it again, and `build()` builds
   the same report a second time, which does no harm.
-- `@Schedule` runs `clean()` at the times of the cron expression, every 5 minutes ([Schedules](../Schedules.md)). With
-  `exclusive: true`, each run first tries to get the lock `schedule:ReportController:clean` from the `mutex` component;
-  the instances that do not get it skip the run ([Mutex](../Mutex.md)).
+- `@Schedule` runs `clean()` at the times of the cron expression, every 5 minutes ([Scheduled Jobs](../Schedules.md)).
+  With `exclusive: true`, each run first tries to get the lock `schedule:ReportController:clean` from the `mutex`
+  component; the instances that do not get it skip the run ([Mutex](../Mutex.md)).
 
 ## 6. The options of the service
 
@@ -660,7 +660,7 @@ and the code of the actions does not change:
   for, and the messages still waiting when it stops are lost: their reports stay `queued`, and the schedule never
   deletes them. With Redis (`driver: {type: 'redis', url: process.env.REDIS_URL}`, and
   `npm install bullmq ioredis -w app`), the messages survive restarts, any instance can process them, and the results
-  are shared ([Queue](../Queue.md)).
+  are shared ([Queues](../Queue.md)).
 - The locks: the file driver shares them only between the processes of one machine. Redis
   (`driver: {type: 'redis', url}`, and `npm install redis -w app`) or PostgreSQL share them between machines
   ([Mutex](../Mutex.md)).

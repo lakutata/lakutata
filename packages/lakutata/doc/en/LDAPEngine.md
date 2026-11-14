@@ -15,7 +15,7 @@ the protocol both are made of. It is not part of `lakutata`, and it needs no app
 - **No dependencies and no native code**: Node.js `>=18.10.0`, Bun, Electron and NW.js.
 
 The README of `@lakutata/ldap-engine` lists every export; this guide goes through what the package is for, with an
-example of each use. In a lakutata application, `@lakutata/ldap` wraps the client and the server in components (see
+example of each use. In a Lakutata application, `@lakutata/ldap` wraps the client and the server in components (see
 [LDAP](LDAP.md)); what they do is described here.
 
 ```bash
@@ -778,9 +778,9 @@ console.log(read.length, reader.bufferedBytes) //1 5
 
 ## 16. In an application
 
-In a lakutata application, `@lakutata/ldap` gives the client as the `LDAPClient` component and the server as the
+In a Lakutata application, `@lakutata/ldap` gives the client as the `LDAPClient` component and the server as the
 `LDAPServer` component, with the `DirectoryBackend` keeping the entries in the application's database, and plugins and
-backends that are lakutata classes with options. The options of the server are those of this guide; the
+backends that are Lakutata classes with options. The options of the server are those of this guide; the
 [LDAP](LDAP.md) guide describes what the components add.
 
 ## 17. Exceptions

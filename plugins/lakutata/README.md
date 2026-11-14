@@ -2,7 +2,7 @@
 
 English | [中文](README.zh-CN.md)
 
-The official Agent Skill of lakutata, for AI coding assistants. With it, an assistant that works on a lakutata project
+The official Agent Skill of Lakutata, for AI coding assistants. With it, an assistant that works on a Lakutata project
 checks which version the project runs, follows the rules of the framework, avoids its pitfalls, and reads the right
 guide before writing code. It also guides the upgrade of a 2.x or 1.x project to 3.x, each version by its own page.
 
@@ -28,7 +28,7 @@ So the skill seldom has to be updated when the framework changes. Some assistant
 their file tools (Cursor, Devin Desktop and Gemini CLI, for example: see their sections); the skill then reads the
 guides through a shell command, or from this website.
 
-Once installed, an assistant uses the skill on its own when a task involves lakutata, as the description of the skill
+Once installed, an assistant uses the skill on its own when a task involves Lakutata, as the description of the skill
 says. Each section also says how to ask for it explicitly.
 
 ## Claude Code
@@ -116,7 +116,7 @@ says. Each section also says how to ask for it explicitly.
 - **Folders:** `.agents/skills` in each folder from the current one up to the root of the repository, and
   `~/.agents/skills` in your home folder. Codex follows symbolic links to skill folders.
 - **Check:** `codex plugin list` lists the installed plugins. In Codex CLI or the IDE extension, `/skills` lists the
-  skills; type `$` and choose lakutata to use the skill explicitly. In the ChatGPT desktop app, open Skills in the
+  skills; type `$` and choose `lakutata` to use the skill explicitly. In the ChatGPT desktop app, open Skills in the
   sidebar. Codex notices new and changed skill folders on its own; restart it if one does not appear.
 - **Update:** `codex plugin marketplace upgrade lakutata` refreshes the marketplace (the plugin carries a version that
   changes whenever the skill does). A skill installed with `npx skills` is updated by `npx skills update lakutata`.
@@ -130,13 +130,13 @@ says. Each section also says how to ask for it explicitly.
 ## Cursor
 
 - **Install:** open Customize, choose From GitHub Repository and give the address of this repository,
-  `https://github.com/lakutata/lakutata`; then select Install on the lakutata plugin and choose a project or user scope.
+  `https://github.com/lakutata/lakutata`; then select Install on the `lakutata` plugin and choose a project or user scope.
   In the Cursor CLI, `agent plugin marketplace add https://github.com/lakutata/lakutata`, then install the plugin from
   `/plugin`. Or `npx skills add lakutata/lakutata -a cursor`, which writes the skill to `.agents/skills/lakutata` in
   the project (with `-g`, to `~/.cursor/skills`).
 - **Folders:** `.cursor/skills` or `.agents/skills` in the project, `~/.cursor/skills` or `~/.agents/skills` in your
   home folder; Cursor also loads `.claude/skills` and `~/.claude/skills`.
-- **Check:** open Customize in the sidebar, then Skills. In the Agent chat, type `/` and search for lakutata to use the
+- **Check:** open Customize in the sidebar, then Skills. In the Agent chat, type `/` and search for `lakutata` to use the
   skill explicitly; in the Cursor CLI, `/skills` lists the skills. Cursor looks for skills when it starts.
 - **Update:** a team marketplace is updated with Refresh, or after each push with Enable Auto Refresh. For a
   repository imported by one user, Cursor staff confirmed on its forum that the plugin stays on the commit it was
@@ -212,7 +212,7 @@ Windsurf was renamed Devin Desktop on June 2, 2026. Devin Local, its agent, read
     In a session: `/plugin marketplace add lakutata/lakutata`, then `/plugin install lakutata@lakutata`. Without the
     marketplace: `copilot plugin install lakutata/lakutata:plugins/lakutata`.
   - VS Code: add the marketplace to the setting `chat.plugins.marketplaces`
-    (`"chat.plugins.marketplaces": ["lakutata/lakutata"]`), then install lakutata from the Extensions view, searching
+    (`"chat.plugins.marketplaces": ["lakutata/lakutata"]`), then install `lakutata` from the Extensions view, searching
     for `@agentPlugins`. VS Code also shows the plugins installed with Copilot CLI.
   - The cloud agent uses what the repository holds: commit the skill to one of the folders below, or enable the plugin
     in `.github/copilot/settings.json`:

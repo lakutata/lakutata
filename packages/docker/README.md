@@ -2,7 +2,7 @@
 
 English | [中文](README.zh-CN.md)
 
-The Docker component of the lakutata framework. It drives a Docker daemon through the Docker Engine API, without the
+The Docker component of the Lakutata framework. It drives a Docker daemon through the Docker Engine API, without the
 Docker CLI: it pulls, builds (with BuildKit), imports, exports, tags and pushes images; creates, runs and manages
 containers (exec, interactive TTYs, logs, stats, commit, file export); and manages networks. It connects to a local
 socket, or to a remote daemon over HTTP, HTTPS or SSH. The umbrella package `lakutata` re-exports it as

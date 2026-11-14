@@ -2,9 +2,9 @@
 
 English | [中文](README.zh-CN.md)
 
-LDAP for Node.js in TypeScript, part of the [lakutata](https://github.com/lakutata/lakutata) framework, with no native
+LDAP for Node.js in TypeScript, part of the [Lakutata](https://github.com/lakutata/lakutata) framework, with no native
 code and no dependencies. It holds the protocol (the messages of LDAPv3 and their controls, DNs, search filters, schemas
-and LDIF), a client and a server. It needs no application: the components that bring LDAP into a lakutata application
+and LDIF), a client and a server. It needs no application: the components that bring LDAP into a Lakutata application
 are in `@lakutata/ldap`.
 
 ## Installation

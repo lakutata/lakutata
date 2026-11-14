@@ -21,7 +21,7 @@ cd clips
 rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/GreetDTO.ts
 ```
 
-项目是一个工作区（见 [ProjectStructure](../ProjectStructure.md)）：`packages/app` 是 NW.js 的后台脚本，也是一个 lakutata 应用；`packages/ui` 是用户界面，即由 Vite 构建的 React 页面；`packages/resources` 存放图标。应用不需要安装其他包：剪贴板和托盘由 NW.js 提供，历史是用 `node:fs` 写入的 JSON 文件。这里删掉了模板中的示例控制器。
+项目是一个工作区（见[项目结构](../ProjectStructure.md)）：`packages/app` 是 NW.js 的后台脚本，也是一个 lakutata 应用；`packages/ui` 是用户界面，即由 Vite 构建的 React 页面；`packages/resources` 存放图标。应用不需要安装其他包：剪贴板和托盘由 NW.js 提供，历史是用 `node:fs` 写入的 JSON 文件。这里删掉了模板中的示例控制器。
 
 ## 2. 输入
 
@@ -56,7 +56,7 @@ export class PinClipDTO extends ClipIdDTO {
 }
 ```
 
-每个动作运行前都先用 DTO 校验输入（见 [DTOValidation](../DTOValidation.md)）。剪贴项用 id 指定，id 是历史生成的 UUID：`.uuid()` 拒绝其他字符串，报错 `"id" must be a valid GUID`。消息是 JSON，值会保留原来的类型：`pinned` 必须是布尔值。
+每个动作运行前都先用 DTO 校验输入（见 [DTO 与数据校验](../DTOValidation.md)）。剪贴项用 id 指定，id 是历史生成的 UUID：`.uuid()` 拒绝其他字符串，报错 `"id" must be a valid GUID`。消息是 JSON，值会保留原来的类型：`pinned` 必须是布尔值。
 
 ## 3. 异常
 
@@ -73,7 +73,7 @@ export class ClipNotFoundException extends Exception {
 }
 ```
 
-异常带有 `errno`，用户界面根据这个代码判断错误（见 [Exceptions](../Exceptions.md)）。窗口收到的错误和抛出时一样，带有全部属性（见 [ServiceCalls](../ServiceCalls.md) 第 3 节）：`error.errno` 是 `'E_CLIP_NOT_FOUND'`。服务传输方式无论错误的状态码是什么，都用统一的响应结构返回，所以这个异常不需要 `statusCode`。
+异常带有 `errno`，用户界面根据这个代码判断错误（见[异常](../Exceptions.md)）。窗口收到的错误和抛出时一样，带有全部属性（见[服务调用](../ServiceCalls.md)第 3 节）：`error.errno` 是 `'E_CLIP_NOT_FOUND'`。服务传输方式无论错误的状态码是什么，都用统一的响应结构返回，所以这个异常不需要 `statusCode`。
 
 ## 4. 历史
 
@@ -260,11 +260,11 @@ export class History extends Component {
 }
 ```
 
-- 组件只创建一次，由整个应用共用（见 [Objects](../Objects.md)）：剪贴项由它保存，因为剪贴项要跨越多次请求保留，而控制器只在一次请求中存在（见 [Controllers](../Controllers.md) 第 2 节）。
-- 组件对 NW.js 一无所知，它用到的东西都由选项提供（见 [Injection](../Injection.md)）：`clipboard` 是读写剪贴板文本的两个函数（在应用中是 NW.js 的剪贴板，见第 8 节；在测试中是一个变量，见第 11 节），`file` 是保存历史的文件。
+- 组件只创建一次，由整个应用共用（见[对象与生命周期](../Objects.md)）：剪贴项由它保存，因为剪贴项要跨越多次请求保留，而控制器只在一次请求中存在（见[控制器与动作](../Controllers.md)第 2 节）。
+- 组件对 NW.js 一无所知，它用到的东西都由选项提供（见[依赖注入](../Injection.md)）：`clipboard` 是读写剪贴板文本的两个函数（在应用中是 NW.js 的剪贴板，见第 8 节；在测试中是一个变量，见第 11 节），`file` 是保存历史的文件。
 - NW.js 不会通知剪贴板的变化，所以 `init()` 每隔 `interval` 毫秒读取一次剪贴板。与上次读到的不同的文本就是一次复制；应用启动时剪贴板里已有的文本不算，`copy()` 自己写入的文本也不算。
 - 再次复制的文本会移到最前，而不是再加一条。超过 `limit` 条时，最旧的剪贴项会被丢弃，置顶的除外。
-- 每次变化都会保存文件并发出通知：`this.entrypoint.broadcast()` 向窗口推送 `clips.changed`（见 [ServiceCalls](../ServiceCalls.md) 第 5 节），`this.emit('changed')` 通知其他组件，比如托盘（见第 6 节）。文件先写到旁边的临时文件（`history.json.tmp`），再重命名覆盖原文件，这样即使程序崩溃，文件也不会只写了一半；写入按顺序进行，应用停止时 `destroy()` 会等最后一次写入完成。
+- 每次变化都会保存文件并发出通知：`this.entrypoint.broadcast()` 向窗口推送 `clips.changed`（见[服务调用](../ServiceCalls.md)第 5 节），`this.emit('changed')` 通知其他组件，比如托盘（见第 6 节）。文件先写到旁边的临时文件（`history.json.tmp`），再重命名覆盖原文件，这样即使程序崩溃，文件也不会只写了一半；写入按顺序进行，应用停止时 `destroy()` 会等最后一次写入完成。
 
 ## 5. 控制器
 
@@ -312,7 +312,7 @@ export class ClipController extends Controller {
 }
 ```
 
-每个 `@ServiceAction` 由一条消息调用：`{cmd: 'clips.pin', id: '…', pinned: true}` 会以 `{id: '…', pinned: true}` 调用 `pin()`，输入由 `PinClipDTO` 校验（见 [ServiceCalls](../ServiceCalls.md) 第 2 节）。动作都很短：实际工作由控制器注入的 `history` 组件完成。没有返回值的动作（比如 `remove()`）会返回 `{success: true, error: null}`。
+每个 `@ServiceAction` 由一条消息调用：`{cmd: 'clips.pin', id: '…', pinned: true}` 会以 `{id: '…', pinned: true}` 调用 `pin()`，输入由 `PinClipDTO` 校验（见[服务调用](../ServiceCalls.md)第 2 节）。动作都很短：实际工作由控制器注入的 `history` 组件完成。没有返回值的动作（比如 `remove()`）会返回 `{success: true, error: null}`。
 
 ## 6. 窗口和托盘
 
@@ -451,7 +451,7 @@ export class Tray extends Component {
 ```
 
 - 托盘菜单列出最近的五条剪贴项，选中一条就把它再次复制到剪贴板。每当历史发出 `changed`，组件就重新生成菜单。
-- **Quit** 调用 `this.app.exit(0)`：应用正常停止，组件依次销毁（见 [Application](../Application.md) 第 3 节），托盘图标被移除，窗口被关闭。
+- **Quit** 调用 `this.app.exit(0)`：应用正常停止，组件依次销毁（见[应用](../Application.md)第 3 节），托盘图标被移除，窗口被关闭。
 - 在 Windows 上，通知区域会把应用的图标缩小显示。macOS 的菜单栏按图标的原始尺寸显示（`logo.png` 有 512 像素），所以那里显示应用的名称来代替图标。NW.js 建议在后台脚本中创建托盘，因为后台脚本和应用存在得一样久：页面中创建的托盘在页面跳转后就不再工作。
 
 模板的类型声明描述了它用到的 NW.js API。这里加上了窗口的 `close` 事件和 `hide()`、`nw.App.dataPath`、剪贴板、托盘及其菜单：
@@ -782,7 +782,7 @@ npm run dev
 
 这个命令启动 Vite 的开发服务器和 NW.js：开发服务器提供用户界面，`packages/ui` 有变化时会重新加载它；NW.js 的窗口加载用户界面并打开它的 DevTools。应用会输出日志 `Clips started in development mode`。在任何程序中复制几段文本：它们会出现在窗口的最上面，也会出现在托盘菜单中（macOS 菜单栏上显示名称 `Clips`）。
 
-开发时，动作也通过 HTTP 在 9000 端口（`DEV_PORT`）提供，可以用 curl 或 Postman 试用：`POST /` 发送消息，`GET /events` 以 Server-Sent Events 的形式接收某个客户端的事件（见 [ServiceCalls](../ServiceCalls.md) 第 4 节）。先复制 `git log --oneline -5`，再复制 `https://docs.nwjs.io/References/Tray/`，然后在另一个终端中运行：
+开发时，动作也通过 HTTP 在 9000 端口（`DEV_PORT`）提供，可以用 curl 或 Postman 试用：`POST /` 发送消息，`GET /events` 以 Server-Sent Events 的形式接收某个客户端的事件（见[服务调用](../ServiceCalls.md)第 4 节）。先复制 `git log --oneline -5`，再复制 `https://docs.nwjs.io/References/Tray/`，然后在另一个终端中运行：
 
 ```bash
 curl -N 'localhost:9000/events?id=me' &
@@ -967,9 +967,9 @@ app │ ℹ pass 7
 
 ## 12. 打包
 
-- `npm run package:host` 构建各个包，然后在 `dist/installer` 中生成当前平台的安装包：macOS 上是 `dmg`，Linux 上是 `deb`，Windows 上是 `nsis` 安装程序和 `zip`。`npm run package:linux` 在 Docker 中生成 Linux 的安装包，在任何平台上都可以运行。安装包由 `lakutata package installer` 根据 `packages/app/package.json` 中的 `lakutata.installer` 生成（见 [Installers](../Installers.md)）。
+- `npm run package:host` 构建各个包，然后在 `dist/installer` 中生成当前平台的安装包：macOS 上是 `dmg`，Linux 上是 `deb`，Windows 上是 `nsis` 安装程序和 `zip`。`npm run package:linux` 在 Docker 中生成 Linux 的安装包，在任何平台上都可以运行。安装包由 `lakutata package installer` 根据 `packages/app/package.json` 中的 `lakutata.installer` 生成（见[安装包](../Installers.md)）。
 - 安装后的应用运行在普通版本的 NW.js 中，没有 DevTools：它的模式是 `production`，也没有 HTTP 入口（只有在 `lakutata nwjs run` 的 sdk 版本中才会传入 `devPort`）。
-- 应用运行在 `packages/app/package.json` 中 `lakutata.nwjs` 指定的 NW.js 版本中；`npm run nwjs:use -- <version>` 可以换成其他版本，比如 `win7`，即 NW.js 0.72，能在 Windows 7、8 和 8.1 上运行的最后一个版本（见 [ProjectStructure](../ProjectStructure.md)）。
+- 应用运行在 `packages/app/package.json` 中 `lakutata.nwjs` 指定的 NW.js 版本中；`npm run nwjs:use -- <version>` 可以换成其他版本，比如 `win7`，即 NW.js 0.72，能在 Windows 7、8 和 8.1 上运行的最后一个版本（见[项目结构](../ProjectStructure.md)）。
 
 <!--
 check:

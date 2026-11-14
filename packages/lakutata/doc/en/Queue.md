@@ -3,7 +3,7 @@
 The **Queue component** (`lakutata/com/queue`, package `@lakutata/queue`) lets you add messages to queues and process
 them with controller actions marked `@QueueAction`. The `queueEntrypoint` adapter delivers the messages, and the actions
 get the same input DTOs, access control and middleware as on any other transport. A message is acknowledged when its
-action returns, retried after a failure, and finally sent to a dead letter queue; whatever the action returns is the
+action returns, retried after a failure, and finally sent to a dead-letter queue; whatever the action returns is the
 result of the message. Queues can live in memory, Redis, NATS JetStream, RabbitMQ or Kafka, and the actions' code is the
 same for every driver. The README of `@lakutata/queue` gives the details.
 
@@ -99,7 +99,7 @@ transports (an HTTP route, a service action…). The options are those of any ac
 
 - `group`: the consumer group (defaults to `defaults.group`, then to the application's `appId`);
 - `concurrency`: how many messages one instance processes at the same time;
-- `attempts`, `backoff`: how many times a message is delivered before it goes to the dead letter queue, and how long to
+- `attempts`, `backoff`: how many times a message is delivered before it goes to the dead-letter queue, and how long to
   wait between deliveries;
 - `timeout`: the time limit for processing a message; when exceeded, the processing is aborted and the message retried;
 - `ordered`: process messages that share a `key` in order, one at a time (memory and Kafka drivers);
@@ -227,7 +227,7 @@ whatever is kept right now); they reject with `QueueResultNotFoundException` whe
   application starts, and `consume()` and `queue.prepare(name, {group})` register it too. With the server-backed
   drivers, messages added to a queue before any group registered are not delivered; the memory driver keeps them for the
   first group that registers, up to `backlog` messages for each queue (`{type: 'memory', backlog: 1000}` by default),
-  and drops the oldest beyond that. So a dead letter queue (`<queue>.dead`) that nobody consumes keeps only its last
+  and drops the oldest beyond that. So a dead-letter queue (`<queue>.dead`) that nobody consumes keeps only its last
   1000 messages in memory. Groups stay registered on the server, so their messages are kept even while none of their
   instances is running.
 - **Messages.** A message is an object: the input of its action. With the default codec, a `Date` arrives as an ISO

@@ -188,7 +188,7 @@ class Transfers extends Component {
 - `createQueryRunner()` gives a connection of its own, to control a transaction by hand (`startTransaction()`,
   `commitTransaction()`, `rollbackTransaction()`, then `release()`).
 - MongoDB has no transactions in TypeORM: there, `transaction()` runs the function without one. The embedded MongoDB
-  runs it in a transaction of its own (see section 4 of [MongoEmbedded](MongoEmbedded.md)).
+  runs it in a transaction of its own (see section 4 of [Embedded MongoDB](MongoEmbedded.md)).
 
 ## 4. Values to watch
 
@@ -216,7 +216,7 @@ class Transfers extends Component {
   ```
 
 - **`null` and `undefined` in the conditions** are left out of the condition by default: `findOneBy({id: undefined})`
-  finds the first row. See [Database](Database.md), section 2.
+  finds the first row. See [Databases](Database.md), section 2.
 - **Dates.** Prefer the columns with a time zone (`timestamptz` on PostgreSQL). On MySQL, the `timezone` option of the
   connection tells how the dates are written and read.
 
