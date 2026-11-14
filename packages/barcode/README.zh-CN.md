@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-[lakutata](https://github.com/lakutata/lakutata) 框架的条形码和二维码组件：生成条码（PNG、SVG 或像素），也能从图片里识别条码。生成基于 [zint](https://zint.org.uk)，识别基于 [zxing-cpp](https://github.com/zxing-cpp/zxing-cpp)，都在原生插件里完成。凡是能生成的码制都能识别回来，一共 32 种一维码和二维码，从 EAN-13、Code 128 到 QR 码、Data Matrix、PDF417 和 Aztec。生成和识别都在原生插件自己的线程里执行，不占用 JavaScript 线程。`lakutata` 包不会重新导出这个包，请从 `@lakutata/barcode` 导入。
+[Lakutata](https://github.com/lakutata/lakutata) 框架的条形码和二维码组件：生成条码（PNG、SVG 或像素），也能从图片里识别条码。生成基于 [zint](https://zint.org.uk)，识别基于 [zxing-cpp](https://github.com/zxing-cpp/zxing-cpp)，都在原生插件里完成。凡是能生成的码制都能识别回来，一共 32 种一维码和二维码，从 EAN-13、Code 128 到 QR 码、Data Matrix、PDF417 和 Aztec。生成和识别都在原生插件自己的线程里执行，不占用 JavaScript 线程。`lakutata` 包不会重新导出这个包，请从 `@lakutata/barcode` 导入。
 
 ## 安装
 
@@ -11,10 +11,10 @@ npm install @lakutata/barcode
 ```
 
 - 原生插件在安装时编译（node-gyp），所以机器上需要 Python 3 和支持 C++20 的编译器：macOS 上是 Xcode 的命令行工具，Linux 上是 `build-essential`（Debian、Ubuntu）或 `build-base`（Alpine），Windows 上是 Visual Studio 生成工具（“使用 C++ 的桌面开发”）。编译需要半分钟到几分钟；编译失败时，安装也会失败。
-- 包管理器需要执行这个包的安装脚本。npm 会执行，但可能提示这个脚本“not yet covered by allowScripts”：用 `npm install-scripts approve @lakutata/barcode` 记下你允许它执行。Bun 和 pnpm 只为信任的依赖执行，需要先允许它（Bun 在 package.json 的 `trustedDependencies` 里加上它，pnpm 用 `pnpm approve-builds`）；没有允许时，加载这个包会抛出错误，说明怎样编译原生插件。
+- 包管理器需要执行这个包的安装脚本。npm 会执行，但可能提示这个脚本“not yet covered by allowScripts”：用 `npm install-scripts approve @lakutata/barcode` 记下你允许它执行。Bun 和 pnpm 只为信任的依赖执行，需要先允许它（Bun 在 package.json 的 `trustedDependencies` 里加上它，pnpm 用 `pnpm approve-builds`）；没有允许时，加载这个包会抛出错误，说明如何编译原生插件。
 - Node.js `>=18.10.0`。
 - 原生插件用的是 Node-API，所以 Bun 和 Electron 的主进程可以直接加载 node-gyp 为 Node.js 编译的插件，不用重新编译。
-- 在 React Native 的手机应用（lakutata 的手机模板）里，`lakutata mobile stage` 会用 NDK、Xcode 和 DevEco Studio 的工具链，为 Android、iOS 和鸿蒙编译原生插件。
+- 在 React Native 的手机应用（Lakutata 的手机模板）里，`lakutata mobile stage` 会用 NDK、Xcode 和 DevEco Studio 的工具链，为 Android、iOS 和鸿蒙编译原生插件。
 
 ## 用法
 
@@ -81,7 +81,7 @@ class Labels extends Component {
 |---|---|
 | `formats` | 要查找的码制；默认查找全部 |
 | `tryHarder`、`tryRotate`、`tryInvert`、`tryDownscale` | 多花时间识别难以识别的条码、旋转的条码、深底浅色的条码以及大图中的条码；默认都是 `true` |
-| `pure` | 图片里只有一个摆正的条码，周围没有别的东西（例如 `generate()` 生成的图片）：识别最快 |
+| `pure` | 图片里只有一个摆正的条码，周围没有其他内容（例如 `generate()` 生成的图片）：识别最快 |
 | `maxSymbols` | 最多识别几个条码 |
 | `addOn` | EAN 和 UPC 的附加码：`'read'`（默认）、`'ignore'` 或 `'require'` |
 
@@ -149,7 +149,7 @@ Application
 
 ### 不用容器
 
-在脚本、测试或 lakutata 应用之外的代码里，可以从 `Container` 取得组件：
+在脚本、测试或 Lakutata 应用之外的代码里，可以从 `Container` 取得组件：
 
 ```typescript
 import {Container} from 'lakutata'
@@ -184,7 +184,7 @@ await container.destroy()
 | `BarcodeTimeoutException` | 操作超过时限 |
 | `BarcodeCancelledException` | 操作的 signal 被中止，或者组件已经销毁 |
 | `BarcodeException` | 其他异常的基类；原生插件内部出错时直接抛出它 |
-| `InvalidMethodAcceptException`（lakutata） | 参数类型不对：未知的码制、颜色不是 `#RRGGBB` 格式、`scale` 不是 1 到 100 的整数 |
+| `InvalidMethodAcceptException`（`lakutata`） | 参数类型不对：未知的码制、颜色不是 `#RRGGBB` 格式、`scale` 不是 1 到 100 的整数 |
 
 ## 另见
 

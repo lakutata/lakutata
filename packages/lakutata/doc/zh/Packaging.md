@@ -54,7 +54,7 @@ node dist/greet.cjs
 
 ## 4. 按路径读取的文件
 
-单文件包并不在原来各个模块所在的位置：单独启动的脚本（worker、`fork()` 的子进程）或者应用读取的文件（`defaults.json`、一个存放 schema 的目录）在单文件包旁边找不到。工具会在应用的模块和它所用包的模块中，找出由模块位置构造的路径，并把它们改写为指向 `dist/<name>.native/` 中的文件：
+单文件包并不在原来各个模块所在的位置：单独启动的脚本（worker、`fork()` 的子进程）或者应用读取的文件（`defaults.json`、一个存放 schema 的目录）在单文件包旁边无法找到。工具会在应用的模块和它所用包的模块中，找出由模块位置构造的路径，并把它们改写为指向 `dist/<name>.native/` 中的文件：
 
 | 路径 | |
 |---|---|
@@ -129,7 +129,7 @@ npx lakutata package exe --runtime bun     # 使用 Bun
 }
 ```
 
-`isPackaged()` 和 `resourcesPath()`（来自 `lakutata`）告诉应用它是怎样运行的：
+`isPackaged()` 和 `resourcesPath()`（来自 `lakutata`）告诉应用它是如何运行的：
 
 | 运行方式 | `isPackaged()` | `resourcesPath()` |
 |---|---|---|

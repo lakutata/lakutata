@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-[lakutata](https://www.npmjs.com/package/lakutata) 框架的 WebRTC，用 TypeScript 编写，没有原生代码：安装时不需要编译器，能在 Node.js、Electron 的主进程和 Bun 中运行。它有两个入口：
+[Lakutata](https://www.npmjs.com/package/lakutata) 框架的 WebRTC，用 TypeScript 编写，没有原生代码：安装时不需要编译器，能在 Node.js、Electron 的主进程和 Bun 中运行。它有两个入口：
 
 - `@lakutata/webrtc`，给应用用：信令（房间里的成员互相交换 offer、answer 和候选地址）、STUN 和 TURN 服务器、给人多的房间用的媒体服务器（SFU）、用 WHIP 推流和用 WHEP 拉流，以及 Node.js 端的对等连接（数据通道、音视频轨道），接口和浏览器的 `RTCPeerConnection` 一致。应用所在房间里的成员可以通过数据通道调用应用的服务动作。应用的多个实例可以通过 NATS 或 Redis 协同工作，媒体服务器也是。
 - `@lakutata/webrtc/client`，给浏览器和 Electron 的渲染进程用：把浏览器自带的 `RTCPeerConnection` 接到信令上。它只使用浏览器的接口，前端打包它时不会带上服务端代码。
@@ -15,13 +15,13 @@
 npm install @lakutata/webrtc
 ```
 
-应用还需要 `lakutata`（或者 `@lakutata/core` 和 `@lakutata/entrypoint`）。信令通过 entrypoint 的适配器提供，走 Socket.IO（`npm install socket.io`）或 WebSocket 上的 JSON-RPC（`npm install ws`）。应用作为成员通过 Socket.IO 加入房间时需要 `socket.io-client`；通过 JSON-RPC 加入时，使用 Node.js 22 和 Bun 自带的 `WebSocket`，没有时使用 `ws` 的 `WebSocket`（Node.js 18 到 21）。多个实例协同工作时需要 `nats` 或 `ioredis`。
+应用还需要 `lakutata`（或者 `@lakutata/core` 和 `@lakutata/entrypoint`）。信令通过入口的适配器提供，走 Socket.IO（`npm install socket.io`）或 WebSocket 上的 JSON-RPC（`npm install ws`）。应用作为成员通过 Socket.IO 加入房间时需要 `socket.io-client`；通过 JSON-RPC 加入时，使用 Node.js 22 和 Bun 自带的 `WebSocket`，没有时使用 `ws` 的 `WebSocket`（Node.js 18 到 21）。多个实例协同工作时需要 `nats` 或 `ioredis`。
 
 前端安装同一个包，引用 `@lakutata/webrtc/client`；框架不会随之安装。
 
 ## 用法
 
-服务端：信令、TURN 服务器，以及 entrypoint 上的信令控制器。
+服务端：信令、TURN 服务器，以及入口上的信令控制器。
 
 ```typescript
 import {Application} from 'lakutata'
@@ -93,7 +93,7 @@ export class Telemetry extends Component {
 - **连接。** 成员为其他每个成员得到一个 `Peer`，带有到它的连接（`peer.connection`：浏览器里是 `RTCPeerConnection`，Node.js 里是 `PeerConnection`）。任何一方添加数据通道或轨道时，连接就会建立。offer 和 answer 按 W3C 的“完美协商”（perfect negotiation）交换：双方随时都可以添加通道和轨道，同时添加也没问题。双方只想共用一个通道时，两边都用 `negotiated: true` 和相同的 `id` 创建它。
 - **修复。** 连接失败，或者断开超过 5 秒，会自动重启 ICE。信令连接断开时，点对点连接保持不变；信令恢复后，客户端重新加入它的房间，其他成员保留到它的连接。成员刷新页面后以新的会话加入，其他成员会替换到它的连接。
 - **离开。** `room.leave()` 关闭这个房间的连接，其他成员收到 `peer-left`。成员的信令连接（Socket.IO，或 WebSocket 上的 JSON-RPC）关闭时，它会离开它的房间；它的点对点连接保持不变，直到它回来或者连接失败。
-- **ICE 服务器。** 成员加入房间时从服务端拿到 ICE 服务器，TURN 凭据在 `credentialTtl`（默认一天）内有效，到期前客户端会重新获取。凭据过期后，用它建立的中转照常工作。
+- **ICE 服务器。** 成员加入房间时从服务端获取 ICE 服务器，TURN 凭据在 `credentialTtl`（默认一天）内有效，到期前客户端会重新获取。凭据过期后，用它建立的中转照常工作。
 - **检查。** 成员只能给自己所在房间的成员发信令；信令的大小（64 KiB）和频率（平均每秒 50 条）有限制，`authorize` 选项决定谁能加入哪个房间。
 
 大消息：数据通道和任何一方之间都能传 64 KiB 以内的消息；Chrome 和这个包的连接能接收 256 KiB 以内的消息。两端都套上 `ChunkedChannel` 后，消息会被切成小块发送，再在对端拼回原样，任意大小的消息和文件都能传：
@@ -143,7 +143,7 @@ console.log(await door.invoke({method: 'door.open', door: 'front'}))
 
 调用的客户端 id 是调用方的成员 id：在动作依赖它之前，要让信令服务器先认证它的客户端。
 
-音视频：浏览器把摄像头和麦克风的轨道发布到房间里，通过每个 peer 的 `track` 事件拿到其他成员的轨道。
+音视频：浏览器把摄像头和麦克风的轨道发布到房间里，通过每个 peer 的 `track` 事件获取其他成员的轨道。
 
 ```typescript
 import {type Peer, type Room} from '@lakutata/webrtc/client'
@@ -263,7 +263,7 @@ const components = {
 }
 ```
 
-应用的多个实例（比如一个部署里的多个 pod）通过 `Cluster` 协同工作：每个实例是一个节点，节点之间通过 NATS 或 Redis 通信。把它的名字告诉其他组件后，信令会把连在各个节点上的成员放进同一批房间，TURN 服务器会把自己的地址和负载告诉其他节点，媒体服务器共同承载房间（每个成员连到某一个节点的媒体服务器上，同一个房间的节点之间互相转发轨道），WHIP 或 WHEP 会话的 DELETE 和 PATCH 请求不管到了哪个节点，都能结束或修改这个会话。总线上只传这些消息：音视频和数据仍然在客户端和节点之间、各媒体服务器之间直接传输。
+应用的多个实例（比如一个部署里的多个 pod）通过 `Cluster` 协同工作：每个实例是一个节点，节点之间通过 NATS 或 Redis 通信。把它的名字告诉其他组件后，信令会把连在各个节点上的成员放进同一批房间，TURN 服务器会把自己的地址和负载告诉其他节点，媒体服务器共同承载房间（每个成员连到某一个节点的媒体服务器上，同一个房间的节点之间互相转发轨道），WHIP 或 WHEP 会话的 DELETE 和 PATCH 请求无论到达哪个节点，都能结束或修改这个会话。总线上只传这些消息：音视频和数据仍然在客户端和节点之间、各媒体服务器之间直接传输。
 
 ```typescript
 import {Application} from 'lakutata'
@@ -288,7 +288,7 @@ Application.run(() => ({
 }))
 ```
 
-TURN 服务器通过 `cluster` 选项和共用的 `secret` 加入集群。某个节点停止，或者其他节点连续三次收不到它的心跳时，它上面的成员以 `disconnected` 离开房间：它们的连接不会断开，客户端会重新连到别的节点。连在这个节点媒体服务器上的成员会转到另一个节点的媒体服务器，它们在各方的 peer 会重新打开，就像成员刷新了页面一样。`maxPeers` 统计的是所有节点上的成员；媒体服务器的 `maxMembers`，以及 WHIP 和 WHEP 的 `maxSessions`，统计的是每个节点自己的。
+TURN 服务器通过 `cluster` 选项和共用的 `secret` 加入集群。某个节点停止，或者其他节点连续三次未收到它的心跳时，它上面的成员以 `disconnected` 离开房间：它们的连接不会断开，客户端会重新连到其他节点。连在这个节点媒体服务器上的成员会转到另一个节点的媒体服务器，它们在各方的 peer 会重新打开，就像成员刷新了页面一样。`maxPeers` 统计的是所有节点上的成员；媒体服务器的 `maxMembers`，以及 WHIP 和 WHEP 的 `maxSessions`，统计的是每个节点自己的。
 
 ## 部署
 
@@ -316,7 +316,7 @@ TURN 服务器通过 `cluster` 选项和共用的 `secret` 加入集群。某个
 | `webrtc:peer-left` | `{room, peerId, reason}`：`left` 或 `disconnected` |
 | `webrtc:signal` | `{room, from, session, description, streams}` 或 `{room, from, session, candidate}` |
 
-`heartbeatInterval` 不为 0 时，客户端每隔这么多毫秒发送一次 `webrtc.heartbeat`：这发生在服务端察觉不到断开的传输方式上（Socket.IO 和 WebSocket 上的 JSON-RPC 返回 0）。`session` 是客户端自己选的一个随机字符串，只选一次：用同一个会话重新加入时，其他成员会保留到它的连接。在有媒体服务器的房间里，`sfu` 是客户端要连的媒体服务器的 id（它的 `role` 是 `sfu`），服务器发出的 description 带有 `streams`，说明每个流来自哪个成员；媒体服务器的数据通道见指南。
+`heartbeatInterval` 不为 0 时，客户端每隔该毫秒数发送一次 `webrtc.heartbeat`：这发生在服务端无法察觉断开的传输方式上（Socket.IO 和 WebSocket 上的 JSON-RPC 返回 0）。`session` 是客户端自己选的一个随机字符串，只选一次：用同一个会话重新加入时，其他成员会保留到它的连接。在有媒体服务器的房间里，`sfu` 是客户端要连的媒体服务器的 id（它的 `role` 是 `sfu`），服务器发出的 description 带有 `streams`，说明每个流来自哪个成员；媒体服务器的数据通道见指南。
 
 ## 限制
 
@@ -358,7 +358,7 @@ TURN 服务器通过 `cluster` 选项和共用的 `secret` 加入集群。某个
 | `SignalingDeniedException` | `authorize` 拒绝了这个房间 |
 | `SignalingLimitException` | 房间已满、没有媒体服务器肯接收这个成员、信令太大、信令太频繁 |
 | `SignalingNotAMemberException` | 发送方或接收方不在这个房间里 |
-| `SignalingClientRequiredException` | 请求所在的连接没法推送事件（HTTP），或者请求经由 `webrtcServiceEntrypoint` 的数据通道发来 |
+| `SignalingClientRequiredException` | 请求所在的连接无法推送事件（HTTP），或者请求经由 `webrtcServiceEntrypoint` 的数据通道发来 |
 | `SignalingConnectionException` | `SignalingClient` 缺少 `socket.io-client` 或 `WebSocket` |
 | `WHIPDeniedException` | `authorize` 拒绝了这路流（401） |
 | `WHIPLimitException` | 会话已经有 `maxSessions` 个（503） |

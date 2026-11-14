@@ -70,7 +70,7 @@ async function restore(manager: ThermalPrinterManager): Promise<void> {
 }
 ```
 
-- `discover()` 找到 USB 打印机（带它上报的 IEEE 1284 ID、这个 ID 对应的型号表里的型号和它的指令语言）、系统打印队列，以及串口和蓝牙口。网络打印机没法这样找到，需要填写地址。
+- `discover()` 找到 USB 打印机（带它上报的 IEEE 1284 ID、这个 ID 对应的型号表里的型号和它的指令语言）、系统打印队列，以及串口和蓝牙口。网络打印机无法这样找到，需要填写地址。
 - `open()` 为每台设备只创建一次 `ThermalPrinter`：同一台设备再打开，得到的是同一个对象，这样一台打印机上不会有两个队列交错发送数据。`get(name)` 按名字取回它，`close()` 关闭它。
 - `printer.definition` 是要保存的 JSON；`validatePrinterDefinition()` 检查保存下来的定义。
 
@@ -133,7 +133,7 @@ async function label(printer: ThermalPrinter, barcode: Barcode): Promise<void> {
 | `label` | 标签或腕带：宽度和长度（毫米），配合 `dpi` 或标签打印机的 `model` | `{model: 'HC100', label: {width: 25, height: 250}}` |
 | `width`、`dpi` | 其他纸：打印宽度（毫米）和分辨率 | `{width: 24, dpi: 300}` |
 | `rotate` | 转过来打印（90、180、270）：比如沿长度方向打印的腕带 | `{rotate: 90}` |
-| `page` | 纸卷上的固定页长，以及多出来的内容怎么办（`overflow`） | `{paper: 58, page: {length: 100}}` |
+| `page` | 纸卷上的固定页长，以及多出来的内容如何处理（`overflow`） | `{paper: 58, page: {length: 100}}` |
 
 ## 5. 告诉打印机做什么
 
@@ -146,7 +146,7 @@ async function label(printer: ThermalPrinter, barcode: Barcode): Promise<void> {
 | `drawer` | ESC/POS：最后一页之后弹开钱箱 |
 | `skipBlank` | ESC/POS 和 TSPL：1 毫米及以上的空白不发送（ESC/POS 用走纸跳过），一张小票的数据更少。默认开启；如果打印机打出来的空白偏短或偏长，设为 `false` |
 | `language` | 没有 `model` 时的指令语言：`'escpos'`、`'tspl'`、`'zpl'` |
-| `copies`、`sensor`、`gap`、`density`、`speed` | 标签打印机：份数、怎么找到标签（间隙、黑标、连续纸）、浓度、速度 |
+| `copies`、`sensor`、`gap`、`density`、`speed` | 标签打印机：份数、如何找到标签（间隙、黑标、连续纸）、浓度、速度 |
 
 ```typescript
 import type {ThermalPrinter} from '@lakutata/thermal-printer'
@@ -224,9 +224,9 @@ async function serial(): Promise<void> {
 | 异常 | 什么时候 |
 |---|---|
 | `ThermalOptionException` | 引擎不接受的选项：介质、指令 |
-| `ThermalContentException` | 渲染不了的 HTML：读不了的图片、`baseDir` 以外的文件 |
-| `ThermalFontException` | 用不了的字体 |
+| `ThermalContentException` | 无法渲染的 HTML：无法读取的图片、`baseDir` 以外的文件 |
+| `ThermalFontException` | 无法使用的字体 |
 | `ThermalTimeoutException`、`ThermalCancelledException` | 渲染超过 `timeout`，或被 `signal` 取消 |
-| `ThermalPrinterConnectionException` | 连不上打印机，或打印机在停滞超时内一直不接收数据 |
+| `ThermalPrinterConnectionException` | 无法连接打印机，或打印机在停滞超时内一直不接收数据 |
 | `ThermalPrinterOptionException` | 不是合法的打印机定义 |
 | `SerialException` | 串口或蓝牙设备出错；`code` 是错误名，`disconnected` 表示设备被拔掉 |

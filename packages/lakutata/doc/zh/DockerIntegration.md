@@ -16,7 +16,7 @@
 | TCP，HTTPS | `host`、`port`，以及 PEM 内容形式的 `ca`、`cert`、`key`（`buildDockerHttpsConnectionOptions`） |
 | SSH | `host`、`port`、`username`、`sshAuthAgent`（`buildDockerSSHConnectionOptions`） |
 
-组件创建时会 ping 守护进程，并协商 API 版本：守护进程连不上时，组件创建失败，抛出 `DockerConnectionException`；组件列在 `bootstrap` 里时，应用因此启动失败。`timeout`（毫秒）是请求最多可以空闲多久。
+组件创建时会 ping 守护进程，并协商 API 版本：无法连接守护进程时，组件创建失败，抛出 `DockerConnectionException`；组件列在 `bootstrap` 里时，应用因此启动失败。`timeout`（毫秒）是请求最多可以空闲多久。
 
 ```typescript
 import {readFileSync} from 'node:fs'
@@ -202,4 +202,4 @@ async function networks(docker: Docker): Promise<void> {
 
 ## 6. 错误
 
-组件的异常由 `lakutata/com/docker` 导出：`DockerConnectionException`（组件创建时连不上守护进程）、`DockerContainerNotFoundException`、`DockerImageNotFoundException`、`DockerNetworkNotFoundException`、`DockerImagePullException`、`DockerImageBuildException`、`DockerImageImportException`、`DockerImagePushException`、`DockerImageRepoTagNotFoundException`，以及 `DockerRequestException`（守护进程拒绝请求；其 `statusCode` 为 HTTP 状态码，名称已被占用时为 409）。选项不合法时抛出 `InvalidMethodAcceptException`。组件被销毁时，正在进行的拉取和构建会被中止。
+组件的异常由 `lakutata/com/docker` 导出：`DockerConnectionException`（组件创建时无法连接守护进程）、`DockerContainerNotFoundException`、`DockerImageNotFoundException`、`DockerNetworkNotFoundException`、`DockerImagePullException`、`DockerImageBuildException`、`DockerImageImportException`、`DockerImagePushException`、`DockerImageRepoTagNotFoundException`，以及 `DockerRequestException`（守护进程拒绝请求；其 `statusCode` 为 HTTP 状态码，名称已被占用时为 409）。选项不合法时抛出 `InvalidMethodAcceptException`。组件被销毁时，正在进行的拉取和构建会被中止。

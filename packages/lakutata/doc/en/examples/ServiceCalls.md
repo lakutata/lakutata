@@ -24,7 +24,7 @@ rm orders/packages/app/src/controllers/ExampleController.ts orders/packages/app/
 The two projects sit side by side, each a workspace whose service is `packages/app`
 ([Project Structure](../ProjectStructure.md)); the paths below start with the name of their project. They share no code:
 the action patterns and the shape of the messages are the contract between them. Nothing is installed: the HTTP
-service transport and its proxy are part of lakutata.
+service transport and its proxy are part of `lakutata`.
 
 ## 2. The stock
 

@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-lakutata 框架的 Docker 组件。它通过 Docker Engine API 操作 Docker 守护进程，不需要 Docker CLI：拉取、构建（使用 BuildKit）、导入、导出、打标签和推送镜像，创建、运行和管理容器（exec、交互式 TTY、日志、统计、commit、导出文件），以及管理网络。它可以连接本地套接字，也可以通过 HTTP、HTTPS 或 SSH 连接远程守护进程。`lakutata` 包通过 `lakutata/com/docker` 重新导出它。
+Lakutata 框架的 Docker 组件。它通过 Docker Engine API 操作 Docker 守护进程，不需要 Docker CLI：拉取、构建（使用 BuildKit）、导入、导出、打标签和推送镜像，创建、运行和管理容器（exec、交互式 TTY、日志、统计、commit、导出文件），以及管理网络。它可以连接本地套接字，也可以通过 HTTP、HTTPS 或 SSH 连接远程守护进程。`lakutata` 包通过 `lakutata/com/docker` 重新导出它。
 
 ## 安装
 
@@ -28,7 +28,7 @@ npm install ssh2
 
 ### 在应用中使用组件
 
-在应用的 `components` 中注册 `Docker`，然后通过 `getObject()` 或 `@Inject` 获取它。组件创建时会 ping 守护进程，并协商 API 版本：守护进程连不上时，组件创建失败，抛出 `DockerConnectionException`。如果组件是在应用启动过程中创建的（列在 `bootstrap` 里，或者注入到了这样的对象中），应用的启动也会随之失败。
+在应用的 `components` 中注册 `Docker`，然后通过 `getObject()` 或 `@Inject` 获取它。组件创建时会 ping 守护进程，并协商 API 版本：无法连接守护进程时，组件创建失败，抛出 `DockerConnectionException`。如果组件是在应用启动过程中创建的（列在 `bootstrap` 里，或者注入到了这样的对象中），应用的启动也会随之失败。
 
 ```typescript
 import {Application} from 'lakutata'
@@ -268,11 +268,11 @@ await docker.removeNetwork(network.id)
 | 异常 | 什么时候 |
 |---|---|
 | `DockerConnectionException`（`E_DOCKER_CONNECTION`） | 组件创建时：守护进程无法访问或没有应答，TLS 握手失败，或者没有安装 `ssh2` 却使用 SSH |
-| `DockerContainerNotFoundException`（`E_DOCKER_CONTAINER_NOT_FOUND`） | `getContainer()` 找不到这个 ID、短 ID 或名称的容器；对已删除的容器执行操作 |
-| `DockerImageNotFoundException`（`E_DOCKER_IMAGE_NOT_FOUND`） | `getImage()` 找不到这个 ID 或名称的镜像；`createContainer()`（或 `update()` 重建容器时）使用的镜像不存在；对已删除的镜像执行操作 |
+| `DockerContainerNotFoundException`（`E_DOCKER_CONTAINER_NOT_FOUND`） | `getContainer()` 未找到这个 ID、短 ID 或名称的容器；对已删除的容器执行操作 |
+| `DockerImageNotFoundException`（`E_DOCKER_IMAGE_NOT_FOUND`） | `getImage()` 未找到这个 ID 或名称的镜像；`createContainer()`（或 `update()` 重建容器时）使用的镜像不存在；对已删除的镜像执行操作 |
 | `DockerImagePullException`（`E_DOCKER_IMAGE_PULL`） | `pullImage()` 失败，或者组件在拉取过程中被销毁 |
 | `DockerImageBuildException`（`E_DOCKER_IMAGE_BUILD`） | `buildImage()` 失败：某个步骤失败、缺少文件、基础镜像无法拉取，或者组件在构建过程中被销毁 |
-| `DockerImageImportException`（`E_DOCKER_IMAGE_IMPORT`） | `importImage()`：守护进程拒绝归档文件，或者加载完成后找不到加载出的镜像 |
+| `DockerImageImportException`（`E_DOCKER_IMAGE_IMPORT`） | `importImage()`：守护进程拒绝归档文件，或者加载完成后未找到加载出的镜像 |
 | `DockerImagePushException`（`E_DOCKER_IMAGE_PUSH`） | `push()`：镜像仓库拒绝推送 |
 | `DockerImageRepoTagNotFoundException`（`E_DOCKER_IMAGE_REPO_TAG_NOT_FOUND`） | `export()` 指定了镜像没有的标签，并且 `createRepoTagIfNotExists: false` |
 | `DockerNetworkNotFoundException`（`E_DOCKER_NETWORK_NOT_FOUND`） | `getNetwork()` 或 `removeNetwork()` 给出的 ID、短 ID 或名称没有匹配的网络；创建或重建容器时指定的网络不存在 |

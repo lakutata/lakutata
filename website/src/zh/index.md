@@ -30,7 +30,7 @@ features:
   - title: 开箱即用
     details: 数据库（TypeORM）、缓存、锁、消息队列（Redis、NATS、RabbitMQ、Kafka）、多语言、日志、Docker 和 containerd、哈希与加密。
   - title: 从第一行代码到安装包
-    details: lakutata 命令从模板创建项目、打包，并生成可执行文件和安装包。
+    details: Lakutata 命令行工具从模板创建项目、打包，并生成可执行文件和安装包。
   - title: 类型完整，文档齐全
     details: 提供 ESM 和 CommonJS 两种构建、完整的类型声明，每个公开 API 都有示例。
 ---

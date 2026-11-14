@@ -86,4 +86,4 @@ NW.js 应用所用的 NW.js 版本由 `lakutata nwjs use <版本>` 设置（`lat
 | `LAKUTATA_MOBILE_NODE_DIR` | 手机应用使用自己的 libnode，用 lakutata/libnode 仓库编译（每个系统一个目录：`android`、`ios`、`harmony`），代替 Release 中的 libnode |
 | `NO_COLOR` | 关闭颜色 |
 
-工具运行的脚本和应用，拿到的是工具启动时的环境变量。打包后的应用所用的环境变量见[打包](Packaging.md)第 6 节。
+工具运行的脚本和应用，得到的是工具启动时的环境变量。打包后的应用所用的环境变量见[打包](Packaging.md)第 6 节。

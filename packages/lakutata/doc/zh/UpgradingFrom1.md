@@ -301,7 +301,7 @@ Application.run(() => ({
 - **生产环境中的 `synchronize: true`** 会在每次启动时修改数据表。请关闭它，改用迁移（见[迁移](Migrations.md)）：先对生产数据库的副本生成第一个迁移（实体与数据表一致时，它应该是空的），之后由 `migrationsRun` 在启动时运行新的迁移。
 - **使用 `__dirname` 的 glob** 在 ES 模块中不存在：请逐个列出实体类，迁移文件的路径用 `import.meta.dirname` 构造。
 
-**缓存。** 1.x 的 `CacherComponent` 改为 `Cacher` 组件，用 `buildCacherOptions()` 声明（见[缓存](Cache.md)）。`get(key)`、`set(key, value, ttl)` 和 `del(key)` 保留原来的名字（1.x 只能在选项中设置的存活时间，现在可以在每次 `set` 时给出），`wrap(key, fn)` 先读缓存、未命中时再计算。键不存在时返回 `undefined`，而 1.x 返回 `null`（存储出错时也是 `null`）；`null` 和 `false` 现在可以作为值缓存。键的构成方式也不同，1.x 写入的缓存条目在 3.x 中读不到：请从空缓存开始。
+**缓存。** 1.x 的 `CacherComponent` 改为 `Cacher` 组件，用 `buildCacherOptions()` 声明（见[缓存](Cache.md)）。`get(key)`、`set(key, value, ttl)` 和 `del(key)` 保留原来的名字（1.x 只能在选项中设置的存活时间，现在可以在每次 `set` 时给出），`wrap(key, fn)` 先读缓存、未命中时再计算。键不存在时返回 `undefined`，而 1.x 返回 `null`（存储出错时也是 `null`）；`null` 和 `false` 现在可以作为值缓存。键的构成方式也不同，1.x 写入的缓存条目在 3.x 中无法读取：请从空缓存开始。
 
 ## 9. 配置、运行模式和入口
 
@@ -313,7 +313,7 @@ Application.run(() => ({
 ## 10. 测试、构建和部署
 
 - **测试。** 1.x 中连接共享开发服务器、直接启动应用的 `npm test`，改为对编译后的测试运行 `node --test`：每个测试文件用 `Application.run(config(port))` 在自己的端口上启动应用，调用它，最后释放它；组件放在 `Container` 中单独测试；其他服务用替身代替（见[示例](examples/README.md)）。
-- **`package.json` 中的 `lakutata` 字段**在 1.x 中告诉命令行工具项目的类型（`type`）、目录和配置文件。在 3.x 中这个字段有别的含义（打包应用的 `resources` 和 `installer`，见[打包](Packaging.md)）：请删除 1.x 的这个字段。
+- **`package.json` 中的 `lakutata` 字段**在 1.x 中告诉命令行工具项目的类型（`type`）、目录和配置文件。在 3.x 中这个字段有其他含义（打包应用的 `resources` 和 `installer`，见[打包](Packaging.md)）：请删除 1.x 的这个字段。
 - **Node.js、TypeScript 和模块系统。** Node.js `>=18.10.0`，与模板一样使用 TypeScript 6，ES 模块（`"type": "module"`，相对导入以 `.js` 结尾），`tsconfig.json` 继承 `lakutata/tsconfig.json`。
 - **端口。** 1.x 的服务模块监听自己的端口（默认 6912），注册中心监听另一个端口（6911）。3.x 的适配器监听各自选项中的端口，而使用 NATS 的服务只主动连接 NATS 服务器：`Dockerfile` 改为暴露这些端口。
 - **脚本。** 模板的脚本取代了 `shx rm -rf ./build`（改为 `lakutata clean`）、安装时编译的 `prepare`，以及开发入口；`lakutata-deploy` 没有对应项：`service` 模板带有 `Dockerfile` 和 `docker:build` 脚本，镜像由部署环境自己的工具推送。

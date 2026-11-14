@@ -14,7 +14,7 @@ docker run -d --name nats -p 4222:4222 nats:2.12-alpine -js
 
 ## 1. NATS 组件
 
-用 `buildNatsClientOptions` 声明组件。组件在创建时连接服务器。连不上时，创建会在 `timeout`（默认 20 秒）之后失败；如果组件是在应用启动过程中创建的（列在 `bootstrap` 里，或者被这样的对象用到），应用的启动也会随之失败。
+用 `buildNatsClientOptions` 声明组件。组件在创建时连接服务器。无法连接时，创建会在 `timeout`（默认 20 秒）之后失败；如果组件是在应用启动过程中创建的（列在 `bootstrap` 里，或者被这样的对象用到），应用的启动也会随之失败。
 
 ```typescript
 import {Application} from 'lakutata'
@@ -42,8 +42,8 @@ Application
 ```
 
 - `publish(subject, payload)` 把消息发给该主题的所有订阅（每个队列组只发给其中一个订阅）。没有人订阅时，消息就丢失了。
-- `subscribe(subject, callback, options?)` 支持通配符 `*`（一段）和 `>`（剩下的所有段）。选项有 `queue`（队列组：每条消息只发给其中一个成员）、`max`（收到这么多条后结束）、`iterator`（逐条处理消息）和 `errorResponse`（见下文）。它返回 NATS 的订阅对象（`unsubscribe()`、`drain()`）。
-- `request(subject, payload, timeout?)` 返回第一个响应。timeout 以毫秒为单位，默认 10 分钟。应答者的回调抛出错误时，请求得不到响应，最终超时；除非订阅设置了 `errorResponse: (error) => value` 来回复它。
+- `subscribe(subject, callback, options?)` 支持通配符 `*`（一段）和 `>`（剩下的所有段）。选项有 `queue`（队列组：每条消息只发给其中一个成员）、`max`（收到指定条数后结束）、`iterator`（逐条处理消息）和 `errorResponse`（见下文）。它返回 NATS 的订阅对象（`unsubscribe()`、`drain()`）。
+- `request(subject, payload, timeout?)` 返回第一个响应。timeout 以毫秒为单位，默认 10 分钟。应答者的回调抛出错误时，请求无法得到响应，最终超时；除非订阅设置了 `errorResponse: (error) => value` 来回复它。
 - 连接断开后会在后台重新连接（每个服务器 10 次，`maxReconnectAttempts: -1` 表示一直重试）。
 - 应用停止时，组件会排空它的连接：正在处理的消息处理完，待发送的消息发送出去。
 - 无法抛给调用者的失败（回调抛错、消息无法解码），组件会发出 `'error'` 事件：`nats.on('error', listener)`。
@@ -105,7 +105,7 @@ Application.run(() => ({
 ```
 
 - 第一个参数是 NATS 组件的名字。
-- 请求发到以应用 id 命名的主题上（`order.service`）；`subject` 选项可以换成别的主题。
+- 请求发到以应用 id 命名的主题上（`order.service`）；`subject` 选项可以换成其他主题。
 - 服务的各个实例加入同一个队列组（`order.service.serviceQueue`，或 `queue` 选项指定的名字），所以每个请求只由一个实例处理。
 - 不等待响应、直接发布的消息也会执行对应的动作，只是不会有回复。
 - 应用停止时，适配器不再接收新请求，正在处理的请求会处理完。调用正在重启的服务时，调用方会重试请求（见第 3 节）。
@@ -165,7 +165,7 @@ Application
 - NATS 组件的 `nats.emitServiceEvent(event, ...args)`，在应用 id 下发送；
 - `entrypoint.broadcast(event, ...args)`，在适配器的主题下发送。它返回 0：NATS 不会告诉发送方有多少人收到了消息。如果适配器的 `subject` 选项不是应用 id，`serviceId` 为应用 id 的代理只会收到 `emitServiceEvent` 发出的事件。
 
-`entrypoint.notify(clientId, ...)` 到达不了 NATS 的调用方，因为它们没有客户端 id。
+`entrypoint.notify(clientId, ...)` 无法到达 NATS 的调用方，因为它们没有客户端 id。
 
 另一端用 `orderService.on(event, listener)`、`once` 和 `off` 监听服务的事件。用 `on(event, listener, true)` 注册时，在所有应用中这样注册的监听器里，每个事件只发给其中一个（队列组）。事件最多送达一次：发送时没有连接的应用会错过它。代理被销毁时，它注册的监听器也会被移除。
 
@@ -199,9 +199,9 @@ export function watchPayments(orderService: ServiceProxy): void {
 
 ## 7. 大数据传输
 
-一条 NATS 消息的大小不能超过服务器的 `max_payload`，默认是 1 MiB。达到这个大小 90% 的请求和响应会被存进 JetStream 的对象存储，消息里只带一个引用；接收方读取对象后把它删除。回调、动作和 `invoke()` 拿到的始终是完整的值。
+一条 NATS 消息的大小不能超过服务器的 `max_payload`，默认是 1 MiB。达到这个大小 90% 的请求和响应会被存进 JetStream 的对象存储，消息里只带一个引用；接收方读取对象后把它删除。回调、动作和 `invoke()` 得到的始终是完整的值。
 
 - 这个通道默认开启（`bulk: true`），需要 JetStream。没有 JetStream 时，组件会打印一条警告，然后不带它启动：这时只有超过 `max_payload` 的数据会失败。
-- 互相传输大数据的应用必须使用同一个对象存储：给它们设置相同的 `bulkBucket`。默认的名字取决于 `name` 选项（`lkt-bulk-<name>`，没有 name 时是 `lkt-bulk-default`），所以 name 不同的两个应用读不到对方的对象。
+- 互相传输大数据的应用必须使用同一个对象存储：给它们设置相同的 `bulkBucket`。默认的名字取决于 `name` 选项（`lkt-bulk-<name>`，没有 name 时是 `lkt-bulk-default`），所以 name 不同的两个应用无法读取对方的对象。
 - 没有被读取的对象会在 `bulkTTL`（默认 5 分钟）后过期。`bulkReplicas` 设置集群中的副本数。这两项在创建对象存储时生效。
 - 发布的消息和事件从不经过对象存储：超过 `max_payload` 时，它们会以 NATS 的错误 `MAX_PAYLOAD_EXCEEDED` 失败。

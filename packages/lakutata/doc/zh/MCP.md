@@ -180,7 +180,7 @@ class ImportController extends Controller {
 - 客户端取消调用时，`this.signal` 会被中止。
 - 一个方法可以同时服务多种传输方式（`@GET` 和 `@MCPTool`）：对于 MCP 的请求，`this.context.type` 是 `'MCP'`（`MCP_CONTEXT_TYPE`）。
 - 入口的访问规则适用于以 `acl: true` 声明的 MCP 动作，前提是规则的 `supportContextTypes()` 包含 `MCP_CONTEXT_TYPE`（见[中间件与访问控制](Middlewares.md)）。
-- 服务器不会向客户端请求任何东西：没有采样（sampling）、征询（elicitation），也不向客户端发送日志。
+- 服务器不会向客户端请求任何内容：没有采样（sampling）、征询（elicitation），也不向客户端发送日志。
 
 **通知。** `MCPNotifier` 是一个可以注入的组件（`@Inject(MCPNotifier)`），用来告诉客户端有内容变化：`resourceUpdated(uri)`、`resourcesChanged()`、`toolsChanged()`、`promptsChanged()`。在 stdio 上，只有订阅了某个 URI 的客户端才会收到这个资源的更新。在 HTTP 上，只有使用 2026-07-28 协议版本、并且监听变化的客户端才会收到通知。
 

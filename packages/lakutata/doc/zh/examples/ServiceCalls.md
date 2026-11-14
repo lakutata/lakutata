@@ -17,7 +17,7 @@ rm inventory/packages/app/src/controllers/ExampleController.ts inventory/package
 rm orders/packages/app/src/controllers/ExampleController.ts orders/packages/app/src/dtos/GreetDTO.ts
 ```
 
-两个项目并排放在一起，每个都是一个工作区，服务在 `packages/app` 中（见[项目结构](../ProjectStructure.md)）；下面的路径都以所属项目的名字开头。两个项目不共享代码：动作的模式和消息的结构就是它们之间的约定。这里不需要安装任何包：HTTP 服务传输方式和它的代理都是 lakutata 自带的。
+两个项目并排放在一起，每个都是一个工作区，服务在 `packages/app` 中（见[项目结构](../ProjectStructure.md)）；下面的路径都以所属项目的名字开头。两个项目不共享代码：动作的模式和消息的结构就是它们之间的约定。这里不需要安装任何包：HTTP 服务传输方式和它的代理都是 `lakutata` 自带的。
 
 ## 2. 库存
 
@@ -230,7 +230,7 @@ export async function authenticate(invocation: ActionInvocation, next: Next): Pr
 }
 ```
 
-模板中的中间件检查的是 HTTP 请求，这里改为检查服务调用。`httpRequestOfContext()` 给出承载调用的 HTTP 请求及其请求头。环境中有 `API_TOKEN` 时，不带 `Authorization: Bearer <API_TOKEN>` 的调用在校验输入之前就会被拒绝，错误为 `E_UNAUTHORIZED`（见[中间件与访问控制](../Middlewares.md)）。调用库存服务的服务会拿到这个令牌。如果要让每个调用方只能调用一部分动作，可以给每个调用方各自的令牌，再加一条检查动作分组的访问规则（见[中间件与访问控制](../Middlewares.md)第 4 节）。
+模板中的中间件检查的是 HTTP 请求，这里改为检查服务调用。`httpRequestOfContext()` 给出承载调用的 HTTP 请求及其请求头。环境中有 `API_TOKEN` 时，不带 `Authorization: Bearer <API_TOKEN>` 的调用在校验输入之前就会被拒绝，错误为 `E_UNAUTHORIZED`（见[中间件与访问控制](../Middlewares.md)）。调用库存服务的服务会获得这个令牌。如果要让每个调用方只能调用一部分动作，可以给每个调用方各自的令牌，再加一条检查动作分组的访问规则（见[中间件与访问控制](../Middlewares.md)第 4 节）。
 
 ## 5. 库存服务的选项
 
@@ -335,7 +335,7 @@ export class Inventory extends Component {
 
 订单服务通过 `HTTPServiceProxy`（见[服务调用](../ServiceCalls.md)第 4 节）调用库存服务，它在选项中注册为 `inventoryService` 组件（第 8 节）。代理负责发送消息、读取响应。`Inventory` 是订单服务在代理之上的一个组件，它决定库存服务的各种错误对订单意味着什么。
 
-- `invoke()` 接收消息和等待响应的最长时间，这里是 5 秒。代理默认等待 10 分钟，订单不该等这么久，所以这里给调用设定了自己的时限。
+- `invoke()` 接收消息和等待响应的最长时间，这里是 5 秒。代理默认等待 10 分钟，订单不该等待如此之久，所以这里给调用设定了自己的时限。
 - 订单被拒绝时，错误会一路传回客户端：代理抛出一个 `ServiceInvokeException`，它带有库存服务错误的各项属性，包括 `errno`、`errMsg` 和 `statusCode`。`Inventory` 把它原样抛出，订单服务的 HTTP 适配器就用这个状态码和这个 `errno` 响应，所以客户端收到的就是库存服务的 409 `E_OUT_OF_STOCK`。
 - 库存服务的其他错误不是客户端的问题。令牌被拒绝、库存服务看不懂收到的消息，或者根本没有响应（代理抛出的 `ServiceUnavailableException`），都属于订单服务自己的故障：订单服务以 503 `E_INVENTORY_UNAVAILABLE` 响应。
 - `Inventory` 通过 `errno` 识别拒绝，因为异常的类不会随调用传回来（见[异常](../Exceptions.md)第 5 节）。

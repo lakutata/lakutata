@@ -1,6 +1,6 @@
 # 桌面应用
 
-这个示例构建一个桌面笔记应用：笔记是用户所选文件夹中的 Markdown 文件，应用窗口可以列出、打开、保存和删除笔记。它从 `electron-react` 模板开始，展示用 lakutata 开发的 Electron 应用的两部分：一是主进程，它的动作负责读写文件、打开系统对话框，并在文件夹变化时推送事件；二是 React 渲染进程，它通过 IPC 调用这些动作。示例还展示了主进程的测试，测试不需要 Electron 就能运行。
+这个示例构建一个桌面笔记应用：笔记是用户所选文件夹中的 Markdown 文件，应用窗口可以列出、打开、保存和删除笔记。它从 `electron-react` 模板开始，展示用 Lakutata 开发的 Electron 应用的两部分：一是主进程，它的动作负责读写文件、打开系统对话框，并在文件夹变化时推送事件；二是 React 渲染进程，它通过 IPC 调用这些动作。示例还展示了主进程的测试，测试不需要 Electron 就能运行。
 
 | 消息 | 作用 |
 |---|---|
@@ -22,7 +22,7 @@ cd notes
 rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/GreetDTO.ts
 ```
 
-项目是一个工作区（见[项目结构](../ProjectStructure.md)）：`packages/app` 是主进程，也是一个 lakutata 应用；`packages/ui` 是渲染进程，即由 Vite 构建的 React 页面；`packages/resources` 存放图标。应用不需要安装其他包：文件用 `node:fs` 读写，对话框由 Electron 提供。这里删掉了模板中的示例控制器。
+项目是一个工作区（见[项目结构](../ProjectStructure.md)）：`packages/app` 是主进程，也是一个 Lakutata 应用；`packages/ui` 是渲染进程，即由 Vite 构建的 React 页面；`packages/resources` 存放图标。应用不需要安装其他包：文件用 `node:fs` 读写，对话框由 Electron 提供。这里删掉了模板中的示例控制器。
 
 ## 2. 输入
 
@@ -77,7 +77,7 @@ export class NoteNotFoundException extends Exception {
 }
 ```
 
-异常有一个 `errno`，渲染进程用它判断是哪种错误（见[异常](../Exceptions.md)）。通过 IPC 发送错误时，会带上它的全部属性（见[服务调用](../ServiceCalls.md)第 3 节），渲染进程收到的就是抛出时的错误：`error.errno` 为 `'E_NOTE_NOT_FOUND'`。服务调用的传输方式总是以封套回复，不管错误的状态码是多少，所以这些异常不需要 `statusCode`。
+异常有一个 `errno`，渲染进程用它判断是哪种错误（见[异常](../Exceptions.md)）。通过 IPC 发送错误时，会带上它的全部属性（见[服务调用](../ServiceCalls.md)第 3 节），渲染进程收到的就是抛出时的错误：`error.errno` 为 `'E_NOTE_NOT_FOUND'`。服务调用的传输方式总是以封套回复，无论错误的状态码是多少，所以这些异常不需要 `statusCode`。
 
 ## 4. 笔记
 

@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-[lakutata](https://github.com/lakutata/lakutata) 框架的命令行工具。
+[Lakutata](https://github.com/lakutata/lakutata) 框架的命令行工具。
 
 ```bash
 npx @lakutata/cli create --name my-app
@@ -41,9 +41,9 @@ lakutata create --name my-service --template service --with i18n --yes
 
 列出官方模板。官方模板是 npm 包（`@lakutata/template-<name>`），由清单包 `@lakutata/templates` 列出，从用户所用的 npm 仓库下载（和下载依赖一样，可以用 npmmirror 这样的镜像），所以不需要访问 GitHub。清单缓存一天（`--refresh` 会重新获取）。
 
-官方模板取与工具主版本号相同的最新正式版。下载过的模板会缓存起来：连不上仓库时，使用缓存中这个主版本的最新版本；缓存中也没有时，命令失败。
+官方模板取与工具主版本号相同的最新正式版。下载过的模板会缓存起来：无法连接仓库时，使用缓存中这个主版本的最新版本；缓存中也没有时，命令失败。
 
-模板包把文件放在它的 `template/` 目录中。有些文件无法以真实的文件名放进 npm 包，所以 `_gitignore`、`_npmrc` 等文件会在创建项目时改名为 `.gitignore`、`.npmrc` 等。文本文件中会填入项目的信息：`{$APP_NAME}`、`{$APP_ID}`、`{$APP_DESC}`、`{$APP_AUTHOR}`、`{$APP_LICENSE}` 和 `{$LAKUTATA_VERSION}`（框架的次版本，比如框架是 3.1.2 时为 `3.1.0`：补丁版只发布改动过的包，写成 `^{$LAKUTATA_VERSION}` 才能找到 lakutata 的每个包）。
+模板包把文件放在它的 `template/` 目录中。有些文件无法以真实的文件名放进 npm 包，所以 `_gitignore`、`_npmrc` 等文件会在创建项目时改名为 `.gitignore`、`.npmrc` 等。文本文件中会填入项目的信息：`{$APP_NAME}`、`{$APP_ID}`、`{$APP_DESC}`、`{$APP_AUTHOR}`、`{$APP_LICENSE}` 和 `{$LAKUTATA_VERSION}`（框架的次版本，比如框架是 3.1.2 时为 `3.1.0`：补丁版只发布改动过的包，写成 `^{$LAKUTATA_VERSION}` 才能找到 Lakutata 的每个包）。
 
 模板可以有可选功能，由 `lakutata create --with <features>` 启用（或者由用户在终端里选择）：
 
@@ -80,7 +80,7 @@ lakutata create --name my-service --template service --with i18n --yes
 
 ### `lakutata add <name>`
 
-在工作区中添加一个包，放在工作区存放包的目录中，目录名是去掉作用域的包名。存放包的目录取工作区中第一个形如 `<directory>/*` 的模式（例如 `apps/*`）的目录，有 `packages/*` 时取它，这样其他命令才能看到这个包；工作区没有这样的模式时（只逐个列出了包，或者是 `packages/**`），命令会拒绝添加。包的版本就是工作区的版本（`lerna.json`，否则根目录的 `package.json`，再否则各包中最高的版本；都没有时，或者使用 lerna 的独立版本时为 `0.0.1`）。这个包是私有的（要发布它，请删掉 `"private": true`），带有 `clean`、`build`、`rebuild` 和 `test` 脚本以及一个测试；`--to <package>` 把它以 `^<version>` 加入工作区中另一个包的依赖。命令不安装任何东西：之后请按它的输出提示，运行项目所用包管理器的安装命令，链接这个包。
+在工作区中添加一个包，放在工作区存放包的目录中，目录名是去掉作用域的包名。存放包的目录取工作区中第一个形如 `<directory>/*` 的模式（例如 `apps/*`）的目录，有 `packages/*` 时取它，这样其他命令才能看到这个包；工作区没有这样的模式时（只逐个列出了包，或者是 `packages/**`），命令会拒绝添加。包的版本就是工作区的版本（`lerna.json`，否则根目录的 `package.json`，再否则各包中最高的版本；都没有时，或者使用 lerna 的独立版本时为 `0.0.1`）。这个包是私有的（要发布它，请删掉 `"private": true`），带有 `clean`、`build`、`rebuild` 和 `test` 脚本以及一个测试；`--to <package>` 把它以 `^<version>` 加入工作区中另一个包的依赖。命令不安装任何内容：之后请按它的输出提示，运行项目所用包管理器的安装命令，链接这个包。
 
 - `lakutata add greeting`：一个 TypeScript 包（`src/index.ts` 连同类型声明编译到 `build` 中）。
 - `lakutata add @acme/capture --native [gyp|cmake|rust]`：一个原生插件，使用以下构建系统之一：
@@ -123,7 +123,7 @@ lakutata create --name my-service --template service --with i18n --yes
 
 ### 从 lerna 迁移
 
-| lerna | lakutata |
+| lerna | `lakutata` |
 |---|---|
 | `lerna run rebuild` | `lakutata run rebuild` |
 | `lerna version patch --no-git-tag-version --no-push -y` | `lakutata version patch --yes` |
@@ -139,7 +139,7 @@ lakutata create --name my-service --template service --with i18n --yes
 
 | 选项 | |
 |---|---|
-| `--library <name or file>` | 用来检查函数的库：`@Library` 接受的库名，或一个文件；默认和头文件同名（`sqlite3.h` 对应 `sqlite3`；zlib 要写 `--library z`）。库加载不了时，照样生成类，只是不做检查，并给出警告 |
+| `--library <name or file>` | 用来检查函数的库：`@Library` 接受的库名，或一个文件；默认和头文件同名（`sqlite3.h` 对应 `sqlite3`；zlib 要写 `--library z`）。库无法加载时，照样生成类，只是不做检查，并给出警告 |
 | `--class-name <name>` | 类的名称，默认是头文件名的 PascalCase 形式 |
 | `--out <file>` | 要写入的文件，默认是当前目录下的 `<类名>.ts` |
 | `--force` | 文件已存在时覆盖它 |
@@ -149,7 +149,7 @@ lakutata create --name my-service --template service --with i18n --yes
 | `--compiler <compiler>` | 用来预处理头文件的 C 编译器：`cc`、`gcc`、`clang`、`cl`（默认取 `CC` 环境变量，没有时在 Windows 上是 `cl`，其他系统上是 `cc`） |
 | `--no-check` | 不用库检查函数 |
 
-类是针对运行命令的平台生成的。头文件看不出哪些指针是输出参数，也看不出哪些函数会阻塞：请在生成的文件里自己标出来（`_Out_`、`{async: true}`）。见原生库的指南（[FFI](https://lakutata.com/zh/guide/FFI) 第 9 节）。
+类是针对运行命令的平台生成的。从头文件无法看出哪些指针是输出参数，也无法看出哪些函数会阻塞：请在生成的文件里自己标出来（`_Out_`、`{async: true}`）。见原生库的指南（[FFI](https://lakutata.com/zh/guide/FFI) 第 9 节）。
 
 ## 单文件包和可执行文件
 
@@ -200,7 +200,7 @@ tsc 生成的代码（`(0, node_path_1.join)(__dirname, 'worker.js')`）也会�
 "lakutata": {"resources": [{"from": "../ui/dist", "to": "ui"}]}
 ```
 
-`from` 是项目中的文件或目录，`to` 是它在资源中的路径；资源放在 `dist/<name>.resources/` 中，随单文件包一起发布。应用通过 lakutata 的 `resourcesPath()` 找到它们（应用没有打包运行时返回 `undefined`，可以用 `isPackaged()` 判断）。
+`from` 是项目中的文件或目录，`to` 是它在资源中的路径；资源放在 `dist/<name>.resources/` 中，随单文件包一起发布。应用通过 `lakutata` 的 `resourcesPath()` 找到它们（应用没有打包运行时返回 `undefined`，可以用 `isPackaged()` 判断）。
 
 ### `lakutata package exe`
 
@@ -254,11 +254,11 @@ macOS 的可执行文件使用临时签名（ad hoc）。用 Node.js 制作的 W
 
 开始构建之前会先检查配置，这次不制作的安装包的选项也会检查。
 
-Linux 软件包由 nFPM 制作，输出到 `dist/installer`（`--outdir`）。nFPM 只下载一次，保存在 lakutata 的缓存中，有 x64 和 arm64 两种；`LAKUTATA_NFPM` 可以指定另一份副本，其他架构也要用它指定。软件包把应用安装在 `/opt/<name>`，并把 C++ 运行库作为依赖。可执行文件链接的是制作它的系统的 C 库，所以面向 glibc 系统的软件包要在 glibc 系统上制作，`apk` 软件包要在 Alpine 上制作；应用有原生插件时要用 Bun 制作（`"runtime": "bun"`），因为 Node.js 的可执行文件在 musl 上不能加载原生插件。
+Linux 软件包由 nFPM 制作，输出到 `dist/installer`（`--outdir`）。nFPM 只下载一次，保存在 Lakutata 的缓存中，有 x64 和 arm64 两种；`LAKUTATA_NFPM` 可以指定另一份副本，其他架构也要用它指定。软件包把应用安装在 `/opt/<name>`，并把 C++ 运行库作为依赖。可执行文件链接的是制作它的系统的 C 库，所以面向 glibc 系统的软件包要在 glibc 系统上制作，`apk` 软件包要在 Alpine 上制作；应用有原生插件时要用 Bun 制作（`"runtime": "bun"`），因为 Node.js 的可执行文件在 musl 上不能加载原生插件。
 
 macOS 的安装包用 macOS 自带的工具（`pkgbuild`、`productbuild`）制作。`pkg` 软件包把应用安装在 `/usr/local/lib/<name>`，把程序放在 `/usr/local/bin`，只能安装在与程序架构相同的 Mac 上。macOS 没有卸载软件包的功能：`sudo /usr/local/lib/<name>/uninstall` 删除应用（保留它的数据、环境变量文件、用户和日志）。`pkg` 软件包没有签名，它安装的可执行文件也只有临时签名（在组织以外的机器上分发需要 Developer ID 签名和公证，目前还不支持）。
 
-Windows 的安装包在 Windows 上制作：NSIS 安装程序（`<name>-<version>-<arch>-setup.exe`）和 Windows Installer 安装包（`.msi`，由 WiX 制作，用于在组织中部署）把应用安装在 `C:\Program Files\<name>`，把数据放在 `C:\ProgramData\<name>`；它们和其他 Windows 程序一样卸载。制作工具只下载一次，保存在 lakutata 的缓存中（NSIS 3、WiX 3、WinSW；`LAKUTATA_NSIS`、`LAKUTATA_WIX` 和 `LAKUTATA_WINSW` 可以指定其他副本）。用 Node.js 制作的可执行文件（`"runtime": "node"`）保留着 Node.js 的签名，而这个签名已经不再匹配：发布前请用 signtool 签名。
+Windows 的安装包在 Windows 上制作：NSIS 安装程序（`<name>-<version>-<arch>-setup.exe`）和 Windows Installer 安装包（`.msi`，由 WiX 制作，用于在组织中部署）把应用安装在 `C:\Program Files\<name>`，把数据放在 `C:\ProgramData\<name>`；它们和其他 Windows 程序一样卸载。制作工具只下载一次，保存在 Lakutata 的缓存中（NSIS 3、WiX 3、WinSW；`LAKUTATA_NSIS`、`LAKUTATA_WIX` 和 `LAKUTATA_WINSW` 可以指定其他副本）。用 Node.js 制作的可执行文件（`"runtime": "node"`）保留着 Node.js 的签名，而这个签名已经不再匹配：发布前请用 signtool 签名。
 
 服务让应用随系统启动：由 systemd（`/usr/lib/systemd/system/<service>.service`）、Alpine 上的 OpenRC（`/etc/init.d/<service>`）或 macOS 上的 launchd（`/Library/LaunchDaemons/<appId>.plist`）运行，在 Windows 上则由 WinSW 运行（应用旁边的 `<name>-service.exe`，注册为 Windows 服务：`Restart-Service <service>`）。安装时启动服务，升级时重启它，卸载前先停止并禁用它。
 
@@ -325,11 +325,11 @@ NW.js 应用（`"runtime": "nwjs"`）的安装包里是它所用 NW.js（`lakuta
 
 ## NW.js
 
-NW.js 应用（`nwjs-react` 和 `nwjs-vue` 模板）运行在它 `package.json` 中指定的 NW.js 版本里：`"lakutata": {"nwjs": {"version": "0.119.2"}}`。NW.js 的运行时只下载一次到 lakutata 的缓存目录（从 `https://dl.nwjs.io` 下载，或者从 `LAKUTATA_NWJS_MIRROR` 指定的镜像下载），并按其发布版本的校验和核对。lakutata 支持内置 Node.js 为 18.10 或更高版本的 NW.js。
+NW.js 应用（`nwjs-react` 和 `nwjs-vue` 模板）运行在它 `package.json` 中指定的 NW.js 版本里：`"lakutata": {"nwjs": {"version": "0.119.2"}}`。NW.js 的运行时只下载一次到 Lakutata 的缓存目录（从 `https://dl.nwjs.io` 下载，或者从 `LAKUTATA_NWJS_MIRROR` 指定的镜像下载），并按其发布版本的校验和核对。Lakutata 支持内置 Node.js 为 18.10 或更高版本的 NW.js。
 
 ### `lakutata nwjs versions`
 
-列出 lakutata 支持的 NW.js 版本，从新到旧：发布日期、内置的 Node.js 和 Chromium、提供的构建，并标出最新版本和最后一个能在 Windows 7 上运行的版本（`win7`，0.72.0）。默认列出最新的十个版本和 Windows 7 的那个版本，`--all` 列出全部。版本列表（`https://nwjs.io/versions.json`，或者 `LAKUTATA_NWJS_VERSIONS` 指定的列表）缓存一天。
+列出 Lakutata 支持的 NW.js 版本，从新到旧：发布日期、内置的 Node.js 和 Chromium、提供的构建，并标出最新版本和最后一个能在 Windows 7 上运行的版本（`win7`，0.72.0）。默认列出最新的十个版本和 Windows 7 的那个版本，`--all` 列出全部。版本列表（`https://nwjs.io/versions.json`，或者 `LAKUTATA_NWJS_VERSIONS` 指定的列表）缓存一天。
 
 ### `lakutata nwjs use <version>`
 
@@ -350,7 +350,7 @@ NW.js 应用（`nwjs-react` 和 `nwjs-vue` 模板）运行在它 `package.json` 
 
 ### `lakutata mobile node <platform>`
 
-从 [lakutata/libnode](https://github.com/lakutata/libnode) 的 Release 下载一个系统（`android`、`ios` 或 `harmony`）的 libnode，放到 `packages/ipc/native/node/out/<platform>`，原生工程对它编译；鸿蒙的 `libnode.so` 还会放进 HAP 的库目录（`harmony/entry/libs/arm64-v8a`）。它的压缩包（`libnode_<platform>_<arch>.tar.gz`，每种架构一个）会用 Release 的 `SHA256SUMS` 校验，保存在 lakutata 的缓存目录中（`~/.cache/lakutata/mobile`），所以只下载一次。项目里还没有某个系统的 libnode 时，`lakutata mobile stage` 会先下载它。
+从 [lakutata/libnode](https://github.com/lakutata/libnode) 的 Release 下载一个系统（`android`、`ios` 或 `harmony`）的 libnode，放到 `packages/ipc/native/node/out/<platform>`，原生工程对它编译；鸿蒙的 `libnode.so` 还会放进 HAP 的库目录（`harmony/entry/libs/arm64-v8a`）。它的压缩包（`libnode_<platform>_<arch>.tar.gz`，每种架构一个）会用 Release 的 `SHA256SUMS` 校验，保存在 Lakutata 的缓存目录中（`~/.cache/lakutata/mobile`），所以只下载一次。项目里还没有某个系统的 libnode 时，`lakutata mobile stage` 会先下载它。
 
 - `LAKUTATA_LIBNODE_MIRROR` 指定 Release 的镜像，文件的布局和 GitHub 上一样（`<镜像>/v<版本>/libnode_android_arm64.tar.gz`、`<镜像>/v<版本>/SHA256SUMS`）。
 - `LAKUTATA_MOBILE_NODE_DIR` 指定自己编译的 libnode（用 lakutata/libnode 仓库编译），每个系统一个目录（`android`、`ios`、`harmony`），和它导出的结构一样。
@@ -363,7 +363,7 @@ NW.js 应用（`nwjs-react` 和 `nwjs-vue` 模板）运行在它 `package.json` 
 
 把应用的 Node.js 项目生成到系统的原生工程读取它的位置：`android/app/src/main/assets/nodejs`（应用第一次启动时复制到应用的文件目录）、`ios/nodejs`（构建应用时放进应用包）或 `harmony/entry/src/main/resources/resfile/nodejs`（直接从 HAP 的资源中运行）。项目包含面向 libnode 中 Node.js 版本的应用单文件包、资源、`package.json` 和入口；在没有 WebAssembly 的地方（鸿蒙），入口会收起 `fetch()`。
 
-依赖里的原生插件会从各自包的源码（`binding.gyp`）为目标系统编译，用的是 libnode 的头文件和库。Android 上 libnode 的每种架构各有一棵原生树，用 node-gyp 和 NDK 编译（Android SDK 里最新的 NDK，或 `ANDROID_NDK_HOME`）；自带 Android 预编译插件（`prebuilds/android-<arch>`）的包直接用它们。iOS 上（在 macOS 中）每个插件分别为真机和模拟器编成一个 framework，用 Xcode 编译到 `ios/NodeAddons` 中，构建应用时嵌进应用。编译时用的是插件的包写给 macOS 的设置（它的 `binding.gyp` 以及 node-addon-api 的 gyp 文件里 `OS=="mac"` 的部分），SDK、架构和部署版本则是 iOS 的。鸿蒙上每个插件编成 HAP 里的一个库（`harmony/entry/libs/arm64-v8a` 中的 `libaddon-<包>-<文件>.so`），用 DevEco Studio 的原生 SDK 编译（或 `OHOS_NDK_HOME`）。编译结果保存在 lakutata 的缓存目录中。
+依赖里的原生插件会从各自包的源码（`binding.gyp`）为目标系统编译，用的是 libnode 的头文件和库。Android 上 libnode 的每种架构各有一棵原生树，用 node-gyp 和 NDK 编译（Android SDK 里最新的 NDK，或 `ANDROID_NDK_HOME`）；自带 Android 预编译插件（`prebuilds/android-<arch>`）的包直接用它们。iOS 上（在 macOS 中）每个插件分别为真机和模拟器编成一个 framework，用 Xcode 编译到 `ios/NodeAddons` 中，构建应用时嵌进应用。编译时用的是插件的包写给 macOS 的设置（它的 `binding.gyp` 以及 node-addon-api 的 gyp 文件里 `OS=="mac"` 的部分），SDK、架构和部署版本则是 iOS 的。鸿蒙上每个插件编成 HAP 里的一个库（`harmony/entry/libs/arm64-v8a` 中的 `libaddon-<包>-<文件>.so`），用 DevEco Studio 的原生 SDK 编译（或 `OHOS_NDK_HOME`）。编译结果保存在 Lakutata 的缓存目录中。
 
 | 选项 | |
 |---|---|
@@ -374,7 +374,7 @@ NW.js 应用（`nwjs-react` 和 `nwjs-vue` 模板）运行在它 `package.json` 
 
 构建并运行系统的调试版应用，界面从 Metro（`npm start`）加载。已安装应用里的 Node.js 项目会替换之前部署进去的副本。
 
-- Android：在正在运行（或指定）的模拟器或设备上，用 Gradle 按它的架构构建、安装，让它能访问 Metro（`adb reverse`），然后启动。adb 从 Android SDK（`ANDROID_HOME`）中查找，找不到时用 `PATH` 中的。
+- Android：在正在运行（或指定）的模拟器或设备上，用 Gradle 按它的架构构建、安装，让它能访问 Metro（`adb reverse`），然后启动。adb 从 Android SDK（`ANDROID_HOME`）中查找，未找到时用 `PATH` 中的。
 - iOS：在模拟器上（指定的那个，没有指定时用正在运行的那个，都没有时用最新的 iPhone，需要时先启动它），`Podfile` 有变化时先安装 pods，再用 `xcodebuild` 构建，用 `xcrun simctl` 安装、启动，并在 Simulator 或 Device Hub 中显示。
 - 鸿蒙：在已连接（或指定）的模拟器或设备上，先把界面打包进 HAP（`react-native bundle-harmony`），链接移植到鸿蒙的 React Native 库（`react-native link-harmony`，它把这些库的包加进 `harmony/oh-package.json5`），用 ohpm 安装依赖（`ohpm install --all`），再用 DevEco Studio 的 hvigor 构建（`DEVECO_STUDIO_HOME`，SDK 为 `DEVECO_SDK_HOME`），用 hdc 安装，让它能访问 Metro（`hdc rport`），然后启动。
 
@@ -399,7 +399,7 @@ NW.js 应用（`nwjs-react` 和 `nwjs-vue` 模板）运行在它 `package.json` 
 
 | 操作 | |
 |---|---|
-| `generate` | 根据实体的变化生成迁移：应用比较实体和它的数据库，把迁移写入目录，每个有变化的数据库一个文件 `<timestamp>-<database name>.ts`（相当于 lakutata 2.x 中的 `cross-env MIGRATION_GENERATE=./src/migrations npm run dev`）；没有任何变化时，不生成任何内容，命令失败 |
+| `generate` | 根据实体的变化生成迁移：应用比较实体和它的数据库，把迁移写入目录，每个有变化的数据库一个文件 `<timestamp>-<database name>.ts`（相当于 Lakutata 2.x 中的 `cross-env MIGRATION_GENERATE=./src/migrations npm run dev`）；没有任何变化时，不生成任何内容，命令失败 |
 | `create <name>` | 一个空迁移，由你手写 `up` 和 `down`：`<timestamp>-<name>.ts`，类名为 `<Name><timestamp>` |
 | `show` | 列出数据库选项中的迁移：已执行（`[X]`）或待执行（`[ ]`） |
 | `run` | 执行待执行的迁移（`up`） |
@@ -443,7 +443,7 @@ NW.js 应用（`nwjs-react` 和 `nwjs-vue` 模板）运行在它 `package.json` 
 | `LAKUTATA_NWJS_VERSIONS` | NW.js 的发布版本列表（默认 `https://nwjs.io/versions.json`） |
 | `LAKUTATA_LANG` | 工具的语言（`zh-CN`、`zh-TW`、`en`），默认取环境的语言 |
 
-这个工具本身也是一个 lakutata 应用：它的命令就是其控制器的命令行动作，由入口的 commander 适配器提供。
+这个工具本身也是一个 Lakutata 应用：它的命令就是其控制器的命令行动作，由入口的 commander 适配器提供。
 
 ## 另见
 

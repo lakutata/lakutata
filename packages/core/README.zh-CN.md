@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-lakutata 框架的核心：IoC 容器和依赖注入，对象模型（`BaseObject`、`Component`、`Provider`、`Application`）及其异步的创建与销毁，以及 `@Configurable`、`@Expect`、`@Accept` 和 `@Return` 装饰器所用的数据校验（`DTO`，一个 API 和 joi 一样的校验引擎）。
+Lakutata 框架的核心：IoC 容器和依赖注入，对象模型（`BaseObject`、`Component`、`Provider`、`Application`）及其异步的创建与销毁，以及 `@Configurable`、`@Expect`、`@Accept` 和 `@Return` 装饰器所用的数据校验（`DTO`，一个 API 和 joi 一样的校验引擎）。
 
 大多数应用安装的是 `lakutata` 包：它重新导出这个包（`lakutata`、`lakutata/decorator/di`、`lakutata/decorator/dto`、`lakutata/decorator/asst`、`lakutata/dtos`），并预置 `log` 和 `entrypoint` 组件。对于库，或者这两个组件都不需要的应用，只用 `@lakutata/core` 就够了（此时日志输出到控制台）。
 

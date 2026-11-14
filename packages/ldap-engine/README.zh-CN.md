@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-Node.js 的 LDAP 库，用 TypeScript 编写，属于 [lakutata](https://github.com/lakutata/lakutata) 框架，没有原生代码，也没有任何依赖。它包含协议本身（LDAPv3 的消息和控制项、DN、搜索过滤器、schema 和 LDIF）、一个客户端和一个服务器。它不需要应用；把 LDAP 接入 lakutata 应用的组件在 `@lakutata/ldap` 里。
+Node.js 的 LDAP 库，用 TypeScript 编写，属于 [Lakutata](https://github.com/lakutata/lakutata) 框架，没有原生代码，也没有任何依赖。它包含协议本身（LDAPv3 的消息和控制项、DN、搜索过滤器、schema 和 LDIF）、一个客户端和一个服务器。它不需要应用；把 LDAP 接入 Lakutata 应用的组件在 `@lakutata/ldap` 里。
 
 ## 安装
 
@@ -40,7 +40,7 @@ await client.close()
 
 - `createLDAPClient()` 返回一个连接池，池里的连接都以同一个身份绑定。操作需要连接时它才打开连接，按顺序尝试各个服务器（或 DNS SRV 记录给出的服务器），并关闭空闲的连接。如果某个连接上的服务器没有按时回应，或者回应的内容无法读取，这个连接就不再接新的操作，等它上面的操作结束后关闭。
 - `connectLDAP()` 打开单独一个连接（`ldap://`、`ldaps://`、`ldapi://`、StartTLS），用于独立的会话。它的操作可以传 `timeout` 和 `signal`；搜索或写操作超时后，客户端会在服务器上放弃（abandon）这个操作，连接继续可用。绑定或 StartTLS 超时则会关闭连接。
-- 搜索默认分页（每页 500 条），除非传 `paged: false`，这样服务器对单个请求的条数限制不会把结果截断；`searchIterator()` 逐条给出条目，循环提前结束时会通知服务器结束分页。`sort` 加上 `window` 可以读取排序后条目中的一段（虚拟列表视图）；这两个控制项都标为关键，服务器排不了序或给不了窗口时搜索会失败，而不是返回全部条目。Active Directory 分段返回的值（`member;range=0-1499`）会一直读到最后。
+- 搜索默认分页（每页 500 条），除非传 `paged: false`，这样服务器对单个请求的条数限制不会把结果截断；`searchIterator()` 逐条给出条目，循环提前结束时会通知服务器结束分页。`sort` 加上 `window` 可以读取排序后条目中的一段（虚拟列表视图）；这两个控制项都标为关键，服务器无法排序或无法给出窗口时搜索会失败，而不是返回全部条目。Active Directory 分段返回的值（`member;range=0-1499`）会一直读到最后。
 - 条目用 `get()` 读文本，用 `getBuffers()` 读字节；对值是字节的属性（`jpegPhoto`、`objectGUID` 等）调用 `get()` 会抛出异常，字节不会被转成乱码文本。
 - `authenticate()` 先找到用户的条目，再在单独的连接上以该用户身份绑定：空密码在发送任何请求之前就被拒绝；绑定失败时，结果会说明原因（`invalidCredentials`、`accountLocked`、`passwordExpired` 等），原因来自密码策略控制项或 Active Directory 的 data 代码。它只通过 TLS（`ldaps` URL 或 `startTLS`）或本机的 `ldapi` 套接字发送密码，除非设置 `requireTLS: false`。
 - 结果不是成功时会抛出对应的异常：`LDAPNoSuchObjectException`、`LDAPInvalidCredentialsException` 等。
@@ -73,14 +73,14 @@ await server.listen({path: '/run/directory/ldapi', mode: 0o666})
 - `server.connect({as})` 返回一个进程内连接，操作和客户端一样：应用不经过网络读写自己的目录，经过的 schema 校验、密码哈希和访问控制都和网络请求相同。不调用 `listen()` 也能用。
 - `listen({path})` 监听 Unix socket（ldapi），给同一台机器上的客户端用：SSSD 2.9 及以后、nslcd、OpenLDAP 的命令行工具（`ldapi://%2Frun%2Fdirectory%2Fldapi`）。这种连接不会离开本机，所以服务器像对待 TLS 一样接受从这里发来的密码，也会在这里提供 SASL PLAIN。EXTERNAL 仍然只在 TLS 上提供，因为服务器无法知道对端进程是以哪个用户运行的。`mode` 决定谁能连接（`0o666`：本机的所有用户；默认按 umask 决定，通常只有服务器进程所属的用户）。服务器停止后留下的 socket 文件会被替换。Windows 上不支持 Unix socket。
 - `createDirectory()` 用 LDAP 操作管理用户、组和组织单元，可以用在任何连接上：进程内连接、客户端，或者远程的 OpenLDAP，只要 profile 和那台服务器的 schema 对得上。
-- 密码以 `{PBKDF2-SHA512}` 写入，格式和 OpenLDAP 的 pw-pbkdf2 模块相同；绑定时也能验证 OpenLDAP 的其他格式（`{SSHA}`、SHA-2 系列、`{CRYPT}`，以及 node:crypto 能运行 argon2 时的 `{ARGON2}`：Node.js 24.7 及以后可以，Electron 不行），验证成功后再按服务器的格式重新哈希。任何人都读不到 `userPassword`。
+- 密码以 `{PBKDF2-SHA512}` 写入，格式和 OpenLDAP 的 pw-pbkdf2 模块相同；绑定时也能验证 OpenLDAP 的其他格式（`{SSHA}`、SHA-2 系列、`{CRYPT}`，以及 node:crypto 能运行 argon2 时的 `{ARGON2}`：Node.js 24.7 及以后可以，Electron 不行），验证成功后再按服务器的格式重新哈希。任何人都无法读取 `userPassword`。
 - 默认情况下，匿名会话只能读 rootDSE 和 subschema，已绑定的会话可以读整个目录，`access.admins` 里的管理员可以写；给了 `access.check` 时先由它决定。同一个 DN 或同一个地址连续绑定失败时，响应会被放慢，之后锁定一段时间，所有失败一律返回 invalidCredentials。
-- 密码策略按 draft-behera-ldap-password-policy 实现（`passwordPolicy`，一个插件），和 OpenLDAP 的 ppolicy 用同一套属性：有一条默认策略（pwdPolicy 条目的 DN，或者直接给出规则），用户的 pwdPolicySubentry 可以换成别的策略；连续失败太多次就锁定账号，有过期、过期前提醒和宽限登录，管理员重置后必须先改密码，新密码有最短修改间隔、长度、复杂度（可以加自己的检查）和历史的限制。状态保存在条目的操作属性里（pwdChangedTime、pwdAccountLockedTime 等），所以任何后端都能保存。账号被锁定时默认和密码错误一样回答，除非设置 `revealLocked`。
+- 密码策略按 draft-behera-ldap-password-policy 实现（`passwordPolicy`，一个插件），和 OpenLDAP 的 ppolicy 用同一套属性：有一条默认策略（pwdPolicy 条目的 DN，或者直接给出规则），用户的 pwdPolicySubentry 可以换成其他策略；连续失败太多次就锁定账号，有过期、过期前提醒和宽限登录，管理员重置后必须先改密码，新密码有最短修改间隔、长度、复杂度（可以加自己的检查）和历史的限制。状态保存在条目的操作属性里（pwdChangedTime、pwdAccountLockedTime 等），所以任何后端都能保存。账号被锁定时默认和密码错误一样回答，除非设置 `revealLocked`。
 - 后端可以带上它计算的属性所需的 schema 文件、自己的拦截器、多个实例共用的绑定限速存储（它的 `update()` 一步改完一个状态，同时发生的几次绑定失败各算一次）、`transaction()`（拦截器的 `beforeCommit()` 和写操作在同一个事务里执行），以及 `lock()`（引擎在这个事务里、写入之前锁住条目并重新读取它，按读到的内容重新算出修改或改名的改动并检查，拦截器对改动做的处理会保留）。
 
 ### 插件
 
-插件像 OpenLDAP 的 overlay 一样，给服务器加上一个扩展需要的东西。它的拦截器在后端的操作外面运行代码：在请求之前、包住请求、对搜索返回的每个条目，或者在写操作提交之前，排在服务器自带的步骤（`access`、`password`、`schema`、`operational`、`paging`）之前或之后。插件还可以包住每一个请求（`aroundRequest`：包括绑定、扩展操作，以及服务器自己回答的搜索），包住密码的验证（`authenticate`），在密码还是明文时检查密码的修改（`passwordChange`）。插件可以带上 schema 文件、控制项、扩展操作、SASL 机制和密码格式，由 rootDSE 和 subschema 公布出去。两个插件认领同一个 OID，或者对同一个名字给出不同的定义时，服务器在启动时就会报错。
+插件像 OpenLDAP 的 overlay 一样，给服务器加上一个扩展需要的内容。它的拦截器在后端的操作外面运行代码：在请求之前、包住请求、对搜索返回的每个条目，或者在写操作提交之前，排在服务器自带的步骤（`access`、`password`、`schema`、`operational`、`paging`）之前或之后。插件还可以包住每一个请求（`aroundRequest`：包括绑定、扩展操作，以及服务器自己回答的搜索），包住密码的验证（`authenticate`），在密码还是明文时检查密码的修改（`passwordChange`）。插件可以带上 schema 文件、控制项、扩展操作、SASL 机制和密码格式，由 rootDSE 和 subschema 公布出去。两个插件认领同一个 OID，或者对同一个名字给出不同的定义时，服务器在启动时就会报错。
 
 ```typescript
 import {createLDAPServer, MemberOfPlugin, MemoryBackend, ReferentialIntegrityPlugin, UniquePlugin} from '@lakutata/ldap-engine'
@@ -95,7 +95,7 @@ const server = createLDAPServer({
 |---|---|---|
 | `MemberOfPlugin` | 维护组成员的 memberOf | memberof |
 | `ReferentialIntegrityPlugin` | 条目删除、改名或移动时，修改值里的 DN | refint |
-| `UniquePlugin` | 拒绝和别的条目重复的值 | unique |
+| `UniquePlugin` | 拒绝和其他条目重复的值 | unique |
 | `PasswordPolicyPlugin` | 密码策略，`passwordPolicy` 选项给出的也是它 | ppolicy |
 | `IdAllocationPlugin` | 给新增时没有 uidNumber、gidNumber 的 POSIX 条目分配编号 | 389 Directory Server 的 DNA |
 | `LastBindPlugin` | 把最后一次成功的密码绑定的时间记在 authTimestamp 里 | lastbind |
@@ -142,10 +142,10 @@ console.log(read.length)
 
 - `encodeMessage()` 和 `decodeMessage()` 把 LDAPv3（RFC 4511）的每种消息编码成字节，或从字节解码回来。解码出的消息里，DN 保持为文本，值保持为字节：除了编码本身，不做任何解析和检查，所以服务器可以对格式错误的 DN 回复相应的结果码。
 - `MessageReader` 从数据流的一个个数据块里读出完整的消息，并限制消息的大小。消息解码失败但已经知道它的 message ID 时，会作为错误返回，数据流可以继续；其他情况抛出致命的 `LDAPDecodeException`。
-- `Filter` 用来构造搜索过滤器、解析过滤器文本（RFC 4515）并把过滤器写成文本；模板 `filter` 会转义写进去的值，所以值无法改变过滤器的结构。`matchFilter()` 按 RFC 4511 的三值逻辑（真、假、未定义）对一个条目求过滤器的值。近似匹配（`~=`）按相等处理，只有“名字加可选 UID”（uniqueMember）例外：它只比较名字，不管 UID，和 OpenLDAP 的 uniqueMemberMatch 做近似匹配时一样。
+- `Filter` 用来构造搜索过滤器、解析过滤器文本（RFC 4515）并把过滤器写成文本；模板 `filter` 会转义写进去的值，所以值无法改变过滤器的结构。`matchFilter()` 按 RFC 4511 的三值逻辑（真、假、未定义）对一个条目求过滤器的值。近似匹配（`~=`）按相等处理，只有“名字加可选 UID”（uniqueMember）例外：它只比较名字，忽略 UID，和 OpenLDAP 的 uniqueMemberMatch 做近似匹配时一样。
 - 控制项（分页、排序、虚拟列表视图、树删除、密码策略、读取条目、代理授权、持久搜索、内容同步等）和扩展操作的值（改密码、Who Am I、Cancel）都有编解码；`Ber` 和 `BerReader` 用来自己读写 BER。
 - `DN` 解析 DN（RFC 4514），把它转义后写回，并按规范化后的形式比较。
-- `Schema` 加载 schema：文档，或 schema 文件的文本（OpenLDAP 的 `cn=config` LDIF、subschema 条目，或 `.schema` 格式）。它拒绝重复定义的名字或 OID，能列出定义里引用了却没有定义的东西，并给出每一处所在的文件和行（`problems()`），还提供 RFC 4517 中比较属性值的匹配规则。
+- `Schema` 加载 schema：文档，或 schema 文件的文本（OpenLDAP 的 `cn=config` LDIF、subschema 条目，或 `.schema` 格式）。它拒绝重复定义的名字或 OID，能列出定义里引用了却没有定义的项，并给出每一处所在的文件和行（`problems()`），还提供 RFC 4517 中比较属性值的匹配规则。
 - `parseSchemaFile()` 把一个 schema 文件转成文档：其中的定义都是普通对象，带着各自的注释和行号，可以原样经过 JSON 序列化。`stringifySchemaFile()` 把文档写回文件，没改动的定义保持原来的写法，这正是做 schema 文件编辑器所需要的。自带的 schema 也是文档（`@lakutata/ldap-engine/schemas` 里的 `CORE` 等），import 进来就能用，不用解析文本。
 - `parseLDIF()` 和 `stringifyLDIF()` 读写 LDIF（RFC 2849），包括条目和变更，每条记录前面的注释也会保留。
 

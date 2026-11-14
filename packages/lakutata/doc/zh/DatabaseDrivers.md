@@ -21,13 +21,13 @@
 npm install lakutata pg
 ```
 
-没有 `sqlite` 这个类型：SQLite 文件使用 `better-sqlite3`；在无法运行原生模块的环境中使用 `sqljs`。TypeORM 还有面向移动平台 JavaScript 环境的驱动（`capacitor`、`cordova`、`expo`、`nativescript`、`react-native`），lakutata 不使用它们。`mobile-react` 模板的手机应用把 lakutata 应用运行在 Node.js 中，使用本页的驱动（见[手机应用](#手机应用)）。
+没有 `sqlite` 这个类型：SQLite 文件使用 `better-sqlite3`；在无法运行原生插件的环境中使用 `sqljs`。TypeORM 还有面向移动平台 JavaScript 环境的驱动（`capacitor`、`cordova`、`expo`、`nativescript`、`react-native`），Lakutata 不使用它们。`mobile-react` 模板的手机应用把 Lakutata 应用运行在 Node.js 中，使用本页的驱动（见[手机应用](#手机应用)）。
 
 ## 所有驱动通用的规则
 
 - 连接选项会原样交给 TypeORM，TypeORM 不会检查它们：缺少主机或密码时，由驱动在连接数据库时报错。
 - `extra` 会传给驱动的客户端（连接池、连接），放在其他选项之后：用它设置 TypeORM 没有提供选项的配置。
-- `driver` 直接给出驱动模块本身（`driver: require('pg')`），不由 lakutata 去加载驱动包。
+- `driver` 直接给出驱动模块本身（`driver: require('pg')`），不由 Lakutata 去加载驱动包。
 - 下面的每个示例都声明一个 `Database` 组件。`Database` 提供者的选项相同（见[数据库](Database.md)）。
 
 ## PostgreSQL
@@ -124,12 +124,12 @@ export const db = buildDatabaseOptions({
 
 - 外键约束是生效的（`PRAGMA foreign_keys = ON`）。只有一个连接：不支持 `poolSize`。
 - **`bigint` 列以数字返回**：超过 2^53 的值会丢失精度。这类值请存在文本列中。
-- `better-sqlite3` 是原生模块，针对某个 Node.js 版本编译。Electron 应用需要针对它的 Electron 版本的构建（`electron-rebuild`，或 better-sqlite3 为 Electron 提供的预编译文件）；NW.js 应用会用 NW.js 的头文件重新构建它（需要 0.111.3 及以后的版本：更早的版本请使用 `sqljs`）；Bun 无法加载它（在 Bun 上使用 `sqljs`）。
+- `better-sqlite3` 是原生插件，针对某个 Node.js 版本编译。Electron 应用需要针对它的 Electron 版本的构建（`electron-rebuild`，或 better-sqlite3 为 Electron 提供的预编译文件）；NW.js 应用会用 NW.js 的头文件重新构建它（需要 0.111.3 及以后的版本：更早的版本请使用 `sqljs`）；Bun 无法加载它（在 Bun 上使用 `sqljs`）。
 - 用 Node.js 24.19 及以后版本的头文件从源码编译时，垃圾回收器释放它的对象会让进程中止（`RemoveEnvironmentCleanupHook` 中的 `Assertion failed: (env) != nullptr`，见 [nodejs/node#65446](https://github.com/nodejs/node/issues/65446)），所有基于 `node::ObjectWrap` 的插件都是这样。它的预编译文件是用更早的头文件编译的，不受影响；`lakutata mobile stage` 为手机系统编译插件时，去掉了 `node::ObjectWrap` 中引起这个问题的清理钩子。
 
 ## SQLite：sql.js
 
-`sql.js` 是编译成 WebAssembly 的 SQLite：没有原生模块，所以在 Node.js、Bun、Electron 和浏览器中的表现都一样。整个数据库保存在内存中，发生变化时写入文件。
+`sql.js` 是编译成 WebAssembly 的 SQLite：没有原生插件，所以在 Node.js、Bun、Electron 和浏览器中的表现都一样。整个数据库保存在内存中，发生变化时写入文件。
 
 ```typescript
 import {buildDatabaseOptions} from 'lakutata/com/database'
@@ -264,7 +264,7 @@ export const db = buildDatabaseOptions({
 
 ## 手机应用
 
-`mobile-react` 模板的手机应用把 lakutata 应用运行在它内嵌的 Node.js（Node.js 24.20）中，本页的驱动在那里和在电脑上一样可用。下面的结果是在 Android（API 36）、iOS（27.2）和鸿蒙的模拟器上实际验证的：写入数据库，关闭，再重新打开。
+`mobile-react` 模板的手机应用把 Lakutata 应用运行在它内嵌的 Node.js（Node.js 24.20）中，本页的驱动在那里和在电脑上一样可用。下面的结果是在 Android（API 36）、iOS（27.2）和鸿蒙的模拟器上实际验证的：写入数据库，关闭，再重新打开。
 
 | 驱动 | Android | iOS | 鸿蒙 |
 |---|---|---|---|

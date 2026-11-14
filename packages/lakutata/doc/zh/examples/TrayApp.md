@@ -1,13 +1,13 @@
 # 用 NW.js 开发托盘应用
 
-这个示例构建一个常驻系统托盘的剪贴板历史：它记下在任何程序里复制的文本，应用窗口可以列出和搜索这些文本、把其中一条再次复制到剪贴板，还可以置顶要保留的条目。它从 `nwjs-react` 模板开始，展示用 lakutata 开发的 NW.js 应用由哪几部分组成：一是后台脚本，它是一个 lakutata 应用，只要应用在运行它就在运行，不管有没有窗口（这里它负责读取剪贴板，并维护托盘图标和托盘菜单）；二是窗口，窗口中的 React 用户界面调用应用的动作，并接收应用推送的事件；三是应用的测试，测试不需要 NW.js 就能运行。
+这个示例构建一个常驻系统托盘的剪贴板历史：它记下在任何程序里复制的文本，应用窗口可以列出和搜索这些文本、把其中一条再次复制到剪贴板，还可以置顶要保留的条目。它从 `nwjs-react` 模板开始，展示用 Lakutata 开发的 NW.js 应用由哪几部分组成：一是后台脚本，它是一个 Lakutata 应用，只要应用在运行它就在运行，无论是否有窗口（这里它负责读取剪贴板，并维护托盘图标和托盘菜单）；二是窗口，窗口中的 React 用户界面调用应用的动作，并接收应用推送的事件；三是应用的测试，测试不需要 NW.js 就能运行。
 
 | 消息 | 作用 |
 |---|---|
 | `{cmd: 'clips.list'}` | 列出剪贴项，置顶的在前，然后是最新的 |
 | `{cmd: 'clips.list', query: 'git'}` | 只列出文本包含 `git` 的剪贴项，不区分大小写 |
 | `{cmd: 'clips.copy', id: '…'}` | 把一条剪贴项再次复制到剪贴板，它会移到最前 |
-| `{cmd: 'clips.pin', id: '…', pinned: true}` | 置顶一条剪贴项：之后不管复制多少文本，它都会保留 |
+| `{cmd: 'clips.pin', id: '…', pinned: true}` | 置顶一条剪贴项：之后无论复制多少文本，它都会保留 |
 | `{cmd: 'clips.delete', id: '…'}` | 删除一条剪贴项 |
 | `{cmd: 'clips.clear'}` | 删除置顶以外的所有剪贴项 |
 
@@ -21,7 +21,7 @@ cd clips
 rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/GreetDTO.ts
 ```
 
-项目是一个工作区（见[项目结构](../ProjectStructure.md)）：`packages/app` 是 NW.js 的后台脚本，也是一个 lakutata 应用；`packages/ui` 是用户界面，即由 Vite 构建的 React 页面；`packages/resources` 存放图标。应用不需要安装其他包：剪贴板和托盘由 NW.js 提供，历史是用 `node:fs` 写入的 JSON 文件。这里删掉了模板中的示例控制器。
+项目是一个工作区（见[项目结构](../ProjectStructure.md)）：`packages/app` 是 NW.js 的后台脚本，也是一个 Lakutata 应用；`packages/ui` 是用户界面，即由 Vite 构建的 React 页面；`packages/resources` 存放图标。应用不需要安装其他包：剪贴板和托盘由 NW.js 提供，历史是用 `node:fs` 写入的 JSON 文件。这里删掉了模板中的示例控制器。
 
 ## 2. 输入
 
@@ -261,7 +261,7 @@ export class History extends Component {
 ```
 
 - 组件只创建一次，由整个应用共用（见[对象与生命周期](../Objects.md)）：剪贴项由它保存，因为剪贴项要跨越多次请求保留，而控制器只在一次请求中存在（见[控制器与动作](../Controllers.md)第 2 节）。
-- 组件对 NW.js 一无所知，它用到的东西都由选项提供（见[依赖注入](../Injection.md)）：`clipboard` 是读写剪贴板文本的两个函数（在应用中是 NW.js 的剪贴板，见第 8 节；在测试中是一个变量，见第 11 节），`file` 是保存历史的文件。
+- 组件对 NW.js 一无所知，它用到的依赖都由选项提供（见[依赖注入](../Injection.md)）：`clipboard` 是读写剪贴板文本的两个函数（在应用中是 NW.js 的剪贴板，见第 8 节；在测试中是一个变量，见第 11 节），`file` 是保存历史的文件。
 - NW.js 不会通知剪贴板的变化，所以 `init()` 每隔 `interval` 毫秒读取一次剪贴板。与上次读到的不同的文本就是一次复制；应用启动时剪贴板里已有的文本不算，`copy()` 自己写入的文本也不算。
 - 再次复制的文本会移到最前，而不是再加一条。超过 `limit` 条时，最旧的剪贴项会被丢弃，置顶的除外。
 - 每次变化都会保存文件并发出通知：`this.entrypoint.broadcast()` 向窗口推送 `clips.changed`（见[服务调用](../ServiceCalls.md)第 5 节），`this.emit('changed')` 通知其他组件，比如托盘（见第 6 节）。文件先写到旁边的临时文件（`history.json.tmp`），再重命名覆盖原文件，这样即使程序崩溃，文件也不会只写了一半；写入按顺序进行，应用停止时 `destroy()` 会等最后一次写入完成。
@@ -708,7 +708,7 @@ Application
 
 模板的 `App.ts` 中加了两个选项：`clipboard` 是按文本读写的 NW.js 剪贴板（`nw.Clipboard.get()`），`dataPath` 是 NW.js 给应用的数据目录（`nw.App.dataPath`）。这个目录以 `packages/app/package.json` 中 `lakutata.installer` 的 `appId`（`clips`）命名，开发时和安装后都一样：macOS 上是 `~/Library/Application Support/clips/Default`，Windows 上是 `%LOCALAPPDATA%\clips`，Linux 上是 `~/.config/clips`。
 
-模板的宿主页面和桥接代码（`packages/app/host`、`packages/ui/src/ipc.ts`）保持不变：它们给用户界面提供应用的动作和事件，不提供 NW.js 或 Node.js 的其他任何东西。
+模板的宿主页面和桥接代码（`packages/app/host`、`packages/ui/src/ipc.ts`）保持不变：它们给用户界面提供应用的动作和事件，不提供 NW.js 或 Node.js 的其他任何功能。
 
 ## 9. 用户界面
 
@@ -771,7 +771,7 @@ export function App() {
 ```
 
 - `window.ipc` 是模板的桥接对象（`packages/ui/src/ipc.ts`）：`invoke()` 调用动作，返回它的 `payload` 或抛出它的错误；`on()` 和 `off()` 监听应用推送的事件。
-- 每次收到 `clips.changed` 都重新加载列表，不管变化来自哪里：在其他程序中复制、窗口中的操作，还是在托盘菜单中选了一条剪贴项。
+- 每次收到 `clips.changed` 都重新加载列表，无论变化来自哪里：在其他程序中复制、窗口中的操作，还是在托盘菜单中选了一条剪贴项。
 - 按钮不直接修改列表：历史推送它的变化，列表随之更新。
 
 ## 10. 运行

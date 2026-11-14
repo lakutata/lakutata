@@ -141,7 +141,7 @@ HTTP/1.1 400 Bad Request
 
 ### 按网口监听
 
-有多个网口的设备，常常只在其中一个网口上提供页面，而这个网口的地址来自 DHCP，会变。设置 `interface` 后，适配器监听的是这个网口，而不是某个地址：不管网口现在是什么地址，地址变化、网口拔掉再插回，都会继续监听。默认用的是 `@lakutata/netif` 包，需要另外安装，它会编译一个原生插件（见[网口](Netif.md)）。
+有多个网口的设备，常常只在其中一个网口上提供页面，而这个网口的地址来自 DHCP，会变。设置 `interface` 后，适配器监听的是这个网口，而不是某个地址：无论网口现在是什么地址，地址变化、网口拔掉再插回，都会继续监听。默认用的是 `@lakutata/netif` 包，需要另外安装，它会编译一个原生插件（见[网口](Netif.md)）。
 
 ```typescript
 import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
@@ -158,9 +158,9 @@ export const http = expressHTTPEntrypoint({
 |---|---|---|
 | `interface` | | 网口的名字（`'eth1'`；Windows 上是网络连接的名字）、`{mac: '52:54:00:12:34:56'}` 或 `{index: 3}`；多个网口放在数组里，这时 `port` 不能是 `0`。不能和 `host` 一起设置 |
 | `family` | `'both'` | `'IPv4'`、`'IPv6'` 或两者都监听 |
-| `strict` | `false` | 如果系统挡不住从别的网口发往这个网口地址的连接，就让启动失败，并在挡不住的期间停止监听（见[网口](Netif.md)第 2 节） |
-| `onError` | 应用的日志 | 接收应用运行期间重新监听时的错误，比如端口被别的程序占用；适配器会自己重试 |
-| `interfaceListening` | `@lakutata/netif` | 换用另一种按网口监听的实现：一个 `IInterfaceListening`，也就是 lakutata 定义、`@lakutata/netif` 实现的接口 |
+| `strict` | `false` | 如果系统无法拒绝从其他网口发往这个网口地址的连接，就让启动失败，并在无法拒绝的期间停止监听（见[网口](Netif.md)第 2 节） |
+| `onError` | 应用的日志 | 接收应用运行期间重新监听时的错误，比如端口被其他程序占用；适配器会自己重试 |
+| `interfaceListening` | `@lakutata/netif` | 换用另一种按网口监听的实现：一个 `IInterfaceListening`，也就是 Lakutata 定义、`@lakutata/netif` 实现的接口 |
 
 - 应用启动时网口可能还不存在（比如 USB 网卡还没插上）：启动照样成功，网口出现后适配器就开始监听。在那之前，监听器的 `addresses` 是空的。
 - 服务器自己不监听，它的 `address()` 是 `null`：端口和地址从监听器上读取。
@@ -331,10 +331,10 @@ export const http = expressHTTPEntrypoint({
 ```
 
 - 结果是 `{errno: null, errMsg: null, data}`；没有数据时，状态码为 200，`data` 为 `null`。
-- 错误是 `{errno, errMsg, data: null}`，使用错误的状态码。`errorStatus` 设置所有错误的状态码，比如对从封套中读取错误的客户端设为 200。`actionErrorStatus` 只设置动作的错误（校验、访问控制、动作抛出的异常）的状态码：找不到路由，以及 Web 框架中间件的错误，仍然使用它们自己的状态码。
+- 错误是 `{errno, errMsg, data: null}`，使用错误的状态码。`errorStatus` 设置所有错误的状态码，比如对从封套中读取错误的客户端设为 200。`actionErrorStatus` 只设置动作的错误（校验、访问控制、动作抛出的异常）的状态码：未找到路由，以及 Web 框架中间件的错误，仍然使用它们自己的状态码。
 - `extra(request)` 给每个响应添加字段，排在 `errno`、`errMsg` 和 `data` 之后，不会覆盖这三个字段。
 
-**自定义响应器**是一个有两个方法的对象，交给 `respond` 选项：`success(response, data, request)` 和 `error(response, error, request, origin)`。请求已经到达动作时，`origin` 是 `'action'`；在此之前就失败时（Web 框架的中间件、找不到路由），`origin` 是 `'request'`。适配器子路径中的 `statusOfError()` 和 `describeError()` 按上面的规则计算状态码和 `{errno, errMsg}`。文件和事件流不经过响应器。
+**自定义响应器**是一个有两个方法的对象，交给 `respond` 选项：`success(response, data, request)` 和 `error(response, error, request, origin)`。请求已经到达动作时，`origin` 是 `'action'`；在此之前就失败时（Web 框架的中间件、未找到路由），`origin` 是 `'request'`。适配器子路径中的 `statusOfError()` 和 `describeError()` 按上面的规则计算状态码和 `{errno, errMsg}`。文件和事件流不经过响应器。
 
 ## 7. Web 框架的功能
 
@@ -347,7 +347,7 @@ export const http = expressHTTPEntrypoint({
 | `routes` | 动作的路由，以及每个路由的方法 |
 | `actionPrefixes`、`isActionPath(path)` | 动作路由的第一段，以及某个路径是否在它们之下 |
 
-`before` 失败会让应用启动失败。使用 Express 时，请求体解析器在 `before` 之后才添加：`before` 中的中间件看不到解析后的请求体。
+`before` 失败会让应用启动失败。使用 Express 时，请求体解析器在 `before` 之后才添加：`before` 中的中间件无法看到解析后的请求体。
 
 ```typescript
 import compression from 'compression'

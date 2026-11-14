@@ -24,7 +24,7 @@ The project is a workspace whose service is `packages/app` ([Project Structure](
 `installer` feature adds what is needed to make the installers: the `lakutata.installer` configuration in
 `packages/app/package.json`, the `package:host` and `package:linux` scripts, `Dockerfile.installer`,
 `@lakutata/builder`, and the icon in `packages/resources`. The service needs no other package: the schedules and the
-monitors are part of lakutata. The example controller of the template is removed.
+monitors are part of `lakutata`. The example controller of the template is removed.
 
 ## 2. The sensors
 

@@ -69,7 +69,7 @@ npx lakutata package installer --target pkg     # 只制作其中几种
 
 `lakutata.icon`（与 `lakutata.installer` 并列）是一张 256 像素或更大的正方形 PNG 图片：它是 Windows 可执行文件和安装程序的图标，也是 Electron 和 NW.js 应用的图标。
 
-配置在构建任何东西之前就会检查，不制作的那些安装包的选项也会检查，出错时会指出是哪个字段：
+配置在构建任何内容之前就会检查，不制作的那些安装包的选项也会检查，出错时会指出是哪个字段：
 
 ```
 error: The name of the package "Bad Name" must be lower case letters, digits, "+", "-" and "." (lakutata.installer.name)
@@ -233,7 +233,7 @@ jobs:
 
 ## 9. NW.js 应用
 
-使用 `"runtime": "nwjs"` 时，安装包里是由构建器制作的 NW.js 应用：应用所用 NW.js 版本（它的 `lakutata.nwjs`，由 `lakutata nwjs use` 设置）的 normal 版本，只下载一次到 lakutata 的缓存目录，并按其发布版本的校验和核对；应用放在其中，包括为这个 NW.js 的 Node.js 打包的代码、原生插件、资源（`lakutata.resources`，通过 `resourcesPath()` 读取）和 NW.js 的清单。`nwjs-react` 和 `nwjs-vue` 模板就是这样配置的。
+使用 `"runtime": "nwjs"` 时，安装包里是由构建器制作的 NW.js 应用：应用所用 NW.js 版本（它的 `lakutata.nwjs`，由 `lakutata nwjs use` 设置）的 normal 版本，只下载一次到 Lakutata 的缓存目录，并按其发布版本的校验和核对；应用放在其中，包括为这个 NW.js 的 Node.js 打包的代码、原生插件、资源（`lakutata.resources`，通过 `resourcesPath()` 读取）和 NW.js 的清单。`nwjs-react` 和 `nwjs-vue` 模板就是这样配置的。
 
 - **运行时**以应用的名字命名：Windows 上是 `<name>.exe`，图标和版本信息都是应用的；Linux 上是 `<name>`；macOS 上是 `<productName>.app`，它的 `Info.plist` 给出应用的名称、标识（`appId`）、版本和图标，并重新做临时签名。
 - **安装包**是桌面应用的安装包：默认 macOS 上是 `dmg`，Windows 上是 `nsis`，Linux 上是 `deb`（macOS 上还可以用 `pkg` 和 `tar.gz`，Windows 上可以用 `msi` 和 `zip`，Linux 上可以用 `rpm` 和 `tar.gz`）。Windows 的安装程序把应用加到开始菜单和桌面；`dmg` 磁盘映像里是应用和一个指向 /Applications 的链接，用户把应用拖过去即可，`pkg` 安装包则直接把它装到那里（Intel 版的应用也可以装到 Apple 芯片的 Mac 上）；Linux 的软件包会添加应用的桌面入口和图标，并依赖 Chromium 所需的库。

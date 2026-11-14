@@ -1,6 +1,6 @@
 # 手机应用
 
-这个示例构建一个可以在 Android、iOS 和鸿蒙上运行的记账本：用户记下每一笔支出，并查看每个月以及每个分类的合计。它从 `mobile-react` 模板开始，展示用 lakutata 开发的手机应用的两部分：一是 Node.js 端，它是一个 lakutata 应用，运行在手机应用内嵌的 Node.js 中，把支出保存在应用数据目录下的 SQLite 数据库里，并用迁移让数据库保持最新；二是 React Native 用户界面，它在三个系统上完全相同，通过原生模块调用 Node.js 端的动作，并接收 Node.js 端推送的事件。示例还展示了 Node.js 端的测试，测试在电脑上运行，不需要设备。
+这个示例构建一个可以在 Android、iOS 和鸿蒙上运行的记账本：用户记下每一笔支出，并查看每个月以及每个分类的合计。它从 `mobile-react` 模板开始，展示用 Lakutata 开发的手机应用的两部分：一是 Node.js 端，它是一个 Lakutata 应用，运行在手机应用内嵌的 Node.js 中，把支出保存在应用数据目录下的 SQLite 数据库里，并用迁移让数据库保持最新；二是 React Native 用户界面，它在三个系统上完全相同，通过原生模块调用 Node.js 端的动作，并接收 Node.js 端推送的事件。示例还展示了 Node.js 端的测试，测试在电脑上运行，不需要设备。
 
 | 消息 | 作用 |
 |---|---|
@@ -455,7 +455,7 @@ const styles = StyleSheet.create({
 - 和模板一样，界面在设备的安全区域内：`useSafeAreaInsets()` 给出状态栏、摄像头和底部手势条占用的空间。
 - `ipc` 来自模板的 `ipc` 包：`ipc.invoke()` 调用动作，返回它的 `payload`，或者以它的错误拒绝；`ipc.on()` 监听事件，并返回移除监听器的函数。
 - 收到 `expenses.changed` 时，如果变化的正是当前显示的月份，就重新加载这个月。
-- `keyboardShouldPersistTaps="handled"` 让键盘显示时也能点到按钮：默认情况下，这一下只会收起键盘，输入的支出不会被添加。
+- `keyboardShouldPersistTaps="handled"` 让键盘显示时也能点到按钮：默认情况下，这次点击只会收起键盘，输入的支出不会被添加。
 - Node.js 结束时（未捕获的异常、`process.exit()`），手机应用会继续运行：`ipc` 发出 `exit`，`ipc.restart()` 重新启动 Node.js，和模板中一样。
 
 ## 9. 运行

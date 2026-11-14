@@ -623,7 +623,7 @@ framework for the devices and one for the simulators, built with Xcode into `ios
 application embeds. An addon is built with the settings its package gives to macOS (`OS=="mac"` in its `binding.gyp` and
 in the gyp files of node-addon-api), while the SDK, the architecture and the deployment target are those of iOS. For
 HarmonyOS, each addon becomes a library of the HAP (`libaddon-<package>-<file>.so` in `harmony/entry/libs/arm64-v8a`),
-built with the native SDK of DevEco Studio (or `OHOS_NDK_HOME`). The builds are kept in the cache of lakutata.
+built with the native SDK of DevEco Studio (or `OHOS_NDK_HOME`). The builds are kept in the cache of Lakutata.
 
 | Option | |
 |---|---|

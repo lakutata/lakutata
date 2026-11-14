@@ -90,7 +90,7 @@ Application.run(() => ({
 | [`@lakutata/ffi`](packages/ffi) | 动态库调用：用头文件里的 C 声明描述，调用 `.so`、`.dylib`、`.dll` 文件中的 C 函数 | 否 |
 | [`@lakutata/math`](packages/math) | 数学计算：符号计算（解方程、求导、积分、极限、化简）和数值计算（矩阵、统计、任意精度的十进制数），由原生插件完成 | 否 |
 | [`@lakutata/barcode`](packages/barcode) | 条形码和二维码：生成（PNG、SVG、像素）和从图片识别 32 种码制，由原生插件完成 | 否 |
-| [`@lakutata/netif`](packages/netif) | 网口：服务器和 UDP 套接字按网口监听，不管网口的地址怎么变；列出本机的网口和它们的变化，由原生插件完成 | 否 |
+| [`@lakutata/netif`](packages/netif) | 网口：服务器和 UDP 套接字按网口监听，无论网口的地址如何变化；列出本机的网口和它们的变化，由原生插件完成 | 否 |
 | [`@lakutata/mongo-embedded`](packages/mongo-embedded) | 嵌入式 MongoDB，`lakutata/orm` 中 `mongo-embedded` 类型的数据库：在 SQLite 上实现 MongoDB 8.0 的语义，由原生插件完成 | 否 |
 | [`@lakutata/thermal`](packages/thermal) | 用 HTML 和 CSS 编排的小票、标签和腕带，渲染成热敏打印机的点阵，编码成 ESC/POS、TSPL 或 ZPL，由原生插件完成 | 否 |
 | [`@lakutata/thermal-printer`](packages/thermal-printer) | 热敏打印机：管理器组件负责找到打印机、按保存的定义打开它们，经网口、打印队列、USB、串口或蓝牙打印 | 否 |

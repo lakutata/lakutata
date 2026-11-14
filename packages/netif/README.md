@@ -51,7 +51,7 @@ The interface may not exist yet (a USB adapter not plugged in) or have no addres
 returns at once and the interface is listened on as soon as it can be. While it waits, the listener keeps the process
 alive, as a listening server does.
 
-The entrypoints of Lakutata (Express, Fastify, the service adapters, gRPC, MCP) do this through their `interface`
+Lakutata's adapters (Express, Fastify, the service adapters, gRPC, MCP) do this through their `interface`
 option: `expressHTTPEntrypoint({port: 8080, interface: 'eth1'})`. The package implements `IInterfaceListening` of
 `@lakutata/core`, the contract they listen through, and its `InterfaceListener` is an `IInterfaceListener`.
 

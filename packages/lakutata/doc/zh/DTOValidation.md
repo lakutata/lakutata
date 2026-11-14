@@ -167,7 +167,7 @@ toJsonSchema(DTO.String().email(), {target: 'openapi-3.0'})   //任意校验规�
 ```
 
 - 生成的 JSON Schema 描述的是校验规则在不做转换时接受的值，ajv（配合 ajv-formats）等校验器接受的也是这些值。JSON Schema 无法表达的内容（自定义规则、对其他值的引用、类型转换）会被省略，所以 JSON Schema 可能接受原规则拒绝的值，但不会拒绝原规则接受的值。
-- 未知字段遵循校验选项：在 lakutata 的默认选项（`allowUnknown`、`stripUnknown`）下，对象接受未知字段；要按其他选项转换，通过 `preferences` 传入这些选项。
+- 未知字段遵循校验选项：在 Lakutata 的默认选项（`allowUnknown`、`stripUnknown`）下，对象接受未知字段；要按其他选项转换，通过 `preferences` 传入这些选项。
 - 数值类型转换为整数边界（`int8` 到 `uint64`）和浮点范围；在 OpenAPI 中还会带上 `int32`、`int64`、`float` 和 `double` 格式。
 
 ### 5.2 导入
@@ -199,4 +199,4 @@ const {Pet, Person} = DTO.fromOpenAPI(openApiDocument)
 - 导入的校验规则按 JSON Schema 的语义校验：不转换值（除非传入 `convert: true`），未知字段遵循 `additionalProperties`，格式校验与 ajv-formats 一致，并会填充默认值。
 - 引用通过 JSON pointer、`$anchor` 和 `$id` 解析（其他文档通过 `schemas` 传入，OpenAPI 文档通过 `document` 传入）；支持递归引用。
 - 版本从 `$schema` 读取，或通过 `dialect` 指定（默认 2020-12）。
-- 把 lakutata 的校验规则转换为 JSON Schema 会丢失信息（自定义规则、类型转换）：要原样存储并恢复校验规则，请保存它的 `describe()` 输出（不含函数时是一个 JSON 值），再用 `DTO.Build(description)` 重建。
+- 把 Lakutata 的校验规则转换为 JSON Schema 会丢失信息（自定义规则、类型转换）：要原样存储并恢复校验规则，请保存它的 `describe()` 输出（不含函数时是一个 JSON 值），再用 `DTO.Build(description)` 重建。

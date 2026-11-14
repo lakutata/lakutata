@@ -5,7 +5,7 @@
 - [`@lakutata/ldap-engine`](https://github.com/lakutata/lakutata/tree/main/packages/ldap-engine)，引擎：协议、客户端，以及由后端存放条目的服务器。它不需要应用，[LDAP Engine](LDAPEngine.md) 指南介绍了它。
 - [`@lakutata/ldap`](https://github.com/lakutata/lakutata/tree/main/packages/ldap)，组件：`LDAPClient`、`LDAPServer`，以及把服务器的条目存进应用数据库的 `DirectoryBackend`。它重新导出了引擎。
 
-这篇指南讲的是组件：怎样注册、怎样注入，以及它们在引擎之上增加了什么。客户端和服务器本身的行为（分页、schema 检查、访问规则、密码策略、插件）在 LDAP Engine 指南里，下面各节会指出对应的章节。`lakutata` 包不重新导出这两个包：应用用到哪个就安装哪个。
+这篇指南讲的是组件：如何注册、如何注入，以及它们在引擎之上增加了什么。客户端和服务器本身的行为（分页、schema 检查、访问规则、密码策略、插件）在 LDAP Engine 指南里，下面各节会指出对应的章节。`lakutata` 包不重新导出这两个包：应用用到哪个就安装哪个。
 
 ```shell
 npm install @lakutata/ldap                     # 会一起安装引擎
@@ -14,7 +14,7 @@ npm install @lakutata/netif                    # 按网卡监听时需要
 
 ## 1. 用目录验证用户登录
 
-`LDAPClient` 组件维护一个连接池，连接以服务账号绑定。控制器或组件用 `@Inject` 拿到它；`authenticate()` 先找到用户的条目，再在一个单独的连接上以该用户绑定。
+`LDAPClient` 组件维护一个连接池，连接以服务账号绑定。控制器或组件用 `@Inject` 获取它；`authenticate()` 先找到用户的条目，再在一个单独的连接上以该用户绑定。
 
 ```typescript
 import {Application, DTO, Exception} from 'lakutata'
@@ -127,11 +127,11 @@ export class Staff extends Component {
 }
 ```
 
-- 模板 `filter` 会转义写进去的值，值改变不了过滤器的结构。
+- 模板 `filter` 会转义写进去的值，值无法改变过滤器的结构。
 - 搜索默认分页（每页 500 个条目）；`searchIterator()` 逐个给出条目；`sort` 和 `window` 读取排序后条目中的一段。
 - 结果不是成功时抛出对应的异常（`LDAPNoSuchObjectException`、`LDAPInsufficientAccessException`……）。
 - 超过 `timeout` 的操作会在服务器上放弃。连接池不再把新的操作分给这个连接，等它上面的操作结束后就关闭它，之后的操作使用新的连接。
-- `connect()` 返回一个不属于连接池的连接，它有自己的会话（用于以别的用户绑定，或者执行 StartTLS）。
+- `connect()` 返回一个不属于连接池的连接，它有自己的会话（用于以其他用户绑定，或者执行 StartTLS）。
 - 条目（文本和字节）、过滤器、DN、Active Directory 的值以及其他操作，见 LDAP Engine 第 2 到第 6 节。
 
 ## 3. 提供目录服务
@@ -167,7 +167,7 @@ Application.run(() => ({
 ```
 
 - `initialize` 在第一次启动时创建后缀对应的条目（根据后缀生成：`dc=example,dc=com` 对应 `dcObject` 和 `organization`）和管理员，只创建一次，多个实例同时启动也一样。
-- 服务器在 `port` 上监听 LDAP（默认 389；`0` 表示任选一个空闲端口，`false` 表示不监听），配置了 `tls` 时支持 StartTLS，并在 `ldapsPort` 上监听 LDAPS。`host` 指定监听的地址；安装了 `@lakutata/netif` 时，`interface: 'eth1'` 按网卡监听，不管它现在是什么地址。`ldap.ports` 给出实际监听的端口。
+- 服务器在 `port` 上监听 LDAP（默认 389；`0` 表示任选一个空闲端口，`false` 表示不监听），配置了 `tls` 时支持 StartTLS，并在 `ldapsPort` 上监听 LDAPS。`host` 指定监听的地址；安装了 `@lakutata/netif` 时，`interface: 'eth1'` 按网口监听，无论它现在是什么地址。`ldap.ports` 给出实际监听的端口。
 - `ldapiPath` 让服务器同时监听一个 Unix 套接字（ldapi），供本机的客户端使用，它们可以不经过 TLS 在上面发送密码；`ldapiMode` 决定谁可以连接（`0o666`：本机的所有用户；默认按通常的 umask，只有运行服务器进程的用户）。设置 `port: false`、只留套接字时，只有本机的客户端能访问服务器。
 - 目录后端的表的迁移属于应用，和应用的其他实体一样：把 `directoryEntities(type)` 加进数据库的实体，再生成迁移。
 - 其他选项就是服务器引擎的选项（LDAP Engine 第 9、11 和 12 节）：`access`、`limits`、`bindThrottle`、`plaintextBind`、`passwords`、`passwordPolicy`、`sasl`、`extendedOperations`，以及根 DSE 的内容。
@@ -203,7 +203,7 @@ export class Accounts extends Component {
 }
 ```
 
-目录助手和它的方法见 LDAP Engine 第 10 节。它由 LDAP 操作组成，所以 `createDirectory(client)` 可以用同样的方式管理远程的 OpenLDAP，只要它的配置和那台服务器的 schema 相符。`ldap.engine` 是服务器引擎本身：可以拿到它的 `events`（`bind`、`operation`、`error`……）和 schema。
+目录助手和它的方法见 LDAP Engine 第 10 节。它由 LDAP 操作组成，所以 `createDirectory(client)` 可以用同样的方式管理远程的 OpenLDAP，只要它的配置和那台服务器的 schema 相符。`ldap.engine` 是服务器引擎本身：可以获取它的 `events`（`bind`、`operation`、`error`……）和 schema。
 
 ## 5. Schema
 
@@ -258,7 +258,7 @@ const options = buildLDAPServerOptions({
 
 ## 7. 目录后端
 
-目录后端把一个后缀下的条目存进应用的数据库，不管它们是什么对象类：一张条目表，每个值一行。
+目录后端把一个后缀下的条目存进应用的数据库，无论它们是什么对象类：一张条目表，每个值一行。
 
 - 搜索在数据库里执行：过滤器会转换成 SQL，作用在匹配规则用来比较的值的形式上（相等、子串、整数和时间）；SQL 无法精确判断的部分由服务器检查。
 - 排序搜索由后端完成，它只读取窗口（`window`）内的条目：按偏移量取窗口时，数据库根据随每个值保存的排序键完成排序、计数和截取；否则后端读取排序键的值，按服务器的方式给条目排序。schema 修改了某个属性的排序规则后，之前写入的值仍保留旧的排序键，直到它们被重新写入。某个排序键没有值的条目排在其他条目之后，逆序时排在它们之前（RFC 2891）。设置了 `access.check` 且没有把 `access.checkReads` 设为 false（不判断读取的检查可以这样设），或者有会从搜索结果里去掉条目的拦截器时，虚拟列表视图由服务器自己排序和开窗，受 `limits.sortCandidates` 限制，这样它的计数不包括会话不能读的条目。
@@ -266,7 +266,7 @@ const options = buildLDAPServerOptions({
 - DN 类型的值（member、manager、seeAlso……）指向它们的条目：条目改名时跟着变，条目删除时被删掉；必需的属性被删空时，保留一个占位值（默认为空 DN）。
 - `memberOf` 在读取时计算，用它过滤可以找到一个组的成员（`nestedGroups` 会展开嵌套的组）。schema 自己定义了 memberOf 时，使用 `memberOf: {name, oid}` 或 `memberOf: false`。
 - POSIX：新增时没有 uidNumber 和 gidNumber 的条目会被分配这两个值（uidNumber 唯一，posixGroup 的 gidNumber 在组之间唯一）；posixGroup 条目的 memberUid 会被计算出来。POSIX 的对象类来自 rfc2307bis，需要在 `schema.bundled` 里写上。
-- `unique` 让属性的值在后缀内唯一；`authTimestamp` 给出最后一次带密码的绑定的时间，简单绑定和 SASL PLAIN 都算（条目正被别的写操作占用时，绑定不会等它，这次的时间不记录；SQLite 上只要有写操作在进行就是这样；MySQL 8.0 之前和 MariaDB 10.6 之前的版本不能跳过被别的写操作占用的行，绑定会等它完成）；`mailAlias` 把 mail 的值作为 email 给出（Grafana 读取 email）。
+- `unique` 让属性的值在后缀内唯一；`authTimestamp` 给出最后一次带密码的绑定的时间，简单绑定和 SASL PLAIN 都算（条目正被其他写操作占用时，绑定不会等它，这次的时间不记录；SQLite 上只要有写操作在进行就是这样；MySQL 8.0 之前和 MariaDB 10.6 之前的版本不能跳过被其他写操作占用的行，绑定会等它完成）；`mailAlias` 把 mail 的值作为 email 给出（Grafana 读取 email）。
 - 每次写入都在一个事务里执行，拦截器的 `beforeCommit()` 也在其中。对同一条目的写入依次执行，多个实例共用一个数据库时也是这样（SQLite 上，对同一个文件的所有写入都依次执行），所以两个客户端同时修改同一属性的不同值，双方的修改都会保留。
 - `beforeCommit()` 通过使用同一个 Database 组件的服务器做的搜索和写入，都在它所在的那次写入的事务里进行：能读到这个事务里已经写入的内容；那次写入失败时，这些写入也一起撤销。这样的搜索会把结果全部读完再返回。读取期间，那次写入的其他操作要等它读完，它持有的锁也不会释放。结果很多时会占用大量内存；条数限制只限制返回多少条，不限制读取多少条。超过时间限制后，搜索停止读取，回应 timeLimitExceeded，不返回条目。PostgreSQL 上，这类读取如果被数据库拒绝（例如语句超时），即使拦截器捕获了错误，那次写入也会失败。
 - 写操作因为死锁被数据库中止、因为无法串行化被拒绝，或者等锁超时（数据库设置了锁等待超时；SQLite 上是文件被另一个进程占用，超过了 busy timeout）时，回应是 busy（51），不会留下任何改动，客户端可以重新发送。
@@ -289,7 +289,7 @@ const options = buildLDAPServerOptions({
 
 ## 8. 插件、拦截器和后端
 
-插件和拦截器就是引擎的插件和拦截器（LDAP Engine 第 13 节：memberOf、引用完整性、唯一值、密码策略、审计、约束……）。组件接受对象形式的插件，也接受带选项的 lakutata 类，由组件的容器创建：
+插件和拦截器就是引擎的插件和拦截器（LDAP Engine 第 13 节：memberOf、引用完整性、唯一值、密码策略、审计、约束……）。组件接受对象形式的插件，也接受带选项的 Lakutata 类，由组件的容器创建：
 
 ```typescript
 import {Component, DTO} from 'lakutata'
@@ -331,8 +331,8 @@ const options = buildLDAPServerOptions({
 
 - 插件类继承 `Component` 并实现 `LDAPPlugin`：它的选项用 `@Configurable` 声明，还可以注入应用的组件（数据库、日志……）。
 - 目录后端在每次写入的事务里自己完成 `MemberOfPlugin`、`ReferentialIntegrityPlugin`、`IdAllocationPlugin` 和 `LastBindPlugin` 的工作：这些插件会退出它的链，其他插件照常为它运行。
-- `interceptors` 只接受拦截器：对象、放置方式，或者带选项的 lakutata 类。
-- 自己的后端（LDAP Engine 第 14 节）可以是对象，也可以是带选项的 lakutata 类，比如 `{class: DevicesBackend, suffix: 'ou=devices,dc=example,dc=com'}`，由组件的容器创建：它可以注入应用的组件，包括数据库。多个后端可以提供多个后缀。
+- `interceptors` 只接受拦截器：对象、放置方式，或者带选项的 Lakutata 类。
+- 自己的后端（LDAP Engine 第 14 节）可以是对象，也可以是带选项的 Lakutata 类，比如 `{class: DevicesBackend, suffix: 'ou=devices,dc=example,dc=com'}`，由组件的容器创建：它可以注入应用的组件，包括数据库。多个后端可以提供多个后缀。
 
 ## 9. 接入其他软件
 
@@ -351,17 +351,17 @@ const options = buildLDAPServerOptions({
   ```
 
   `ldapiMode` 必须允许运行 SSSD 的用户连接。经过网络时，给服务器配置 `tls`，并把 CA 交给 SSSD（`ldap_tls_cacert`）。
-- **Keycloak**：用户联合选择厂商 "Other"，用户名和 RDN 用 `uid`，UUID 属性用 `entryUUID`，打开 "Use password modify extended operation"；组映射器使用 `groupOfNames` 和 `member`。它的服务账号要放进 `access.passwordAdmins`，才能设置密码。
+- **Keycloak**：用户联合选择厂商“Other”，用户名和 RDN 用 `uid`，UUID 属性用 `entryUUID`，打开“Use password modify extended operation”；组映射器使用 `groupOfNames` 和 `member`。它的服务账号要放进 `access.passwordAdmins`，才能设置密码。
 - **Gitea**：添加一个 LDAP 认证源（via BindDN），用户过滤器为 `(&(objectClass=inetOrgPerson)(uid=%s))`；管理员过滤器按 memberOf；SSH 公钥在 `sshPublicKey` 里（服务器需要加载 openssh-lpk）。
 - **Grafana**：`mailAlias: true` 提供它默认读取的 `email`。
 
 ## 10. 单独使用引擎
 
-在 lakutata 应用之外，`@lakutata/ldap-engine` 以函数的形式提供同样的客户端和服务器：`createLDAPClient()`、`connectLDAP()` 和 `createLDAPServer()`。[LDAP Engine](LDAPEngine.md) 指南介绍了它们。
+在 Lakutata 应用之外，`@lakutata/ldap-engine` 以函数的形式提供同样的客户端和服务器：`createLDAPClient()`、`connectLDAP()` 和 `createLDAPServer()`。[LDAP Engine](LDAPEngine.md) 指南介绍了它们。
 
 ## 11. 运行平台
 
-Node.js `>=18.10.0`、Bun、Electron 和 NW.js。引擎没有原生代码。目录后端运行在 `lakutata/orm` 的数据库上，在 Electron 和 Bun 里需要满足各个驱动的要求（[数据库驱动](DatabaseDrivers.md)）：Bun 加载不了 better-sqlite3，可以用 `sqljs`、PostgreSQL 或 MySQL。
+Node.js `>=18.10.0`、Bun、Electron 和 NW.js。引擎没有原生代码。目录后端运行在 `lakutata/orm` 的数据库上，在 Electron 和 Bun 里需要满足各个驱动的要求（[数据库驱动](DatabaseDrivers.md)）：Bun 无法加载 better-sqlite3，可以用 `sqljs`、PostgreSQL 或 MySQL。
 
 ## 异常
 

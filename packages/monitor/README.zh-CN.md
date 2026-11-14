@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-lakutata 框架的监控器。它们是一组组件，测量进程的 CPU 使用率、内存、事件循环的延迟和忙碌的时间占比，以及进程收到的 HTTP 请求的耗时；统计使用 Node.js 的直方图，占用的内存大小固定。每个监控器都提供 `statistics` getter，给出自创建或上次 `reset()` 以来的最新值、最小值、最大值、平均值和百分位数。`lakutata` 包把这个包重新导出为 `lakutata/com/monitor`。
+Lakutata 框架的监控器。它们是一组组件，测量进程的 CPU 使用率、内存、事件循环的延迟和忙碌的时间占比，以及进程收到的 HTTP 请求的耗时；统计使用 Node.js 的直方图，占用的内存大小固定。每个监控器都提供 `statistics` getter，给出自创建或上次 `reset()` 以来的最新值、最小值、最大值、平均值和百分位数。`lakutata` 包把这个包重新导出为 `lakutata/com/monitor`。
 
 ## 安装
 

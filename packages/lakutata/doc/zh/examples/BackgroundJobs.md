@@ -344,7 +344,7 @@ export class ReportController extends Controller {
 - `@QueueAction` 让 `build()` 成为队列 `report.build` 的消费者（见[消息队列](../Queue.md)）。它同时处理 2 条消息（`concurrency`），每条最长 1 分钟（`timeout`：超时后 `this.signal` 被中止，消息会重试）。它的上下文是 `QueueContext`，从中可以知道这是第几次尝试（`attempt`，第一次投递为 1），以及一共允许尝试几次（`attempts`）。
 - 动作正常返回时消息被确认，动作的返回值就是这条消息的结果，由队列保存。动作抛出错误时，`build()` 把报表改回 `queued` 状态并记下错误，消息在等待 `backoff`（先 1 秒，再 2 秒）后重新投递，最多尝试 3 次。3 次都失败后，消息进入死信队列 `report.build.dead`，它和普通队列一样：`failed()` 消费其中的消息，把报表标为失败。
 - 消息至少投递一次：进程崩溃后，如果使用的是有服务端的驱动，这条消息会再次投递，`build()` 会把同一份报表再生成一遍，这不会造成问题。
-- `@Schedule` 按 cron 表达式的时间执行 `clean()`，也就是每 5 分钟一次（见[定时任务](../Schedules.md)）。设置了 `exclusive: true` 后，每次执行前先尝试从 `mutex` 组件获取锁 `schedule:ReportController:clean`，没拿到锁的实例跳过这一次（见[互斥锁](../Mutex.md)）。
+- `@Schedule` 按 cron 表达式的时间执行 `clean()`，也就是每 5 分钟一次（见[定时任务](../Schedules.md)）。设置了 `exclusive: true` 后，每次执行前先尝试从 `mutex` 组件获取锁 `schedule:ReportController:clean`，未获得锁的实例跳过这一次（见[互斥锁](../Mutex.md)）。
 
 ## 6. 服务的选项
 
@@ -460,7 +460,7 @@ curl -i localhost:8081/reports/5b0f8a52-2f4e-4a3c-9a55-0b1c3c4d5e6f
 app │ [23:05:00.009] INFO (reports/97338): 0 old reports deleted
 ```
 
-第二个实例没有拿到锁，跳过了这一次，日志中没有任何输出。这次没有删除任何报表：报表要保留一天。
+第二个实例没有获得锁，跳过了这一次，日志中没有任何输出。这次没有删除任何报表：报表要保留一天。
 
 ## 8. 测试
 

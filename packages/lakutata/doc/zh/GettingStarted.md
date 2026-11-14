@@ -6,7 +6,7 @@
 
 - Node.js 18.10 或更高版本（`>=18.10.0`）。少数功能需要较新的 Node.js：
   - Fastify 适配器：Fastify 5 需要 Node.js 18.19、19.9、20 或更高版本（Express 适配器没有这个要求）；
-  - `@lakutata/queue` 的 Kafka 传输：需要 Node.js 22.22、24.6 或更高版本，这是 `@platformatic/kafka` 的要求；
+  - `@lakutata/queue` 的 Kafka 驱动：需要 Node.js 22.22、24.6 或更高版本，这是 `@platformatic/kafka` 的要求；
   - Node.js 的可执行文件（`lakutata package exe` 和安装包）：要用 Node.js 20.12、21.7 或更高版本来生成，或者用 `--node-program` 指定这样一个 Node.js；
   - 对框架的对象使用 `await using`：需要 Node.js 18.18、20.4 或更高版本。
 
@@ -83,7 +83,7 @@ npm install --save-dev typescript @types/node @types/express @lakutata/cli
 }
 ```
 
-请保留 `include`：发布的编译选项也会编译 JavaScript 文件（`allowJs`），没有它的话，项目根目录下的配置文件（`eslint.config.js`、`vite.config.ts`）会让构建失败。在 `package.json` 中设置 `"type": "module"`，并参照模板加上脚本：
+请保留 `include`：发布的编译选项也会编译 JavaScript 文件（`allowJs`），没有它，项目根目录下的配置文件（`eslint.config.js`、`vite.config.ts`）会让构建失败。在 `package.json` 中设置 `"type": "module"`，并参照模板加上脚本：
 
 ```json
 {
@@ -153,6 +153,6 @@ curl 'http://localhost:8080/greet?name=you'
 - [示例](examples/README.md)：一步步从模板构建完整的应用。
 - [核心概念](Concepts.md)和[应用设计](ApplicationDesign.md)：框架的对象模型，以及如何基于这一模型组织应用。
 - [项目结构](ProjectStructure.md)：项目中的文件和脚本。
-- [应用](Application.md)、[对象与生命周期](Objects.md)和[依赖注入](Injection.md)：怎样声明应用，以及应用中的对象如何创建、如何获取彼此。
+- [应用](Application.md)、[对象与生命周期](Objects.md)和[依赖注入](Injection.md)：如何声明应用，以及应用中的对象如何创建、如何获取彼此。
 - [控制器与动作](Controllers.md)和 [HTTP](HTTP.md)：动作、它们的输入和响应。
 - [命令行工具](Command.md)、[工作区](Workspaces.md)、[原生插件](NativeAddons.md)、[打包](Packaging.md)和[安装包](Installers.md)：`lakutata` 命令、项目中的各个包，以及打包后的应用。

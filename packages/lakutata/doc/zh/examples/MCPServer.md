@@ -421,7 +421,7 @@ claude mcp get notes
 }
 ```
 
-路径都要写绝对路径。如果客户端找不到 `node`（例如用 nvm 安装的 Node.js），就要写出它的完整路径，也就是 `which node` 的输出。
+路径都要写绝对路径。如果客户端无法找到 `node`（例如用 nvm 安装的 Node.js），就要写出它的完整路径，也就是 `which node` 的输出。
 
 **通过 HTTP。** 这时服务器独立运行，客户端连接它的 URL：
 

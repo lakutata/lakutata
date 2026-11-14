@@ -76,10 +76,10 @@ $ gdbus call --session --dest com.example.DeviceService --object-path /com/examp
 | `decode` | `{int64: 'number'}` | 参数如何解码（第 3 节） |
 | `name`、`middlewares` | | 适配器的名字，以及它的调用使用的中间件，在入口的中间件之后执行 |
 
-- 应用启动时，适配器连接总线并获取名称。连不上总线（对于 `'session'`，没有设置 `DBUS_SESSION_BUS_ADDRESS` 也一样），或者名称已被其他连接持有，都会让启动失败。
+- 应用启动时，适配器连接总线并获取名称。无法连接总线（对于 `'session'`，没有设置 `DBUS_SESSION_BUS_ADDRESS` 也一样），或者名称已被其他连接持有，都会让启动失败。
 - D-Bus 允许服务名称中有 `-`，但这个适配器不允许：服务名称是错误名称的前缀，而错误名称中不能有 `-`。
 - 在系统总线上，需要 `/etc/dbus-1/system.d/` 中的策略文件允许进程持有这个名称。
-- 设置 `allowReplacement` 时，用 `replaceExisting` 接管名称的服务从此收到所有调用。被替换的应用仍在运行，但没有名称，在另一个服务停止后也拿不回名称。
+- 设置 `allowReplacement` 时，用 `replaceExisting` 接管名称的服务从此收到所有调用。被替换的应用仍在运行，但没有名称，在另一个服务停止后也无法取回名称。
 - 应用停止时，适配器先释放名称（新的调用以 `org.freedesktop.DBus.Error.ServiceUnknown` 失败），等正在处理的调用结束，再断开连接。
 
 ## 3. 参数与结果

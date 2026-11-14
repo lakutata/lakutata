@@ -1,6 +1,6 @@
 # 设备上的服务
 
-这个示例为小型 Linux 机器（例如树莓派或网关）构建一个服务：它每 10 秒读取一次机器的负载、内存和温度，在内存中保留最近一小时的读数，并通过 HTTP 提供这些读数。它从 `service` 模板及其 `installer` 功能开始，展示定时任务、自己编写的组件及其选项、lakutata 的监控器、用环境变量配置服务，以及把服务安装到机器上、让它随系统启动的安装包。
+这个示例为小型 Linux 机器（例如树莓派或网关）构建一个服务：它每 10 秒读取一次机器的负载、内存和温度，在内存中保留最近一小时的读数，并通过 HTTP 提供这些读数。它从 `service` 模板及其 `installer` 功能开始，展示定时任务、自己编写的组件及其选项、Lakutata 的监控器、用环境变量配置服务，以及把服务安装到机器上、让它随系统启动的安装包。
 
 | 方法 | 路由 | 作用 |
 |---|---|---|
@@ -16,7 +16,7 @@ cd telemetry
 rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/GreetDTO.ts
 ```
 
-项目是一个工作区，服务在 `packages/app` 中（见[项目结构](../ProjectStructure.md)）。`installer` 功能添加了制作安装包所需的内容：`packages/app/package.json` 中的 `lakutata.installer` 配置、`package:host` 和 `package:linux` 脚本、`Dockerfile.installer`、`@lakutata/builder`，以及 `packages/resources` 中的图标。服务不需要再安装其他包：定时任务和监控器都是 lakutata 自带的。这里还删掉了模板中的示例控制器。
+项目是一个工作区，服务在 `packages/app` 中（见[项目结构](../ProjectStructure.md)）。`installer` 功能添加了制作安装包所需的内容：`packages/app/package.json` 中的 `lakutata.installer` 配置、`package:host` 和 `package:linux` 脚本、`Dockerfile.installer`、`@lakutata/builder`，以及 `packages/resources` 中的图标。服务不需要再安装其他包：定时任务和监控器都是 `lakutata` 自带的。这里还删掉了模板中的示例控制器。
 
 ## 2. 传感器
 

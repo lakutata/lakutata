@@ -1,6 +1,6 @@
 # 视频会议
 
-这个示例构建一个视频会议：每个人在页面上填一个名字和一个房间，然后就能看到、听到其他人，还能在聊天里给他们发消息。它从 `web-react` 模板开始，给应用和页面都加上 `@lakutata/webrtc`，展示它的三个部分如何配合：信令让同一个房间的人互相联系上，媒体服务器转发他们的视频，浏览器客户端把页面接到这两者上。有了媒体服务器，不管房间里有多少人，每个人的摄像头画面都只发一份。
+这个示例构建一个视频会议：每个人在页面上填一个名字和一个房间，然后就能看到、听到其他人，还能在聊天里给他们发消息。它从 `web-react` 模板开始，给应用和页面都加上 `@lakutata/webrtc`，展示它的三个部分如何配合：信令让同一个房间的人互相联系上，媒体服务器转发他们的视频，浏览器客户端把页面接到这两者上。有了媒体服务器，无论房间里有多少人，每个人的摄像头画面都只发一份。
 
 | 位置 | 提供什么 |
 |---|---|
@@ -114,7 +114,7 @@ export function config(port: number = Number(process.env.PORT ?? 8080)): Applica
 - `sfu` 是媒体服务器。它以自己的成员身份加入每个房间；页面看到它后就连接它，而不再互相连接，它把每个人的音频和视频转发给其他人，转发时不解码。它的连接使用 UDP 的 40000 到 40999 端口，每个人在本机的每个地址上各占一个端口，并以这些地址作为候选地址（`PUBLIC_ADDRESS` 再加一个）。
 - `SignalingController` 通过 Socket.IO 适配器处理信令的请求（`webrtc.join`、`webrtc.signal`……）。`socketIOServiceEntrypoint({server})` 把 Socket.IO 挂到 express 的 HTTP 服务器上，这个服务器由 `before` 给出：页面、它的信令和健康检查共用 8080 端口。
 
-应用先启动 `sfu`，它会把自己挂到 `signaling` 上，然后启动 entrypoint，开始监听。其余部分来自模板：`uiDirectory()` 和 `fallback` 提供构建好的页面，`jsonEnvelope` 包装动作的结果（[带界面的 Web 应用](WebApp.md)里有说明）。
+应用先启动 `sfu`，它会把自己挂到 `signaling` 上，然后启动入口，开始监听。其余部分来自模板：`uiDirectory()` 和 `fallback` 提供构建好的页面，`jsonEnvelope` 包装动作的结果（[带界面的 Web 应用](WebApp.md)里有说明）。
 
 ## 3. 会议
 
@@ -511,7 +511,7 @@ npm start
 - **HTTPS。** 浏览器只把摄像头和麦克风给 `localhost` 和 HTTPS 页面。适配器提供的是 HTTP：在应用前面放一个反向代理（nginx、Caddy），由它提供 HTTPS，并转发 Socket.IO 的 WebSocket（见 [HTTP](../HTTP.md)）。
 - **媒体服务器的端口。** 浏览器直接连接媒体服务器：在防火墙里放开 UDP 的 40000 到 40999 端口。如果在 NAT 后面，并且 NAT 按相同的端口号转发了这些端口，启动应用时把 `PUBLIC_ADDRESS` 设为公网地址。
 - **不放行 UDP 的网络。** 有些公司网络和移动网络需要 TURN 服务器：加上 `TURNServer` 组件，把它的名字告诉信令（见 [WebRTC](../WebRTC.md) 第 3 节和第 12 节）。
-- **谁能加入。** 能打开页面的人，可以用任何名字加入任何房间。在公网上，用 entrypoint 的中间件认证用户（模板里的 `Authenticate.ts` 检查的是令牌），在 `authorize` 里决定谁能加入哪个房间，它也能拿到请求的上下文。
+- **谁能加入。** 能打开页面的人，可以用任何名字加入任何房间。在公网上，用入口的中间件认证用户（模板里的 `Authenticate.ts` 检查的是令牌），在 `authorize` 里决定谁能加入哪个房间，它也能获取请求的上下文。
 - **更大的会议。** 一个进程能转发几百路视频（数字见 WebRTC 指南）；媒体服务器的 `workers` 选项可以用上更多的核，多个实例还可以通过 `Cluster` 共同承载房间（见 [WebRTC](../WebRTC.md) 第 13 节）。
 
 <!--

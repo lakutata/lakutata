@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-[lakutata](https://github.com/lakutata/lakutata) 框架的动态库调用：在 Node.js、Electron 的主进程和 Bun 里调用 `.so`、`.dylib`、`.dll` 文件中的 C 函数，不需要编译任何东西。库用它头文件里的 C 声明来描述（结构体、联合、枚举、typedef、函数指针、原型、`#define`），每个库都是应用的一个组件。它基于 [koffi](https://koffi.dev/)。`lakutata` 包不重新导出这个包：请从 `@lakutata/ffi` 导入。
+[Lakutata](https://github.com/lakutata/lakutata) 框架的动态库调用：在 Node.js、Electron 的主进程和 Bun 里调用 `.so`、`.dylib`、`.dll` 文件中的 C 函数，不需要编译任何代码。库用它头文件里的 C 声明来描述（结构体、联合、枚举、typedef、函数指针、原型、`#define`），每个库都是应用的一个组件。它基于 [koffi](https://koffi.dev/)。`lakutata` 包不重新导出这个包：请从 `@lakutata/ffi` 导入。
 
 ## 安装
 
@@ -70,7 +70,7 @@ Application
 - **值的对应关系**：数字对应 number；`char *` 对应字符串；指针和所有 64 位整数（`size_t`、`long`、`int64_t` 等）对应 bigint，声明时加上 `{int64: 'number'}` 就改为 number；结构体和联合对应对象，位域按名字读写；`_Out_` 的整数或指针用只有一个元素的数组传入（`Out<T>`）。
 - **回调**：给函数指针参数传入的 JS 函数只在这次调用期间有效；`callback(type, fn)` 生成一个库可以保存起来以后再调用的回调，它抛出的异常会成为组件的 `error` 事件。
 - **线程**：异步函数默认在运行时的线程池里执行；在 `@Library`（或配置）里设置 `threads` 后，改在库自己的线程里执行。`threads: 1` 时，异步调用一个接一个执行，适合不是线程安全的库；有多个线程时，每个调用交给最空闲的线程。在这些线程里，可变参数的函数也可以异步调用。
-- **销毁**：随应用一起销毁时，属性开始抛出异常，会等进行中的异步调用结束，回调全部释放，库被卸载。原生调用没法中途打断：过了 `drainTimeout` 还有调用没结束时，库连同它的回调和内存都保留下来。
+- **销毁**：随应用一起销毁时，属性开始抛出异常，会等进行中的异步调用结束，回调全部释放，库被卸载。原生调用无法中途打断：过了 `drainTimeout` 还有调用没结束时，库连同它的回调和内存都保留下来。
 
 ### 不用容器
 
@@ -89,13 +89,13 @@ await libc.close()
 
 ### 根据头文件生成类
 
-函数很多的库，可以用 lakutata 的命令行工具（`@lakutata/cli`）或 `@lakutata/ffi/generator` 的 `generateNativeLibrary()` 根据头文件生成类：
+函数很多的库，可以用 Lakutata 的命令行工具（`@lakutata/cli`）或 `@lakutata/ffi/generator` 的 `generateNativeLibrary()` 根据头文件生成类：
 
 ```shell
 lakutata ffi generate /usr/include/sqlite3.h --class-name SQLite3 --out src/native/SQLite3.ts
 ```
 
-头文件先经过 C 编译器的预处理器，保留库自己的声明，库给不了的函数会被去掉并列出来。之后请在生成的文件里把输出参数标成 `_Out_`，把会阻塞的函数声明为 `{async: true}`，做法见指南：头文件看不出是哪些。
+头文件先经过 C 编译器的预处理器，保留库自己的声明，库无法提供的函数会被去掉并列出来。之后请在生成的文件里把输出参数标成 `_Out_`，把会阻塞的函数声明为 `{async: true}`，做法见指南：从头文件无法看出是哪些。
 
 ### 打包
 
@@ -122,19 +122,19 @@ lakutata ffi generate /usr/include/sqlite3.h --class-name SQLite3 --out src/nati
 
 | 错误 | 什么时候 |
 |---|---|
-| `NativeDeclarationException` | 声明或原型读不了（带行号和列号：类型没有声明、`#if`、带参数的宏、`long double` 等）、库里没有这个函数、传了 `va_list`、类上没有 `@Library` |
-| `NativeLibraryNotFoundException` | 库加载不了：消息里列出试过的每个文件和原因 |
+| `NativeDeclarationException` | 声明或原型无法读取（带行号和列号：类型没有声明、`#if`、带参数的宏、`long double` 等）、库里没有这个函数、传了 `va_list`、类上没有 `@Library` |
+| `NativeLibraryNotFoundException` | 库无法加载：消息里列出试过的每个文件和原因 |
 | `NativeLibraryClosedException` | 库关闭后又使用它的函数、变量或回调；库关闭时，它的线程里还没结束的调用 |
 | `NativeMemoryException` | 给内存函数传了空指针或负的长度、在 Electron 里用 `viewBuffer` |
 | `TypeError`（来自 koffi） | 参数类型不对 |
 | `RangeError` | 声明了 `{int64: 'number'}` 的函数遇到超出安全整数范围的 64 位整数 |
 
-C 函数的原型写错，或者传了错误的指针，整个进程都会退出，任何异常处理都拦不住。
+C 函数的原型写错，或者传了错误的指针，整个进程都会退出，任何异常处理都无法拦截。
 
 ## 另见
 
 - 网站上的指南：[FFI](https://lakutata.com/zh/guide/FFI)。
 - `lakutata` 包里的 `doc/zh/FFI.md`（英文版在 `doc/en`）：动态库调用指南。
-- `lakutata` 包里的 `doc/zh/NativeAddons.md`：用 C++ 或 Rust 编写的原生插件，用于 C 函数库做不到的情况。
+- `lakutata` 包里的 `doc/zh/NativeAddons.md`：用 C++ 或 Rust 编写的原生插件，用于 C 函数库无法做到的情况。
 - [koffi](https://koffi.dev/)：这个包所基于的 FFI。
 - `@lakutata/core`（`lakutata`）：组件、`Application` 和依赖注入。

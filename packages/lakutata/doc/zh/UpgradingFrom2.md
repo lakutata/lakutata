@@ -1,6 +1,6 @@
 # 从 Lakutata 2.x 升级
 
-本页说明如何把项目从 Lakutata 2.x（最后一个版本是 2.0.126）升级到 3.x：怎样区分两个版本、升级步骤、改名和移动了的 API、编译器不会报告的行为变化，以及如何检查升级结果。
+本页说明如何把项目从 Lakutata 2.x（最后一个版本是 2.0.126）升级到 3.x：如何区分两个版本、升级步骤、改名和移动了的 API、编译器不会报告的行为变化，以及如何检查升级结果。
 
 本页只适用于依赖 `lakutata` 包 2.x 版本的项目。Lakutata 1.x 的项目依赖的是 1.x 版本的 `@lakutata/core`，以及 `@lakutata-component/*` 或 `@lakutata-module/*` 包：这类项目请看[从 Lakutata 1.x 升级](UpgradingFrom1.md)，不要按本页升级。
 
@@ -24,7 +24,7 @@
 - **支持 `"module": "Node20"` 的 TypeScript**（模板使用 TypeScript 6）：`lakutata/tsconfig.json` 现在设置了这个选项（2.x 中是 `Node16`），更旧的编译器不认识它。
 - **`package.json`**：`"type": "module"`，`lakutata` 为 `^3.0.0`，`@lakutata/*` 包也写 `^3.0.0`，`@lakutata/cli` 放在 `devDependencies` 中。不要把 `lakutata` 的版本号照抄给其他包：补丁版只发布改动过的包，各包的最新版本可能不同（比如 `lakutata` 是 3.1.4，`@lakutata/ffi` 是 3.1.2）。
 - **全新安装**：删除 `node_modules` 和锁文件，再重新安装。原地升级可能留下多份 `@lakutata/core`，它们的类和装饰器元数据互不相通（跨副本的 `instanceof` 和注入都会失败）。`npm ls @lakutata/core` 必须只显示一个版本。
-- **`tsconfig.json`** 继承 `lakutata/tsconfig.json`，并设置自己的 `rootDir`、`outDir` 和 `include`。要保留 `include`：发布的选项设置了 `allowJs`，没有它的话，项目根目录下的配置文件（`eslint.config.js`）也会被编译。保留自己选项的项目需要 `experimentalDecorators`、`emitDecoratorMetadata` 和 `useDefineForClassFields: false`。
+- **`tsconfig.json`** 继承 `lakutata/tsconfig.json`，并设置自己的 `rootDir`、`outDir` 和 `include`。要保留 `include`：发布的选项设置了 `allowJs`，没有它，项目根目录下的配置文件（`eslint.config.js`）也会被编译。保留自己选项的项目需要 `experimentalDecorators`、`emitDecoratorMetadata` 和 `useDefineForClassFields: false`。
 
 ```json
 {
@@ -116,7 +116,7 @@ ORM 从 TypeORM 0.3.24 升级到 TypeORM 1.1.2，其源码已并入 `@lakutata/o
 
 见[应用](Application.md)和[对象与生命周期](Objects.md)。
 
-- **运行模式**（`app.mode()`）依次取环境变量 `MODE`、`NODE_ENV`、`mode` 选项，都没有时为 `development`，并写回这两个环境变量。2.x 使用的是 `mode` 选项（默认为 `development`），并用它覆盖 `NODE_ENV`：现在设置了 `NODE_ENV=production` 的部署环境会以生产模式运行，不论选项怎么写。
+- **运行模式**（`app.mode()`）依次取环境变量 `MODE`、`NODE_ENV`、`mode` 选项，都没有时为 `development`，并写回这两个环境变量。2.x 使用的是 `mode` 选项（默认为 `development`），并用它覆盖 `NODE_ENV`：现在设置了 `NODE_ENV=production` 的部署环境会以生产模式运行，不论选项如何设置。
 - **SIGTERM 和 SIGINT** 会让应用平稳退出（运行 `onDone`，入口停止，对象被销毁，退出码为 0）；2.x 把它们交给 Node.js 处理。请删除应用自己的 `process.on('SIGTERM', …)`，或者设置 `shutdownSignals: false`。`onDone` 处理函数会收到第三个参数 `{code, signal?}`。
 - **进程无事可做时**（没有服务器、连接或定时器），应用会平稳退出：此时 `onDone` 处理函数和 `destroy()` 钩子也会运行。在 2.x 中，进程直接结束。
 - **启动失败**时，如果没有 `onFatalException` 处理函数，进程以退出码 1 结束。2.x 只记录错误，进程继续运行，或者以退出码 0 结束。

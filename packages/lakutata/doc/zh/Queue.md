@@ -4,7 +4,7 @@
 
 ## 1. 配置
 
-用 `buildQueueOptions` 在应用的 `components` 中声明 `Queue`（按惯例命名为 `queue`），把队列的适配器交给 entrypoint，并让 entrypoint 在启动时创建（`bootstrap: ['entrypoint']`；否则它要到第一次被使用时才创建，动作不会开始消费）。不指定 `driver` 时，消息保存在进程的内存中。
+用 `buildQueueOptions` 在应用的 `components` 中声明 `Queue`（按惯例命名为 `queue`），把队列的适配器交给入口，并让入口在启动时创建（`bootstrap: ['entrypoint']`；否则它要到第一次被使用时才创建，动作不会开始消费）。不指定 `driver` 时，消息保存在进程的内存中。
 
 ```typescript
 import {Application} from 'lakutata'
@@ -42,7 +42,7 @@ Application.run(() => ({
 | `{type: 'kafka', brokers}` | `@platformatic/kafka`（Node.js 22.22 / 24.6 起） | Kafka 3.5 起 | 按键保序，`partitions`（默认 1）；需要 `results.store` |
 | `{type: 'custom', driver}` | | | 应用自己实现的 `QueueDriver` |
 
-客户端都是可选的 peer 依赖，在组件启动时才加载：缺少客户端包时启动失败并抛出 `QueueDriverNotFoundException`，服务端版本太旧时抛出 `QueueDriverVersionException`，连不上服务端时抛出连接错误。启动之后，驱动会自动重连。使用服务端的驱动还接受 `prefix`（默认 `lakutata`），作为它们在服务端创建的名称的前缀，用来隔开共用同一个服务端的应用。
+客户端都是可选的 peer 依赖，在组件启动时才加载：缺少客户端包时启动失败并抛出 `QueueDriverNotFoundException`，服务端版本太旧时抛出 `QueueDriverVersionException`，无法连接服务端时抛出连接错误。启动之后，驱动会自动重连。使用服务端的驱动还接受 `prefix`（默认 `lakutata`），作为它们在服务端创建的名称的前缀，用来隔开共用同一个服务端的应用。
 
 组件的其他选项：
 
@@ -175,9 +175,9 @@ class Images extends Component {
 ## 4. 投递
 
 - **至少一次。** 动作正常返回时消息被确认。抛出错误时，等待 `backoff` 后重新投递，最多 `attempts` 次，之后作为 `QueueDeadLetter`（`{queue, jobId, group, input, error, attempts, failedAt}`）进入 `<队列名>.dead`，它和普通队列一样。一条消息可能被处理两次（进程崩溃、停机），动作应当是幂等的。
-- **重试解决不了的不重试。** 输入不合法（`InvalidValueException`）、没有访问权限、动作不存在、返回值校验失败（`@Return`）、消息或结果无法编码：消息直接进入死信队列。动作抛出 `QueueDiscardException` 时丢弃这条消息：确认它，不进死信，也不保存结果。
+- **重试无法解决的不重试。** 输入不合法（`InvalidValueException`）、没有访问权限、动作不存在、返回值校验失败（`@Return`）、消息或结果无法编码：消息直接进入死信队列。动作抛出 `QueueDiscardException` 时丢弃这条消息：确认它，不进死信，也不保存结果。
 - **处理时限。** 处理超过 `timeout` 时以 `QueueProcessingTimeoutException` 失败并重试：它的 signal 被中止，之后的返回值被丢弃。投递有租约的驱动（NATS）会在处理期间自动续租。
-- **停机。** 应用停止时，消费者停止取新消息，正在处理的消息有 entrypoint 的 `shutdownTimeout` 时间完成；届时仍未完成的消息以后重新投递，既不确认也不进死信。
+- **停机。** 应用停止时，消费者停止取新消息，正在处理的消息有入口的 `shutdownTimeout` 时间完成；届时仍未完成的消息以后重新投递，既不确认也不进死信。
 - **组。** 同一个组的多个实例分摊消息；不同的组各收一份。动作的组默认是所在应用的 `appId`：两个应用消费同一个队列时会各收一份，除非它们指定相同的 `group`。组在登记之后才开始接收消息（应用启动时登记其动作的组，`consume()` 和 `queue.prepare(name, {group})` 也会登记）：使用服务端的驱动时，队列在任何组登记之前收到的消息不会被投递；内存驱动则把这些消息留给第一个登记的组，每个队列最多保留 `backlog` 条（默认为 `{type: 'memory', backlog: 1000}`），超出时丢弃最早的消息。所以没有人消费的死信队列（`<queue>.dead`）只在内存中保留最近的 1000 条消息。组登记后一直保存在服务端，所以即使组的所有实例都没有运行，发给它的消息也会保留。
 - **消息内容。** 消息是一个对象，也就是动作的输入。使用默认编解码时，`Date` 会变成 ISO 字符串（输入 DTO 可以把它转回 `Date`；返回值仍是字符串），`bigint` 会被拒绝。
 

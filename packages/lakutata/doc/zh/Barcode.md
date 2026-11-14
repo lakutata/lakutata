@@ -115,11 +115,11 @@ console.log(results.map((result: BarcodeResult): string => result.text))   //[ '
 await container.destroy()
 ```
 
-- **识别得更快。** `formats` 把查找范围限制在预期的码制上：在 1920×1080 的画面里识别一个 QR 码，查找所有码制约 8 毫秒，只查找 QR 码约 1.4 毫秒（第 7 节）。`pure: true` 用于图片里只有一个摆正的条码、周围没有别的东西的情况，例如 `generate()` 生成的图片。
+- **识别得更快。** `formats` 把查找范围限制在预期的码制上：在 1920×1080 的画面里识别一个 QR 码，查找所有码制约 8 毫秒，只查找 QR 码约 1.4 毫秒（第 7 节）。`pure: true` 用于图片里只有一个摆正的条码、周围没有其他内容的情况，例如 `generate()` 生成的图片。
 - **难识别的图片。** `tryHarder`、`tryRotate`、`tryInvert` 和 `tryDownscale` 默认都打开：它们会再去找很小的、旋转了的、深底浅色的和大图里的条码。已知图片容易识别时，关掉它们会更快。
-- **识别不出的情况。** 模块宽度小于约 2 像素的条码、模糊或反光的照片、被图片边缘截断的条码。这时识别出的条码会变少或者没有；只有图片无法解码时才会抛出异常（`BarcodeImageException`）。
+- **无法识别的情况。** 模块宽度小于约 2 像素的条码、模糊或反光的照片、被图片边缘截断的条码。这时识别出的条码会变少或者没有；只有图片无法解码时才会抛出异常（`BarcodeImageException`）。
 - **大图片**：超过 5000 万像素的图片在解码像素之前就会被拒绝，所以上传的文件不会让进程分配几个 GB 的内存。
-- **字节。** `bytes` 是编码在码里的原始内容；`text` 是它的可读形式（带校验位，GS1 用圆括号），`symbologyIdentifier` 说明怎样解读这些字节（`]Q1` 是 QR 码，`]C1` 是 GS1-128 等）。
+- **字节。** `bytes` 是编码在码里的原始内容；`text` 是它的可读形式（带校验位，GS1 用圆括号），`symbologyIdentifier` 说明如何解读这些字节（`]Q1` 是 QR 码，`]C1` 是 GS1-128 等）。
 
 ## 5. 在应用中使用
 
@@ -294,14 +294,14 @@ await container.destroy()
 
 它不支持的情况，有的是有意为之，有的是还没做：
 
-- zxing-cpp 识别不了的码制不提供生成：四态邮政码、汉信码、DotCode、Code One、Grid Matrix、Codablock-F、Code 16K、Code 49 以及 zint 的其他堆叠码制。Telepen Numeric 也没有提供，因为识别时除非只查找它，否则会把它当成 Telepen。
+- zxing-cpp 无法识别的码制不提供生成：四态邮政码、汉信码、DotCode、Code One、Grid Matrix、Codablock-F、Code 16K、Code 49 以及 zint 的其他堆叠码制。Telepen Numeric 也没有提供，因为识别时除非只查找它，否则会把它当成 Telepen。
 - 分成多个码的内容（结构化追加）逐个识别：`structuredAppend` 给出每个码的位置，内容的拼接由应用完成。
 - 像素只支持灰度、RGB 和 RGBA；BGR 和 BGRA（某些摄像头接口）需要应用自己转换。GIF 只识别第一帧。
 - 输出只有 PNG、SVG 和像素，不提供 EPS、EMF 和 PDF。
 
 ## 9. 异常
 
-所有异常都继承 `BarcodeException`，它继承 lakutata 的 `Exception`。
+所有异常都继承 `BarcodeException`，它继承 `lakutata` 的 `Exception`。
 
 | 异常 | `errno` | 什么时候 |
 |---|---|---|

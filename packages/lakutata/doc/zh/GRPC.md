@@ -116,7 +116,7 @@ Application
 
 每次调用都带着元数据 `id`，即客户端的 id：代理的 `clientId`，或者其他语言的客户端发送的 `id` 头。动作通过 `this.context.clientId` 读取它。
 
-`grpcCallOfContext(context)` 让动作拿到整个 gRPC 调用：客户端发送的元数据、截止时间和对端地址。请求来自其他传输方式时，它返回 `undefined`。
+`grpcCallOfContext(context)` 让动作获取整个 gRPC 调用：客户端发送的元数据、截止时间和对端地址。请求来自其他传输方式时，它返回 `undefined`。
 
 ```typescript
 import {Controller, type ServiceContext} from 'lakutata/com/entrypoint'
@@ -172,7 +172,7 @@ gRPC 层面失败的调用会抛出 `@lakutata/grpc` 中的 `GRPCError`，它的
 
 | 状态 | 什么时候 |
 |---|---|
-| `UNAVAILABLE` | 连不上服务 |
+| `UNAVAILABLE` | 无法连接服务 |
 | `DEADLINE_EXCEEDED` | 超过截止时间 |
 | `CANCELLED` | 调用被取消 |
 | `RESOURCE_EXHAUSTED` | 消息超过 `maxMessageSize` |
@@ -226,4 +226,4 @@ print(json.loads(response.payload) if response.success else json.loads(response.
 
 ## 8. 底层组件
 
-这个包也提供服务所依赖的底层组件，脱离 lakutata 也能使用：`GRPCConnection` 是可以调用任何 gRPC 服务端的客户端（一元调用、服务端流、双向流、元数据、TLS）；`GRPCServer` 是服务端；`encode`/`decode` 是基于 schema 的 protobuf 编解码器。详见 `@lakutata/grpc` 的 README。`GRPCServer.listenWith()` 也能像适配器一样，通过网口的监听器（`@lakutata/netif` 的 `listenOnAll()`）按网口监听。
+这个包也提供服务所依赖的底层组件，脱离 Lakutata 也能使用：`GRPCConnection` 是可以调用任何 gRPC 服务端的客户端（一元调用、服务端流、双向流、元数据、TLS）；`GRPCServer` 是服务端；`encode`/`decode` 是基于 schema 的 protobuf 编解码器。详见 `@lakutata/grpc` 的 README。`GRPCServer.listenWith()` 也能像适配器一样，通过网口的监听器（`@lakutata/netif` 的 `listenOnAll()`）按网口监听。

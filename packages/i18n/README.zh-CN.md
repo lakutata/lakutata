@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-lakutata 框架的国际化组件。它按键名保存应用在各种语言下的消息，消息使用 [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/) 的语法，由 Node.js 内置的 `Intl` 按各自的语言格式化（数字、货币、日期、复数、选择），不依赖第三方库。它还提供为每个请求确定语言的中间件（这样请求的 `Translator`、校验错误和异常都使用这种语言）、Commander 命令行帮助的翻译，以及检查翻译的工具。`lakutata` 包把它重新导出为 `lakutata/com/i18n`。
+Lakutata 框架的国际化组件。它按键名保存应用在各种语言下的消息，消息使用 [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/) 的语法，由 Node.js 内置的 `Intl` 按各自的语言格式化（数字、货币、日期、复数、选择），不依赖第三方库。它还提供为每个请求确定语言的中间件（这样请求的 `Translator`、校验错误和异常都使用这种语言）、Commander 命令行帮助的翻译，以及检查翻译的工具。`lakutata` 包把它重新导出为 `lakutata/com/i18n`。
 
 ## 安装
 
@@ -71,7 +71,7 @@ Application
 | `timeZone` | 进程的时区 | 日期和时间的 IANA 时区 |
 | `validationMessages` | `true` | 是否为各种语言注册内置的校验消息 |
 
-**回退。** 某种语言里缺少的消息，依次到它的 `fallback` 语言（以及这些语言的 `fallback` 语言）、范围更宽的标签（对 `zh-Hant-TW` 来说，先 `zh-Hant`，再 `zh`）和默认语言中查找。消息总是按请求的语言格式化：德语请求用到英文消息时，数字写成 `1.000`。哪里都找不到的键会抛出 `I18nMissingKeyException`；`missing: 'key'` 时返回键名本身。
+**回退。** 某种语言里缺少的消息，依次到它的 `fallback` 语言（以及这些语言的 `fallback` 语言）、范围更宽的标签（对 `zh-Hant-TW` 来说，先 `zh-Hant`，再 `zh`）和默认语言中查找。消息总是按请求的语言格式化：德语请求用到英文消息时，数字写成 `1.000`。在各处均未找到的键会抛出 `I18nMissingKeyException`；`missing: 'key'` 时返回键名本身。
 
 **在请求之外**（定时任务或单例组件中），使用组件的 `t(key, params, locale)`、`has(key, locale)`、`format(message, params, locale)`，以及得到某种语言翻译器的 `translator(locale)`。它们都不做语言协商：不支持的语言按原样查找，然后回退。
 
@@ -139,7 +139,7 @@ Application.run(() => ({
 
 不是语言标签的 Query 参数或 Cookie 值会被跳过。协商时依次尝试请求的每一种语言：先找完全相同的标签，再找只有语言部分的标签（`en-GB` 得到 `en`），再找同一语言的其他标签（`pt-PT` 得到 `pt-BR`，按支持的语言的顺序）。
 
-子类可以换用别的组件（`@Inject('...') protected readonly i18n`），修改 `queryParameter` 和 `cookie` 的名字以及 `environmentVariable`，或者改变读取的语言（`requested(context)`）：
+子类可以换用其他组件（`@Inject('...') protected readonly i18n`），修改 `queryParameter` 和 `cookie` 的名字以及 `environmentVariable`，或者改变读取的语言（`requested(context)`）：
 
 ```typescript
 import {type BaseContext} from 'lakutata/com/entrypoint'
@@ -293,7 +293,7 @@ if (issues.some((issue: CatalogIssue): boolean => issue.level === 'error')) proc
 |---|---|
 | `I18nCatalogException`（`E_I18N_CATALOG`） | 创建组件、`addMessages()` 或 `loadCatalogs()` 时：目录不存在、JSON 无效、文件名或目录名不是语言标签、键或值无效、选项不是语言标签、在没有应用时使用别名；`generateMessageTypes()`：默认语言没有消息 |
 | `I18nMessageSyntaxException`（`E_I18N_MESSAGE_SYNTAX`） | 消息不是有效的 ICU MessageFormat，在第一次使用时（或者由 `format()`、`parseMessage()`、`generateMessageTypes()` 解析时）抛出 |
-| `I18nMissingKeyException`（`E_I18N_MISSING_KEY`） | `t()`：找不到这个键的消息，且 `missing: 'throw'` |
+| `I18nMissingKeyException`（`E_I18N_MISSING_KEY`） | `t()`：未找到这个键的消息，且 `missing: 'throw'` |
 | `I18nMissingParameterException`（`E_I18N_MISSING_PARAMETER`） | `t()`、`format()`：缺少参数，或者货币参数没有货币，且 `missing: 'throw'` |
 | `I18nTranslatorException`（`E_I18N_TRANSLATOR`） | 没有配置 `I18nMiddleware` 就使用 `Translator`，或者在请求之外使用它 |
 | `InvalidValueException`（来自 `lakutata`） | 创建组件时，组件的选项无效 |

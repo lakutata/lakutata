@@ -8,7 +8,7 @@ npm install lakutata @lakutata/ffi
 
 koffi 会连同各平台的预编译文件一起安装（每个平台一个包）。npm 可能会提示 koffi 的安装脚本没有运行：不需要运行它。
 
-C 函数的原型写错，或者传给它不该传的指针，整个进程都会退出，任何异常处理都拦不住。请从库的头文件里复制声明，并且测试它们。
+C 函数的原型写错，或者传给它不该传的指针，整个进程都会退出，任何异常处理都无法拦截。请从库的头文件里复制声明，并且测试它们。
 
 ## 1. 一个库
 
@@ -110,7 +110,7 @@ Application.run(() => ({
 }))
 ```
 
-加载不了时，`NativeLibraryNotFoundException` 会列出试过的每个文件，以及没能加载的原因（找不到、为别的架构编译的、缺少它依赖的库）。Linux 上系统自带的库常常只装了带版本号的文件（`libsqlite3.so.0`），这时请写这个名字。
+无法加载时，`NativeLibraryNotFoundException` 会列出试过的每个文件，以及没能加载的原因（未找到、为其他架构编译的、缺少它依赖的库）。Linux 上系统自带的库常常只装了带版本号的文件（`libsqlite3.so.0`），这时请写这个名字。
 
 要把库和打包后的应用一起发布，把它放进 package.json 的资源里，放到 `native` 目录：
 
@@ -122,7 +122,7 @@ Application.run(() => ({
 }
 ```
 
-`lakutata package` 打出的 bundle、可执行文件（Node.js 的和 Bun 的）和 Electron 安装包都会带上它，也会带上 koffi 和本平台的预编译文件。在 Alpine 上请用 Bun 打可执行文件（`--runtime bun`）：Node.js 的可执行文件在 musl 上加载不了原生插件。在 Node.js 的权限模型下运行时，要加 `--allow-addons`。
+`lakutata package` 打出的 bundle、可执行文件（Node.js 的和 Bun 的）和 Electron 安装包都会带上它，也会带上 koffi 和本平台的预编译文件。在 Alpine 上请用 Bun 打可执行文件（`--runtime bun`）：Node.js 的可执行文件在 musl 上无法加载原生插件。在 Node.js 的权限模型下运行时，要加 `--allow-addons`。
 
 ## 3. 调用函数
 
@@ -196,7 +196,7 @@ export class Vendor extends NativeLibrary {
 ```
 
 - `callback(type, fn)` 的第一个参数是声明里某个函数指针类型的名字，或者一个原型。把它的 `pointer` 交给库；库不再调用它时，调用 `release()` 释放。组件销毁时，它的回调会全部释放。一个进程同时最多有 8192 个持久回调。
-- 库从别的线程调用它时，它会在事件循环轮到它时，在 JS 线程里执行。如果一个函数会等某个线程回调，就必须把它声明为异步：同步调用的话，JS 线程在等那个线程，而那个线程又在等 JS 线程。
+- 库从其他线程调用它时，它会在事件循环轮到它时，在 JS 线程里执行。如果一个函数会等某个线程回调，就必须把它声明为异步：同步调用时，JS 线程在等那个线程，而那个线程又在等 JS 线程。
 - 它抛出的异常会成为组件的 `error` 事件（没人监听时写进应用日志），库收到的结果是 0（或空指针）。
 
 ## 6. 内存
@@ -246,11 +246,11 @@ lakutata ffi generate /usr/include/sqlite3.h --class-name SQLite3 --out src/nati
 lakutata ffi generate sdk/include/vendor.h --library sdk/lib/vendor.dll --out src/native/Vendor.ts
 ```
 
-- **头文件**先经过 C 编译器的预处理器（`cc -E`、`cl /P`）：`#include`、`#if` 和宏按在当前平台上编译时那样展开（编译时用的头文件目录和宏用 `--include`、`--define` 给出）。在 Windows 上，请在 Visual Studio 的开发者命令提示符里运行，那里有 `cl`；用 `--compiler`（或 `CC` 环境变量）可以换别的编译器。
-- **保留哪些声明**：头文件里的声明；它所在的目录不是系统目录时，还有这个目录里其他头文件的声明（库的其他头文件所在的目录用 `--own` 加上）；以及这些声明用到的系统类型。这个包读不了的声明（`long double`、带参数的宏）会被去掉，并列出它所在的文件和行号。
-- **用库检查**：加载和头文件同名的库（`sqlite3.h` 对应 `sqlite3`），或者 `--library` 给出的库（库名或文件），库里没有导出的函数和不能调用的函数（参数是 `va_list`）会被去掉并列出来。库加载不了时，照样生成类，只是不做检查，并给出警告（zlib 要写 `--library z`）；`--no-check` 跳过检查。
+- **头文件**先经过 C 编译器的预处理器（`cc -E`、`cl /P`）：`#include`、`#if` 和宏按在当前平台上编译时那样展开（编译时用的头文件目录和宏用 `--include`、`--define` 给出）。在 Windows 上，请在 Visual Studio 的开发者命令提示符里运行，那里有 `cl`；用 `--compiler`（或 `CC` 环境变量）可以换用其他编译器。
+- **保留哪些声明**：头文件里的声明；它所在的目录不是系统目录时，还有这个目录里其他头文件的声明（库的其他头文件所在的目录用 `--own` 加上）；以及这些声明用到的系统类型。这个包无法读取的声明（`long double`、带参数的宏）会被去掉，并列出它所在的文件和行号。
+- **用库检查**：加载和头文件同名的库（`sqlite3.h` 对应 `sqlite3`），或者 `--library` 给出的库（库名或文件），库里没有导出的函数和不能调用的函数（参数是 `va_list`）会被去掉并列出来。库无法加载时，照样生成类，只是不做检查，并给出警告（zlib 要写 `--library z`）；`--no-check` 跳过检查。
 - **生成的类**：每个函数一个属性，属性名就是函数名，上面注释着它的 C 原型；函数名和组件的成员重名时（`free`、`read`），属性换一个名字。TypeScript 类型按第 3 节的规则：64 位整数是 bigint，字符串是 `string | null`，其他指针是 `Pointer | null`（作为参数时也可以传 `Buffer` 或类型化数组）。
-- **哪些要自己改**：头文件看不出哪些指针是输出参数，也看不出哪些函数会阻塞，生成的文件就是供你修改的。输出参数要在声明里它所属函数的原型上标成 `_Out_`，参数类型改成 `Out<T>`（指向结构体的指针改成那个结构体的接口）。会阻塞的函数在 `@Native` 里加上 `{async: true}`，这时 `@Native` 要写出函数名。头文件出了新版本时，重新生成类，再把这些修改搬过去。
+- **哪些要自己改**：从头文件无法看出哪些指针是输出参数，也无法看出哪些函数会阻塞，生成的文件就是供你修改的。输出参数要在声明里它所属函数的原型上标成 `_Out_`，参数类型改成 `Out<T>`（指向结构体的指针改成那个结构体的接口）。会阻塞的函数在 `@Native` 里加上 `{async: true}`，这时 `@Native` 要写出函数名。头文件出了新版本时，重新生成类，再把这些修改搬过去。
 - **只针对一个平台**：声明是运行生成器的那个平台上的；头文件按平台写了不同声明的（`#ifdef _WIN32`），要在每个平台上各生成一份。换一个版本的库可能少一些函数：组件启动时会报错，并指出缺的是哪个函数。在 Linux 上，库是通过它的开发包装的链接（`libsqlite3.so`）找到的：在没有装开发包的机器上，`names` 要写带版本号的文件名（`libsqlite3.so.0`，见第 2 节）。
 
 下面是生成器为 `sqlite3_open` 和 `sqlite3_exec` 生成的代码改过之后的样子：
@@ -296,7 +296,7 @@ export class Vendor extends NativeLibrary {
 }
 ```
 
-- **几个线程**：只有一个线程时，异步调用按发起的先后顺序，一个接一个执行，适合不是线程安全的库，或者一次只能处理一个请求的设备。有多个线程时，每个调用交给最空闲的那个线程。配置里可以改成别的数量（`buildNativeLibraryOptions(Vendor, {threads: 2})`），`loadNativeLibrary` 的选项里也可以设置；`0` 表示仍然用线程池。
+- **几个线程**：只有一个线程时，异步调用按发起的先后顺序，一个接一个执行，适合不是线程安全的库，或者一次只能处理一个请求的设备。有多个线程时，每个调用交给最空闲的那个线程。配置里可以改成其他数量（`buildNativeLibraryOptions(Vendor, {threads: 2})`），`loadNativeLibrary` 的选项里也可以设置；`0` 表示仍然用线程池。
 - **哪些函数在线程里执行**：只有异步函数。同步函数仍然在调用它的线程里执行，所以这个库会同时被两个线程使用：如果库不是线程安全的，请把它的函数全部声明为异步。在这里，可变参数的函数也可以异步调用。库的线程不占用线程池：耗时长的调用不会拖慢文件系统，`UV_THREADPOOL_SIZE` 对它们也不起作用。
 - **参数会复制**到线程里。函数会写入的参数，在函数返回后再复制回来：`_Out_` 和 `_Inout_` 参数，以及传给非 `const` 指针的缓冲区和类型化数组。缓冲区每次调用都要复制过去，函数可能写入的还要复制回来：缓冲区很大时，用线程池开销更小。指针原样传过去：`alloc()` 分配的内存所有线程都能用。
 - **回调**：传给函数指针参数的 JS 函数，在发起调用的那个线程里执行，库的线程会等它执行完；它抛出的异常会让 Promise 被拒绝。持久回调和第 5 节说的一样。
@@ -308,7 +308,7 @@ export class Vendor extends NativeLibrary {
 
 应用停止时，库组件会：让它的属性抛出 `NativeLibraryClosedException`（异步函数返回被拒绝的 Promise）；等进行中的异步调用结束（`drainTimeout`，默认 10 秒）；释放它的回调；释放 `alloc()` 分配的内存；卸载库（`keepLoaded` 时保留；musl 从不卸载）。如果把属性上的函数另外存了一份（`const abs = libc.abs`），销毁后就不能再调用它：调用已卸载的库里的函数，进程会退出。
 
-原生调用没法中途打断。过了 `drainTimeout` 还有调用没结束时，库、它的回调和它的内存都保持原样，让这些调用能安全返回。线程池里的调用继续执行，返回时照常完成；库的线程里的调用会以 `NativeLibraryClosedException` 被拒绝，那些线程在调用返回后退出。即使调用了 `process.exit()`，Node.js 也要等这样的调用返回才退出；Bun 的 `process.exit()` 不等它们。
+原生调用无法中途打断。过了 `drainTimeout` 还有调用没结束时，库、它的回调和它的内存都保持原样，让这些调用能安全返回。线程池里的调用继续执行，返回时照常完成；库的线程里的调用会以 `NativeLibraryClosedException` 被拒绝，那些线程在调用返回后退出。即使调用了 `process.exit()`，Node.js 也要等这样的调用返回才退出；Bun 的 `process.exit()` 不等它们。
 
 工作线程要自己加载库（在线程里创建组件）。请先停止工作线程里运行的应用，再终止这个线程：应用会等调用结束，并关闭它的库。工作线程正在用 koffi 时被终止，整个进程都可能退出：
 
@@ -329,8 +329,8 @@ Node.js `>=18.10.0`、Electron 的主进程和 Bun；不支持 Electron 的渲�
 
 | 异常 | 什么时候 |
 |---|---|
-| `NativeDeclarationException` | 声明或原型读不了（带行号和列号）、库里没有这个函数、某个类型不能传（`va_list`）、类上没有 `@Library` |
-| `NativeLibraryNotFoundException` | 库加载不了：列出试过的每个文件和原因 |
+| `NativeDeclarationException` | 声明或原型无法读取（带行号和列号）、库里没有这个函数、某个类型不能传（`va_list`）、类上没有 `@Library` |
+| `NativeLibraryNotFoundException` | 库无法加载：列出试过的每个文件和原因 |
 | `NativeLibraryClosedException` | 库关闭后又使用它的函数、变量或回调；库关闭时，它的线程里还没结束的调用 |
 | `NativeMemoryException` | 空指针、负的长度、在 Electron 里用视图 |
 | `TypeError`（来自 koffi） | 参数类型不对 |

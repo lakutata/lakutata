@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-[lakutata](https://www.npmjs.com/package/lakutata) 框架的消息队列。`Queue` 组件把消息加入队列，用 `@QueueAction` 声明的控制器动作通过 `queueEntrypoint` 适配器处理这些消息，和其他传输方式一样使用输入 DTO、访问控制和中间件。动作正常返回时消息被确认，失败后重新投递；尝试次数用完后，消息进入死信队列 `<queue>.dead`。动作的返回值就是这条消息的结果（`queue.request()`、`queue.result()`），还可以接着发往另一个队列（`output`）。`lakutata` 包通过 `lakutata/com/queue` 提供这个包。
+[Lakutata](https://www.npmjs.com/package/lakutata) 框架的消息队列。`Queue` 组件把消息加入队列，用 `@QueueAction` 声明的控制器动作通过 `queueEntrypoint` 适配器处理这些消息，和其他传输方式一样使用输入 DTO、访问控制和中间件。动作正常返回时消息被确认，失败后重新投递；尝试次数用完后，消息进入死信队列 `<queue>.dead`。动作的返回值就是这条消息的结果（`queue.request()`、`queue.result()`），还可以接着发往另一个队列（`output`）。`lakutata` 包通过 `lakutata/com/queue` 提供这个包。
 
 ## 安装
 
@@ -81,7 +81,7 @@ console.log(await queue.result('image.extract', job.id, {timeout: '1m'}))
 
 语义：
 
-- **至少一次。** 动作正常返回时消息被确认。出错后，等待 `backoff`（默认为指数退避，从 1 秒到 1 分钟）后重新投递，最多 `attempts` 次（默认 3 次），之后进入 `<queue>.dead`（`{queue, jobId, group, input, error, attempts, failedAt}`）。重试解决不了的错误会让消息直接进入死信队列：输入不合法（`InvalidValueException`）、没有访问权限、动作不存在、返回值不合法（`@Return`）。动作抛出 `QueueDiscardException` 时，丢弃这条消息。动作应当是幂等的。
+- **至少一次。** 动作正常返回时消息被确认。出错后，等待 `backoff`（默认为指数退避，从 1 秒到 1 分钟）后重新投递，最多 `attempts` 次（默认 3 次），之后进入 `<queue>.dead`（`{queue, jobId, group, input, error, attempts, failedAt}`）。重试无法解决的错误会让消息直接进入死信队列：输入不合法（`InvalidValueException`）、没有访问权限、动作不存在、返回值不合法（`@Return`）。动作抛出 `QueueDiscardException` 时，丢弃这条消息。动作应当是幂等的。
 - **组。** 同一个组的各个实例分摊这个组的消息，每个组都会收到每一条消息。动作的组默认是所在应用的 `appId`：两个应用消费同一个队列时，各自都会收到全部消息，除非它们指定相同的 `group`。有多个组消费同一个队列时，`request()` 和 `result()` 必须指明组。
 - **停机。** 应用停止时，消费者停止消费，正在处理的消息有一段时间可以完成（入口的 `shutdownTimeout`）。届时仍未完成的消息以后会重新投递，既不确认，也不进死信队列。组件被销毁时，`consume()` 仍在处理的消息会被中止（通过它们的 signal），之后同样会重新投递。
 - **处理时限。** 处理超过 `timeout` 时以 `QueueProcessingTimeoutException` 失败并重试：它的 signal 被中止，之后的返回值被丢弃。

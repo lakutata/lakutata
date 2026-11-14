@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-Node.js 的串口库，属于 [lakutata](https://github.com/lakutata/lakutata) 框架：把串口作为流打开，设置线路参数（波特率、数据位、校验位、停止位、流控），读写调制解调器信号线，列出系统里的串口和 USB 转接器的 ID。经典蓝牙设备（串口协议 SPP）可以按地址打开，得到同样的流。和系统打交道的部分由一个小型原生插件完成：Linux 和 macOS 上用 termios，Windows 上用通信 API。`lakutata` 包不重新导出这个包，请从 `@lakutata/serial` 导入。
+Node.js 的串口库，属于 [Lakutata](https://github.com/lakutata/lakutata) 框架：把串口作为流打开，设置线路参数（波特率、数据位、校验位、停止位、流控），读写调制解调器信号线，列出系统里的串口和 USB 转接器的 ID。经典蓝牙设备（串口协议 SPP）可以按地址打开，得到同样的流。和系统打交道的部分由一个小型原生插件完成：Linux 和 macOS 上用 termios，Windows 上用通信 API。`lakutata` 包不重新导出这个包，请从 `@lakutata/serial` 导入。
 
 ## 安装
 
@@ -30,12 +30,12 @@ await port.close()
 ```
 
 - `openSerialPort(options)` 打开串口，结果是一个 `SerialPort`，它是 `Duplex` 流：写入的数据从线路发出，线路收到的数据可以读出。路径：Linux 上是 `/dev/ttyUSB0` 或 `/dev/ttyACM0`，macOS 上是 `/dev/cu.*`（呼出设备，不等待载波），Windows 上是 `COM3`。
-- 串口默认独占打开：打开期间其他程序打不开它。在 Linux 和 macOS 上，`exclusive: false` 允许其他程序打开；Windows 总是独占打开串口。
+- 串口默认独占打开：打开期间其他程序无法打开它。在 Linux 和 macOS 上，`exclusive: false` 允许其他程序打开；Windows 总是独占打开串口。
 - `drain()` 在已写入的数据从线路发出后完成；`end()` 会等这些数据发完再触发 `'finish'`。
 - `close()` 在数据发完后关闭串口；`destroy()` 立即关闭，丢弃还没发出的数据。
 - `update(options)` 在之前的写入发完后修改线路参数；`getSignals()` 读取 CTS、DSR、DCD 和 RI；`setSignals()` 设置 DTR 和 RTS，或在之前的写入发完后发送中断信号（break）；`flush()` 丢弃两个方向上等待中的数据。
-- **一定要监听 `'error'`。** 设备不在了（拔掉了转接器、蓝牙断开）时，即使当时没有在读写，流也会以 `SerialException` 失败，它的 `disconnected` 是 `true`。没有 `'error'` 监听器的话，Node.js 会结束进程。
-- 设置完线路参数后会读回核对：驱动没有接受某项设置（某种校验方式、某个它跑不了的波特率）时，打开或修改会以 `'EINVAL'` 失败，而不是带着别的设置继续运行。
+- **一定要监听 `'error'`。** 设备不在了（拔掉了转接器、蓝牙断开）时，即使当时没有在读写，流也会以 `SerialException` 失败，它的 `disconnected` 是 `true`。没有 `'error'` 监听器时，Node.js 会结束进程。
+- 设置完线路参数后会读回核对：驱动没有接受某项设置（某种校验方式、某个它无法支持的波特率）时，打开或修改会以 `'EINVAL'` 失败，而不是带着其他设置继续运行。
 
 ### 选项
 
@@ -61,7 +61,7 @@ await port.close()
 - `close()` 在输出还在动时一直等待；输出停止达到 `stallTimeout`（`close({stallTimeout})`，默认 10 秒）后，丢弃剩下的数据，关闭串口，并以 `'ETIMEDOUT'` 拒绝。
 - 中断信号（break）要先等输出发完；流控把输出卡住超过 2 秒时，它以 `'ETIMEDOUT'` 失败。
 
-最后一个字节交给系统之后，`drain()` 和 `close()` 还要等系统报告不了的那部分字节：在驱动和转接器芯片里的数据。等待的时长是这些字节按线路速度发完所需的时间，macOS 上最多按 4 KB 算（9600 波特率下约 4 秒，115200 下约 0.4 秒），Linux 和 Windows 上最多按 1 KB 算。
+最后一个字节交给系统之后，`drain()` 和 `close()` 还要等系统无法报告的那部分字节：在驱动和转接器芯片里的数据。等待的时长是这些字节按线路速度发完所需的时间，macOS 上最多按 4 KB 算（9600 波特率下约 4 秒，115200 下约 0.4 秒），Linux 和 Windows 上最多按 1 KB 算。
 
 ### 蓝牙
 
@@ -122,10 +122,10 @@ await printer.close()
 
 - **Linux 上权限不足（`'EACCES'`）：** 把用户加到串口所属的组里（Debian 和 Ubuntu 上是 `dialout`，Arch 上是 `uucp`），然后重新登录。
 - **Ubuntu 22.04、Linux Mint 21 上插了 CH340 转接器却没有 `/dev/ttyUSB0`：** 是 `brltty` 软件包占用了它。卸载这个软件包，或禁用它的 udev 规则。
-- **Linux 上新插的串口有几秒钟打不开：** ModemManager 在用 AT 命令探测新串口。让它忽略这个设备（在 udev 规则里设 `ID_MM_DEVICE_IGNORE`），或停掉它。
+- **Linux 上新插的串口有几秒钟无法打开：** ModemManager 在用 AT 命令探测新串口。让它忽略这个设备（在 udev 规则里设 `ID_MM_DEVICE_IGNORE`），或停掉它。
 - **一打开串口开发板就复位（Arduino、ESP32）：** Linux 和 macOS 在打开串口时会拉高 DTR 和 RTS，用户代码无法避免这个脉冲。
 - **树莓派：** 用 `/dev/serial0`，`/dev/ttyAMA0` 可能被蓝牙芯片占用。
-- **Linux 上关闭要等最多 30 秒：** 转接器里有因流控发不出去的数据时，内核会在关闭串口时等它（`closing_wait`，默认 30 秒）。事件循环不会被阻塞，但 `close()` 的 Promise 要等内核放开串口才会完成。丢弃数据也不能缩短这个等待，因为转接器芯片里的字节是够不着的。
+- **Linux 上关闭要等最多 30 秒：** 转接器里有因流控无法发出的数据时，内核会在关闭串口时等它（`closing_wait`，默认 30 秒）。事件循环不会被阻塞，但 `close()` 的 Promise 要等内核放开串口才会完成。丢弃数据也不能缩短这个等待，因为转接器芯片里的字节是无法触及的。
 - **Windows 上刚关闭就重新打开报 `'EBUSY'`：** 有些驱动在串口关闭后要稍等一会儿才释放它，隔一小会儿再打开即可。
 - **macOS：** 用 `/dev/cu.*` 设备，`/dev/tty.*` 是给接入连接用的。
 

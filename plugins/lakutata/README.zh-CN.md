@@ -2,21 +2,21 @@
 
 [English](README.md) | 中文
 
-lakutata 官方的 Agent Skill（智能体技能），供 AI 编程助手使用。装上它之后，助手在 lakutata 项目中工作时，会先检查项目所用的版本，遵守框架的规则，避开常见的坑，并在写代码之前阅读对应的指南。它也会指导把 2.x 或 1.x 的项目升级到 3.x，每个版本各看各自的升级指南。
+Lakutata 官方的 Agent Skill（智能体技能），供 AI 编程助手使用。装上它之后，助手在 Lakutata 项目中工作时，会先检查项目所用的版本，遵守框架的规则，避开常见的坑，并在写代码之前阅读对应的指南。它也会指导把 2.x 或 1.x 的项目升级到 3.x，每个版本各看各自的升级指南。
 
-它采用 [Agent Skills](https://agentskills.io) 格式：一个名为 `lakutata` 的文件夹，里面有一个 `SKILL.md`。下面每个编程助手各有一节，按名称的字母顺序排列，每节的结构相同：怎样安装技能、助手读取哪些文件夹、怎样确认技能已经加载、怎样更新，以及这个助手需要注意的地方。这些小节之后是 Claude 应用，最后一节适用于其他任何助手。
+它采用 [Agent Skills](https://agentskills.io) 格式：一个名为 `lakutata` 的文件夹，里面有一个 `SKILL.md`。下面每个编程助手各有一节，按名称的字母顺序排列，每节的结构相同：如何安装技能、助手读取哪些文件夹、如何确认技能已经加载、如何更新，以及这个助手需要注意的地方。这些小节之后是 Claude 应用，最后一节适用于其他任何助手。
 
 ## 工作方式
 
-技能本身很小，也很少需要改动。它只包含助手必须始终遵守的内容：版本检查（1.x、2.x 和 3.x 的代码互不兼容）、框架的模型、规则和常见的坑，以及一张"什么任务看哪篇指南"的表。具体知识按下面的顺序从文档中读取：
+技能本身很小，也很少需要改动。它只包含助手必须始终遵守的内容：版本检查（1.x、2.x 和 3.x 的代码互不兼容）、框架的模型、规则和常见的坑，以及一张“什么任务看哪篇指南”的表。具体知识按下面的顺序从文档中读取：
 
 1. **已安装的包中自带的指南**，即 `node_modules/lakutata/doc/en/`：它们描述的正是项目所用的版本，不需要联网，项目升级 `lakutata` 时也随之更新。
 2. **已安装的包的类型声明**，用来确认确切的函数签名和选项。
-3. **本网站上的 Markdown 格式指南**，例如 <https://lakutata.com/doc/en/Overview.md>，全部列在 <https://lakutata.com/llms.txt> 中：在项目还没有安装 lakutata（新项目），或者助手读不了 `node_modules` 时使用。它们跟随最新的源码，所以两者都有时，以已安装的包为准。
+3. **本网站上的 Markdown 格式指南**，例如 <https://lakutata.com/doc/en/Overview.md>，全部列在 <https://lakutata.com/llms.txt> 中：在项目还没有安装 `lakutata`（新项目），或者助手无法读取 `node_modules` 时使用。它们跟随最新的源码，所以两者都有时，以已安装的包为准。
 
 因此框架更新时，技能本身很少需要更新。有些助手的文件工具会避开 `node_modules`（例如 Cursor、Devin Desktop 和 Gemini CLI，见各自的小节）；这时技能会通过终端命令读取指南，或者读取本网站上的版本。
 
-安装之后，任务涉及 lakutata 时，助手会按照技能的描述自动使用它。每一节也写明了怎样主动要求助手使用它。
+安装之后，任务涉及 Lakutata 时，助手会按照技能的描述自动使用它。每一节也写明了如何主动要求助手使用它。
 
 ## Claude Code
 
@@ -44,7 +44,7 @@ lakutata 官方的 Agent Skill（智能体技能），供 AI 编程助手使用�
 
 ## CodeBuddy
 
-- **安装：** `npx skills add lakutata/lakutata -a codebuddy` 把技能写入项目中的 `.codebuddy/skills/lakutata`（加 `-g` 则写入 `~/.codebuddy/skills`）。CodeBuddy IDE 也能导入它：使用技能设置页右上角的"导入 Skill"按钮。CodeBuddy Code 的插件市场要求仓库中有 `.codebuddy-plugin/marketplace.json`，本仓库没有这个文件。
+- **安装：** `npx skills add lakutata/lakutata -a codebuddy` 把技能写入项目中的 `.codebuddy/skills/lakutata`（加 `-g` 则写入 `~/.codebuddy/skills`）。CodeBuddy IDE 也能导入它：使用技能设置页右上角的“导入 Skill”按钮。CodeBuddy Code 的插件市场要求仓库中有 `.codebuddy-plugin/marketplace.json`，本仓库没有这个文件。
 - **文件夹：** CodeBuddy Code（命令行）读取项目中的 `.codebuddy/skills` 和用户目录中的 `~/.codebuddy/skills`；同名时，项目中的技能优先。IDE 读取工作区中的 `.codebuddy/skills`；它的文档没有给出用户目录中的文件夹。
 - **确认：** 在 CodeBuddy Code 中，`/skills` 列出已加载的技能；IDE 在设置中分 Project Skills 和 User Skills 列出它们。直接说出 lakutata 技能的名字，就能主动使用它。
 - **更新：** 它的文档没有说明。用 `npx skills` 安装的技能用 `npx skills update lakutata` 更新；手动复制的文件夹，再复制一次即可。
@@ -78,7 +78,7 @@ lakutata 官方的 Agent Skill（智能体技能），供 AI 编程助手使用�
 - **文件夹：** 项目中的 `.cursor/skills` 或 `.agents/skills`，用户目录中的 `~/.cursor/skills` 或 `~/.agents/skills`；Cursor 也会加载 `.claude/skills` 和 `~/.claude/skills`。
 - **确认：** 打开侧边栏的 Customize，再打开 Skills。在 Agent 对话中输入 `/` 并搜索 lakutata，可以主动使用这个技能；在 Cursor 命令行中，`/skills` 列出所有技能。Cursor 在启动时查找技能。
 - **更新：** 团队插件市场用 Refresh 更新，打开 Enable Auto Refresh 后每次推送都会更新。对于单个用户导入的仓库，Cursor 的工作人员在论坛上确认，插件会停留在导入时的那个提交上，这是一个已知的问题：在修复之前，可以用 `npx skills` 安装，再用 `npx skills update lakutata` 保持技能最新。手动复制的文件夹，再复制一次即可；然后重启 Cursor。
-- **注意：** Cursor 不让它的 Agent 访问被忽略的文件，而 `node_modules` 默认就被忽略：Agent 无法用文件工具打开已安装的包中的指南。这时技能会用终端命令读取它们（Cursor 不拦截终端命令），或者读取本网站上的版本。云端代理（Cloud Agents）能拿到 `~/.cursor/skills` 中的技能，拿不到 `~/.agents/skills` 中的技能。
+- **注意：** Cursor 不让它的 Agent 访问被忽略的文件，而 `node_modules` 默认就被忽略：Agent 无法用文件工具打开已安装的包中的指南。这时技能会用终端命令读取它们（Cursor 不拦截终端命令），或者读取本网站上的版本。云端代理（Cloud Agents）能获取 `~/.cursor/skills` 中的技能，无法获取 `~/.agents/skills` 中的技能。
 - **官方文档：** [Agent Skills](https://cursor.com/docs/skills)、[Plugins](https://cursor.com/docs/plugins)。
 
 ## Devin Desktop
@@ -95,7 +95,7 @@ Windsurf 已于 2026 年 6 月 2 日更名为 Devin Desktop。它的智能体 De
 - **文件夹：** 项目中的 `.agents/skills`、`.devin/skills` 或 `.windsurf/skills`；用户目录中的 `~/.agents/skills` 或 `~/.config/devin/skills`（Windows 上是 `%APPDATA%\devin\skills`）。
 - **确认：** 在 Devin Desktop 中，新标签页菜单里的 Open customizations 会列出 Devin Local 会话加载的所有内容；在命令行中用 `devin skills list` 和 `devin plugins list`。以插件方式安装时，技能的命令是 `/lakutata:lakutata`；复制到文件夹中时是 `/lakutata`。新安装的插件在下一个会话中加载。
 - **更新：** `devin plugins update lakutata` 安装最新的提交，在下一个会话中生效。用 `npx skills` 安装的技能用 `npx skills update lakutata` 更新。
-- **注意：** Devin Local 默认读不了被 git 忽略的文件，例如 `node_modules`。可以打开 Devin Local > Configuration > Gitignore access；否则技能会用终端命令读取指南，或者读取本网站上的版本。企业可以为成员关闭插件功能。
+- **注意：** Devin Local 默认无法读取被 git 忽略的文件，例如 `node_modules`。可以打开 Devin Local > Configuration > Gitignore access；否则技能会用终端命令读取指南，或者读取本网站上的版本。企业可以为成员关闭插件功能。
 - **官方文档：** [Skills](https://docs.devin.ai/cli/extensibility/skills/overview)、[Plugins](https://docs.devin.ai/cli/extensibility/plugins/overview)。
 
 ## Gemini CLI
@@ -108,7 +108,7 @@ Windsurf 已于 2026 年 6 月 2 日更名为 Devin Desktop。它的智能体 De
 
   这条命令安装到你的用户目录（`~/.gemini/skills`），对你的所有项目生效；加 `--scope workspace` 则安装到项目中（`.gemini/skills`）。也可以运行 `npx skills add lakutata/lakutata -a gemini-cli`，把技能写入项目中的 `.agents/skills/lakutata`（加 `-g` 则写入 `~/.gemini/skills`）。
 - **文件夹：** 项目中的 `.gemini/skills` 或 `.agents/skills`，用户目录中的 `~/.gemini/skills` 或 `~/.agents/skills`；同名时，项目中的技能优先。
-- **确认：** 在会话中输入 `/skills list`，或者在终端中运行 `gemini skills list`。Gemini CLI 在会话开始时查找技能；`/skills reload` 不用重启就能发现新的技能。让它"使用 lakutata 技能"即可主动使用；激活技能之前，它会请你确认。
+- **确认：** 在会话中输入 `/skills list`，或者在终端中运行 `gemini skills list`。Gemini CLI 在会话开始时查找技能；`/skills reload` 不用重启就能发现新的技能。让它“使用 lakutata 技能”即可主动使用；激活技能之前，它会请你确认。
 - **更新：** 没有更新命令：先 `gemini skills uninstall lakutata`（项目中的安装要加上 `--scope workspace`），再重新安装。
 - **注意：** 项目中的技能只在受信任的文件夹中加载：运行 `/trust`，然后重启会话。Gemini CLI 遵循 `.gitignore`，不会读取 `node_modules`，所以技能会用终端命令读取指南，或者读取本网站上的版本；设置项 `context.fileFiltering.respectGitIgnore` 可以改变这一点。
 - **官方文档：** [Agent Skills](https://geminicli.com/docs/cli/skills/)。
@@ -153,7 +153,7 @@ Windsurf 已于 2026 年 6 月 2 日更名为 Devin Desktop。它的智能体 De
   Kiro 会把技能复制到你的技能文件夹中，立即生效。本仓库的插件文件夹也是一个 Kiro Power：Powers panel > Add Custom Power > Import power from GitHub；Kiro 的文档没有说明，Power 在仓库的子文件夹中时应该填什么地址。Kiro 命令行可以用 `npx skills add lakutata/lakutata -a kiro-cli`，把技能写入项目中的 `.kiro/skills/lakutata`（加 `-g` 则写入 `~/.kiro/skills`）。
 - **文件夹：** 项目中的 `.kiro/skills` 和用户目录中的 `~/.kiro/skills`；同名时，项目中的技能优先。Kiro 的文档没有提到 `.agents/skills`。
 - **确认：** 在 IDE 中看 Agent Steering & Skills 部分；在命令行中，`/context show` 列出会话中的技能。输入 `/lakutata` 可以主动使用这个技能。命令行在新的对话会话开始时查找技能。
-- **更新：** 它的文档没有说明技能怎样更新：在 IDE 中重新导入技能即可。Power 可以在 Powers panel 中用 Check for updates 更新。用 `npx skills` 安装的技能用 `npx skills update lakutata` 更新。
+- **更新：** 它的文档没有说明技能如何更新：在 IDE 中重新导入技能即可。Power 可以在 Powers panel 中用 Check for updates 更新。用 `npx skills` 安装的技能用 `npx skills update lakutata` 更新。
 - **注意：** Kiro 命令行只在你信任工作区之后才加载其中的技能。自定义智能体默认不加载技能，除非在 `resources` 中列出，例如 `skill://.kiro/skills/*/SKILL.md`。网页版和手机版的 Kiro 没有用户目录中的技能（`~/.kiro/skills`）。
 - **官方文档：** [Skills](https://kiro.dev/docs/skills)、[Install powers](https://kiro.dev/docs/powers/installation)。
 
@@ -168,9 +168,9 @@ Windsurf 已于 2026 年 6 月 2 日更名为 Devin Desktop。它的智能体 De
 
 ## Qoder
 
-- **安装：** 按照 Qoder 文档的建议，在 Qoder IDE 的终端中运行 `npx skills add lakutata/lakutata -a qoder`，把技能写入项目中的 `.qoder/skills/lakutata`（加 `-g` 则写入 `~/.qoder/skills`）。在 Qoder 桌面应用中：打开"扩展 > 技能 > 添加技能 > 上传技能"，上传技能的 `SKILL.md`（在[这个 zip](https://lakutata.com/lakutata-skill.zip) 中）。
+- **安装：** 按照 Qoder 文档的建议，在 Qoder IDE 的终端中运行 `npx skills add lakutata/lakutata -a qoder`，把技能写入项目中的 `.qoder/skills/lakutata`（加 `-g` 则写入 `~/.qoder/skills`）。在 Qoder 桌面应用中：打开“扩展 > 技能 > 添加技能 > 上传技能”，上传技能的 `SKILL.md`（在[这个 zip](https://lakutata.com/lakutata-skill.zip) 中）。
 - **文件夹：** IDE 和命令行都读取项目中的 `.qoder/skills` 和用户目录中的 `~/.qoder/skills`。
-- **确认：** 在 IDE 中，重启后在对话框中输入 `/` 查看已加载的技能；`/lakutata` 可以主动使用这个技能。在命令行中用 `/skills`，在运行中的会话里用 `/skills reload`。在桌面应用中，技能会出现在"已安装"中；在新任务中输入 `/` 即可使用。
+- **确认：** 在 IDE 中，重启后在对话框中输入 `/` 查看已加载的技能；`/lakutata` 可以主动使用这个技能。在命令行中用 `/skills`，在运行中的会话里用 `/skills reload`。在桌面应用中，技能会出现在“已安装”中；在新任务中输入 `/` 即可使用。
 - **更新：** 在命令行中，新的会话会加载改动后的技能，或者用 `/skills reload`。在 IDE 中，重新复制文件夹（或者运行 `npx skills update lakutata`），然后重启。
 - **注意：** 在 Qoder 命令行中，只有开启了 Skills 功能和管理员权限，`/skills` 才会出现。
 - **官方文档：** [Skills](https://docs.qoder.com/zh/extensions/skills)、[Qoder 应用中的技能](https://docs.qoder.com/zh/qoder/skills)。
@@ -179,7 +179,7 @@ Windsurf 已于 2026 年 6 月 2 日更名为 Devin Desktop。它的智能体 De
 
 通义灵码已于 2026 年 5 月 20 日更名为 Qoder CN；它的 IDE 使用的文件夹仍然叫 `.lingma`。
 
-- **安装：** Qoder CN IDE：把 `lakutata` 文件夹复制到项目中的 `.lingma/skills` 或用户目录中的 `~/.lingma/skills`，然后重启 IDE；`npx skills add lakutata/lakutata -a lingma` 写入的也是这两个文件夹。Qoder CN 命令行（`qodercn`）：`npx skills add lakutata/lakutata -a qoder-cn` 写入命令行读取的文件夹。Qoder CN 桌面应用：打开"扩展 > 技能 > 添加技能 > 上传技能"，上传技能的 `SKILL.md`（在[这个 zip](https://lakutata.com/lakutata-skill.zip) 中）。
+- **安装：** Qoder CN IDE：把 `lakutata` 文件夹复制到项目中的 `.lingma/skills` 或用户目录中的 `~/.lingma/skills`，然后重启 IDE；`npx skills add lakutata/lakutata -a lingma` 写入的也是这两个文件夹。Qoder CN 命令行（`qodercn`）：`npx skills add lakutata/lakutata -a qoder-cn` 写入命令行读取的文件夹。Qoder CN 桌面应用：打开“扩展 > 技能 > 添加技能 > 上传技能”，上传技能的 `SKILL.md`（在[这个 zip](https://lakutata.com/lakutata-skill.zip) 中）。
 - **文件夹：** IDE 读取项目中的 `.lingma/skills` 和用户目录中的 `~/.lingma/skills`；命令行读取项目中的 `.qoder/skills` 和用户目录中的 `~/.qoder-cn/skills`。
 - **确认：** 在 IDE 中，重启后在对话框中输入 `/` 查看已加载的技能；`/lakutata` 可以主动使用这个技能。在命令行中用 `/skills`，在运行中的会话里用 `/skills reload`。
 - **更新：** 在 IDE 中，重新复制文件夹（或者运行 `npx skills update lakutata`），然后重启。在命令行中，新的会话会加载改动后的技能，或者用 `/skills reload`。
@@ -188,9 +188,9 @@ Windsurf 已于 2026 年 6 月 2 日更名为 Devin Desktop。它的智能体 De
 
 ## Trae
 
-- **安装：** 在 Trae 中打开"设置 > 技能与命令"。在"技能"部分点击"创建"，选择"全局"或"项目"，然后上传技能的 `SKILL.md`（在[这个 zip](https://lakutata.com/lakutata-skill.zip) 中）：Trae 会据此填好技能名称、描述和指令；最后点击"确认"。也可以运行 `npx skills add lakutata/lakutata -a trae`（Trae 中国版用 `-a trae-cn`），把技能写入项目中的 `.trae/skills/lakutata`（加 `-g` 则写入 `~/.trae/skills`，Trae 中国版是 `~/.trae-cn/skills`）。
-- **文件夹：** 项目中的 `.trae/skills`；用户目录中的 `~/.trae/skills`（Trae 中国版：`~/.trae-cn/skills`）。在"导入设置"中打开"启用 .agents 技能目录"之后，Trae 也会读取项目中的 `.agents/skills`；同名时，`.trae/skills` 中的技能优先。
-- **确认：** "设置 > 技能与命令"中分"全局"和"项目"两个标签页列出技能，每个技能都有开关。Trae 没有调用技能的命令：直接提出要求即可，例如"使用 lakutata 技能添加一个 HTTP 路由"。
+- **安装：** 在 Trae 中打开“设置 > 技能与命令”。在“技能”部分点击“创建”，选择“全局”或“项目”，然后上传技能的 `SKILL.md`（在[这个 zip](https://lakutata.com/lakutata-skill.zip) 中）：Trae 会据此填好技能名称、描述和指令；最后点击“确认”。也可以运行 `npx skills add lakutata/lakutata -a trae`（Trae 中国版用 `-a trae-cn`），把技能写入项目中的 `.trae/skills/lakutata`（加 `-g` 则写入 `~/.trae/skills`，Trae 中国版是 `~/.trae-cn/skills`）。
+- **文件夹：** 项目中的 `.trae/skills`；用户目录中的 `~/.trae/skills`（Trae 中国版：`~/.trae-cn/skills`）。在“导入设置”中打开“启用 .agents 技能目录”之后，Trae 也会读取项目中的 `.agents/skills`；同名时，`.trae/skills` 中的技能优先。
+- **确认：** “设置 > 技能与命令”中分“全局”和“项目”两个标签页列出技能，每个技能都有开关。Trae 没有调用技能的命令：直接提出要求即可，例如“使用 lakutata 技能添加一个 HTTP 路由”。
 - **更新：** 它的文档没有说明。替换技能文件夹中的 `SKILL.md`；用 `npx skills` 安装的技能用 `npx skills update lakutata` 更新。
 - **注意：** 上传的技能只保留 `SKILL.md`，其他文件需要手动添加；这个技能只有这一个文件。
 - **官方文档：** [技能（国际版）](https://docs.trae.ai/ide/skills)、[技能（中国版）](https://docs.trae.cn/ide_skills)。

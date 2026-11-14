@@ -1,6 +1,6 @@
 # 命令行工具
 
-这个示例构建一个处理 CSV 文件的命令行工具 `tally`：列出文件中的列，统计某个数值列，把各行转换为 JSON。它从 `cli` 模板开始，展示 lakutata 命令行工具的各个部分：带参数和选项的命令（`@CLIAction` 及其 DTO）、输入校验、在终端中询问缺少的选项、输出与退出码、测试，以及不需要 `node_modules` 就能运行的单文件包。
+这个示例构建一个处理 CSV 文件的命令行工具 `tally`：列出文件中的列，统计某个数值列，把各行转换为 JSON。它从 `cli` 模板开始，展示 Lakutata 命令行工具的各个部分：带参数和选项的命令（`@CLIAction` 及其 DTO）、输入校验、在终端中询问缺少的选项、输出与退出码、测试，以及不需要 `node_modules` 就能运行的单文件包。
 
 | 命令 | 作用 |
 |---|---|
@@ -16,7 +16,7 @@ cd tally
 rm packages/app/src/controllers/ExampleController.ts packages/app/src/dtos/GreetDTO.ts
 ```
 
-项目是一个工作区，工具在 `packages/app` 中（见[项目结构](../ProjectStructure.md)）。需要的依赖模板里都有：`commander` 负责读取命令行，`@inquirer/prompts` 负责在终端中提问。CSV 文件由工具自带的一个小解析器读取，所以不用再安装别的包。这里删掉了模板中的示例命令和它的 DTO。
+项目是一个工作区，工具在 `packages/app` 中（见[项目结构](../ProjectStructure.md)）。需要的依赖模板里都有：`commander` 负责读取命令行，`@inquirer/prompts` 负责在终端中提问。CSV 文件由工具自带的一个小解析器读取，所以不用再安装其他包。这里删掉了模板中的示例命令和它的 DTO。
 
 ## 2. 输入
 
@@ -179,7 +179,7 @@ export function isNumber(value: string): boolean {
 这些是普通函数，不是容器中的对象，由命令直接调用。
 
 - `parseCsv()` 按 RFC 4180 的规则把文本拆成行和值：双引号里的值可以包含分隔符、换行和连续两个双引号，行以 `\n` 或 `\r\n` 结尾。
-- `readCsv()` 用第一行作为列名，并跳过空行。文件不存在、文件为空、某一行的值个数和列数对不上，都会抛出 `CsvException`；文件系统的其他错误（比如给的是目录，或者没有读权限）原样抛出。
+- `readCsv()` 用第一行作为列名，并跳过空行。文件不存在、文件为空、某一行的值个数和列数不一致，都会抛出 `CsvException`；文件系统的其他错误（比如给的是目录，或者没有读权限）原样抛出。
 
 ## 5. 命令
 
@@ -593,7 +593,7 @@ npm run package:bundle
 ✔ ../../dist/tally.cjs (1.1 MB): node ../../dist/tally.cjs
 ```
 
-这个脚本先构建工具，再由 `lakutata package bundle` 把工具连同 lakutata、commander 和 `@inquirer/prompts` 一起打成一个 JavaScript 文件，即项目根目录下的 `dist/tally.cjs`（输出的路径相对于脚本运行的目录 `packages/app`）。Node.js 可以在任何目录中运行它，不需要 `node_modules`，比如在项目旁边的目录中：
+这个脚本先构建工具，再由 `lakutata package bundle` 把工具连同 `lakutata`、commander 和 `@inquirer/prompts` 一起打成一个 JavaScript 文件，即项目根目录下的 `dist/tally.cjs`（输出的路径相对于脚本运行的目录 `packages/app`）。Node.js 可以在任何目录中运行它，不需要 `node_modules`，比如在项目旁边的目录中：
 
 ```bash
 mkdir ../tally-bundle && cp dist/tally.cjs sales.csv ../tally-bundle && cd ../tally-bundle
@@ -614,5 +614,5 @@ node tally.cjs stats sales.csv --column units --format json
 ```
 
 - 单文件包是 CommonJS 文件，所以源码中不能使用顶层 `await`。
-- `npm run package:exe` 生成 `dist/tally`，这是一个不需要安装 Node.js 就能运行的可执行文件：Node.js 已经嵌在里面（约 110 MB）。它只能在生成它的平台上运行，其他平台的可执行文件怎么生成，项目的 README 里有说明（见[打包](../Packaging.md)）。
+- `npm run package:exe` 生成 `dist/tally`，这是一个不需要安装 Node.js 就能运行的可执行文件：Node.js 已经嵌在里面（约 110 MB）。它只能在生成它的平台上运行，其他平台的可执行文件如何生成，项目的 README 里有说明（见[打包](../Packaging.md)）。
 - 模板的 `installer` 功能（`lakutata create --with installer`）可以生成安装包，即各个系统的软件包（deb、rpm、pkg、msi 等），它们会把 `tally` 加入 PATH（见[安装包](../Installers.md)）。

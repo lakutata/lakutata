@@ -13,7 +13,7 @@
 npm install @lakutata/math
 ```
 
-原生插件在安装这个包时编译，所以机器上要有 Python 3 和支持 C++17 的编译器（README 列出了各系统需要安装什么），编译要半分钟到几分钟。包管理器必须运行这个包的安装脚本：npm 会运行它，可能会提示这个脚本“not yet covered by allowScripts”（运行 `npm install-scripts approve @lakutata/math` 记录你允许它运行）；Bun 和 pnpm 只为被告知可以信任的包运行安装脚本（Bun 在 package.json 的 `trustedDependencies` 里设置，pnpm 用 `pnpm approve-builds`）。没有编译好的插件时，加载这个包会抛出错误，并说明怎样编译。
+原生插件在安装这个包时编译，所以机器上要有 Python 3 和支持 C++17 的编译器（README 列出了各系统需要安装什么），编译要半分钟到几分钟。包管理器必须运行这个包的安装脚本：npm 会运行它，可能会提示这个脚本“not yet covered by allowScripts”（运行 `npm install-scripts approve @lakutata/math` 记录你允许它运行）；Bun 和 pnpm 只为被告知可以信任的包运行安装脚本（Bun 在 package.json 的 `trustedDependencies` 里设置，pnpm 用 `pnpm approve-builds`）。没有编译好的插件时，加载这个包会抛出错误，并说明如何编译。
 
 ## 1. 公式和结果
 
@@ -34,7 +34,7 @@ console.log(finance.expression('p - net(p)').diff('p').toString()) //13/113
 ```
 
 - `toString()` 给出 `expression()` 能读回的公式，`toTeX()` 给出它的 TeX（供 KaTeX 或 MathJax 显示）。
-- `toNumber()` 给出最接近的双精度数。它从精确值的十进制数字算出，所以即使双精度计算已经没有一位有效数字，结果的每一位也都是对的：作为双精度数，`1e30` 并不正好是 10^30，`Math.cos(1e30)` 算的其实是另一个数的余弦。`toDecimal(digits)` 以字符串给出指定位数的有效数字，每一位都是对的。
+- `toNumber()` 给出最接近的双精度数。它从精确值的十进制数字算出，所以即使双精度计算已经没有一位有效数字，结果的每一位也都是对的：作为双精度数，`1e30` 并不正好是 10^30，`Math.cos(1e30)` 算的实际上是另一个数的余弦。`toDecimal(digits)` 以字符串给出指定位数的有效数字，每一位都是对的。
 - `substitute({x: 2})` 把变量换成给定的值，结果仍然是精确的。
 - `createMath({definitions})` 创建一个范围，其中的函数和常数用公式写出，可用的函数和包本身相同。公式会展开其中的定义：求导和解方程时都会用到它们。包直接导出的函数属于 `math`，这个范围没有任何定义。
 
@@ -276,10 +276,10 @@ $ curl -X POST localhost:8080/solve -H 'Content-Type: application/json' -d '{"eq
 ```
 
 - 这个包的异常没有 `statusCode`，所以上面写错的公式得到的响应是状态码 500 和 `{"errno": "E_MATH_SYNTAX", …}`。如果要用 400 回应客户端公式里的错误，请在动作里捕获 `MathException`，再抛出应用自己的异常（见[异常](Exceptions.md)）；`E_MATH_INTERNAL` 是原生插件的内部错误，保持原样。
-- 公式的长度限制不了它的计算量：`(x + 1)^100000` 很短。能限制计算量的是时限。
+- 公式的长度无法限制它的计算量：`(x + 1)^100000` 很短。能限制计算量的是时限。
 - 这个包的值通过 `toJSON()` 转成 JSON：表达式、方程、十进制数和带单位的值转成它们的文本，解转成文本数组，矩阵转成它的各行。向量是 `Float64Array`，`JSON.stringify()` 会把它写成对象（`{"0": 1, "1": 1}`）：请发送 `Array.from(vector)`。
 - `lakutata package` 打出的单文件包、可执行文件和安装包都带着编译好的原生插件（`build/Release/math.node`）。请在每个目标平台上安装这个包之后再打包；原生插件的规则同样适用（见[打包](Packaging.md)和[原生插件](NativeAddons.md)）。
-- 这个包可以在 Node.js `>=18.10.0`、Bun 和 Electron 的主进程中运行，后两者直接加载为 Node.js 编译的插件；不能在 Electron 的渲染进程和浏览器中运行。在 Bun 里，worker 线程里的插件运算还没结束就终止这个线程的话，整个进程会因为 Node-API 的致命错误退出（这是 Bun 1.4 的问题）。
+- 这个包可以在 Node.js `>=18.10.0`、Bun 和 Electron 的主进程中运行，后两者直接加载为 Node.js 编译的插件；不能在 Electron 的渲染进程和浏览器中运行。在 Bun 里，如果 worker 线程里的插件运算还没结束就终止这个线程，整个进程会因为 Node-API 的致命错误退出（这是 Bun 1.4 的问题）。
 
 ## 13. 验证方式，以及不支持的情况
 
@@ -287,11 +287,11 @@ $ curl -X POST localhost:8080/solve -H 'Content-Type: application/json' -d '{"eq
 
 它不支持的情况，有的是有意为之，有的是还没做：
 
-- 分母要借助代数数才能分解的分式的积分（`1/(x^4 + 1)`），以及原函数既不是初等函数、也不是积分产生的特殊函数的积分，会抛出 `MathNotSupportedException`；求不出的积分不会保留成未计算的积分形式。定积分可以用 `numeric.integrate()` 计算。
+- 分母要借助代数数才能分解的分式的积分（`1/(x^4 + 1)`），以及原函数既不是初等函数、也不是积分产生的特殊函数的积分，会抛出 `MathNotSupportedException`；无法求出的积分不会保留成未计算的积分形式。定积分可以用 `numeric.integrate()` 计算。
 - `solve()` 解单个方程或线性方程组；非线性方程组请用 `numeric.solveSystem()`。有无穷多个解的方程（如 `sin(x) = 0`）不给出解的数组：它的 `set` 只描述这些解（`{2pi*n + pi | n integer} or {2pi*n | n integer}`），集合的运算也不接受它。
 - 不等式两边必须是有理系数的多项式分式。
 - 表达式矩阵的精确特征值只能求到四次；数值特征值用 `linalg.eigen()` 求。
-- 不做任何取决于变量符号的处理：`sqrt(x^2)` 不等于 `abs(x)`，取决于参数符号的极限（`exp(a*x)` 在 `inf` 处）求不出来。
+- 不做任何取决于变量符号的处理：`sqrt(x^2)` 不等于 `abs(x)`，取决于参数符号的极限（`exp(a*x)` 在 `inf` 处）无法求出。
 - 精确数最多约 315000 位：更大的乘方保持乘方的形式（`2^(10^7)`）。
 
 ## 14. 异常

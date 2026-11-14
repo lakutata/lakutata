@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-lakutata 框架的 ORM，基于 [TypeORM](https://typeorm.io) 1 构建。它提供 `Database` 组件（整个应用共享的连接）、`Database` 提供者（有自己的连接）、实体的装饰器、TypeORM 的 API（仓储、查询操作符、查询构造器、迁移），以及应用的迁移命令（`MIGRATION_GENERATE`、`MIGRATION_RUN`、`MIGRATION_REVERT`、`MIGRATION_SHOW`）。
+Lakutata 框架的 ORM，基于 [TypeORM](https://typeorm.io) 1 构建。它提供 `Database` 组件（整个应用共享的连接）、`Database` 提供者（有自己的连接）、实体的装饰器、TypeORM 的 API（仓储、查询操作符、查询构造器、迁移），以及应用的迁移命令（`MIGRATION_GENERATE`、`MIGRATION_RUN`、`MIGRATION_REVERT`、`MIGRATION_SHOW`）。
 
 `lakutata` 包重新导出了它：`lakutata/com/database`（组件）、`lakutata/provider/database`（提供者）、`lakutata/decorator/orm`（实体的装饰器）和 `lakutata/orm`（TypeORM 的 API）。
 
@@ -30,7 +30,7 @@ TypeORM 1.1.2（MIT）的源码包含在这个包中（见 `THIRD_PARTY_NOTICES.
 
 `sqljs` 驱动把整个数据库放在内存中。设置了 `location` 选项时，它在连接时从这个文件加载数据库；设置了 `autoSave: true` 时，每次变化后写回文件；调用它的实体管理器（`SqljsEntityManager`）的 `saveDatabase()` 时也会写回；`exportDatabase()` 以 `Uint8Array` 返回数据库。
 
-`mongo-embedded` 是 lakutata 添加的：它让 TypeORM 对 MongoDB 的支持（带 `@ObjectIdColumn` 的实体、查询选项中的 MongoDB 操作符、`MongoRepository`）运行在进程内的数据库上，也就是 `@lakutata/mongo-embedded` 包。它用原生插件里的 SQLite 保存文档，行为与以单成员副本集运行的 MongoDB 8.0 相同（事务、变更流、全文索引和地理空间索引、排序规则）。它的插件在安装时编译，需要 Python 3 和支持 C++17 的编译器。`database` 选项是它的目录（默认 `':memory:'`）；其他选项有 `sync`、`syncInterval`、`cacheSize`、`mmapSize`、`oplogSize`、`writeConcern` 和 `transactionLifetimeLimitSeconds`。`transaction()` 在数据库的事务中执行它的函数。和 `mongodb` 类型一样，不支持 TypeORM 的关系和查询构造器，迁移需要手写（通过 `queryRunner.manager`，它是一个 `MongoEntityManager`）。`import {ObjectId} from 'lakutata/orm'` 给出实体 id 的类，也是 `@ObjectIdColumn()` 属性的类型。详见指南[嵌入式 MongoDB](https://lakutata.com/zh/guide/MongoEmbedded)。
+`mongo-embedded` 是 Lakutata 添加的：它让 TypeORM 对 MongoDB 的支持（带 `@ObjectIdColumn` 的实体、查询选项中的 MongoDB 操作符、`MongoRepository`）运行在进程内的数据库上，也就是 `@lakutata/mongo-embedded` 包。它用原生插件里的 SQLite 保存文档，行为与以单成员副本集运行的 MongoDB 8.0 相同（事务、变更流、全文索引和地理空间索引、排序规则）。它的插件在安装时编译，需要 Python 3 和支持 C++17 的编译器。`database` 选项是它的目录（默认 `':memory:'`）；其他选项有 `sync`、`syncInterval`、`cacheSize`、`mmapSize`、`oplogSize`、`writeConcern` 和 `transactionLifetimeLimitSeconds`。`transaction()` 在数据库的事务中执行它的函数。和 `mongodb` 类型一样，不支持 TypeORM 的关系和查询构造器，迁移需要手写（通过 `queryRunner.manager`，它是一个 `MongoEntityManager`）。`import {ObjectId} from 'lakutata/orm'` 给出实体 id 的类，也是 `@ObjectIdColumn()` 属性的类型。详见指南[嵌入式 MongoDB](https://lakutata.com/zh/guide/MongoEmbedded)。
 
 存在 Redis 中的查询结果缓存（`cache: {type: 'redis'}` 或 `'ioredis'`）需要安装 `redis` 或 `ioredis` 包。
 
@@ -396,7 +396,7 @@ MIGRATION_RUN=1 node build/App.js
 MIGRATION_REVERT=1 MIGRATION_DATABASE=db node build/App.js
 ```
 
-生成的文件遵循 TypeORM 的代码风格（双引号、分号）：请格式化它，或者让 linter 跳过迁移文件。命令完成后，进程以退出码 0 退出；失败时以退出码 1 退出，失败的情况包括：无效的 `MIGRATION_TRANSACTION`、未知的 `MIGRATION_DATABASE`、没有数据库（`MIGRATION_GENERATE` 除外，这时以 0 退出）、有多个数据库时使用 `MIGRATION_REVERT` 却没有指定 `MIGRATION_DATABASE`、数据库连接不上，或者迁移失败（之后的数据库会被跳过）。`MIGRATION_GENERATE` 在所有数据库中都没有发现变化时，以 0 退出。
+生成的文件遵循 TypeORM 的代码风格（双引号、分号）：请格式化它，或者让 linter 跳过迁移文件。命令完成后，进程以退出码 0 退出；失败时以退出码 1 退出，失败的情况包括：无效的 `MIGRATION_TRANSACTION`、未知的 `MIGRATION_DATABASE`、没有数据库（`MIGRATION_GENERATE` 除外，这时以 0 退出）、有多个数据库时使用 `MIGRATION_REVERT` 却没有指定 `MIGRATION_DATABASE`、无法连接数据库，或者迁移失败（之后的数据库会被跳过）。`MIGRATION_GENERATE` 在所有数据库中都没有发现变化时，以 0 退出。
 
 数据库的实体就是它连接选项中的实体；对于 `Database` 提供者，还要加上它 `entities` 选项中的实体。
 
@@ -414,7 +414,7 @@ MIGRATION_REVERT=1 MIGRATION_DATABASE=db node build/App.js
 | `DataSourceOptions`、`PostgresDataSourceOptions`、`MysqlDataSourceOptions`…… | `lakutata/orm` | 各驱动的连接选项（它们在 TypeORM 0.3 中的名字 `PostgresConnectionOptions` 等已弃用） |
 | `QueryFailedError`、`EntityNotFoundError`、`TypeORMError`…… | `lakutata/orm` | TypeORM 的错误 |
 
-lakutata 的声明在类型声明中附有说明和示例；TypeORM 的声明见 [TypeORM](https://typeorm.io) 的文档。
+Lakutata 的声明在类型声明中附有说明和示例；TypeORM 的声明见 [TypeORM](https://typeorm.io) 的文档。
 
 ## 错误
 
@@ -428,7 +428,7 @@ lakutata 的声明在类型声明中附有说明和示例；TypeORM 的声明见
 | `EntityMetadataNotFoundError` | 实体不在连接的 `entities` 中 |
 | `OptimisticLockVersionMismatchError` | 使用 `lock: {mode: 'optimistic', version}` 查询时，读到了另一个版本 |
 | `CannotExecuteNotConnectedError` | 在已关闭的连接上执行 `synchronize()` 或迁移 |
-| `TypeORMError` | TypeORM 错误的基类，本身也会被抛出（在其他数据库上调用了 MongoDB 的方法、找不到关系……） |
+| `TypeORMError` | TypeORM 错误的基类，本身也会被抛出（在其他数据库上调用了 MongoDB 的方法、未找到关系……） |
 
 ## 另见
 

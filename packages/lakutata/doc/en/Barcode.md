@@ -374,7 +374,7 @@ What it does not do, whether by design or not yet:
 
 ## 9. Exceptions
 
-All of them extend `BarcodeException`, which extends the `Exception` of lakutata.
+All of them extend `BarcodeException`, which extends the `Exception` of `lakutata`.
 
 | Exception | `errno` | When |
 |---|---|---|

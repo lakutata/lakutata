@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-lakutata 框架的 gRPC 实现，用 TypeScript 基于 Node.js 的 HTTP/2 模块编写，不需要原生插件，也不需要生成代码。它提供客户端（`GRPCConnection`：支持 unix socket、TCP、TLS 和双向 TLS，支持一元调用、服务端流和双向流）、服务端（`GRPCServer`）和基于 schema 的 protobuf 编解码器（`encode`、`decode`）。子路径 `@lakutata/grpc/service` 让应用通过 gRPC 提供服务动作（`grpcServiceEntrypoint`，经由 `SERVICE_PROTO` 中的 `lakutata.service.v1.Service` 服务，任何语言都可以调用），也让另一个应用调用这些动作（`GRPCServiceProxy`）。containerd 组件（`@lakutata/containerd`）和它的 BuildKit 构建都使用这个包。`lakutata` 包没有重新导出它：请从 `@lakutata/grpc` 和 `@lakutata/grpc/service` 导入。
+Lakutata 框架的 gRPC 实现，用 TypeScript 基于 Node.js 的 HTTP/2 模块编写，不需要原生插件，也不需要生成代码。它提供客户端（`GRPCConnection`：支持 unix socket、TCP、TLS 和双向 TLS，支持一元调用、服务端流和双向流）、服务端（`GRPCServer`）和基于 schema 的 protobuf 编解码器（`encode`、`decode`）。子路径 `@lakutata/grpc/service` 让应用通过 gRPC 提供服务动作（`grpcServiceEntrypoint`，经由 `SERVICE_PROTO` 中的 `lakutata.service.v1.Service` 服务，任何语言都可以调用），也让另一个应用调用这些动作（`GRPCServiceProxy`）。containerd 组件（`@lakutata/containerd`）和它的 BuildKit 构建都使用这个包。`lakutata` 包没有重新导出它：请从 `@lakutata/grpc` 和 `@lakutata/grpc/service` 导入。
 
 ## 安装
 
@@ -10,7 +10,7 @@ lakutata 框架的 gRPC 实现，用 TypeScript 基于 Node.js 的 HTTP/2 模块
 npm install @lakutata/grpc
 ```
 
-客户端、服务端和编解码器不需要其他包（Node.js `>=18.10.0`）。服务入口和服务代理运行在 lakutata 应用中，所以需要 `lakutata` 包，它提供了这个包的 peer 依赖 `@lakutata/core` 和 `@lakutata/entrypoint`（其他用法不需要这两个包）。
+客户端、服务端和编解码器不需要其他包（Node.js `>=18.10.0`）。服务入口和服务代理运行在 Lakutata 应用中，所以需要 `lakutata` 包，它提供了这个包的 peer 依赖 `@lakutata/core` 和 `@lakutata/entrypoint`（其他用法不需要这两个包）。
 
 ```shell
 npm install lakutata @lakutata/grpc
@@ -95,7 +95,7 @@ Application
     })
 ```
 
-- 客户端的 id 就是它的调用所带的元数据 `id`（动作中通过 `ServiceContext.clientId` 读取）；代理发送的是它的 `clientId`（默认是随机 UUID）。`grpcCallOfContext(context)` 让动作拿到整个 gRPC 调用，包括元数据和截止时间。
+- 客户端的 id 就是它的调用所带的元数据 `id`（动作中通过 `ServiceContext.clientId` 读取）；代理发送的是它的 `clientId`（默认是随机 UUID）。`grpcCallOfContext(context)` 让动作获取整个 gRPC 调用，包括元数据和截止时间。
 - 客户端取消调用或截止时间已过时，动作的 signal 会被触发，调用随之以 `CANCELLED` 或 `DEADLINE_EXCEEDED` 结束。
 - 动作失败时，响应里带着它的错误（消息、`errno` 和其他属性），代理把它作为 `ServiceInvokeException` 抛出；传输层面的失败作为 `GRPCError` 抛出（`UNAVAILABLE`、`DEADLINE_EXCEEDED`……）。
 - 入口停止后，新的调用会失败（代理抛出 `errno` 为 `E_ENTRYPOINT_STOPPED` 的 `ServiceInvokeException`），正在进行的调用可以完成；入口关闭时，事件流结束，服务端关闭。
@@ -242,7 +242,7 @@ process.once('SIGTERM', (): void => void server.close(10000))
 - 超过 `maxMessageSize` 的请求以 `RESOURCE_EXHAUSTED` 拒绝，可能在接收之前根据它的长度判断，也可能在解压之后判断。请求可以用 gzip 或 deflate 压缩；响应只对接受压缩的客户端压缩。
 - 调用的截止时间（`grpc-timeout`）一到，调用就会被中止：`call.signal` 被触发，调用以 `DEADLINE_EXCEEDED` 结束；处理函数如果不检查这个信号，会继续运行。
 - `server.serve(socket)` 为承载在另一个字节流（比如 BuildKit 会话）上的 HTTP/2 连接提供服务。
-- `server.listenWith(inner => listenOnAll('eth1', inner, {port: 50051}))` 用 `@lakutata/netif` 的 `listenOnAll()`（或者 `@lakutata/core` 的 `IInterfaceListening` 的其他实现）按网口监听，而不是按地址监听，不管网口现在是什么地址。它返回监听器，监听器随服务器一起关闭；请处理它们的 `error` 事件。
+- `server.listenWith(inner => listenOnAll('eth1', inner, {port: 50051}))` 用 `@lakutata/netif` 的 `listenOnAll()`（或者 `@lakutata/core` 的 `IInterfaceListening` 的其他实现）按网口监听，而不是按地址监听，无论网口现在是什么地址。它返回监听器，监听器随服务器一起关闭；请处理它们的 `error` 事件。
 
 ### protobuf 编解码器
 

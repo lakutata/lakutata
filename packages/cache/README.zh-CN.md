@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-lakutata 框架的缓存组件：一个键值缓存，其中的条目会过期（TTL 以毫秒为单位）。它提供 cache-aside 方式的 `wrap()` 方法（可以在后台刷新值），还会发出事件。条目保存在一个或多个存储中：内存、JSON 文件、Redis、Memcache、MongoDB、SQLite、PostgreSQL 或 MySQL。多个存储组成分层，最快的在最前面。`lakutata` 包把它重新导出为 `lakutata/com/cacher`。
+Lakutata 框架的缓存组件：一个键值缓存，其中的条目会过期（TTL 以毫秒为单位）。它提供 cache-aside 方式的 `wrap()` 方法（可以在后台刷新值），还会发出事件。条目保存在一个或多个存储中：内存、JSON 文件、Redis、Memcache、MongoDB、SQLite、PostgreSQL 或 MySQL。多个存储组成分层，最快的在最前面。`lakutata` 包把它重新导出为 `lakutata/com/cacher`。
 
 ## 安装
 
@@ -110,7 +110,7 @@ Application.run(() => ({
 
 - 读取时，从第一个有这个条目的存储中返回它。只有 `wrap()` 会把在较低层存储中找到的条目复制到上面各层的存储。
 - 读取失败算作未命中，错误作为 `'error'` 事件发出。写入或删除失败时，调用也会失败，除非设置了 `nonBlocking: true`（此时调用不等待存储就返回）。
-- 某个存储连不上时，创建缓存会失败（设置了 `throwOnConnectError: false` 的 Redis 存储则会在后台继续尝试连接）。只有缓存在应用启动过程中创建时，应用才会启动失败：缓存列在 `bootstrap` 中，或者被注入到列在其中的对象里。否则，失败的是创建它的那次 `getObject()` 调用或注入。
+- 某个存储无法连接时，创建缓存会失败（设置了 `throwOnConnectError: false` 的 Redis 存储则会在后台继续尝试连接）。只有缓存在应用启动过程中创建时，应用才会启动失败：缓存列在 `bootstrap` 中，或者被注入到列在其中的对象里。否则，失败的是创建它的那次 `getObject()` 调用或注入。
 - 内存存储保存值的引用。其他存储以 JSON 保存值：`Buffer` 读回来仍是 `Buffer`，但 `Date` 读回来是它的 ISO 字符串，类的实例读回来是普通对象。
 - `namespace` 用来区分共用同一个后端的应用：此时 `clear()` 只删除这个命名空间中的条目（Memcache 例外，它的 `clear()` 会清空整个服务器）。
 

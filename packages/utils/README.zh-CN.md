@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-lakutata 框架的工具集。`Time` 是带 IANA 时区的日期时间，提供类似 moment 的 API（格式化、跨越夏令时切换的日历运算、比较）。辅助函数由框架及其应用共用，涵盖字符串、对象、数组和集合、哈希和编码、UUID、IP 地址、glob 和统计。它们是普通的函数和类，可以在任何地方使用，不管是不是在应用中。`lakutata` 包通过 `lakutata/utils` 重新导出它们，`lakutata` 本身也导出 `Time`。
+Lakutata 框架的工具集。`Time` 是带 IANA 时区的日期时间，提供类似 moment 的 API（格式化、跨越夏令时切换的日历运算、比较）。辅助函数由框架及其应用共用，涵盖字符串、对象、数组和集合、哈希和编码、UUID、IP 地址、glob 和统计。它们是普通的函数和类，可以在任何地方使用，无论是否在应用中。`lakutata` 包通过 `lakutata/utils` 重新导出它们，`lakutata` 本身也导出 `Time`。
 
 ## 安装
 

@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-lakutata 框架的入口：控制器及其动作，通过各种传输方式对外提供。一个控制器方法可以同时是 HTTP 路由、命令行命令、服务动作（通过 HTTP、Socket.IO、JSON-RPC、gRPC、NATS、Electron IPC、NW.js 或 React Native 调用）和定时任务。无论通过哪种传输方式，请求都经过相同的中间件，输入由相同的 DTO 校验，适用的访问控制也相同。
+Lakutata 框架的入口：控制器及其动作，通过各种传输方式对外提供。一个控制器方法可以同时是 HTTP 路由、命令行命令、服务动作（通过 HTTP、Socket.IO、JSON-RPC、gRPC、NATS、Electron IPC、NW.js 或 React Native 调用）和定时任务。无论通过哪种传输方式，请求都经过相同的中间件，输入由相同的 DTO 校验，适用的访问控制也相同。
 
 `lakutata` 包把它重新导出为 `lakutata/com/entrypoint`（组件、控制器、上下文和结果）、`lakutata/decorator/ctrl`（动作装饰器）和 `lakutata/adapter/*`（各种传输方式），并在每个应用中预置 `entrypoint` 组件。
 

@@ -1,10 +1,10 @@
 # Lakutata 网口
 
-`@lakutata/netif` 包让 Node.js 的服务器按网口监听，而不是按地址监听。有多个网口的设备，常常只在其中一个网口上提供管理页面：这个网口的地址来自 DHCP，会变，设备开机时可能还没有；而监听 `0.0.0.0` 又会让管理页面出现在所有网口上。用这个包，服务器监听的是“eth1 这个网口”，不管它现在是什么地址，地址变化、网口拔掉再插回，都会继续监听。它不属于 `lakutata`，也不需要应用。它的特点是：
+`@lakutata/netif` 包让 Node.js 的服务器按网口监听，而不是按地址监听。有多个网口的设备，常常只在其中一个网口上提供管理页面：这个网口的地址来自 DHCP，会变，设备开机时可能还没有；而监听 `0.0.0.0` 又会让管理页面出现在所有网口上。用这个包，服务器监听的是“eth1 这个网口”，无论它现在是什么地址，地址变化、网口拔掉再插回，都会继续监听。它不属于 `lakutata`，也不需要应用。它的特点是：
 
 - **任何服务器都能用**：`http`、`https`、`http2`、`tls`、Express 和 Fastify 都把这个网口的连接当成自己的连接处理；UDP 套接字也可以，适合只在一个网口上工作的服务（DHCP、mDNS、SSDP）。
-- **lakutata 的入口**有 `interface` 选项，可以让应用的控制器只在一个网口上提供服务（第 5 节）。
-- **系统能挡的，就让系统挡住别的网口**：在 Linux 上，套接字绑定在网口上，从别的网口发往这个网口地址的连接会被拒绝。在 Windows 和 macOS 上，监听的是这个网口的地址，`enforced` 告诉你系统会不会挡住那样的连接。
+- **Lakutata 的适配器**有 `interface` 选项，可以让应用的控制器只在一个网口上提供服务（第 5 节）。
+- **尽可能由系统拒绝其他网口的连接**：在 Linux 上，套接字绑定在网口上，从其他网口发往这个网口地址的连接会被拒绝。在 Windows 和 macOS 上，监听的是这个网口的地址，`enforced` 告诉你系统会不会拒绝那样的连接。
 - **网口和它们的变化**：本机每个网口的状态，以及地址、连通状态、网口出现和消失时的事件，都来自系统的通知。
 - **原生插件**：在安装这个包时编译，支持 Linux、macOS 和 Windows；也能在 Bun 和 Electron 的主进程里运行。
 
@@ -44,11 +44,11 @@ console.log(listener.port, listener.addresses)
 
 | | `enforced` |
 |---|---|
-| Linux | `true`：套接字绑定在网口上（`SO_BINDTODEVICE`）；Linux 5.7 以前这需要 `CAP_NET_RAW` 能力，没有的话就按地址监听，`enforced` 为 `false` |
+| Linux | `true`：套接字绑定在网口上（`SO_BINDTODEVICE`）；Linux 5.7 以前这需要 `CAP_NET_RAW` 能力，没有时就按地址监听，`enforced` 为 `false` |
 | Windows | 其他网口都按强主机模型收包、都没开转发时为 `true`，默认就是这样 |
 | macOS | 默认为 `false`；只有在系统设置为拒绝这样的包（`net.inet.ip.check_interface` 设为 2，IPv6 还有 `net.inet6.ip6.check_interface`）并且没开转发时才为 `true` |
 
-默认按系统允许的最好方式监听，无论如何都不会比用 `listen(port, host)` 按地址监听差；`reason` 说明为什么没有保证，以及怎样才能有。如果管理网口是一道安全边界，用 `strict: true`：没有保证就拒绝监听，运行中保证丢了就停止监听：
+默认按系统允许的最好方式监听，无论如何都不会比用 `listen(port, host)` 按地址监听差；`reason` 说明为什么没有保证，以及如何才能获得保证。如果管理网口是一道安全边界，用 `strict: true`：没有保证就拒绝监听，运行中保证丢了就停止监听：
 
 ```typescript
 import {createServer} from 'node:http'
@@ -106,11 +106,11 @@ socket.on('message', (message, remote) => {
 socket.on('error', error => console.error(error))
 ```
 
-在 Linux 上，这个套接字只接收从这个网口进来的数据，包括这个网口上的广播和用 `addMembership()` 加入的组播组，别的网口来的一概收不到。在 Windows 和 macOS 上，网口的每个地址各绑一个套接字；macOS 上这样的套接字收不到广播和组播。
+在 Linux 上，这个套接字只接收从这个网口进来的数据，包括这个网口上的广播和用 `addMembership()` 加入的组播组，来自其他网口的数据一概无法收到。在 Windows 和 macOS 上，网口的每个地址各绑一个套接字；macOS 上这样的套接字无法收到广播和组播。
 
 ## 5. 在应用中使用
 
-lakutata 里自己监听端口的入口都有 `interface` 选项：`expressHTTPEntrypoint()`、`fastifyHTTPEntrypoint()`、`httpServiceEntrypoint()`、`socketIOServiceEntrypoint()`、`jsonRPCServiceEntrypoint()`、`@lakutata/grpc` 的 `grpcServiceEntrypoint()` 和 `@lakutata/mcp` 的 `httpMCPEntrypoint()`。设置后，控制器的动作就在这个网口上提供，不管它是什么地址：
+Lakutata 里自己监听端口的适配器都有 `interface` 选项：`expressHTTPEntrypoint()`、`fastifyHTTPEntrypoint()`、`httpServiceEntrypoint()`、`socketIOServiceEntrypoint()`、`jsonRPCServiceEntrypoint()`、`@lakutata/grpc` 的 `grpcServiceEntrypoint()` 和 `@lakutata/mcp` 的 `httpMCPEntrypoint()`。设置后，控制器的动作就在这个网口上提供，无论它是什么地址：
 
 ```typescript
 import {Application} from 'lakutata'
@@ -138,9 +138,9 @@ Application.run(() => ({
 }))
 ```
 
-- `family`、`strict` 和 `onError` 与 `interface` 配合使用。没有设置 `onError` 时，重新监听的错误会写到应用的日志里。适配器的 `listening` 回调会拿到监听器。这些选项的说明见 [HTTP](HTTP.md) 第 2 节。
+- `family`、`strict` 和 `onError` 与 `interface` 配合使用。没有设置 `onError` 时，重新监听的错误会写到应用的日志里。适配器的 `listening` 回调会得到监听器。这些选项的说明见 [HTTP](HTTP.md) 第 2 节。
 - 网口还不存在时应用也能启动，网口出现后就能访问它的动作。
-- 入口通过 `IInterfaceListening` 按网口监听。这是 lakutata 定义的接口（来自 `@lakutata/core`），这个包实现了它，入口默认加载这个包。另一种实现可以用入口的 `interfaceListening` 选项给出；这个包的 `InterfaceListener` 就是一个 `IInterfaceListener`。
+- 入口通过 `IInterfaceListening` 按网口监听。这是 Lakutata 定义的接口（来自 `@lakutata/core`），这个包实现了它，入口默认加载这个包。另一种实现可以用入口的 `interfaceListening` 选项给出；这个包的 `InterfaceListener` 就是一个 `IInterfaceListener`。
 
 不属于入口的服务器由一个组件持有：在 `startup()` 里开始监听，在 `destroy()` 里停止。网口和端口作为组件的选项。
 
@@ -189,8 +189,8 @@ Application.run(() => ({
 
 ## 6. 系统、运行环境和打包
 
-- **Linux** 把套接字绑定在网口上：系统会挡住别的网口，新加的地址立刻就能访问，UDP 能收到这个网口的广播和组播。Linux 5.7 以前，请给进程 `CAP_NET_RAW` 能力（`setcap cap_net_raw+ep`，或在 systemd 单元里写 `AmbientCapabilities=CAP_NET_RAW`）。
-- **Windows** 监听网口的地址；它的强主机模型会挡住别的网口，除非有网口被设成了弱主机模型（`netsh interface ipv4 set interface "<名字>" weakhostreceive=enabled`，有些负载均衡软件会这样做）或者开了转发。`reason` 会说出是哪个网口。
+- **Linux** 把套接字绑定在网口上：系统会拒绝其他网口的连接，新加的地址立刻就能访问，UDP 能收到这个网口的广播和组播。Linux 5.7 以前，请给进程 `CAP_NET_RAW` 能力（`setcap cap_net_raw+ep`，或在 systemd 单元里写 `AmbientCapabilities=CAP_NET_RAW`）。
+- **Windows** 监听网口的地址；它的强主机模型会拒绝其他网口的连接，除非有网口被设成了弱主机模型（`netsh interface ipv4 set interface "<名字>" weakhostreceive=enabled`，有些负载均衡软件会这样做）或者开了转发。`reason` 会说出是哪个网口。
 - **macOS** 监听网口的地址，除非系统设置了，否则没有保证。macOS 27 对进程隐藏 MAC 地址（给出的都是 `02:00:00:00:00:00`）：在那里请按名字指定网口。
 - **Bun**：它的 `https` 服务器收到交过来的连接时不做 TLS，所以在 Bun 上 `listen()` 会拒绝它（用 `https` 选项创建的 Fastify 实例也一样）；在 Bun 上请改用 `http2.createSecureServer({key, cert, allowHTTP1: true})` 或 `tls.createServer()`。Bun 的服务器不会关闭交给它的空闲长连接，入口会自己关闭它们。交给服务器的连接不能升级为 WebSocket（在 Bun 1.4 上观察到），所以在 Bun 上，入口按网口监听时不支持 WebSocket。
 - **Electron**：在主进程里使用。
@@ -201,7 +201,7 @@ Application.run(() => ({
 | 异常 | 什么时候 |
 |---|---|
 | `NetIfNotFoundException` | 指定的序号没有网口，指定的 MAC 有几个网口 |
-| `NetIfNotEnforcedException` | 用了 `strict`，但系统挡不住别的网口；或者运行中保证丢了（`error` 事件） |
-| `NetIfNotSupportedException` | 系统或运行环境做不到的操作：在 Linux 以外调用 `bindSocket()`，在 macOS 上给绑定在地址上的套接字加组播，在 Bun 上监听 `https` 服务器 |
+| `NetIfNotEnforcedException` | 用了 `strict`，但系统无法拒绝其他网口的连接；或者运行中保证丢了（`error` 事件） |
+| `NetIfNotSupportedException` | 系统或运行环境无法执行的操作：在 Linux 以外调用 `bindSocket()`，在 macOS 上给绑定在地址上的套接字加组播，在 Bun 上监听 `https` 服务器 |
 | `NetIfTimeoutException` | `waitForAddress()` 超过了 `timeout` |
 | `NetIfException` | 以上所有异常的基类；系统拒绝时，`errno` 是系统的错误码（`'EADDRINUSE'`、`'EACCES'`…） |

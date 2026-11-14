@@ -12,8 +12,8 @@
 npm install @lakutata/thermal
 ```
 
-- 插件在安装时编译（node-gyp），所以机器上需要 Python 3 和支持 C++17 的编译器：macOS 上是 Xcode 的 Command Line Tools，Linux 上是 `build-essential`（Debian、Ubuntu）或 `build-base`（Alpine），Windows 上是 Visual Studio 的生成工具（"使用 C++ 的桌面开发"）。编译在较新的机器上约十秒，慢的机器上要几分钟。编译失败时安装也会失败。
-- 包管理器要运行这个包的安装脚本。npm 会运行，可能提示这个脚本"not yet covered by allowScripts"：`npm install-scripts approve @lakutata/thermal` 会记下你允许它。Bun 和 pnpm 只为告诉它们可以信任的依赖运行安装脚本（Bun 是 package.json 里的 `trustedDependencies`，pnpm 是 `pnpm approve-builds`）；没有允许时，加载这个包会抛出一个错误，告诉你怎样编译插件。
+- 插件在安装时编译（node-gyp），所以机器上需要 Python 3 和支持 C++17 的编译器：macOS 上是 Xcode 的 Command Line Tools，Linux 上是 `build-essential`（Debian、Ubuntu）或 `build-base`（Alpine），Windows 上是 Visual Studio 的生成工具（“使用 C++ 的桌面开发”）。编译在较新的机器上约十秒，慢的机器上要几分钟。编译失败时安装也会失败。
+- 包管理器要运行这个包的安装脚本。npm 会运行，可能提示这个脚本“not yet covered by allowScripts”：`npm install-scripts approve @lakutata/thermal` 会记下你允许它。Bun 和 pnpm 只为告诉它们可以信任的依赖运行安装脚本（Bun 是 package.json 里的 `trustedDependencies`，pnpm 是 `pnpm approve-builds`）；没有允许时，加载这个包会抛出一个错误，告诉你如何编译插件。
 - Node.js `>=18.10.0`，以及 `@lakutata/core`。插件用的是 Node-API，所以 Bun 和 Electron 主进程可以直接加载 node-gyp 为 Node.js 编译的插件，不用重新编译。
 - 包的下载大小约 17 MB，解压后 28 MB，主要是两个字体文件和插件的源码。
 
@@ -60,7 +60,7 @@ await render(html, {label: {width: 40, height: 30}, dpi: 300})  //一张 40 × 3
 await render(html, {label: {width: 25, height: 250}, dpi: 300, rotate: 90, page: {lead: 25.4}})  //一条腕带
 ```
 
-- `paper` 是 203 dpi 小票机的纸宽：`58`（打印宽度 48 mm，384 点）或 `80`（72 mm，576 点）。国产品牌和 Epson 的 203 dpi 机型都是这两个宽度。分辨率或打印宽度不同的打印机，比如 Epson TM-T88 系列和 Bixolon SRP-350（180 dpi，512 点），用 `width` 和 `dpi` 给出：用 `paper: 80` 的话，右边会被截掉。
+- `paper` 是 203 dpi 小票机的纸宽：`58`（打印宽度 48 mm，384 点）或 `80`（72 mm，576 点）。国产品牌和 Epson 的 203 dpi 机型都是这两个宽度。分辨率或打印宽度不同的打印机，比如 Epson TM-T88 系列和 Bixolon SRP-350（180 dpi，512 点），用 `width` 和 `dpi` 给出：用 `paper: 80` 时，右边会被截掉。
 - `width` 是打印宽度，即打印机规格书上写的“打印宽度 72 mm”，不是纸宽。
 - `label` 是标签或腕带的尺寸：横跨打印头的宽度（`width`）和沿走纸方向的长度（`height`）。
 - 尺寸用毫米，或者带单位的字符串：`'72mm'`、`'2in'`、`'576dots'`。尺寸换算成点时一律向下取整：203 dpi 的打印机是每毫米 8 点，300 dpi 的是每毫米 12 点，所以它们的宽度正好是整数；180 dpi 时，72 mm 是 510 点，打印头有 512 点，多出两点空白，而不是被截掉两点。
@@ -175,8 +175,8 @@ console.log(escpos.length, zpl.length, tspl.length)
 | 错误 | 什么时候 |
 |---|---|
 | `ThermalOptionException` | 选项不正确：没有给出介质或给出了多种、介质缺少分辨率、尺寸超出范围、旋转的页面没有固定长度、未知的型号、编码没有给出指令语言 |
-| `ThermalFontException` | 字体文件读不出来，或者 FreeType 打不开它 |
-| `ThermalContentException` | 图片或样式表读不出来或解码不了（在 `baseDir` 之外、远程地址、文件损坏），二维码的文本太长，内容长于 `maxLength`（默认 2500 mm） |
+| `ThermalFontException` | 字体文件无法读取，或者 FreeType 无法打开它 |
+| `ThermalContentException` | 图片或样式表无法读取或无法解码（在 `baseDir` 之外、远程地址、文件损坏），二维码的文本太长，内容长于 `maxLength`（默认 2500 mm） |
 | `ThermalTimeoutException` | 渲染在队列里等待的时间超过了它的 `timeout` |
 | `ThermalCancelledException` | 渲染开始之前，它的 `signal` 被中止 |
 | `ThermalException` | 其他异常的基类，插件内部出错时直接抛出它 |

@@ -1,6 +1,6 @@
 # Lakutata 数据库
 
-lakutata 的数据库层是 `@lakutata/orm` 包，基于 [TypeORM](https://typeorm.io) 1 构建。TypeORM 的源码已经包含在这个包里，所以不会再安装 `typeorm` 包。`lakutata` 通过四个子路径重新导出它：
+Lakutata 的数据库层是 `@lakutata/orm` 包，基于 [TypeORM](https://typeorm.io) 1 构建。TypeORM 的源码已经包含在这个包里，所以不会再安装 `typeorm` 包。`lakutata` 通过四个子路径重新导出它：
 
 | 子路径 | 提供的内容 |
 |---|---|

@@ -10,7 +10,7 @@
 npm install @lakutata/mongo-embedded
 ```
 
-- 安装这个包时，会用它的 C 和 C++ 源码（SQLite 和 ICU 的一部分）编译插件（node-gyp）：在较新的机器上大约 15 秒，慢的机器上要几分钟。机器上需要 Python 3 和支持 C++17 的编译器：macOS 上是 Xcode 的 Command Line Tools，Linux 上是 `build-essential`（Debian、Ubuntu）或 `build-base`（Alpine），Windows 上是 Visual Studio 的生成工具（"使用 C++ 的桌面开发"）。npm 会提示这个包带有安装脚本。Bun 只运行受信任的包的脚本，需要用 `bun pm trust @lakutata/mongo-embedded` 允许它。
+- 安装这个包时，会用它的 C 和 C++ 源码（SQLite 和 ICU 的一部分）编译插件（node-gyp）：在较新的机器上大约 15 秒，慢的机器上要几分钟。机器上需要 Python 3 和支持 C++17 的编译器：macOS 上是 Xcode 的 Command Line Tools，Linux 上是 `build-essential`（Debian、Ubuntu）或 `build-base`（Alpine），Windows 上是 Visual Studio 的生成工具（“使用 C++ 的桌面开发”）。npm 会提示这个包带有安装脚本。Bun 只运行受信任的包的脚本，需要用 `bun pm trust @lakutata/mongo-embedded` 允许它。
 - Node.js `>=20.19.0`、Bun、Electron 主进程或 NW.js。在 Android、iOS 和鸿蒙上，它运行在 `mobile-react` 模板的应用中，模板的 `lakutata mobile stage` 会为每个系统编译插件。用 `@lakutata/builder` 打包的应用会带上插件和它的 ICU 数据。
 - 在 `lakutata/orm` 中，`mongo-embedded` 类型的数据源需要这个包，没有安装时会提示安装。
 
@@ -48,7 +48,7 @@ await client.close()
 
 无论哪种方式，崩溃或断电都不会损坏数据库。在 macOS 和 iOS 上，写回使用 `F_FULLFSYNC`，让写入的顺序在磁盘的缓存中也得到保证；`always` 的每次写入也使用它。一个目录同时只能被一个连接打开：由它的 `LOCK` 文件锁住。
 
-带 `j: true`（或 `fsync: true`）的写关注会在写入完成之前同步 WAL，不管 `sync` 是什么。
+带 `j: true`（或 `fsync: true`）的写关注会在写入完成之前同步 WAL，无论 `sync` 是什么。
 
 ### 事务
 

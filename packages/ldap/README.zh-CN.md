@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-[lakutata](https://www.npmjs.com/package/lakutata) 框架的 LDAP 组件。`LDAPServer` 组件让应用提供一个目录服务：条目放在它的后端里（`DirectoryBackend` 把条目存进应用的数据库），应用不经过网络就能读写这些条目。`LDAPClient` 组件为应用提供一个连接 LDAP 服务器（OpenLDAP、Active Directory、389 Directory Server 等）的连接池。两个组件都建在 [`@lakutata/ldap-engine`](https://www.npmjs.com/package/@lakutata/ldap-engine) 之上，本包会重新导出它的全部内容。
+[Lakutata](https://www.npmjs.com/package/lakutata) 框架的 LDAP 组件。`LDAPServer` 组件让应用提供一个目录服务：条目放在它的后端里（`DirectoryBackend` 把条目存进应用的数据库），应用不经过网络就能读写这些条目。`LDAPClient` 组件为应用提供一个连接 LDAP 服务器（OpenLDAP、Active Directory、389 Directory Server 等）的连接池。两个组件都建在 [`@lakutata/ldap-engine`](https://www.npmjs.com/package/@lakutata/ldap-engine) 之上，本包会重新导出它的全部内容。
 
 ## 安装
 
@@ -10,7 +10,7 @@
 npm install lakutata @lakutata/ldap
 ```
 
-支持 Node.js `>=18.10.0`、Bun、Electron 和 NW.js。要按网卡监听，还需要安装 `@lakutata/netif`。
+支持 Node.js `>=18.10.0`、Bun、Electron 和 NW.js。要按网口监听，还需要安装 `@lakutata/netif`。
 
 ## 用法
 
@@ -43,7 +43,7 @@ Application.run(() => ({
 })
 ```
 
-组件监听 LDAP（给了 `tls` 时同时提供 StartTLS）和 LDAPS，可以监听某个地址，也可以按网卡监听（`interface: 'eth1'`，不管网卡的地址是什么）；给了 `ldapiPath` 时还监听一个 Unix socket，供同一台机器上的客户端使用（SSSD、nslcd），在这个 socket 上发送密码和用 TLS 一样被接受；`port: false` 表示不开 LDAP 端口。后端、插件和拦截器可以是对象（`@lakutata/ldap-engine` 的插件：`new MemberOfPlugin()`），也可以是带选项的 lakutata 类（`{class: DevicesBackend, suffix: 'ou=devices,dc=example,dc=com'}`），由组件在自己的容器里创建。`connect()` 返回一个进程内连接，操作和客户端相同；`directory()` 返回建在进程内连接上的目录助手；两者经过的 schema 校验、密码哈希和访问控制都和网络请求相同。服务器具体做什么（schema、密码、访问规则、插件）见 `@lakutata/ldap-engine` 的 README。
+组件监听 LDAP（给了 `tls` 时同时提供 StartTLS）和 LDAPS，可以监听某个地址，也可以按网口监听（`interface: 'eth1'`，无论网口的地址是什么）；给了 `ldapiPath` 时还监听一个 Unix socket，供同一台机器上的客户端使用（SSSD、nslcd），在这个 socket 上发送密码和用 TLS 一样被接受；`port: false` 表示不开 LDAP 端口。后端、插件和拦截器可以是对象（`@lakutata/ldap-engine` 的插件：`new MemberOfPlugin()`），也可以是带选项的 Lakutata 类（`{class: DevicesBackend, suffix: 'ou=devices,dc=example,dc=com'}`），由组件在自己的容器里创建。`connect()` 返回一个进程内连接，操作和客户端相同；`directory()` 返回建在进程内连接上的目录助手；两者经过的 schema 校验、密码哈希和访问控制都和网络请求相同。服务器具体做什么（schema、密码、访问规则、插件）见 `@lakutata/ldap-engine` 的 README。
 
 ### 目录后端
 
@@ -74,7 +74,7 @@ Application.run(() => ({
 }))
 ```
 
-目录后端把它后缀下的条目存进应用的数据库（PostgreSQL、MySQL 或 SQLite）：一张条目表，每个值一行，不管条目是什么对象类，所以条目能有哪些属性由服务器的 schema 决定。把 `directoryEntities(type)`（参数是数据库的类型；MySQL 把值存在 LONGTEXT 列里）返回的实体加进数据库的实体；迁移和应用的其他实体一样，由应用自己管理。
+目录后端把它后缀下的条目存进应用的数据库（PostgreSQL、MySQL 或 SQLite）：一张条目表，每个值一行，无论条目是什么对象类，所以条目能有哪些属性由服务器的 schema 决定。把 `directoryEntities(type)`（参数是数据库的类型；MySQL 把值存在 LONGTEXT 列里）返回的实体加进数据库的实体；迁移和应用的其他实体一样，由应用自己管理。
 
 - 搜索由数据库执行：过滤器翻译成 SQL，按匹配规则比较时所用的值的形式（相等、子串、整数和时间）查找，SQL 不能精确判断的部分由服务器再检查。
 - 排序搜索（排序控制项，以及虚拟列表视图的窗口）由后端自己排序，只读取窗口里的条目：按偏移取的窗口由数据库根据每个值附带的排序键来排序、计数和截取；其他情况下后端读出排序键的值，按服务器的规则排序。排序键在写入值时按属性的排序规则生成，schema 改了这个规则之后，以前写入的值要重新写一次才会换成新的键（OpenLDAP 改了规则也要用 slapindex 重建索引）。某个排序键没有值的条目排在其他条目之后，逆序时排在它们之前（RFC 2891）。设置了 `access.check` 且没有把 `access.checkReads` 设为 false（不判断读取的检查可以这样设），或者有会从搜索结果里去掉条目的拦截器时，虚拟列表视图由服务器自己排序和开窗，受 `limits.sortCandidates` 限制，这样它的计数不包括会话不能读的条目。
@@ -82,14 +82,14 @@ Application.run(() => ({
 - 值里写的 DN（member、manager、seeAlso 等）指向对应的条目：条目改名时跟着改，条目删除时被移除（必需属性因此变空时，留下一个占位值，默认是空 DN）。
 - memberOf 在读取时计算，用它做过滤器可以找到一个组的成员；`nestedGroups` 可以展开嵌套组。posixGroup 条目会算出 memberUid，供 RFC 2307 的客户端使用。
 - 新增的 posixAccount 和 posixGroup 条目没有 uidNumber、gidNumber 时自动分配（从 10000 开始）；uidNumber 唯一，posixGroup 的 gidNumber 在各个组之间也唯一。POSIX 的对象类来自自带的 rfc2307bis，它默认不加载，要在 `schema.bundled` 里写上。
-- `unique` 里的属性，其值在整个后缀内唯一；最近一次成功的带密码的绑定的时间作为 authTimestamp 返回，简单绑定和 SASL PLAIN 都算（条目正被别的写操作占用时，绑定不会等它，这次的时间不记录；SQLite 上只要有写操作在进行就是这样；MySQL 8.0 之前和 MariaDB 10.6 之前的版本不能跳过被别的写操作占用的行，绑定会等它完成）；绑定失败的记录存在数据库里，应用的多个实例共用，密码策略的状态也是这样（两个实例在同一毫秒内、都还没写入时各有一次绑定失败，可能记下相同的时间，只保存一个，所以算作一次）；`mailAlias` 让 email 等于 mail。
+- `unique` 里的属性，其值在整个后缀内唯一；最近一次成功的带密码的绑定的时间作为 authTimestamp 返回，简单绑定和 SASL PLAIN 都算（条目正被其他写操作占用时，绑定不会等它，这次的时间不记录；SQLite 上只要有写操作在进行就是这样；MySQL 8.0 之前和 MariaDB 10.6 之前的版本不能跳过被其他写操作占用的行，绑定会等它完成）；绑定失败的记录存在数据库里，应用的多个实例共用，密码策略的状态也是这样（两个实例在同一毫秒内、都还没写入时各有一次绑定失败，可能记下相同的时间，只保存一个，所以算作一次）；`mailAlias` 让 email 等于 mail。
 - 每个写操作在一个事务里执行，拦截器的 `beforeCommit()` 也在其中。对同一条目的写操作依次执行，多个实例共用一个数据库时也是这样（SQLite 上，对同一个文件的所有写操作都依次执行），所以两个客户端同时修改同一属性的不同值，双方的修改都会保留。
 - `beforeCommit()` 通过使用同一个 Database 组件的服务器做的搜索和写操作，都在它所在的那个写操作的事务里进行：能读到这个事务里已经写入的内容；那个写操作失败时，这些写操作也一起撤销。这样的搜索会把结果全部读完再返回。读取期间，那个写操作的其他操作要等它读完，它持有的锁也不会释放。结果很多时会占用大量内存；条数限制只限制返回多少条，不限制读取多少条。超过时间限制后，搜索停止读取，回应 timeLimitExceeded，不返回条目。PostgreSQL 上，这类读取如果被数据库拒绝（例如语句超时），即使拦截器捕获了错误，那个写操作也会失败。
 - 写操作因为死锁被数据库中止、因为无法串行化被拒绝，或者等锁超时（数据库设置了锁等待超时；SQLite 上是文件被另一个进程占用，超过了 busy timeout）时，回应是 busy（51），不会留下任何改动，客户端可以重新发送。
 - MariaDB 服务器请配置成 `mariadb` 类型：配置成 `mysql` 时，后端原本用共享锁的行（父条目、值所指的条目）会改用排他锁，这时在同一个父条目下添加条目、写入指向同一个条目的值，都要依次进行。
 - SQLite 上，`beforeCommit()` 通过另一个 Database 组件对同一个文件做的写操作会被拒绝（unwillingToPerform），因为它要等的正是它所在的那个写操作。这样的写操作请通过使用同一个 Database 组件的服务器来做。
 - DN 值和它所指的条目同时写入时，要等两个写操作都提交后才把这个值指向那个条目。这一步出错时，会作为服务器的 `error` 事件报告，组件会把它记进日志；写操作本身已经完成。
-- `@lakutata/ldap-engine` 里，做的事目录后端自己已经做了的插件（`MemberOfPlugin`、`ReferentialIntegrityPlugin`、`IdAllocationPlugin`、`LastBindPlugin`）不进它的处理链；其他插件（`UniquePlugin`、`AuditPlugin`、`ConstraintPlugin` 等）和在别的后端上一样运行。
+- `@lakutata/ldap-engine` 里，做的事目录后端自己已经做了的插件（`MemberOfPlugin`、`ReferentialIntegrityPlugin`、`IdAllocationPlugin`、`LastBindPlugin`）不进它的处理链；其他插件（`UniquePlugin`、`AuditPlugin`、`ConstraintPlugin` 等）和在其他后端上一样运行。
 - `initialize` 在第一次启动时建立后缀条目和管理员（或者导入 LDIF），只做一次。
 
 ### 客户端
@@ -136,10 +136,10 @@ Application.run(() => ({
 | `ldapiPath` | | 另外监听的 Unix socket（ldapi）路径，供同一台机器上的客户端使用；在上面发送密码和用 TLS 一样被接受 |
 | `ldapiMode` | 由 umask 决定 | socket 的权限，决定谁能连接（`0o666`：本机的所有用户） |
 | `tls` | | StartTLS 和 LDAPS 用的证书和私钥（`cert`、`key`）；用 SASL EXTERNAL 时还要 `requestCert: true`，并在 `ca` 里给出客户端证书的 CA |
-| `interface`、`strict`、`family`、`onError`、`interfaceListening` | | 按网卡监听，代替按地址监听 |
-| `backends` | | 后端：对象，或带选项的 lakutata 类 |
-| `plugins` | | 插件：对象，或带选项的 lakutata 类（还可以给 `name`、`suffixes`） |
-| `interceptors` | | 单独给出的拦截器：对象、带位置的拦截器，或带选项的 lakutata 类 |
+| `interface`、`strict`、`family`、`onError`、`interfaceListening` | | 按网口监听，代替按地址监听 |
+| `backends` | | 后端：对象，或带选项的 Lakutata 类 |
+| `plugins` | | 插件：对象，或带选项的 Lakutata 类（还可以给 `name`、`suffixes`） |
+| `interceptors` | | 单独给出的拦截器：对象、带位置的拦截器，或带选项的 Lakutata 类 |
 | `schema` | core、cosine、inetorgperson | `bundled`（按名字选自带的 schema；`rfc2307bis`、`openssh-lpk`、`ppolicy` 写上名字才加载，`[]` 表示只留系统 schema）、`directory`（schema 文件所在的目录，按文件名顺序加载）和 `files`（自己的 schema：路径、文本，或 `readSchemaFile()`、`parseSchemaFile()` 得到的文档） |
 | `access` | | `admins`、`adminPasswords`、`passwordAdmins`、`anonymousRead`、`authenticatedRead`、`check` |
 | `limits` | | 条数、时间、消息大小、请求数和连接数的上限 |
@@ -184,7 +184,7 @@ Application.run(() => ({
 | `poolSize` | `4` | 连接池最多的连接数 |
 | `connectTimeout` | `5000` | 建立连接最多可用的毫秒数 |
 | `timeout` | `30000` | 操作最多可用的毫秒数，超过后放弃该操作（`0` 表示不限） |
-| `idleTimeout` | `600000` | 连接空闲这么多毫秒后关闭 |
+| `idleTimeout` | `600000` | 连接空闲达到该毫秒数后关闭 |
 | `maxMessageSize` | 64 MiB | 服务器可发送的消息大小上限 |
 | `binaryAttributes` | | 值为字节的其他属性 |
 

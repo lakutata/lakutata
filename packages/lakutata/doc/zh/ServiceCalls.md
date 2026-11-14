@@ -382,7 +382,7 @@ $ echo '{"jsonrpc": "2.0", "id": 1, "method": "sum", "params": {"values": [1, 2,
 
 ### 按网口监听
 
-`httpServiceEntrypoint()`、使用自己服务器的 `socketIOServiceEntrypoint()`，以及走 HTTP 或 WebSocket 的 `jsonRPCServiceEntrypoint()`，都可以按网口监听，而不是按地址监听，不管网口现在是什么地址。这需要另外安装 `@lakutata/netif` 包。它们接受和 HTTP 适配器一样的 `interface`、`family`、`strict`、`onError` 和 `interfaceListening` 选项（见 [HTTP](HTTP.md) 第 2 节），`listening` 回调的最后一个参数是网口的监听器：
+`httpServiceEntrypoint()`、使用自己服务器的 `socketIOServiceEntrypoint()`，以及走 HTTP 或 WebSocket 的 `jsonRPCServiceEntrypoint()`，都可以按网口监听，而不是按地址监听，无论网口现在是什么地址。这需要另外安装 `@lakutata/netif` 包。它们接受和 HTTP 适配器一样的 `interface`、`family`、`strict`、`onError` 和 `interfaceListening` 选项（见 [HTTP](HTTP.md) 第 2 节），`listening` 回调的最后一个参数是网口的监听器：
 
 ```typescript
 import {httpServiceEntrypoint} from 'lakutata/com/entrypoint'
@@ -418,13 +418,13 @@ contextBridge.exposeInMainWorld('service', {
 })
 ```
 
-- 每个页面在订阅和调用时给出自己的客户端 id（`crypto.randomUUID()`）；页面在窗口中重新加载后，新的 id 取代原来的 id。没有 id 的页面收不到事件。
+- 每个页面在订阅和调用时给出自己的客户端 id（`crypto.randomUUID()`）；页面在窗口中重新加载后，新的 id 取代原来的 id。没有 id 的页面无法收到事件。
 - `lakutata/adapter/electron` 中的 `ipcEventOfContext(this.context)` 返回请求的 IPC 事件，用来找到发出请求的窗口。
 - `lakutata create` 的 Electron 模板包含同样形式的预加载脚本，并为页面提供了 `window.ipc`，它的 `invoke()` 返回结果，或者抛出错误。
 
 ### NW.js
 
-`nwjsServiceEntrypoint()` 在 NW.js 应用的后台脚本（它的 Node.js 上下文）中，向它的窗口提供动作。NW.js 让窗口里的页面都能使用 Node.js，页面里的 iframe 也挡不住 iframe 中的内容使用它（iframe 的 sandbox 会被忽略）：所以用户界面运行在没有 Node.js 的 `<webview>` 中，由窗口里一个受信任的页面（宿主页面）承载。适配器在 NW.js 与窗口共享的全局对象上放一个桥接对象 `global[Symbol.for(key)]`；宿主页面把界面的请求转发给它，并把向界面推送事件的函数交给它。
+`nwjsServiceEntrypoint()` 在 NW.js 应用的后台脚本（它的 Node.js 上下文）中，向它的窗口提供动作。NW.js 让窗口里的页面都能使用 Node.js，页面里的 iframe 也无法阻止 iframe 中的内容使用它（iframe 的 sandbox 会被忽略）：所以用户界面运行在没有 Node.js 的 `<webview>` 中，由窗口里一个受信任的页面（宿主页面）承载。适配器在 NW.js 与窗口共享的全局对象上放一个桥接对象 `global[Symbol.for(key)]`；宿主页面把界面的请求转发给它，并把向界面推送事件的函数交给它。
 
 | 选项 | 默认值 | 含义 |
 |---|---|---|
@@ -487,7 +487,7 @@ window.addEventListener('message', async (event) => {
 |---|---|
 | HTTP 服务 | 请求的 `id` 请求头或 `id` 查询参数；事件流没有给出时为随机 id |
 | Socket.IO | 连接的 `auth.id`，其次是 `id` 请求头，再次是 `id` 查询参数，否则为 socket 的 id |
-| 基于 HTTP 的 JSON-RPC | 请求的 `id` 请求头或 `id` 查询参数；收不到事件 |
+| 基于 HTTP 的 JSON-RPC | 请求的 `id` 请求头或 `id` 查询参数；无法收到事件 |
 | 基于 WebSocket 的 JSON-RPC | 连接的 `id` 请求头或 `id` 查询参数，否则为随机 id |
 | 基于 stdio 的 JSON-RPC | `'stdio'` |
 | Electron | 页面在订阅或调用时给出的 id |

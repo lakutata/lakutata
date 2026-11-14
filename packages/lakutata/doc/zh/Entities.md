@@ -136,7 +136,7 @@ class Orders extends Component {
 - **查询选项**使用对象：`where`、`relations: {lines: true}`、`select: {id: true, customer: true}`、`order: {createdAt: 'DESC'}`、`skip` 和 `take`、`withDeleted`。`where` 中给出条件列表表示 `OR`。
 - **查询操作符**来自 `lakutata/orm`：`In`、`Not`、`IsNull`、`Like`、`ILike`、`Between`、`MoreThan`、`MoreThanOrEqual`、`LessThan`、`LessThanOrEqual`、`Any`、`ArrayContains`、`Raw`……
 - **写入：** `save`（插入或更新，并按关系的级联设置一起保存）、`insert`、`update`、`delete`、`softDelete` 和 `restore`（需要 `@DeleteDateColumn`）、`increment`、`upsert`。
-- **查询构造器**（`createQueryBuilder`）用来写查询选项表达不了的查询：带条件的连接、分组、子查询。它的值（`:customer`）作为参数传递，从不拼接进 SQL 文本。
+- **查询构造器**（`createQueryBuilder`）用来写查询选项无法表达的查询：带条件的连接、分组、子查询。它的值（`:customer`）作为参数传递，从不拼接进 SQL 文本。
 - **SQL**（`query(sql, parameters)`）原样返回驱动给出的行：PostgreSQL 的 `COUNT(*)` 是字符串。
 
 ## 3. 事务

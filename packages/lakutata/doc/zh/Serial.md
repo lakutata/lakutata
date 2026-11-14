@@ -30,8 +30,8 @@ await port.close()
 ```
 
 - 路径：Linux 上是 `/dev/ttyUSB0` 或 `/dev/ttyACM0`（树莓派上用 `/dev/serial0`），macOS 上是 `/dev/cu.*`（`/dev/tty.*` 设备是等待接入连接用的），Windows 上是 `COM3`。
-- **一定要监听 `'error'`。** 设备不在了时，流会以 `SerialException` 失败，它的 `disconnected` 是 `true`；没有 `'error'` 监听器的话，Node.js 会结束进程。
-- 串口默认独占打开：打开期间其他程序打不开它。在 Linux 和 macOS 上，`exclusive: false` 允许其他程序打开；Windows 总是独占打开串口。
+- **一定要监听 `'error'`。** 设备不在了时，流会以 `SerialException` 失败，它的 `disconnected` 是 `true`；没有 `'error'` 监听器时，Node.js 会结束进程。
+- 串口默认独占打开：打开期间其他程序无法打开它。在 Linux 和 macOS 上，`exclusive: false` 允许其他程序打开；Windows 总是独占打开串口。
 - `drain()` 在已写入的数据从线路发出后完成。`close()` 在数据发完后关闭串口，`destroy()` 立即关闭，丢弃还没发出的数据。
 - 打开的串口会让进程保持运行，就像打开的套接字一样：用完请关闭它。
 
@@ -60,7 +60,7 @@ await port.close()
 
 - `baudRate` 的标准值到处可用，其他值要系统和转接器支持。`dataBits` 是 5 到 8；`stopBits` 是 1、1.5（仅 Windows，且只能配 5 个数据位）或 2；`parity` 是 `'none'`、`'even'`、`'odd'`，Linux 和 Windows 上还有 `'mark'` 和 `'space'`。
 - `flowControl` 是 `'none'`、`'rts/cts'`、`'dtr/dsr'`（Linux 上没有）或 `'xon/xoff'`。用 `'xon/xoff'` 时，收到字节 0x13 会让输出停下，所以会发送二进制数据的设备需要硬件流控。
-- 设置完线路参数后会读回核对：驱动没有接受某项设置时，打开或 `update()` 会以 `'EINVAL'` 失败，而不是带着别的设置继续运行。
+- 设置完线路参数后会读回核对：驱动没有接受某项设置时，打开或 `update()` 会以 `'EINVAL'` 失败，而不是带着其他设置继续运行。
 - `update()` 在之前的写入发完后修改线路参数。`getSignals()` 读取 CTS、DSR、DCD 和 RI；`setSignals()` 设置 DTR 和 RTS，或在之前的写入发完后发送中断信号（break）。`flush()` 丢弃两个方向上等待中的数据。
 - Linux 和 macOS 在打开串口时会拉高 DTR 和 RTS：遇到这个脉冲就复位的开发板（Arduino、ESP32），一打开串口就会复位，代码无法避免。
 
@@ -78,7 +78,7 @@ const port: SerialPort = await openSerialPort({path: scale.stablePath ?? scale.p
 port.on('error', (error: Error) => console.error(error))
 ```
 
-- 每个串口都有 `path`。USB 转接器还有 `vendorId` 和 `productId`（数字）、`serialNumber`、`manufacturer` 和 `product`；同一型号的转接器，有序列号的话靠 `serialNumber` 区分。
+- 每个串口都有 `path`。USB 转接器还有 `vendorId` 和 `productId`（数字）、`serialNumber`、`manufacturer` 和 `product`；同一型号的转接器，有序列号时靠 `serialNumber` 区分。
 - 在 Linux 上，`stablePath` 是串口在 `/dev/serial/by-id` 里的链接，转接器换个口插也不会变。
 - 在 macOS 和 Windows 上，已配对蓝牙设备的串口有它的 `bluetoothAddress`，设备名放在 `product` 里。
 
@@ -89,7 +89,7 @@ port.on('error', (error: Error) => console.error(error))
 - 选项里设了 `stallTimeout`（毫秒）时，输出停止达到这个时长后，写入或等待发送（drain）以 `'ETIMEDOUT'` 失败，数据仍留在队列里。
 - `close()` 在输出还在动时一直等待；输出停止达到 `close({stallTimeout})`（默认 10 秒）后，丢弃剩下的数据，关闭串口，并以 `'ETIMEDOUT'` 拒绝。
 - 中断信号（break）要先等输出发完；流控把输出卡住超过 2 秒时，它以 `'ETIMEDOUT'` 失败。
-- `drain()` 和 `close()` 还要等驱动和转接器芯片里的那部分字节，系统报告不了它们：等待的时长是这些字节按线路速度发完所需的时间，macOS 上最多按 4 KB 算，Linux 和 Windows 上最多按 1 KB 算。
+- `drain()` 和 `close()` 还要等驱动和转接器芯片里的那部分字节，系统无法报告它们：等待的时长是这些字节按线路速度发完所需的时间，macOS 上最多按 4 KB 算，Linux 和 Windows 上最多按 1 KB 算。
 
 ## 5. 蓝牙设备
 
@@ -174,14 +174,14 @@ Application.run(() => ({
 }))
 ```
 
-- 控制器用 `@Inject('scale')` 拿到这个组件，用 `current()` 回答请求。
+- 控制器用 `@Inject('scale')` 获取这个组件，用 `current()` 回答请求。
 - 串口或蓝牙连接的热敏打印机，由 `@lakutata/thermal-printer` 自己打开串口（见[热敏打印机](Thermal.md)）。
 
 ## 7. 系统、运行环境和打包
 
 - Linux、macOS 和 Windows 上的 Node.js 18.10 及以上、Bun、Electron 和 NW.js。插件只用 Node-API（不调用 libuv），所以同一份编译结果能在 Electron 和 NW.js 里加载，也能在 worker 线程里运行；worker 或进程结束时还开着的串口会被关闭，还没发出的数据会被丢弃。
 - 转接器被拔掉，Linux 和 macOS 上会立即报告，Windows 上在一秒内报告。
-- **Linux**：用户要在串口所属的组里（Debian 和 Ubuntu 上是 `dialout`，Arch 上是 `uucp`）。Ubuntu 22.04 和 Linux Mint 21 上，`brltty` 软件包会占用 CH340 转接器；ModemManager 会用几秒钟探测新插的串口。转接器里有因流控发不出去的数据时，内核在关闭串口时最多会再占用它 30 秒（`closing_wait`），`close()` 要等内核放开串口才会完成。
+- **Linux**：用户要在串口所属的组里（Debian 和 Ubuntu 上是 `dialout`，Arch 上是 `uucp`）。Ubuntu 22.04 和 Linux Mint 21 上，`brltty` 软件包会占用 CH340 转接器；ModemManager 会用几秒钟探测新插的串口。转接器里有因流控无法发出的数据时，内核在关闭串口时最多会再占用它 30 秒（`closing_wait`），`close()` 要等内核放开串口才会完成。
 - **Windows**：有些驱动在串口关闭后要稍等一会儿才释放它，隔一小会儿再打开即可。
 - `lakutata package` 生成的打包文件、可执行文件和安装程序会带上编译好的插件：请在每个目标平台上安装这个包后再打包（见[打包](Packaging.md)和[原生插件](NativeAddons.md)）。
 

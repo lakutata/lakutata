@@ -29,7 +29,7 @@
 
 - **包**：`workspaces` 中的模式所匹配、并且含有带 `name` 的 `package.json` 的目录。`*` 匹配一层目录名中的任意字符，`**` 匹配任意层目录，`!packages/old` 排除一个目录。`node_modules` 和以点开头的目录不会被搜索。pnpm 工作区把模式写在 `pnpm-workspace.yaml` 中，作为 `packages:` 下的列表（每行一个 `- 'packages/*'`，或者写成 `['packages/*']`）。
 - **在工作区的任何目录中都能运行这些命令**：它们使用向上最近的一个声明了工作区的目录。
-- **包之间的依赖**：`dependencies`、`devDependencies`、`peerDependencies` 或 `optionalDependencies` 中的依赖，不论范围怎么写（`^0.0.1`、`*`、`workspace:*`、`file:`）。
+- **包之间的依赖**：`dependencies`、`devDependencies`、`peerDependencies` 或 `optionalDependencies` 中的依赖，不论范围如何书写（`^0.0.1`、`*`、`workspace:*`、`file:`）。
 - **构建工具**（`@lakutata/cli`、`typescript`、`@types/node`）是根目录的开发依赖，所以每个包的脚本都能使用它们。
 
 `lakutata list` 显示各个包、它们的版本和目录，以及每个包依赖的包。这里 `app`（服务器）依赖 `ui`（Web 界面），并提供 `ui` 构建好的页面：
@@ -132,19 +132,19 @@ Next: npm install (links the package), then npm run rebuild -w @shop/shared
 - **版本**：就是工作区的版本（工作区没有版本，或者使用 lerna 的独立版本时为 `0.0.1`），`--to` 加入的依赖是 `"@shop/shared": "^0.0.1"`。
 - **文件**：`src/index.ts`（一个示例函数，请换成你的代码）、一个由 `node --test` 运行的测试，以及一个 `package.json`，其中的脚本是 `clean`、`build`（`tsc`）、`rebuild` 和 `test`。它把 `src` 连同类型声明编译到 `build` 中，并通过 `exports` 提供给其他包。Web 界面也要用到的代码，不能使用 Node.js 的模块。
 - **私有**：这个包是 `"private": true`。要发布它，请删掉这一行（`npm publish -w @shop/shared`）。
-- **不安装任何东西**：之后请按命令的提示，运行工作区所用包管理器的安装命令（`pnpm install`、`yarn install`），其他包才能看到新的包。
+- **不安装任何内容**：之后请按命令的提示，运行工作区所用包管理器的安装命令（`pnpm install`、`yarn install`），其他包才能看到新的包。
 
 `lakutata add <name> --native gyp|cmake|rust` 则创建原生插件，见[原生插件](NativeAddons.md)。
 
 ## 5. 从 lerna 迁移
 
-| lerna | lakutata |
+| lerna | `lakutata` |
 |---|---|
 | `lerna run rebuild` | `lakutata run rebuild` |
 | `lerna run dev --parallel` | `lakutata run dev --parallel` |
 | `lerna version patch --no-git-tag-version --no-push -y` | `lakutata version patch --yes` |
 | `lerna version patch` | `lakutata version patch --git`（不推送标签） |
 
-- 工作区可以保留 `lerna.json`：lakutata 只读写其中的 `version`。包来自根目录 `package.json` 的 `workspaces`（或 `pnpm-workspace.yaml`），而不是 `lerna.json` 的 `packages`。
-- lakutata 给所有包用同一个版本号：`"version": "independent"` 的 `lerna.json` 无法递增版本。
+- 工作区可以保留 `lerna.json`：`lakutata` 只读写其中的 `version`。包来自根目录 `package.json` 的 `workspaces`（或 `pnpm-workspace.yaml`），而不是 `lerna.json` 的 `packages`。
+- `lakutata` 给所有包使用同一个版本号：`"version": "independent"` 的 `lerna.json` 无法递增版本。
 - 它不生成变更日志，不缓存构建结果，不挑选自上次发布以来有改动的包，也不发布：发布请用 `npm publish -w <package>`。需要这些功能的工作区可以同时保留 lerna（或 nx、turborepo）。

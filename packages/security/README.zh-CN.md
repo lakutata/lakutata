@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-lakutata 框架的安全工具包，构建在 `node:crypto` 之上：基于 bcrypt 的密码哈希（`PasswordHash`）、基于 HMAC 的消息签名（`Mac`）和基于 AES-256-GCM 的认证加密（`Crypt`），后两者都支持密钥轮换；另外还有更底层的函数（HMAC 签名、随机密钥、恒定时间比较、用密钥或口令加密）。`lakutata` 包通过 `lakutata/security` 重新导出它，并通过 `lakutata/provider/passwordHash` 单独导出 `PasswordHash`。
+Lakutata 框架的安全工具包，构建在 `node:crypto` 之上：基于 bcrypt 的密码哈希（`PasswordHash`）、基于 HMAC 的消息签名（`Mac`）和基于 AES-256-GCM 的认证加密（`Crypt`），后两者都支持密钥轮换；另外还有更底层的函数（HMAC 签名、随机密钥、恒定时间比较、用密钥或口令加密）。`lakutata` 包通过 `lakutata/security` 重新导出它，并通过 `lakutata/provider/passwordHash` 单独导出 `PasswordHash`。
 
 ## 安装
 

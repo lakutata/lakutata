@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-[lakutata](https://github.com/lakutata/lakutata) 框架的 D-Bus 传输方式。应用在一条总线（系统总线、会话总线或私有总线）上持有一个服务名称，把控制器作为 D-Bus 对象的接口提供出来，包括方法、属性和信号。这个包还提供一个 D-Bus 客户端组件，用来调用总线上的其他服务、读取它们的属性、监听它们的信号。协议由 [dbus-sdk](https://github.com/myq1991/node-dbus-sdk) 实现，这个包也重新导出了它的类。`lakutata` 包不重新导出这个包：请从 `@lakutata/dbus` 导入。
+[Lakutata](https://github.com/lakutata/lakutata) 框架的 D-Bus 传输方式。应用在一条总线（系统总线、会话总线或私有总线）上持有一个服务名称，把控制器作为 D-Bus 对象的接口提供出来，包括方法、属性和信号。这个包还提供一个 D-Bus 客户端组件，用来调用总线上的其他服务、读取它们的属性、监听它们的信号。协议由 [dbus-sdk](https://github.com/myq1991/node-dbus-sdk) 实现，这个包也重新导出了它的类。`lakutata` 包不重新导出这个包：请从 `@lakutata/dbus` 导入。
 
 ## 安装
 
@@ -77,7 +77,7 @@ dbus: dbusEntrypoint({bus: 'system', service: 'com.example.DeviceService', repla
 ```
 
 - `bus`：`'session'`（默认值，使用 `DBUS_SESSION_BUS_ADDRESS` 中的地址）、`'system'`（`DBUS_SYSTEM_BUS_ADDRESS`，没有设置时为 `unix:path=/var/run/dbus/system_bus_socket`）、一个总线地址（`unix:path=…`、`tcp:host=…,port=…`），或者私有总线的套接字路径。
-- `service`：服务的公认名称，由字母、数字和 `_` 组成的两段或更多段，以点分隔。D-Bus 也允许服务名称中有 `-`，但这个名称会作为错误名称的前缀，而错误名称中不能有这个字符。名称已被其他连接持有时，适配器启动失败。设置 `replaceExisting` 时，如果名称的持有者允许，就接管名称；设置 `allowReplacement` 时，允许其他服务接管名称：被替换的适配器会继续运行，但没有名称，也拿不回来。
+- `service`：服务的公认名称，由字母、数字和 `_` 组成的两段或更多段，以点分隔。D-Bus 也允许服务名称中有 `-`，但这个名称会作为错误名称的前缀，而错误名称中不能有这个字符。名称已被其他连接持有时，适配器启动失败。设置 `replaceExisting` 时，如果名称的持有者允许，就接管名称；设置 `allowReplacement` 时，允许其他服务接管名称：被替换的适配器会继续运行，但没有名称，也无法取回。
 - `decode`：方法调用的参数和客户端写入的属性值如何解码（`dbus-sdk` 的 `DecodeOpts`）。使用默认值（`{int64: 'number'}`）时，64 位整数如果是安全整数就解码为数字，否则解码为 bigint，这样 `DTO.Number()` 才能接受它们；`{int64: 'bigint'}` 把它们全部解码为 bigint，供 `DTO.BigInt()` 使用。
 - `name` 和 `middlewares`：适配器的名字，以及它的调用使用的中间件（在全局中间件之后执行）。
 - 它随入口一起平稳停止：先释放名称，等正在处理的调用结束，再关闭连接。
@@ -221,7 +221,7 @@ Application
 |---|---|
 | `TypeError` | 声明时或调用 `dbusEntrypoint()` 时，接口名、成员名、服务名称、对象路径或签名（属性、信号或 `returns` 选项的签名）不合法；用模板调用 `DBusObjectManager.addObject()`；适配器启动时，某个 `@DBusMethod` 所在的控制器没有 `@DBusInterface` |
 | `Error`（`The DBus name … is owned by another service`） | 适配器启动时，服务名称已被其他连接持有；入口启动失败 |
-| dbus-sdk 的错误（`UnknownBusAddressError`、连接错误……） | 适配器启动或客户端创建时连不上总线；客户端调用的方法以 D-Bus 错误回复 |
+| dbus-sdk 的错误（`UnknownBusAddressError`、连接错误……） | 适配器启动或客户端创建时无法连接总线；客户端调用的方法以 D-Bus 错误回复 |
 | `InvalidValueException`（来自 `lakutata`） | `setPropertyValue()` 或 `emitSignal()` 的值被校验规则或 DTO 拒绝；客户端创建时缺少 `busAddress` |
 | `InvalidObjectOptionsException`（来自 `lakutata`） | 客户端的某个选项的值不合法（`timeout`、`decode`……）；应用启动失败 |
 

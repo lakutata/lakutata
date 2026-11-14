@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-[lakutata](https://github.com/lakutata/lakutata) 框架的热敏打印机包。管理器组件负责找到打印机（USB 打印机、系统打印队列、串口和蓝牙口），并按应用落盘的 JSON 定义打开它们。打开后的每台打印机都是一个对象：它用 [`@lakutata/thermal`](../thermal) 渲染用 HTML 编排的小票、标签和腕带，编码成这台打印机的指令（ESC/POS、TSPL 或 ZPL），按调用的顺序发出去。`lakutata` 包不重新导出这个包，请从 `@lakutata/thermal-printer` 导入。
+[Lakutata](https://github.com/lakutata/lakutata) 框架的热敏打印机包。管理器组件负责找到打印机（USB 打印机、系统打印队列、串口和蓝牙口），并按应用落盘的 JSON 定义打开它们。打开后的每台打印机都是一个对象：它用 [`@lakutata/thermal`](../thermal) 渲染用 HTML 编排的小票、标签和腕带，编码成这台打印机的指令（ESC/POS、TSPL 或 ZPL），按调用的顺序发出去。`lakutata` 包不重新导出这个包，请从 `@lakutata/thermal-printer` 导入。
 
 ## 安装
 
@@ -70,7 +70,7 @@ async function restore(manager: ThermalPrinterManager): Promise<void> {
 }
 ```
 
-- `discover()` 列出候选设备，每项都带一个可以直接打开、也可以直接保存的 `connection`。USB 打印机还会给出它上报的 IEEE 1284 ID（`deviceId`）、这个 ID 对应的 `printerModels()` 里的型号（`model`），以及它上报的指令语言（`language`）。网络打印机没法这样找到，需要用户填写地址。
+- `discover()` 列出候选设备，每项都带一个可以直接打开、也可以直接保存的 `connection`。USB 打印机还会给出它上报的 IEEE 1284 ID（`deviceId`）、这个 ID 对应的 `printerModels()` 里的型号（`model`），以及它上报的指令语言（`language`）。网络打印机无法这样找到，需要用户填写地址。
 - `open(definition, name?)` 对每台设备只打开一次：同一台设备再次打开，返回的是同一个对象（定义仍是第一次的），这样一台打印机上不会有两个队列交错发送数据。
 - `get(name)` 按名字取打印机，`names()` 列出名字，`openPrinters()` 列出已打开的打印机，`close(printer)` 关闭一台打印机。
 - `validatePrinterDefinition()` 检查从文件读出的定义；介质在打开时由引擎检查。
@@ -148,7 +148,7 @@ async function label(printer: ThermalPrinter, barcode: Barcode): Promise<void> {
 | `feed` | ESC/POS：每页打印完后再走出多少毫米的纸：写 `15` 就多走 15 毫米，用来把小票送过撕纸口（每台打印机到撕纸口的距离不一样，按自己的打印机填）。默认 0，不走纸。它和 `cut` 互不影响：两个都写时先走纸，再切纸（切纸指令会自己把纸送到切刀） |
 | `drawer` | ESC/POS：最后一页之后弹开钱箱：`true`（2 号引脚），第二个钱箱用 `{pin: 5}` |
 | `copies` | TSPL 和 ZPL：每张标签打几份 |
-| `sensor`、`gap` | TSPL 和 ZPL：打印机怎么找到标签的起点（标签间的间隙、黑标或连续纸）以及间隙的大小 |
+| `sensor`、`gap` | TSPL 和 ZPL：打印机如何找到标签的起点（标签间的间隙、黑标或连续纸）以及间隙的大小 |
 | `density`、`speed` | TSPL 和 ZPL：打印的浓度和速度 |
 | `raster`、`bandHeight`、`initialize`、`compress`、`skipBlank` | 点阵的发送方式：除非打印机工作不正常，保持默认即可（见 `@lakutata/thermal` 的 README） |
 
@@ -189,7 +189,7 @@ async function label(printer: ThermalPrinter, barcode: Barcode): Promise<void> {
 
 | 错误 | 什么时候 |
 |---|---|
-| `ThermalPrinterConnectionException` | 连不上打印机或指令发不出去：连接被拒绝或超时、设备没接上或被占用、打印队列出错、打印机在停滞超时内一直不接收数据 |
+| `ThermalPrinterConnectionException` | 无法连接打印机或指令无法发出：连接被拒绝或超时、设备没接上或被占用、打印队列出错、打印机在停滞超时内一直不接收数据 |
 | `ThermalPrinterOptionException` | 不是合法的定义：缺少连接方式或连接方式不对、选项类型不对 |
 | `ThermalPrinterException` | 没有这个名字的打印机、连接方式所需的包没有安装、打印机或管理器已关闭 |
 | `@lakutata/thermal` 的异常 | 引擎不接受这个介质（`ThermalOptionException`），或渲染、编码失败 |

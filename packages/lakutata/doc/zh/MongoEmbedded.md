@@ -2,7 +2,7 @@
 
 `mongo-embedded` 驱动让应用在自己的进程里拥有一个 MongoDB：使用 TypeORM 中 MongoDB 的实体、仓储和查询操作符，文档保存在一个目录下的文件中。不需要安装或运行服务器，适合桌面和移动应用、设备、命令行工具和测试。
 
-它是 lakutata 的一部分，不属于 TypeORM。数据库本身是 `@lakutata/mongo-embedded` 包：SQLite 在一个原生插件里保存文档，运行在单独的线程上，[mingo](https://github.com/kofrasa/mingo) 按 MongoDB 的语义执行查询和更新。它的行为与以单成员副本集运行的 MongoDB 8.0 相同，支持事务、变更流、全文索引和地理空间索引，以及排序规则（collation）。
+它是 Lakutata 的一部分，不属于 TypeORM。数据库本身是 `@lakutata/mongo-embedded` 包：SQLite 在一个原生插件里保存文档，运行在单独的线程上，[mingo](https://github.com/kofrasa/mingo) 按 MongoDB 的语义执行查询和更新。它的行为与以单成员副本集运行的 MongoDB 8.0 相同，支持事务、变更流、全文索引和地理空间索引，以及排序规则（collation）。
 
 ## 1. 第一个数据库
 
@@ -10,7 +10,7 @@
 npm install lakutata @lakutata/mongo-embedded
 ```
 
-安装这个包时，会用它的 C 和 C++ 源码编译插件：在较新的机器上大约 15 秒，慢的机器上要几分钟。机器上需要 Python 3 和支持 C++17 的编译器：macOS 上是 Xcode 的 Command Line Tools，Linux 上是 `build-essential`（Debian、Ubuntu）或 `build-base`（Alpine），Windows 上是 Visual Studio 的生成工具（"使用 C++ 的桌面开发"）。npm 会提示这个包带有安装脚本；Bun 只运行受信任的包的安装脚本，需要用 `bun pm trust @lakutata/mongo-embedded` 允许它。这个包需要 Node.js 20.19 或更高版本。
+安装这个包时，会用它的 C 和 C++ 源码编译插件：在较新的机器上大约 15 秒，慢的机器上要几分钟。机器上需要 Python 3 和支持 C++17 的编译器：macOS 上是 Xcode 的 Command Line Tools，Linux 上是 `build-essential`（Debian、Ubuntu）或 `build-base`（Alpine），Windows 上是 Visual Studio 的生成工具（“使用 C++ 的桌面开发”）。npm 会提示这个包带有安装脚本；Bun 只运行受信任的包的安装脚本，需要用 `bun pm trust @lakutata/mongo-embedded` 允许它。这个包需要 Node.js 20.19 或更高版本。
 
 ```typescript
 import {Application} from 'lakutata'
@@ -86,7 +86,7 @@ Application
 ## 3. 文档如何存储
 
 - **一个文件。** 集合和它们的索引保存在目录下的 `data.db` 中，这是一个 WAL 模式的 SQLite 数据库（另有它的 `data.db-wal`）。每次写入把它的文档、这些文档的索引条目和它的变更事件一起提交：崩溃不会留下缺少索引条目的文档。
-- **持久性。** 使用 `sync: 'interval'` 时，WAL 每 100 毫秒同步到磁盘一次：已经完成的写入在应用崩溃后依然存在，计算机崩溃或断电时最多丢失最后一个间隔内的写入。`'always'` 在每次写入完成之前同步。`'never'` 在 WAL 写回数据库时同步（每 1000 页一次，以及数据库关闭时），所以写入不到 1000 页、又没有关闭的应用，断电时可能丢失全部写入。无论哪种方式，崩溃或断电都不会损坏数据库。带 `j: true` 的写关注会在写入完成之前同步，不管 `sync` 是什么。
+- **持久性。** 使用 `sync: 'interval'` 时，WAL 每 100 毫秒同步到磁盘一次：已经完成的写入在应用崩溃后依然存在，计算机崩溃或断电时最多丢失最后一个间隔内的写入。`'always'` 在每次写入完成之前同步。`'never'` 在 WAL 写回数据库时同步（每 1000 页一次，以及数据库关闭时），所以写入不到 1000 页、又没有关闭的应用，断电时可能丢失全部写入。无论哪种方式，崩溃或断电都不会损坏数据库。带 `j: true` 的写关注会在写入完成之前同步，不论 `sync` 是什么。
 - **断电实测。** 在一台写入过程中被强行关机的 Linux 虚拟机上：`'always'` 跑了 4 轮，已经完成的写入一次都没有丢；`'interval'` 跑了 3 轮，每轮丢失的是最后 6 到 68 毫秒内的写入。每一轮之后数据库都完好。
 - **一次只能打开一个。** 一个目录同时只能被一个数据库打开，由 `LOCK` 文件锁住。另一个数据库打开它会失败，错误信息中会写明占用它的进程。
 
@@ -107,7 +107,7 @@ async function moveNotes(db: Database, from: string, to: string): Promise<void> 
 }
 ```
 
-- 同一时间只运行一个事务：事务之外的写入和下一个事务都要等它结束。在函数里不通过它的 `manager`（而是通过别的仓储）进行的写入会立即失败，因为它要等的正是它自己所在的事务。
+- 同一时间只运行一个事务：事务之外的写入和下一个事务都要等它结束。在函数里不通过它的 `manager`（而是通过其他仓储）进行的写入会立即失败，因为它要等的正是它自己所在的事务。
 - 打开时间超过 `transactionLifetimeLimitSeconds` 的事务会被中止，和 MongoDB 一样：它之后的操作和提交都会失败。
 - 查询运行器的事务也是这样（`startTransaction()`、`commitTransaction()`、`rollbackTransaction()`）。
 

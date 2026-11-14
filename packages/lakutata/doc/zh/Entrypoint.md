@@ -163,7 +163,7 @@ Application.run(() => ({
 | `name`、`description`、`groups`、`acl` | 它的选项 |
 | `controller`、`method` | 控制器类名和方法名 |
 | `route` / `command` / `pattern` | 它的地址，包含前缀 |
-| `jsonSchema` | 它的 DTO 的 JSON schema |
+| `jsonSchema` | 它的 DTO 的 JSON Schema |
 
 ## 6. 向客户端推送事件
 
@@ -192,4 +192,4 @@ export class AuditedEntrypoint extends Entrypoint {
 //components: {entrypoint: {class: AuditedEntrypoint, controllers: [...], http: ...}}, bootstrap: ['entrypoint']
 ```
 
-其他传输方式的适配器需要实现 `@lakutata/entrypoint/channel` 中的 `EntrypointAdapter` 接口。lakutata 2.x 的入口函数（`buildHTTPEntrypoint`、`buildCLIEntrypoint`、`buildServiceEntrypoint`）仍然可以用在 `http`、`cli` 和 `service` 选项中。
+其他传输方式的适配器需要实现 `@lakutata/entrypoint/channel` 中的 `EntrypointAdapter` 接口。Lakutata 2.x 的入口函数（`buildHTTPEntrypoint`、`buildCLIEntrypoint`、`buildServiceEntrypoint`）仍然可以用在 `http`、`cli` 和 `service` 选项中。

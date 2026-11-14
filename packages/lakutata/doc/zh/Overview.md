@@ -35,7 +35,7 @@
 | `lakutata/security`、`lakutata/provider/passwordHash` | 哈希、加解密、签名、`PasswordHash` 提供者 |
 | `lakutata/utils` | 辅助函数 |
 
-不在本包中的：`@lakutata/cli`（`lakutata` 命令：创建项目、执行迁移、打包应用，见[命令行工具](Command.md)）、`@lakutata/grpc`（gRPC 客户端、服务端和服务传输）、`@lakutata/nats`（NATS 组件和服务传输）、`@lakutata/dbus`（D-Bus）、`@lakutata/mcp`（Model Context Protocol）、`@lakutata/webrtc`（WebRTC：信令、TURN 服务器、媒体服务器、对等连接）、`@lakutata/ffi`（调用动态库中的 C 函数）、`@lakutata/math`（符号计算和数值计算，直接作为函数使用，不需要 lakutata 应用）、`@lakutata/barcode`（条形码和二维码的生成和识别，由原生插件完成）、`@lakutata/netif`（服务器和 UDP 套接字按网口监听，不管网口的地址怎么变；本机的网口和它们的变化）、`@lakutata/mongo-embedded`（`mongo-embedded` 数据库所用的嵌入式 MongoDB，由原生插件完成）、`@lakutata/thermal` 和 `@lakutata/thermal-printer`（热敏打印机：用 HTML 编排小票和标签，管理器组件）、`@lakutata/serial`（串口和蓝牙设备），以及 `@lakutata/ldap` 和 `@lakutata/ldap-engine`（LDAP：用目录验证用户登录，应用自己提供目录服务）。
+不在本包中的：`@lakutata/cli`（`lakutata` 命令：创建项目、执行迁移、打包应用，见[命令行工具](Command.md)）、`@lakutata/grpc`（gRPC 客户端、服务端和服务适配器）、`@lakutata/nats`（NATS 组件和服务适配器）、`@lakutata/dbus`（D-Bus）、`@lakutata/mcp`（Model Context Protocol）、`@lakutata/webrtc`（WebRTC：信令、TURN 服务器、媒体服务器、对等连接）、`@lakutata/ffi`（调用动态库中的 C 函数）、`@lakutata/math`（符号计算和数值计算，直接作为函数使用，不需要 Lakutata 应用）、`@lakutata/barcode`（条形码和二维码的生成和识别，由原生插件完成）、`@lakutata/netif`（服务器和 UDP 套接字按网口监听，无论网口的地址如何变化；本机的网口和它们的变化）、`@lakutata/mongo-embedded`（`mongo-embedded` 数据库所用的嵌入式 MongoDB，由原生插件完成）、`@lakutata/thermal` 和 `@lakutata/thermal-printer`（热敏打印机：用 HTML 编排小票和标签，管理器组件）、`@lakutata/serial`（串口和蓝牙设备），以及 `@lakutata/ldap` 和 `@lakutata/ldap-engine`（LDAP：用目录验证用户登录，应用自己提供目录服务）。
 
 ## 指南
 
@@ -87,7 +87,7 @@
 | [热敏打印机](Thermal.md) | 热敏打印机（`@lakutata/thermal`、`@lakutata/thermal-printer`、`@lakutata/serial`）：用 HTML 编排小票、标签和腕带，选择并保存打印机，切纸，连接方式，串口和蓝牙 |
 | [LDAP](LDAP.md) | LDAP 组件（`@lakutata/ldap`）：在控制器里用目录验证用户登录，读写目录，用应用的数据库提供目录服务，它的 schema、访问控制和密码策略，自己的插件，接入 SSSD、Keycloak 和 Gitea |
 | [数学计算](Math.md) | 数学计算（`@lakutata/math`）：公式和精确结果、方程、任意精度的十进制数、矩阵、统计、数值解法、单位 |
-| [网口](Netif.md) | 网口（`@lakutata/netif`）：服务器按网口监听，不管网口的地址怎么变；挡住别的网口的连接；网口和它们的变化；单个网口上的 UDP |
+| [网口](Netif.md) | 网口（`@lakutata/netif`）：服务器按网口监听，无论网口的地址如何变化；拒绝其他网口的连接；网口和它们的变化；单个网口上的 UDP |
 | [串口](Serial.md) | 串口（`@lakutata/serial`）：把串口作为流打开，线路参数和信号线，按 USB 转接器的 ID 找到串口，设备拔掉后的处理，经典蓝牙设备 |
 | [LDAP 引擎](LDAPEngine.md) | 不依赖应用的 LDAP（`@lakutata/ldap-engine`）：客户端和连接池，用户登录，Active Directory，过滤器，DN，schema，LDIF，带自己后端的服务器，插件，协议 |
 | [命令行工具](Command.md) | `lakutata` 命令：创建项目、迁移、翻译、环境变量 |

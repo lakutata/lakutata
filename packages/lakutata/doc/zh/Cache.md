@@ -70,7 +70,7 @@ Application
 `cacheId` 选项可以填写，但不会被使用。
 
 - 选项无效时，应用启动失败，抛出 `InvalidObjectOptionsException`。
-- 存储在组件创建时连接。组件列在 `bootstrap` 里时，它在应用启动过程中创建，某个存储连不上会让启动失败；否则它在第一次被用到时才创建，存储的错误会让那次 `getObject()` 或注入失败。
+- 存储在组件创建时连接。组件列在 `bootstrap` 里时，它在应用启动过程中创建，某个存储无法连接会让启动失败；否则它在第一次被用到时才创建，存储的错误会让那次 `getObject()` 或注入失败。
 - 应用停止时，缓存先等待正在进行的后台刷新完成，再断开存储（文件存储会先保存最后的修改）。
 
 ## 3. 读取与写入
@@ -208,7 +208,7 @@ Application.run(() => ({
 | `clearBatchSize` | `1000` | `clear()` 每次扫描和删除多少个键 |
 | `noNamespaceAffectsAll` | `false` | 没有命名空间时，`clear()` 是否清空整个数据库（`FLUSHDB`） |
 
-- 键的格式是 `{namespace}::{namespace}:{key}`（lakutata 2.x 的格式）；没有命名空间时就是键本身。过期的条目由 Redis 自己删除。
+- 键的格式是 `{namespace}::{namespace}:{key}`（Lakutata 2.x 的格式）；没有命名空间时就是键本身。过期的条目由 Redis 自己删除。
 - 没有命名空间时，`clear()` 删除数据库中命名空间之外的字符串键（不含 `::` 的键）：命名空间中的键，以及其他类型的键（哈希、列表……），都会保留。设置 `noNamespaceAffectsAll: true` 时，它清空整个数据库。
 - `clear()` 按类型扫描键，这需要 Redis 6 或更高版本。
 - 连接断开期间，命令立即失败，而不是等待：读取算作未命中，写入失败。设置 `throwOnConnectError: false` 时，即使 Redis 没有运行，缓存也能创建，并会继续尝试连接。
@@ -223,7 +223,7 @@ Application.run(() => ({
 | `username`、`password` | 无 | 用于需要 SASL 认证的服务器 |
 | `namespace` | 无 | |
 
-- 客户端在第一条命令时才连接：连不上服务器不会让缓存创建失败，但读取会未命中，写入会失败。
+- 客户端在第一条命令时才连接：无法连接服务器不会让缓存创建失败，但读取会未命中，写入会失败。
 - memcached 以秒计算 TTL：条目在服务器上最多可能多留两秒，但 TTL 一过就算作未命中。
 - 无论有没有命名空间，`clear()` 都会清空整个服务器：其他应用的条目也会被删除。
 
@@ -325,4 +325,4 @@ cache.on('error', (error: Error): void => console.error('Cache store error', err
 |---|---|
 | `InvalidObjectOptionsException` | 选项无效，在应用启动时 |
 | `CacheDriverNotFoundException`（`E_CACHE_DRIVER_NOT_FOUND`） | 存储所需的包没有安装，在缓存创建时 |
-| 驱动的错误 | 缓存创建时存储连不上，或者存储写入、删除失败 |
+| 驱动的错误 | 缓存创建时无法连接存储，或者存储写入、删除失败 |

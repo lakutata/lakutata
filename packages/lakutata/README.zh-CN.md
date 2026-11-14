@@ -42,7 +42,7 @@ npm install lakutata                      # 或者在已有项目中安装框架
 }
 ```
 
-请保留 `include`：发布的选项也会编译 JavaScript 文件（`allowJs`），没有它的话，项目根目录下的配置文件（`eslint.config.js`、`vite.config.ts`）会让构建失败。
+请保留 `include`：发布的选项也会编译 JavaScript 文件（`allowJs`），没有它，项目根目录下的配置文件（`eslint.config.js`、`vite.config.ts`）会让构建失败。
 
 传输方式和各项集成所需的 peer 依赖都是可选的，用到时才需要安装：`express` 或 `fastify`、`commander`、`socket.io`、`ws`、数据库驱动（`pg`、`mysql2`、`better-sqlite3`……）以及缓存存储（`redis`……）。各个包的 README 列出了各自需要的依赖。
 
@@ -116,14 +116,14 @@ Application
 
 ## 错误
 
-框架的异常都继承自 `Exception`（来自 `lakutata`）。每个异常都有 `errno`（`E_…`）、`message`、应用的 ID 和名称，以及 `statusCode`，HTTP 传输把它用作响应的状态码：默认是 500，输入无效时是 400，访问被拒绝时是 403，路由或动作不存在时是 404，没有拿到锁时是 409，等等。各个包的 README 列出了各自的异常。
+框架的异常都继承自 `Exception`（来自 `lakutata`）。每个异常都有 `errno`（`E_…`）、`message`、应用的 ID 和名称，以及 `statusCode`，HTTP 传输把它用作响应的状态码：默认是 500，输入无效时是 400，访问被拒绝时是 403，路由或动作不存在时是 404，没有获得锁时是 409，等等。各个包的 README 列出了各自的异常。
 
 ## 另见
 
 - 网站 <https://lakutata.com/zh/>：指南、示例和 API 参考，中英文都有。
 - 指南在这个包的 `doc/zh`（中文）和 `doc/en`（英文）中：`Overview.md`、`GettingStarted.md`、`Concepts.md`、`ProjectStructure.md`、`ApplicationDesign.md`、`UpgradingFrom2.md`、`UpgradingFrom1.md`、`Application.md`、`Objects.md`、`Injection.md`、`Modules.md`、`DTOValidation.md`、`Exceptions.md`、`Logger.md`、`Decorator.md`、`Time.md`、`HelperFunctions.md`、`Controllers.md`、`Entrypoint.md`、`Middlewares.md`、`HTTP.md`、`CLI.md`、`ServiceCalls.md`、`GRPC.md`、`NATS.md`、`Schedules.md`、`Queue.md`、`Database.md`、`DatabaseDrivers.md`、`MongoEmbedded.md`、`Entities.md`、`Migrations.md`、`Cache.md`、`Mutex.md`、`I18n.md`、`DockerIntegration.md`、`ContainerdIntegration.md`、`Monitor.md`、`Security.md`、`DBus.md`、`MCP.md`、`WebRTC.md`、`FFI.md`、`Barcode.md`、`Thermal.md`、`LDAP.md`、`Math.md`、`Netif.md`、`Serial.md`、`LDAPEngine.md`、`Command.md`、`Workspaces.md`、`NativeAddons.md`、`Packaging.md`、`Installers.md`；示例在 `doc/zh/examples` 和 `doc/en/examples` 中：从模板构建的完整应用。
 - `@lakutata/cli`：创建、构建和打包应用。
-- 官方 Agent Skill（智能体技能），供 AI 编程助手在 lakutata 项目中使用：<https://lakutata.com/zh/skill/>。
+- 官方 Agent Skill（智能体技能），供 AI 编程助手在 Lakutata 项目中使用：<https://lakutata.com/zh/skill/>。
 
 ## 许可证
 

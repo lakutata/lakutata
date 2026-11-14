@@ -92,7 +92,7 @@ Commands:
   help [command]          display help for command
 ```
 
-**帮助文字。** 动作选项 `description` 是命令在帮助里的说明。不写的话，帮助里显示动作名（`ToolController:greet`）。
+**帮助文字。** 动作选项 `description` 是命令在帮助里的说明。不写时，帮助里显示动作名（`ToolController:greet`）。
 
 **前缀。** 在控制器上加 `@Prefix({command: 'user'})`，前缀会用冒号接在它的每个命令前面：`@CLIAction('get <id>')` 变成 `tool user:get 42`。前缀是命令名的一部分，不是分组。
 
