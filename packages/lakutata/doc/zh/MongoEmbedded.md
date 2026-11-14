@@ -10,7 +10,7 @@
 npm install lakutata @lakutata/mongo-embedded
 ```
 
-安装该包时，会使用其 C 和 C++ 源码编译插件，在较新的机器上约需 15 秒，在较慢的机器上需要几分钟。机器上需要安装 Python 3 和支持 C++17 的编译器：macOS 上为 Xcode 的 Command Line Tools；Linux 上为 `build-essential`（Debian、Ubuntu）或 `build-base`（Alpine）；Windows 上为 Visual Studio 的生成工具（“使用 C++ 的桌面开发”）。npm 会提示该包带有安装脚本；Bun 只运行受信任包的安装脚本，需要通过 `bun pm trust @lakutata/mongo-embedded` 予以信任。此包需要 Node.js 20.19 或更高版本。
+安装该包时，会使用其 C 和 C++ 源码编译插件。机器上需要安装 Python 3 和支持 C++17 的编译器：macOS 上为 Xcode 的 Command Line Tools；Linux 上为 `build-essential`（Debian、Ubuntu）或 `build-base`（Alpine）；Windows 上为 Visual Studio 的生成工具（“使用 C++ 的桌面开发”）。npm 会提示该包带有安装脚本；Bun 只运行受信任包的安装脚本，需要通过 `bun pm trust @lakutata/mongo-embedded` 予以信任。此包需要 Node.js 20.19 或更高版本。
 
 ```typescript
 import {Application} from 'lakutata'

@@ -13,7 +13,7 @@
 npm install @lakutata/math
 ```
 
-原生插件在安装时编译，因此机器上需要有 Python 3 和支持 C++17 的编译器（各系统需要安装的工具见 README），编译需要半分钟到几分钟。包管理器必须运行该包的安装脚本。npm 会运行安装脚本，并可能提示脚本“not yet covered by allowScripts”（运行 `npm install-scripts approve @lakutata/math` 即可记录允许其运行）。Bun 和 pnpm 只为明确信任的包运行安装脚本（Bun 在 package.json 的 `trustedDependencies` 中设置，pnpm 使用 `pnpm approve-builds`）。没有编译好的插件时，加载该包会抛出错误，并说明编译方法。
+原生插件在安装时编译，因此机器上需要有 Python 3 和支持 C++17 的编译器（各系统需要安装的工具见 README）。包管理器必须运行该包的安装脚本。npm 会运行安装脚本，并可能提示脚本“not yet covered by allowScripts”（运行 `npm install-scripts approve @lakutata/math` 即可记录允许其运行）。Bun 和 pnpm 只为明确信任的包运行安装脚本（Bun 在 package.json 的 `trustedDependencies` 中设置，pnpm 使用 `pnpm approve-builds`）。没有编译好的插件时，加载该包会抛出错误，并说明编译方法。
 
 ## 1. 公式和结果
 

@@ -15,11 +15,11 @@ change streams, text and geospatial indexes, and collations.
 npm install lakutata @lakutata/mongo-embedded
 ```
 
-The addon is compiled from its C and C++ sources when the package is installed: about 15 seconds on a recent machine, a
-few minutes on a slow one. The machine requires Python 3 and a C++17 compiler: the Xcode Command Line Tools on macOS,
-`build-essential` (Debian, Ubuntu) or `build-base` (Alpine) on Linux, and the Visual Studio Build Tools ("Desktop
-development with C++") on Windows. npm warns that the package has an install script; Bun runs install scripts only for
-trusted packages, so allow it with `bun pm trust @lakutata/mongo-embedded`. The package requires Node.js 20.19 or later.
+The addon is compiled from its C and C++ sources when the package is installed. The machine requires Python 3 and a
+C++17 compiler: the Xcode Command Line Tools on macOS, `build-essential` (Debian, Ubuntu) or `build-base` (Alpine) on
+Linux, and the Visual Studio Build Tools ("Desktop development with C++") on Windows. npm warns that the package has an
+install script; Bun runs install scripts only for trusted packages, so allow it with
+`bun pm trust @lakutata/mongo-embedded`. The package requires Node.js 20.19 or later.
 
 ```typescript
 import {Application} from 'lakutata'

@@ -10,7 +10,7 @@ Node.js 的数学包。公式按纸面上的写法输入（`x^2 - 5x + 6`、`2(x
 npm install @lakutata/math
 ```
 
-- 原生插件在安装时编译（node-gyp），因此机器上需要安装 Python 3 和支持 C++17 的编译器：macOS 上为 Xcode 命令行工具，Linux 上为 `build-essential`（Debian、Ubuntu）或 `build-base`（Alpine），Windows 上为 Visual Studio 生成工具（“使用 C++ 的桌面开发”）。编译需要半分钟到几分钟；编译失败时，安装也会失败。
+- 原生插件在安装时编译（node-gyp），因此机器上需要安装 Python 3 和支持 C++17 的编译器：macOS 上为 Xcode 命令行工具，Linux 上为 `build-essential`（Debian、Ubuntu）或 `build-base`（Alpine），Windows 上为 Visual Studio 生成工具（“使用 C++ 的桌面开发”）。编译失败时，安装也会失败。
 - 包管理器需要执行本包的安装脚本。npm 会执行该脚本，但可能提示该脚本“not yet covered by allowScripts”，此时运行 `npm install-scripts approve @lakutata/math` 即可记录允许其执行。Bun 和 pnpm 只为明确信任的依赖执行安装脚本，需要先允许本包（Bun 在 package.json 的 `trustedDependencies` 中添加本包，pnpm 使用 `pnpm approve-builds`）；未允许时，加载本包会抛出错误，并说明原生插件的编译方法。
 - Node.js `>=18.10.0`。
 - 原生插件使用 Node-API，因此 Bun 和 Electron 主进程可以直接加载 node-gyp 为 Node.js 编译的插件，无需重新编译。在 Bun 中，如果在 worker 线程中的原生插件运算结束前终止该线程，整个进程会因 Node-API 致命错误而退出（这是 Bun 的缺陷）；Node.js 和 Electron 会丢弃这些运算。

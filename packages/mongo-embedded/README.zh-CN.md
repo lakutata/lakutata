@@ -10,7 +10,7 @@
 npm install @lakutata/mongo-embedded
 ```
 
-- 安装本包时，会使用其 C 和 C++ 源码（SQLite 和 ICU 的一部分）编译插件（node-gyp），在较新的机器上约需 15 秒，在较慢的机器上需要几分钟。机器上需要安装 Python 3 和支持 C++17 的编译器：macOS 上为 Xcode 的 Command Line Tools；Linux 上为 `build-essential`（Debian、Ubuntu）或 `build-base`（Alpine）；Windows 上为 Visual Studio 的生成工具（“使用 C++ 的桌面开发”）。npm 会提示本包带有安装脚本；Bun 只运行受信任包的安装脚本，需要通过 `bun pm trust @lakutata/mongo-embedded` 信任本包。
+- 安装本包时，会使用其 C 和 C++ 源码（SQLite 和 ICU 的一部分）编译插件（node-gyp）。机器上需要安装 Python 3 和支持 C++17 的编译器：macOS 上为 Xcode 的 Command Line Tools；Linux 上为 `build-essential`（Debian、Ubuntu）或 `build-base`（Alpine）；Windows 上为 Visual Studio 的生成工具（“使用 C++ 的桌面开发”）。npm 会提示本包带有安装脚本；Bun 只运行受信任包的安装脚本，需要通过 `bun pm trust @lakutata/mongo-embedded` 信任本包。
 - Node.js `>=20.19.0`、Bun、Electron 主进程或 NW.js。在 Android、iOS 和鸿蒙上，本包运行在 `mobile-react` 模板的应用中，模板的 `lakutata mobile stage` 会为每个系统编译插件。使用 `@lakutata/builder` 打包的应用会包含插件及其 ICU 数据。
 - 在 `lakutata/orm` 中，`mongo-embedded` 类型的数据源需要本包，未安装时会提示安装。
 

@@ -17,8 +17,7 @@ npm install @lakutata/barcode
 
 - The addon is compiled during installation (node-gyp), so the machine needs Python 3 and a C++20 compiler: the Xcode
   Command Line Tools on macOS, `build-essential` (Debian, Ubuntu) or `build-base` (Alpine) on Linux, the Visual Studio
-  Build Tools ("Desktop development with C++") on Windows. Compilation takes from about half a minute to a few minutes.
-  If it fails, the installation fails.
+  Build Tools ("Desktop development with C++") on Windows. If the compilation fails, the installation fails.
 - The package manager has to run the package's install script. npm runs it, and may warn that the script is "not yet
   covered by allowScripts": `npm install-scripts approve @lakutata/barcode` records that you allow it. Bun and pnpm run
   it only for dependencies they are told to trust (`trustedDependencies` in the package.json for Bun,

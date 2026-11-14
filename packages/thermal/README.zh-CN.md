@@ -12,7 +12,7 @@
 npm install @lakutata/thermal
 ```
 
-- 插件在安装时编译（node-gyp），因此机器上需要安装 Python 3 和支持 C++17 的编译器：macOS 上为 Xcode 的 Command Line Tools，Linux 上为 `build-essential`（Debian、Ubuntu）或 `build-base`（Alpine），Windows 上为 Visual Studio 的生成工具（“使用 C++ 的桌面开发”）。编译在较新的机器上约需十秒，在较慢的机器上需要几分钟。编译失败时，安装也会失败。
+- 插件在安装时编译（node-gyp），因此机器上需要安装 Python 3 和支持 C++17 的编译器：macOS 上为 Xcode 的 Command Line Tools，Linux 上为 `build-essential`（Debian、Ubuntu）或 `build-base`（Alpine），Windows 上为 Visual Studio 的生成工具（“使用 C++ 的桌面开发”）。编译失败时，安装也会失败。
 - 包管理器需要运行本包的安装脚本。npm 会运行该脚本，但可能提示该脚本“not yet covered by allowScripts”，此时运行 `npm install-scripts approve @lakutata/thermal` 即可记录允许其运行。Bun 和 pnpm 只为明确信任的依赖运行安装脚本（Bun 在 package.json 的 `trustedDependencies` 中设置，pnpm 使用 `pnpm approve-builds`）；未允许时，加载本包会抛出错误，并说明插件的编译方法。
 - Node.js `>=18.10.0`，以及 `@lakutata/core`。插件使用 Node-API，因此 Bun 和 Electron 主进程可以直接加载 node-gyp 为 Node.js 编译的插件，无需重新编译。
 - 包的下载大小约 17 MB，解压后 28 MB，主要是两个字体文件和插件的源码。

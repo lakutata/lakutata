@@ -20,8 +20,8 @@ npm install @lakutata/math
 
 - The addon is compiled during the installation (node-gyp), so the machine requires Python 3 and a C++17 compiler: the
   Xcode Command Line Tools on macOS, `build-essential` (Debian, Ubuntu) or `build-base` (Alpine) on Linux, and the
-  Visual Studio Build Tools ("Desktop development with C++") on Windows. Compiling takes from about half a minute to a
-  few minutes. If it fails, the installation fails.
+  Visual Studio Build Tools ("Desktop development with C++") on Windows. If the compilation fails, the installation
+  fails.
 - The package manager has to run the package's install script. npm runs it, and may warn that the script is "not yet
   covered by allowScripts": `npm install-scripts approve @lakutata/math` records that you allow it. Bun and pnpm run it
   only for dependencies they are told to trust (`trustedDependencies` in the package.json for Bun, `pnpm approve-builds`

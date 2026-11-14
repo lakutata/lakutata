@@ -22,7 +22,7 @@ npm install @lakutata/math
 ```
 
 The addon is compiled when the package is installed, so the machine needs Python 3 and a C++17 compiler (the README
-lists them for each system); compilation takes from about half a minute to a few minutes. The package manager has to run
+lists them for each system). The package manager has to run
 the package's install script: npm runs it, and may warn that the script is "not yet covered by allowScripts"
 (`npm install-scripts approve @lakutata/math` records that you allow it); Bun and pnpm run it only for packages they are
 told to trust (`trustedDependencies` in the package.json for Bun, `pnpm approve-builds` for pnpm). Without the addon,

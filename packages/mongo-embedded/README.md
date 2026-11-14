@@ -13,12 +13,11 @@ MongoDB client that TypeORM uses, and it can be used without the ORM.
 npm install @lakutata/mongo-embedded
 ```
 
-- The addon is compiled from its C and C++ sources (SQLite and part of ICU) when the package is installed (node-gyp),
-  which takes about 15 seconds on a recent machine and a few minutes on a slow one. The machine requires Python 3 and a
-  C++17 compiler: the Xcode Command Line Tools on macOS, `build-essential` (Debian, Ubuntu) or `build-base` (Alpine) on
-  Linux, and the Visual Studio Build Tools ("Desktop development with C++") on Windows. npm warns that the package has
-  an install script. Bun runs install scripts only for trusted packages: allow it with
-  `bun pm trust @lakutata/mongo-embedded`.
+- The addon is compiled from its C and C++ sources (SQLite and part of ICU) when the package is installed (node-gyp).
+  The machine requires Python 3 and a C++17 compiler: the Xcode Command Line Tools on macOS, `build-essential` (Debian,
+  Ubuntu) or `build-base` (Alpine) on Linux, and the Visual Studio Build Tools ("Desktop development with C++") on
+  Windows. npm warns that the package has an install script. Bun runs install scripts only for trusted packages: allow
+  it with `bun pm trust @lakutata/mongo-embedded`.
 - Node.js `>=20.19.0`, Bun, Electron's main process, or NW.js. On Android, iOS and HarmonyOS it runs in applications
   built from the `mobile-react` template, whose `lakutata mobile stage` compiles the addon for each system. Applications
   packaged by `@lakutata/builder` carry the addon and its ICU data.
