@@ -1,8 +1,7 @@
 # Examples
 
 Each example builds a complete application, from a `lakutata create` template to its tests: the files to write, the
-commands to run and what they print. The code in every example is checked: a script creates the project from the
-example, builds it and runs its tests.
+commands to run and what they print.
 
 | Example | What it shows |
 |---|---|

@@ -281,11 +281,9 @@ $ curl -X POST localhost:8080/solve -H 'Content-Type: application/json' -d '{"eq
 - `lakutata package` 生成的单文件包、可执行文件和安装包都包含编译好的原生插件（`build/Release/math.node`）。请在每个目标平台上先安装该包，再在该平台上打包；原生插件的规则同样适用（见[打包](Packaging.md)和[原生插件](NativeAddons.md)）。
 - 该包可以在 Node.js `>=18.10.0`、Bun 和 Electron 主进程中运行，后两者直接加载为 Node.js 编译的插件。该包无法在 Electron 渲染进程和浏览器中运行。在 Bun 中，如果在 worker 线程中的插件运算结束前终止该线程，整个进程会因 Node-API 致命错误而退出（这是 Bun 1.4 的缺陷）。
 
-## 13. 验证方式，以及不支持的情况
+## 13. 不支持的情况
 
-该包的测试使用约 2500 个用例，将其结果与 SymPy、mpmath（公式、十进制数、单位），NumPy、SciPy（矩阵、统计、概率分布、数值解法），以及 mathjs 和 nerdamer 的结果比较。测试在 macOS（arm64：Node.js 24、Bun 1.4、Electron 44）、Linux（arm64，glibc 和 musl：Node.js 24、Bun 1.4）和 Windows 11（arm64：Node.js 24）上运行。
-
-该包不支持的情况如下，其中有些是有意为之，有些是尚未实现：
+以下情况中，有些是有意为之，有些则尚未实现：
 
 - 两类积分会抛出 `MathNotSupportedException`：一类的被积函数是分式，且其分母需要借助代数数才能分解（`1/(x^4 + 1)`）；另一类的原函数无法用初等函数和本包已知的特殊函数表示。这些积分不会以未计算的积分形式保留。定积分可以用 `numeric.integrate()` 计算。
 - `solve()` 求解单个方程或线性方程组；非线性方程组请使用 `numeric.solveSystem()`。有无穷多个解的方程（例如 `sin(x) = 0`）不给出解的数组，其 `set` 只描述这些解（`{2pi*n + pi | n integer} or {2pi*n | n integer}`），集合运算也不接受这一集合。

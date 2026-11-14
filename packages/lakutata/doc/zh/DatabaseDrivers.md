@@ -264,7 +264,7 @@ export const db = buildDatabaseOptions({
 
 ## 手机应用
 
-`mobile-react` 模板的手机应用在其内嵌的 Node.js（Node.js 24.20）中运行 Lakutata 应用，本页的驱动在其中与在电脑上同样可用。以下结果在 Android（API 36）、iOS（27.2）和鸿蒙的模拟器上实际验证，验证步骤为：写入数据库，关闭，再重新打开。
+`mobile-react` 模板的手机应用在其内嵌的 Node.js（Node.js 24.20）中运行 Lakutata 应用。下表中的驱动在其中与在电脑上同样可用，表中注明的情况除外：
 
 | 驱动 | Android | iOS | 鸿蒙 |
 |---|---|---|---|
@@ -273,8 +273,6 @@ export const db = buildDatabaseOptions({
 | `sqljs` 的 WebAssembly 版本 | 可用 | 可用，但慢得多（由于使用 polyfill，asm.js 版本耗时 0.09 秒的操作，该版本需要 1.5 秒） | 不可用：`ReferenceError: WebAssembly is not defined` |
 | `mongo-embedded` | 可用 | 可用 | 可用 |
 | `postgres`、`mysql`、`mongodb`（网络上的服务器） | 可用 | 可用 | 可用 |
-
-SQL Server 和 Oracle 尚未在手机上验证。
 
 - `lakutata mobile stage` 使用 NDK、Xcode 或 DevEco Studio 为每个系统从源码编译 `better-sqlite3` 和 `@lakutata/mongo-embedded`（见 `@lakutata/cli` README 中的 `lakutata mobile` 命令）。
 - 数据库文件需要长期保存，而 `os.tmpdir()` 是应用的缓存目录，可能被系统清空。模板的 `App.ts` 将应用的数据目录声明为别名 `@data`。该目录在 Android 上是应用的 files 目录，在 iOS 上是 `Library/Application Support`，在鸿蒙上是 `/data/storage/el2/base/files`，在开发用的电脑上是 `packages/app/data`。数据库选项可以直接使用该目录中的文件 `@data/app.sqlite`，数据库连接时会解析该别名。

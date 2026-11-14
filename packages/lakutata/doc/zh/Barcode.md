@@ -288,11 +288,9 @@ await container.destroy()
 
 手机拍摄的照片的识别速度低于上述由 `generate()` 生成的图片，因为照片中的条码更小，并且存在旋转和模糊，`try…` 选项需要做更多的工作。
 
-## 8. 验证方式，以及不支持的情况
+## 8. 不支持的情况
 
-测试为每种码制生成条码，再从其 PNG 和像素识别回来，内容随机生成（多种文字的文本以及字节）。测试还检查每个选项的效果，识别 7 种文件格式的图片，并识别 240 张损坏的图片，结果只能是识别出条码或抛出 `BarcodeImageException`。测试在 macOS arm64（Node.js 24 和 18.10、Bun 1.4）、Linux arm64（Debian 12 上的 Node.js 22，Alpine 上的 Node.js 24）和 Windows 11 arm64（Node.js 24）上运行。本包也能在 Electron 44 的主进程中运行，并能在 Android、iOS 和鸿蒙的手机应用中运行；在这三个平台的模拟器上，每种码制和 7 种文件格式都能识别回来。
-
-本包不支持的情况如下，其中有些是有意为之，有些则尚未实现：
+以下情况中，有些是有意为之，有些则尚未实现：
 
 - zxing-cpp 无法识别的码制不提供生成功能，包括：四态邮政码、汉信码、DotCode、Code One、Grid Matrix、Codablock-F、Code 16K、Code 49 以及 zint 的其他堆叠码制。Telepen Numeric 同样未提供，因为除非识别时只查找该码制，否则会将其识别为 Telepen。
 - 分布在多个码中的内容（结构化追加）会逐个识别；`structuredAppend` 给出每个码的位置，内容的拼接由应用完成。

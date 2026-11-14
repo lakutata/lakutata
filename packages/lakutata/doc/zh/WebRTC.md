@@ -1046,4 +1046,3 @@ setDebugHandler((namespace: string, args: unknown[]): void => console.debug(name
 - 两个 Node.js 进程之间单个数据通道的吞吐量（Apple M4）：大消息约 80 MiB/s，100 字节的消息每秒约 62.6 万条；在同一台 Mac 上的 arm64 Linux 虚拟机（Docker Desktop）中，大消息约 43 MiB/s，小消息每秒约 54.8 万条。可以使用仓库中的 `packages/webrtc/test-env/bench/engine.mjs` 在其他机器上测量。
 - 媒体服务器不转码，按发布时的原样发送每路视频。由于尚不支持 simulcast，带宽不足的成员收到的是 `congestion` 事件，而不是更低的画质。媒体服务器在一台机器上的转发能力见第 9 节；可以使用仓库中的 `packages/webrtc/test-env/bench/forward.mjs` 在其他机器上测量。
 - 在集群中，媒体服务器将一条轨道从发布者所在的节点直接发送给每个需要该轨道的节点，一个房间分布在几十个节点上没有问题；规模更大时，则需要节点之间逐级转发。
-- 2026 年 10 月验证过的版本：Chrome 154，Firefox 153 和 WebKit 26.5（Playwright 1.62 的构建），macOS 27 上的 Safari 27.0.1，Pion 4.2.25（Go）和 aiortc 1.15.0（Python）。运行环境为 Node.js 24（macOS，以及 Alpine 上的 Linux）、Bun 1.4.3（macOS，以及 Debian 上的 Linux）和 Electron 44 的主进程。脚本位于仓库的 `packages/webrtc/test-env` 中。

@@ -357,14 +357,9 @@ $ curl -X POST localhost:8080/solve -H 'Content-Type: application/json' -d '{"eq
   Node.js; not in Electron's renderers or in browsers. In Bun, terminating a worker thread while addon operations are
   still running in it ends the whole process with a fatal Node-API error (a Bun 1.4 bug).
 
-## 13. How it is checked, and what it does not do
+## 13. What it does not do
 
-The package's tests compare its results on about 2500 cases with those of SymPy and mpmath (formulas, decimals, units),
-NumPy and SciPy (matrices, statistics, distributions, numeric solutions), and mathjs and nerdamer; they run on macOS
-(arm64: Node.js 24, Bun 1.4, Electron 44), on Linux (arm64, glibc and musl: Node.js 24, Bun 1.4) and on Windows 11
-(arm64: Node.js 24).
-
-What it does not do, whether by design or not yet:
+Some of the following are by design, and the others are not implemented yet:
 
 - An integral whose fraction needs algebraic numbers to factor its denominator (`1/(x^4 + 1)`), or whose antiderivative
   cannot be written with elementary functions and the special functions the package knows, throws

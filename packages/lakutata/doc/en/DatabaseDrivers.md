@@ -296,8 +296,8 @@ These drivers come from TypeORM unchanged:
 ## The mobile applications
 
 A mobile application built from the `mobile-react` template runs its Lakutata application in the Node.js it embeds
-(Node.js 24.20), where the drivers in this guide work as they do on a computer. The table shows what was verified on the
-Android (API 36), iOS (27.2) and HarmonyOS emulators: a database written, closed, then opened again.
+(Node.js 24.20). The drivers in the following table run there as they do on a computer, except where the table states
+otherwise:
 
 | Driver | Android | iOS | HarmonyOS |
 |---|---|---|---|
@@ -306,8 +306,6 @@ Android (API 36), iOS (27.2) and HarmonyOS emulators: a database written, closed
 | `sqljs`, its WebAssembly | Yes | Yes, much slower (the polyfill: 1.5 s where the asm.js build took 0.09 s) | No: `ReferenceError: WebAssembly is not defined` |
 | `mongo-embedded` | Yes | Yes | Yes |
 | `postgres`, `mysql`, `mongodb` (a server on the network) | Yes | Yes | Yes |
-
-SQL Server and Oracle have not been checked there.
 
 - `lakutata mobile stage` builds `better-sqlite3` and `@lakutata/mongo-embedded` from source for each system, with the
   NDK, Xcode or DevEco Studio (see the `lakutata mobile` commands in the `@lakutata/cli` README).

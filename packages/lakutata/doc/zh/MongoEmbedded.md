@@ -87,7 +87,6 @@ Application
 
 - **一个文件。** 集合及其索引保存在目录下的 `data.db` 中，这是一个 WAL 模式的 SQLite 数据库（另有其 `data.db-wal`）。每次写入都将其文档、这些文档的索引条目以及相应的变更事件一起提交，因此崩溃不会留下缺少索引条目的文档。
 - **持久性。** 使用 `sync: 'interval'` 时，WAL 每 100 毫秒同步到磁盘一次。已完成的写入在应用崩溃后仍然保留，计算机崩溃或断电时最多丢失最后一个间隔内的写入。`'always'` 在每次写入完成之前同步。`'never'` 在 WAL 写回数据库时同步（每 1000 页一次，以及数据库关闭时），因此写入不足 1000 页且未被关闭的应用在断电时可能丢失全部写入。无论采用哪种方式，崩溃或断电都不会损坏数据库。带 `j: true` 的写关注会在写入完成之前同步，与 `sync` 的取值无关。
-- **断电实测。** 在一台 Linux 虚拟机写入数据的过程中将其强制关机，结果如下：`'always'` 测试了 4 轮，已完成的写入一次也未丢失；`'interval'` 测试了 3 轮，每轮丢失的是最后 6 到 68 毫秒内的写入。每轮测试后数据库均保持完好。
 - **一次只能打开一个。** 一个目录同一时间只能被一个数据库打开，并由 `LOCK` 文件锁定。其他数据库打开该目录时会失败，错误信息中会注明占用该目录的进程。
 
 ## 4. 事务
@@ -162,7 +161,7 @@ await client.db().createCollection('events', {capped: true, size: 16 * 1024 * 10
 
 ## 8. 平台
 
-该包已在 macOS、Windows 和 Linux（glibc 和 musl）上的 Node.js、Bun 和 Electron 主进程中测试。此外，该包也已在 `mobile-react` 模板的 Android、iOS 和鸿蒙应用中测试。使用 `@lakutata/builder` 打包的应用（单个文件、可执行文件、Electron 或 NW.js 应用）会包含插件及其 ICU 数据。在没有 JIT 的平台上（iOS、鸿蒙），查询中由 JavaScript 执行的部分约慢 3.6 倍。
+该包可以在 macOS、Windows 和 Linux（glibc 和 musl）上的 Node.js、Bun 和 Electron 主进程中运行，也可以在用 `mobile-react` 模板构建的 Android、iOS 和鸿蒙应用中运行。使用 `@lakutata/builder` 打包的应用（单个文件、可执行文件、Electron 或 NW.js 应用）会包含插件及其 ICU 数据。在没有 JIT 的平台上（iOS、鸿蒙），查询中由 JavaScript 执行的部分约慢 3.6 倍。
 
 ## 9. 不支持的功能
 

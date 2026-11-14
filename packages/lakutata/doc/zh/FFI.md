@@ -321,9 +321,7 @@ export class Vendor extends NativeLibrary {
 
 支持 Node.js `>=18.10.0`、Electron 主进程和 Bun；不支持 Electron 渲染进程和浏览器。
 
-本包的测试（包括库线程的测试）在 macOS arm64（Node.js 24、Bun 1.4、Electron 44）、Linux arm64（glibc 和 musl，Node.js 24、Bun 1.4）和 Windows 11 arm64 及模拟运行的 x64（Node.js 24、Bun 1.4）上均可通过。此外，在 macOS 上还使用 `lakutata package` 将一个使用本包的应用（其库在自身的线程中执行）分别打包为 bundle、Node.js 和 Bun 的可执行文件以及 Electron 应用；每种形式都能运行，库的线程也都从应用自身的资源目录中加载了随附的库。
-
-第 9 节所述的生成器已在 macOS 上使用 clang、在 Linux 上使用 gcc（glibc 和 musl）、在 Windows 11 上使用 cl（arm64 和 x64）运行。生成器根据 sqlite3、zlib、pcap 和 curl 的头文件（在 Windows 上为 winsqlite3 和一个为测试而编译的库）生成的类，都能通过 TypeScript 严格模式的编译，并能在 Node.js 和 Bun 中运行。
+本包可以在 macOS、Linux（glibc 和 musl）和 Windows 上运行。
 
 ## 13. 异常
 

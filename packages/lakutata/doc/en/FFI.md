@@ -432,16 +432,7 @@ Stopping a worker while asynchronous calls run in its libraries' threads does no
 
 Node.js `>=18.10.0`, Electron's main process and Bun; neither Electron's renderers nor browsers.
 
-The package's tests, including those for a library's threads, pass on macOS (arm64: Node.js 24, Bun 1.4,
-Electron 44), Linux (arm64, glibc and musl: Node.js 24, Bun 1.4) and Windows 11 (arm64, and x64 under emulation:
-Node.js 24, Bun 1.4). On macOS, an application whose libraries run in their own threads was also packed by
-`lakutata package` into a bundle, Node.js and Bun executables, and an Electron application: each one ran, and the
-threads loaded the library shipped in its resources.
-
-The generator described in section 9 was run with clang on macOS, gcc on Linux (glibc and musl) and cl on Windows 11
-(arm64 and x64). The classes it generated from the sqlite3, zlib, pcap and curl headers on macOS and Linux, and from
-winsqlite3.h and the header of a library built for the test on Windows, compiled in TypeScript's strict mode and ran in
-Node.js and Bun.
+The package runs on macOS, Linux (glibc and musl) and Windows.
 
 ## 13. Exceptions
 

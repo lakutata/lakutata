@@ -105,9 +105,6 @@ The options common to every database (`entities`, `synchronize`, `logging`…) a
   pages, and when the database closes), so an application that writes fewer than 1000 pages and is not closed can lose
   all its writes on a power loss. None of these modes lets a crash or a power loss corrupt the database. A write concern
   with `j: true` syncs before its write resolves, regardless of `sync`.
-- **Power loss, measured.** On a Linux virtual machine switched off while it was writing: with `'always'`, no write that
-  had resolved was lost in 4 runs; with `'interval'`, each of 3 runs lost the writes from its last 6 to 68 milliseconds.
-  The database was intact after every run.
 - **One process.** A directory is opened by one database at a time: the `LOCK` file locks it. A second database fails to
   open it, with an error that names the process holding it.
 
@@ -209,8 +206,8 @@ await client.db().createCollection('events', {capped: true, size: 16 * 1024 * 10
 
 ## 8. Platforms
 
-The package has been tested on macOS, Windows and Linux (glibc and musl), in Node.js, Bun and Electron's main process,
-and in applications built from the `mobile-react` template on Android, iOS and HarmonyOS. Applications packaged by
+The package runs on macOS, Windows and Linux (glibc and musl), in Node.js, Bun and Electron's main process, and in
+applications built from the `mobile-react` template on Android, iOS and HarmonyOS. Applications packaged by
 `@lakutata/builder` (a bundle, an executable, an Electron or NW.js application) carry the addon and its ICU data.
 Without a JIT (iOS, HarmonyOS), the parts of a query that run in JavaScript are about 3.6 times slower.
 

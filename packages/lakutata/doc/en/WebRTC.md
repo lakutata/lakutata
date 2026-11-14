@@ -1356,7 +1356,3 @@ tried.
   in section 9; `packages/webrtc/test-env/bench/forward.mjs` in the repository measures it on another.
 - The media servers of a cluster send a track straight from its publisher's node to each node that wants it, which suits
   rooms spread over tens of nodes; beyond that, the nodes would have to forward through each other.
-- Verified in October 2026 with Chrome 154, Firefox 153 and WebKit 26.5 (the Playwright 1.62 builds), Safari
-  27.0.1 on macOS 27, Pion 4.2.25 (Go) and aiortc 1.15.0 (Python), on Node.js 24 (macOS, and Linux on Alpine), Bun
-  1.4.3 (macOS, and Linux on Debian) and the main process of Electron 44. The scripts are in the repository's
-  `packages/webrtc/test-env`.

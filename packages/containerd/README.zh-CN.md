@@ -14,7 +14,7 @@ npm install lakutata
 
 | 功能 | 要求 |
 |---|---|
-| 全部功能 | Linux，带 runc 的 containerd 1.6 或更高版本（已在 1.6、1.7 和 2.4 上测试），Node.js `>=18.10.0`；应用以 root 身份运行，或属于拥有 containerd 套接字的用户组 |
+| 全部功能 | Linux，带 runc 的 containerd 1.6 或更高版本，Node.js `>=18.10.0`；应用以 root 身份运行，或属于拥有 containerd 套接字的用户组 |
 | CNI 网络、端口发布 | CNI 插件（`bridge`、`portmap`、`host-local` 等，位于 `/opt/cni/bin`、`/usr/lib/cni` 或 `/usr/libexec/cni`）以及 iptables |
 | 带 `stdin` 的 `exec()`、各自独立的 `stdout`/`stderr`、终端 | 主机上的 `mkfifo`（若不存在，`exec()` 会将两种输出都放入 `stdout`） |
 | 构建 | BuildKit 守护进程（`buildkitd`）：可以位于本机，通过其 unix 套接字连接；也可以位于远程，通过 TCP/TLS 连接 |

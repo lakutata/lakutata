@@ -350,16 +350,9 @@ Measured on an Apple M4 (Node.js 24, one call at a time unless stated):
 A photo taken with a phone is slower to read than these images made by `generate()`: its code is smaller, turned and
 blurred, and the `try…` options work harder on it.
 
-## 8. How it is checked, and what it does not do
+## 8. What it does not do
 
-The tests generate every format and read it back from its PNG and its pixels, with random contents (text in several
-scripts, and bytes), check each option's effect, read images in the seven file formats, and read 240 damaged images,
-which must yield codes or `BarcodeImageException` and nothing else. They run on macOS (arm64: Node.js 24 and 18.10, Bun
-1.4), Linux (arm64: Node.js 22 on Debian 12, Node.js 24 on Alpine) and Windows 11 (arm64: Node.js 24); the package also
-runs in the main process of Electron 44, and in Android, iOS and HarmonyOS mobile applications, where every format and
-the seven file formats are read back on their emulators.
-
-What it does not do, whether by design or not yet:
+Some of the following are by design, and the others are not implemented yet:
 
 - Formats that zxing-cpp cannot read back are not generated: the four-state postal codes, Han Xin, DotCode, Code One,
   Grid Matrix, Codablock-F, Code 16K, Code 49 and zint's other stacked formats. Telepen Numeric is also left out, since
