@@ -62,7 +62,7 @@ export interface InterfaceListenerEvents {
 }
 
 /**
- * Bun 1.4: whether its http server is an https one (Bun's https.Server is its http.Server, which answers a connection
+ * Bun: whether its http server is an https one (Bun's https.Server is its http.Server, which answers a connection
  * given to it in plain HTTP even when it was made with keys: the connections of an https server cannot be given to it).
  * An internal symbol tells: its TLS options, null for a plain server; undefined when Bun has no such symbol.
  */

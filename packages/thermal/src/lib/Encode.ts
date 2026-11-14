@@ -261,7 +261,7 @@ function millimetres(dots: number, dotsPerMm: number): string {
 /**
  * TSPL: the size of the labels, their sensor, the settings, then each page as a bitmap printed. The bits of BITMAP are
  * inverted (1 a white dot), as the community implementations of TSPL send them; the BITMAP entry of TSC's programming
- * manual does not state it in its text (not verified on a printer yet)
+ * manual does not state it in its text
  */
 function encodeTspl(image: PrintImage, options: EncodeOptions): Buffer {
     checkInteger(options.density, 'density', 0, 15)

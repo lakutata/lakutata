@@ -84,8 +84,8 @@ export type DockerRequest = {
 }
 
 /**
- * The newest API version this client is tested with (Docker 29.8): the one negotiated when the daemon supports it, so that
- * a newer daemon answers as the tested one. An older daemon answers with its version: the fields a version does not have
+ * The newest API version this client uses (that of Docker 29.8): the one negotiated when the daemon supports it, so that
+ * a newer daemon answers as that version. An older daemon answers with its version: the fields a version does not have
  * are missing or null
  */
 export const DOCKER_API_VERSION: string = '1.56'

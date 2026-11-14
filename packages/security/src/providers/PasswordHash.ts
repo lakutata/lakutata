@@ -25,9 +25,8 @@ const BCRYPT_HASH: RegExp = /^\$2[aby]\$(0[4-9]|[12]\d|3[01])\$[./A-Za-z0-9]{53}
  *
  * bcrypt only reads the first 72 bytes of a password (UTF-8): {@link PasswordHash.hash} rejects a longer password with
  * {@link PasswordTooLongException} rather than hashing its prefix, and {@link PasswordHash.validate} gives `false` for
- * it. bcrypt runs in JavaScript on the main thread, in
- * slices of at most 100 ms between which the other requests proceed; a hash or a validation costs about 60 ms of CPU
- * at cost 10 on a current CPU, doubling with each extra round.
+ * it. bcrypt runs in JavaScript on the main thread, in slices of at most 100 ms between which the other requests
+ * proceed; the CPU time of a hash or a validation doubles with each extra round.
  * @example
  * ```typescript
  * import {Application} from 'lakutata'

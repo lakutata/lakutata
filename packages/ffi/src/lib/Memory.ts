@@ -65,9 +65,8 @@ export function readBuffer(pointer: Pointer, length: number): Buffer {
 }
 
 /**
- * A view of native memory, without copy: worth it for large blocks read often (8 MiB: about 0.13 ms rather than 1 ms
- * for a copy). The view must not be used once the native memory is freed: the process would crash. Electron forbids
- * these views: it throws there (use readBuffer).
+ * A view of native memory, without copy: worth it for large blocks read often. The view must not be used once the
+ * native memory is freed: the process would crash. Electron forbids these views: it throws there (use readBuffer).
  * @param pointer The address of the memory.
  * @param length Its length in bytes.
  * @returns The memory, as an ArrayBuffer.

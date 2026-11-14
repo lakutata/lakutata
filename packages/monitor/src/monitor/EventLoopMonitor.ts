@@ -8,8 +8,8 @@ import {IMonitor} from './interfaces/IMonitor.js'
  * intervals between the runs of a 1 ms timer (the event loop delay, in milliseconds, with Node's
  * `monitorEventLoopDelay` at a 1 ms resolution: about 1 ms when the loop is idle) and how busy the loop is (its
  * utilization, in percent of the time). A growing delay means synchronous work (CPU-bound code, synchronous I/O, large
- * JSON) blocks the other requests; a utilization near 100 means the loop has no idle time left. The 1 ms timer costs
- * about 1.5 % of a core.
+ * JSON) blocks the other requests; a utilization near 100 means the loop has no idle time left. The 1 ms timer uses
+ * CPU even while the application is idle.
  *
  * Both cover the time since the monitor was created or last {@link EventLoopMonitor.reset}: the delays are a histogram
  * of every measure (its minimum, maximum and mean are those of the histogram, not exact), the utilization is the share
