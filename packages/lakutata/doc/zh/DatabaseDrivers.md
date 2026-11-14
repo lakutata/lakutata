@@ -270,7 +270,7 @@ export const db = buildDatabaseOptions({
 |---|---|---|---|
 | `better-sqlite3` | 可用 | 可用 | 可用 |
 | `sqljs` 的 asm.js 版本 | 可用 | 可用 | 可用 |
-| `sqljs` 的 WebAssembly 版本 | 可用 | 可用，但慢得多（由于使用 polyfill，asm.js 版本耗时 0.09 秒的操作，该版本需要 1.5 秒） | 不可用：`ReferenceError: WebAssembly is not defined` |
+| `sqljs` 的 WebAssembly 版本 | 可用 | 可用，但慢得多（使用 polyfill） | 不可用：`ReferenceError: WebAssembly is not defined` |
 | `mongo-embedded` | 可用 | 可用 | 可用 |
 | `postgres`、`mysql`、`mongodb`（网络上的服务器） | 可用 | 可用 | 可用 |
 

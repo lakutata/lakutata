@@ -288,4 +288,3 @@ await docker.removeNetwork(network.id)
 - `lakutata` 包中的 `doc/zh/DockerIntegration.md`：Docker 集成指南。
 - `@lakutata/containerd`（`lakutata/com/containerd`）：API 相同，基于 containerd，无需 Docker 守护进程。
 - `@lakutata/core`（`lakutata`）：组件、`Application` 和依赖注入。
-- `npm run test:docker`（在本包中运行）使用本机的 Docker 测试该组件。

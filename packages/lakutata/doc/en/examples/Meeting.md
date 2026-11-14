@@ -560,9 +560,8 @@ http://localhost:8080, its connections on UDP ports 40000 to 40999. To deploy it
 - **Who may join.** Anyone who reaches the page may join any room under any name. On a public network, authenticate
   people with an entrypoint middleware (the template's `Authenticate.ts` checks a token), and decide who joins which
   room in `authorize`, which also receives the request's context.
-- **Larger meetings.** One process forwards a few hundred videos (the WebRTC guide provides the figures); the media
-  server's `workers` option uses more cores, and several instances share the rooms through a `Cluster`
-  ([WebRTC](../WebRTC.md), section 13).
+- **Larger meetings.** The media server's `workers` option uses more cores, and several instances share the rooms
+  through a `Cluster` ([WebRTC](../WebRTC.md), section 13).
 
 <!--
 check:

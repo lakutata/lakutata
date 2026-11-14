@@ -140,8 +140,6 @@ response = stub.Invoke(pb.InvokeRequest(data=json.dumps({'cmd': 'order.get', 'id
 print(json.loads(response.payload) if response.success else json.loads(response.error))
 ```
 
-`npm run test:interop` 在 Docker 中使用 grpcio 和 grpcurl（基于 Go 的 gRPC 实现）测试该服务：调用、错误、gzip 压缩、截止时间、大小限制和事件。
-
 ### 客户端
 
 `GRPCConnection` 可以调用任何 gRPC 服务端；消息由 schema 描述（见[编解码器](#protobuf-编解码器)）。

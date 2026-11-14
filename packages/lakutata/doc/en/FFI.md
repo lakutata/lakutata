@@ -260,9 +260,9 @@ export class Vendor extends NativeLibrary {
 | `viewBuffer(pointer, length)` | the memory itself, without copying |
 | `readValue`, `readArray`, `writeValue`, `allocMemory`, `freeMemory`, `sizeOf` | the same for built-in types (`int`, `uint64_t`, `char *`…), without a library |
 
-A copy is as fast as a view below 64 KiB; a view pays off for large blocks read often (8 MiB: about 0.13 ms rather
-than 1 ms). A view must not be used after the native memory is freed: the process would crash. Electron forbids views
-of native memory, so `viewBuffer` throws a `NativeMemoryException` there.
+A view pays off for large blocks read often; for small ones, a copy is as fast. A view must not be used after the native
+memory is freed: the process would crash. Electron forbids views of native memory, so `viewBuffer` throws a
+`NativeMemoryException` there.
 
 ## 7. The errors of the C functions
 
@@ -391,8 +391,6 @@ export class Vendor extends NativeLibrary {
 - **Callbacks**: a JS function passed for a function pointer runs in the thread that made the call, while the
   library's thread waits for it; an exception it throws rejects the promise. Persistent callbacks work as described in
   section 5.
-- **Cost**: about 11 µs for a call awaited before the next one, compared with 7 µs in the thread pool (Node.js on Apple
-  silicon).
 - **errno**: the library's `errno()` and `windowsError()` return the values from the thread of the last completed
   asynchronous call. They are reliable with one thread, or when each call is awaited before the next. Once the first
   asynchronous call has completed, they no longer return the values of the synchronous calls: `lastErrno()` and

@@ -7,7 +7,7 @@ the printer's own dot grid, then encoded as ESC/POS, TSPL or ZPL commands. The r
 the printer's data: one picture of black dots, exported as PNG or sent as printer commands. No browser is involved: the
 layout is [litehtml](https://github.com/litehtml/litehtml), the glyphs [FreeType](https://freetype.org) in monochrome
 with hinting, the graphics [plutovg](https://github.com/sammycage/plutovg) and the SVG
-[lunasvg](https://github.com/sammycage/lunasvg). A receipt renders in about two milliseconds on a recent machine. The
+[lunasvg](https://github.com/sammycage/lunasvg). The
 fonts are bundled: Noto Sans SC (Source Han Sans), regular and bold.
 
 The package renders and encodes; the `@lakutata/thermal-printer` package is the component that sends the commands to

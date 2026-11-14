@@ -391,7 +391,7 @@ import {httpServiceEntrypoint} from 'lakutata/com/entrypoint'
 export const service = httpServiceEntrypoint({port: 3000, interface: 'eth1'})
 ```
 
-在 Bun 上，交给服务器的连接无法升级为 WebSocket（在 Bun 1.4 上观察到）。因此在 Bun 上，基于 WebSocket 的 JSON-RPC 会启动失败；Socket.IO 也会启动失败，除非只使用轮询（`options: {transports: ['polling']}`，客户端也需同样设置）。
+在 Bun 上，交给服务器的连接无法升级为 WebSocket。因此在 Bun 上，基于 WebSocket 的 JSON-RPC 会启动失败；Socket.IO 也会启动失败，除非只使用轮询（`options: {transports: ['polling']}`，客户端也需同样设置）。
 
 ### Electron
 

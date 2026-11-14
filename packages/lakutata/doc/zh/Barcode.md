@@ -115,7 +115,7 @@ console.log(results.map((result: BarcodeResult): string => result.text))   //[ '
 await container.destroy()
 ```
 
-- **加快识别。** `formats` 将查找范围限制在预期的码制上。例如，在 1920×1080 的画面中识别一个 QR 码，查找所有码制约需 8 毫秒，只查找 QR 码约需 1.4 毫秒（第 7 节）。`pure: true` 适用于图片中只有一个端正放置的条码、且周围没有其他内容的情况，例如 `generate()` 生成的图片。
+- **加快识别。** `formats` 将查找范围限制在预期的码制上。`pure: true` 适用于图片中只有一个端正放置的条码、且周围没有其他内容的情况，例如 `generate()` 生成的图片。
 - **难以识别的图片。** `tryHarder`、`tryRotate`、`tryInvert` 和 `tryDownscale` 默认均已开启，会进一步查找尺寸很小、发生旋转、深底浅色以及位于大图中的条码。如果已知图片容易识别，关闭这些选项可以加快识别。
 - **无法识别的情况。** 包括模块宽度小于约 2 像素的条码、模糊或反光的照片，以及被图片边缘截断的条码。此时识别出的条码会减少甚至没有；只有图片无法解码时才会抛出异常（`BarcodeImageException`）。
 - **大图片**：超过 5000 万像素的图片在解码像素之前即被拒绝，因此上传的文件不会导致进程分配数 GB 的内存。
@@ -267,26 +267,14 @@ await reading.catch((error: Error) => console.log(error.constructor.name))   //B
 await container.destroy()
 ```
 
-- 尚未开始执行的操作会被直接放弃。已经开始执行的操作无法中途停止，因为 zint 和 zxing-cpp 没有可供中断的位置；此类操作的 Promise 会立即被拒绝（`BarcodeTimeoutException`、`BarcodeCancelledException`），其结果在执行结束后被丢弃。这些操作的耗时都很短（第 7 节），时限用于应对大照片和恶意上传。
+- 尚未开始执行的操作会被直接放弃。已经开始执行的操作无法中途停止，因为 zint 和 zxing-cpp 没有可供中断的位置；此类操作的 Promise 会立即被拒绝（`BarcodeTimeoutException`、`BarcodeCancelledException`），其结果在执行结束后被丢弃。这些操作的耗时都很短，时限用于应对大照片和恶意上传。
 - `concurrency` 限制一个组件同时执行的操作数，其余操作排队等待，排队期间时限仍然计算。未设置时，操作在原生插件的线程中排队。
 - 原生插件使用 `LAKUTATA_BARCODE_THREADS` 个线程（默认为处理器数减一），由所有组件共用；原生插件不使用 libuv 线程池，因此不会拖慢文件和 DNS 操作。
 - 应用停止时，组件会等待正在执行的操作，最长 `drainTimeout` 毫秒（默认 10000）；仍在排队的操作以 `BarcodeCancelledException` 被拒绝，此后的调用同样如此。
 
 ## 7. 速度
 
-以下数据在 Apple M4 上测得（Node.js 24，除特别说明外每次只执行一个调用）：
-
-| 操作 | 耗时 |
-|---|---|
-| 一个网址的 QR 码，PNG（148×148） | 0.19 毫秒 |
-| 同一个 QR 码，像素 / SVG | 0.08 毫秒 / 0.17 毫秒 |
-| EAN-13 / Code 128，PNG，带文字 | 0.62 毫秒 / 1.6 毫秒 |
-| 识别该 QR 码的 PNG，所有码制 / `formats: ['QRCode']` | 0.33 毫秒 / 0.11 毫秒 |
-| 识别其像素，`formats: ['QRCode']`，`pure: true` | 0.06 毫秒 |
-| 在 1920×1080 的画面中识别一个 QR 码，所有码制 / `formats: ['QRCode']` | 7.8 毫秒 / 1.4 毫秒 |
-| 同时生成 / 同时识别 1000 个 QR 码 PNG（9 个线程） | 63 毫秒 / 33 毫秒 |
-
-手机拍摄的照片的识别速度低于上述由 `generate()` 生成的图片，因为照片中的条码更小，并且存在旋转和模糊，`try…` 选项需要做更多的工作。
+手机拍摄的照片比 `generate()` 生成的图片识别得慢，因为照片中的条码更小，并且存在旋转和模糊，`try…` 选项需要做更多的工作。
 
 ## 8. 不支持的情况
 

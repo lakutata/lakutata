@@ -192,7 +192,7 @@ Application.run(() => ({
 - **Linux** 将套接字绑定在网口上，因此系统会拒绝来自其他网口的连接，新添加的地址立即可以访问，UDP 也能接收该网口的广播和组播。在 Linux 5.7 之前，请为进程授予 `CAP_NET_RAW` 能力（`setcap cap_net_raw+ep`，或在 systemd 单元中写入 `AmbientCapabilities=CAP_NET_RAW`）。
 - **Windows** 监听网口的地址；其强主机模型会拒绝来自其他网口的连接，除非某个网口被设为弱主机模型（`netsh interface ipv4 set interface "<名字>" weakhostreceive=enabled`，某些负载均衡软件会这样设置）或开启了转发。`reason` 会指出是哪个网口。
 - **macOS** 监听网口的地址，除非系统做了相应设置，否则没有保证。macOS 27 对进程隐藏 MAC 地址（报告的均为 `02:00:00:00:00:00`），因此在该版本上请按名称指定网口。
-- **Bun**：Bun 的 `https` 服务器对监听器移交的连接不执行 TLS，因此在 Bun 上 `listen()` 会拒绝这种服务器（以 `https` 选项创建的 Fastify 实例同样如此）。在 Bun 上请改用 `http2.createSecureServer({key, cert, allowHTTP1: true})` 或 `tls.createServer()`。Bun 的服务器不会关闭这类移交而来的空闲长连接，因此适配器会自行关闭这些连接。交给服务器的连接无法升级为 WebSocket（在 Bun 1.4 上观察到），因此在 Bun 上，适配器按网口监听时会拒绝 WebSocket。
+- **Bun**：Bun 的 `https` 服务器对监听器移交的连接不执行 TLS，因此在 Bun 上 `listen()` 会拒绝这种服务器（以 `https` 选项创建的 Fastify 实例同样如此）。在 Bun 上请改用 `http2.createSecureServer({key, cert, allowHTTP1: true})` 或 `tls.createServer()`。Bun 的服务器不会关闭这类移交而来的空闲长连接，因此适配器会自行关闭这些连接。交给服务器的连接无法升级为 WebSocket，因此在 Bun 上，适配器按网口监听时会拒绝 WebSocket。
 - **Electron**：在主进程中使用。
 - `lakutata package` 生成的单文件包、可执行文件和安装包都包含编译好的原生插件（`build/Release/netif.node`）。请在每个目标平台上先安装该包，再在该平台上打包（见[打包](Packaging.md)和[原生插件](NativeAddons.md)）。
 

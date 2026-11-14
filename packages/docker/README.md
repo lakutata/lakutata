@@ -313,4 +313,3 @@ their exception, and listings in progress resolve with an empty list.
 - `doc/en/DockerIntegration.md` in the `lakutata` package (Chinese version in `doc/zh`): the Docker integration guide.
 - `@lakutata/containerd` (`lakutata/com/containerd`): the same API without a Docker daemon, over containerd.
 - `@lakutata/core` (`lakutata`): components, `Application` and dependency injection.
-- `npm run test:docker` (in this package) tests the component against the machine's Docker.

@@ -189,4 +189,3 @@ Application.run(() => ({
 - `lakutata` 包中的 `doc/zh/Mutex.md`：锁的指南。
 - `@lakutata/entrypoint`（`lakutata/com/entrypoint`）：控制器、`@Schedule` 和定时任务适配器。
 - `@lakutata/core`（`lakutata`）：组件、`Application` 和依赖注入。
-- 在本包中运行 `npm run test:stores`，会在 Docker 中针对 Redis、PostgreSQL 和 MySQL 测试各个驱动。

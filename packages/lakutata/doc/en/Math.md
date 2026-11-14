@@ -355,7 +355,7 @@ $ curl -X POST localhost:8080/solve -H 'Content-Type: application/json' -d '{"eq
   [Packaging](Packaging.md) and [Native Addons](NativeAddons.md)).
 - The package runs in Node.js `>=18.10.0`, in Bun and in Electron's main process, which load the addon compiled for
   Node.js; not in Electron's renderers or in browsers. In Bun, terminating a worker thread while addon operations are
-  still running in it ends the whole process with a fatal Node-API error (a Bun 1.4 bug).
+  still running in it ends the whole process with a fatal Node-API error (a Bun bug).
 
 ## 13. What it does not do
 

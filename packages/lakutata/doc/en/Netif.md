@@ -245,7 +245,7 @@ Application.run(() => ({
 - **Bun**: its `https` server responds without TLS to connections passed to it, so `listen()` refuses it in Bun (as well
   as a Fastify instance created with `https`); use `http2.createSecureServer({key, cert, allowHTTP1: true})` or
   `tls.createServer()` there. Its servers do not close idle keep-alive connections passed to them; the adapters close
-  them themselves. A connection passed to a server cannot be upgraded to a WebSocket (observed with Bun 1.4), so the
+  them themselves. A connection passed to a server cannot be upgraded to a WebSocket, so the
   adapters refuse WebSocket on an interface in Bun.
 - **Electron**: in the main process.
 - Bundles, executables and installers made by `lakutata package` include the compiled addon

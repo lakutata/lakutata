@@ -161,7 +161,7 @@ await client.db().createCollection('events', {capped: true, size: 16 * 1024 * 10
 
 ## 8. 平台
 
-该包可以在 macOS、Windows 和 Linux（glibc 和 musl）上的 Node.js、Bun 和 Electron 主进程中运行，也可以在用 `mobile-react` 模板构建的 Android、iOS 和鸿蒙应用中运行。使用 `@lakutata/builder` 打包的应用（单个文件、可执行文件、Electron 或 NW.js 应用）会包含插件及其 ICU 数据。在没有 JIT 的平台上（iOS、鸿蒙），查询中由 JavaScript 执行的部分约慢 3.6 倍。
+该包可以在 macOS、Windows 和 Linux（glibc 和 musl）上的 Node.js、Bun 和 Electron 主进程中运行，也可以在用 `mobile-react` 模板构建的 Android、iOS 和鸿蒙应用中运行。使用 `@lakutata/builder` 打包的应用（单个文件、可执行文件、Electron 或 NW.js 应用）会包含插件及其 ICU 数据。在没有 JIT 的平台上（iOS、鸿蒙），查询中由 JavaScript 执行的部分会更慢。
 
 ## 9. 不支持的功能
 

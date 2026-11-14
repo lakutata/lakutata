@@ -150,8 +150,7 @@ console.log(results.map((result: BarcodeResult): string => result.text))   //[ '
 await container.destroy()
 ```
 
-- **Faster reads.** `formats` limits the search to the expected formats: reading a QR Code in a 1920×1080 frame takes
-  about 8 ms when looking for every format, 1.4 ms when looking only for QR codes (section 7). `pure: true` reads an
+- **Faster reads.** `formats` limits the search to the expected formats. `pure: true` reads an
   image that holds one code, straight, with nothing around it, such as an image made by `generate()`.
 - **Harder images.** `tryHarder`, `tryRotate`, `tryInvert` and `tryDownscale` are on by default: they look again for
   codes that are small, turned, light on dark or in large images. With them turned off, reading images known to be easy
@@ -324,7 +323,7 @@ await container.destroy()
 
 - An operation that has not started yet is dropped. One that is running cannot be stopped, since zint and zxing-cpp
   have no point where they could be interrupted: its promise is rejected immediately (`BarcodeTimeoutException`,
-  `BarcodeCancelledException`), and its result is discarded when it ends. Operations are short (section 7); the time
+  `BarcodeCancelledException`), and its result is discarded when it ends. Operations are short; the time
   limits are there for large photos and hostile uploads.
 - `concurrency` limits how many of a component's operations run at the same time; the others wait for their turn, and
   their time limit runs while they wait. Without it, operations queue in the addon's threads.
@@ -335,19 +334,7 @@ await container.destroy()
 
 ## 7. Speed
 
-Measured on an Apple M4 (Node.js 24, one call at a time unless stated):
-
-| Operation | Time |
-|---|---|
-| A QR Code of a URL, as a PNG (148×148) | 0.19 ms |
-| The same QR Code as pixels / as an SVG | 0.08 ms / 0.17 ms |
-| An EAN-13 / a Code 128 as a PNG, with its text | 0.62 ms / 1.6 ms |
-| Reading that QR Code PNG, every format / `formats: ['QRCode']` | 0.33 ms / 0.11 ms |
-| Reading its pixels, `formats: ['QRCode']`, `pure: true` | 0.06 ms |
-| Reading a QR Code in a 1920×1080 frame, every format / `formats: ['QRCode']` | 7.8 ms / 1.4 ms |
-| 1000 QR Code PNGs generated in parallel / read in parallel (9 threads) | 63 ms / 33 ms |
-
-A photo taken with a phone is slower to read than these images made by `generate()`: its code is smaller, turned and
+A photo taken with a phone is slower to read than an image made by `generate()`: its code is smaller, turned and
 blurred, and the `try…` options work harder on it.
 
 ## 8. What it does not do

@@ -136,7 +136,7 @@ first measurement.
   it.
 - Values come from the Node.js histogram (`monitorEventLoopDelay`): they are not rounded, and they are approximate,
   including the minimum, the maximum and the mean.
-- The 1 ms timer costs about 1.5 % of one core while the application is idle: on a battery-powered device, declare
+- The 1 ms timer uses CPU even while the application is idle: on a battery-powered device, declare
   this monitor only when you need it.
 
 ## 6. `HttpRequestMonitor`

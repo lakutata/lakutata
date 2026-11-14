@@ -371,4 +371,3 @@ Application
 - `@lakutata/docker`（`lakutata/com/docker`）：通过 Docker 守护进程完成同样的操作。
 - `@lakutata/grpc`：组件及其构建所用的 gRPC 客户端。
 - `@lakutata/core`（`lakutata`）：组件、`Application` 和依赖注入。
-- `npm run test:engines`（在本包中运行）会在特权 Docker 容器中针对 containerd 1.6、1.7 和 2.4 运行引擎测试（`test-env/run.sh 2.4` 只测试一个版本，`--build` 重新构建其镜像），同时使用本机和远程的 BuildKit；见 `test-env/README.md`。

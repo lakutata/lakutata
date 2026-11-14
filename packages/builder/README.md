@@ -51,11 +51,6 @@ HarmonyOS HAP leaves files whose names start with a dot out of its resources, so
 into the project (`native.gz`, `native.json`) and extracted on its first run into the directory specified by
 `LAKUTATA_NATIVE_DIR`.
 
-The Linux installers are tested in Docker containers: `npm run test:installer` builds them on Debian and Alpine, then
-installs, upgrades and removes them on Debian and Fedora (systemd) and on Alpine (OpenRC). The macOS installers are
-installed in a macOS virtual machine (`npm run test:installer:mac`, with tart), and the Windows installers on Windows,
-as an administrator (`LAKUTATA_WINDOWS_INSTALL=1 npm run test:installer:windows`).
-
 ## See also
 
 - The guides on the website: [Packaging](https://lakutata.com/guide/Packaging) and

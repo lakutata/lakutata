@@ -279,7 +279,7 @@ $ curl -X POST localhost:8080/solve -H 'Content-Type: application/json' -d '{"eq
 - 公式的长度无法限制其计算量，例如 `(x + 1)^100000` 就很短。能够限制计算量的是时限。
 - 该包的值通过 `toJSON()` 转换为 JSON：表达式、方程、十进制数和带单位的值转换为各自的文本，解转换为文本数组，矩阵转换为其各行。向量是 `Float64Array`，`JSON.stringify()` 会将其写成对象（`{"0": 1, "1": 1}`），因此请发送 `Array.from(vector)`。
 - `lakutata package` 生成的单文件包、可执行文件和安装包都包含编译好的原生插件（`build/Release/math.node`）。请在每个目标平台上先安装该包，再在该平台上打包；原生插件的规则同样适用（见[打包](Packaging.md)和[原生插件](NativeAddons.md)）。
-- 该包可以在 Node.js `>=18.10.0`、Bun 和 Electron 主进程中运行，后两者直接加载为 Node.js 编译的插件。该包无法在 Electron 渲染进程和浏览器中运行。在 Bun 中，如果在 worker 线程中的插件运算结束前终止该线程，整个进程会因 Node-API 致命错误而退出（这是 Bun 1.4 的缺陷）。
+- 该包可以在 Node.js `>=18.10.0`、Bun 和 Electron 主进程中运行，后两者直接加载为 Node.js 编译的插件。该包无法在 Electron 渲染进程和浏览器中运行。在 Bun 中，如果在 worker 线程中的插件运算结束前终止该线程，整个进程会因 Node-API 致命错误而退出（这是 Bun 的缺陷）。
 
 ## 13. 不支持的情况
 

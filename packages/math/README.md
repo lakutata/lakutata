@@ -29,7 +29,7 @@ npm install @lakutata/math
 - Node.js `>=18.10.0`.
 - The addon uses Node-API, so Bun and Electron's main process load the addon that node-gyp built for Node.js, without a
   rebuild. In Bun, terminating a worker thread while addon operations are still running in it ends the whole process
-  with a fatal Node-API error (a Bun 1.4 bug); Node.js and Electron drop those operations.
+  with a fatal Node-API error (a Bun bug); Node.js and Electron drop those operations.
 
 ## Usage
 

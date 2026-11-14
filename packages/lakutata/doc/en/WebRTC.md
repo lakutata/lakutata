@@ -122,32 +122,17 @@ The short-lived credentials follow coturn's REST API: the username is `<expiry>:
 
 ### Several cores
 
-The server relays in the main thread by default. Measured on an Apple M4 with Node.js 24, it relayed a data channel
-whose two ends both relayed through it (so it carried each packet twice) at about 38 MiB/s for 16 KiB messages, taking
-27 s of CPU per GiB, and 365,000 messages of 100 bytes a second, at 2.8 µs of CPU each. A packet costs the same with 500
-idle allocations from other clients.
+The server relays in the main thread by default. With `workers: 3`, three worker threads serve the clients. Their
+listeners share the server's ports (`SO_REUSEPORT`), and the system keeps each client on one thread, chosen from its
+address and port; that thread relays its traffic. The threads count their allocations together against `maxAllocations`,
+and `relayPortRange` is divided among them. Only Linux lets threads share ports: elsewhere, the server relays in the
+main thread and reports this in the debug messages (`webrtc/turn`). A thread that stops (only a bug stops one) loses its
+allocations and is restarted. Meanwhile, the system spreads the UDP clients among the other threads, then among all of
+them again, so most of them find their allocation gone, as when a TURN server restarts; the TCP and TLS connections of
+the other threads remain.
 
-With `workers: 3`, three worker threads serve the clients. Their listeners share the server's ports (`SO_REUSEPORT`),
-and the system keeps each client on one thread, chosen from its address and port; that thread relays its traffic. The
-threads count their allocations together against `maxAllocations`, and `relayPortRange` is divided among them. Only
-Linux lets threads share ports: elsewhere, the server relays in the main thread and reports this in the debug messages
-(`webrtc/turn`). A thread that stops (only a bug stops one) loses its allocations and is restarted. Meanwhile, the
-system spreads the UDP clients among the other threads, then among all of them again, so most of them find their
-allocation gone, as when a TURN server restarts; the TCP and TLS connections of the other threads remain.
-
-In an arm64 Linux virtual machine (Docker Desktop, 10 cores) on the same Mac, with three connections relaying through it
-at the same time (six clients):
-
-| Server | 100-byte messages relayed | CPU per message |
-|---|---|---|
-| The main thread | 460,000 to 550,000 a second | 1.9 to 2.3 µs |
-| 3 worker threads | 510,000 to 820,000 a second in five of six runs, 220,000 in the other | 2.4 to 3.8 µs, 9 µs in the other run |
-
-The system distributes clients by address and port, not by load: with six clients, a thread often had none, or twice its
-share. Large messages were therefore relayed at 34 to 79 MiB/s depending on the run, against 46 to 50 MiB/s in the main
-thread; the more clients there are, the more evenly the threads share them. Each thread takes about 15 MiB. In that
-virtual machine, a worker thread relayed a quarter to a third fewer messages per core than the main thread; on macOS,
-the two cost the same.
+The system distributes the clients by address and port, not by load: the more clients there are, the more evenly the
+threads share them.
 
 ## 4. Browsers
 
@@ -400,31 +385,13 @@ without threads. RTP packets on
 their way between threads are limited to 2 MiB per connection and direction; beyond that, they are dropped, as a full
 UDP buffer would drop them.
 
-Measured on an Apple M4 with Node.js 24, pairs of connections in one process exchanging messages over a data channel
-(`packages/webrtc/test-env/bench/threads.mjs` in the repository):
+Threads give a process more connections, using more
+cores, not cheaper messages.
 
-| Pairs | Engines | 100-byte messages | CPU per message | 16 KiB messages |
-|---|---|---|---|---|
-| 1 | in the main thread | 274,000 a second | 4.2 µs | 45 MiB/s |
-| 1 | in 2 worker threads | 539,000 a second | 4.5 µs | 85 MiB/s |
-| 4 | in the main thread | 267,000 a second | 4.3 µs | 46 MiB/s |
-| 4 | in 4 worker threads | 782,000 a second | 6.2 µs | 138 MiB/s |
-
-The two connections of a pair work in parallel in two threads: one pair carries twice as much as in the main thread, for
-0.3 µs more CPU per message. Four pairs in four threads carry three times as much; the CPU per message rises once the
-threads outnumber the M4's four performance cores. In an arm64 Linux virtual machine (Docker Desktop, Alpine) on the
-same Mac, one pair carried 414,000 messages of 100 bytes a second in two threads, against 212,000 in the main thread, at
-6.8 µs of CPU each against 5.5; four pairs carried 460,000 against 222,000, at 10.7 µs against 5.4, and 70 MiB/s of
-large messages against 47, for 2.5 times the CPU: there, several threads allocating memory at the same time cost more
-per message. Threads give a process more connections, using more cores, not cheaper messages.
-
-In that virtual machine, each thread took about 100 MiB more with small messages, 55 MiB with large ones. On macOS, with
-large messages through four pairs in four threads (138 MiB/s), the process's memory (its physical footprint) rose in
-most runs to between 1.5 and 3.5 GB in the first minute, then fell back: in a three-minute run, it stayed at about 700
-MiB after the first minute. That is memory freed and kept for a while by the macOS allocator, not a leak. Node.js
+On macOS, the memory (physical footprint) of a process whose threads receive large messages at a high rate may rise
+for a while, then fall back: that is memory freed and kept for a while by the macOS allocator, not a leak. Node.js
 allocates a 64 KiB buffer for each UDP datagram it receives; when several threads do so at that rate while other small
-buffers are still in use, the allocator keeps much of the freed memory. The same run stays at about 540 MiB on Linux,
-and at about 200 MiB in Bun on macOS, which has its own allocator.
+buffers are still in use, the allocator keeps much of the freed memory.
 
 ## 7. Large messages and files
 
@@ -673,28 +640,8 @@ ports, while the hooks and events stay in the main thread. `icePortRange` is div
 stops closes its rooms; the server reopens them in another thread, and their members reconnect to it. `rooms()` shows
 what each thread reports, so a change made in a thread (a viewer leaving) appears a moment later.
 
-Measured on an Apple M4 with Node.js 24, with each publisher sending a video of about 2 Mbit/s (200 packets of 1250
-bytes a second) and the members in other processes:
-
-| Rooms | Packets to forward | Forwarded | CPU |
-|---|---|---|---|
-| 1 room of 4 publishers and 10 subscribers, in the main thread | 7,600 a second | all | 45% of a core |
-| 4 rooms of 12 publishers and 10 subscribers each, in the main thread | about 92,000 a second | 86,000 to 88,000 a second | 145%: the main thread is full, the rest is the garbage collector |
-| The same 4 rooms, in 4 worker threads | about 92,000 a second | all | 174% |
-
-At a load as light as the first room's, the share of a core depends on how fast the system runs the cores, and it runs
-them faster when the machine is busy: with two other cores kept busy, the same room took 21%.
-
-In an arm64 Linux virtual machine (Docker Desktop, 10 cores) on the same Mac, with the members also running in it, the
-main thread forwarded all the packets of the 4 rooms (93,000 a second) at 160% of a core. Four threads took 380% to 390%
-of a core, and forwarded from 69,000 to all of the 94,000 a second, depending on the run: there, at that load, the
-threads do not pay off.
-
-A thread takes about 22 MiB and 90 ms to start. Under the load above, the process used 1.4 GiB with the threads and
-0.6 GiB without: each thread has its own heap, with the large young generation V8 assigns it for speed. With
-`workerResourceLimits: {maxYoungGenerationSizeMb: 32}`, the process used 1.0 to 1.2 GiB, for 4% more CPU (181% of a
-core instead of 174%). A track forwarded from one node to another (section 13) costs the two nodes about 11 µs of CPU
-per packet: 0.2% of a core for such a video.
+Each thread has its own heap, with the large young generation V8 assigns it for speed;
+`workerResourceLimits: {maxYoungGenerationSizeMb: 32}` makes the process use less memory, for slightly more CPU.
 
 ## 10. Publishing with WHIP
 
@@ -1240,11 +1187,6 @@ spec:
   `getaddrinfo EAI_AGAIN nats`): the application stops when it cannot reach NATS as it launches, and Kubernetes restarts
   it until it can. A few restarts of each pod at that moment are expected.
 
-In the repository, `packages/webrtc/test-env/k3s/run.sh` deploys these manifests in k3s in Docker (two nodes, with the
-code mounted instead of an image). It connects two members through two pods and the TURN servers only, then two members
-through the two nodes' media servers, and deletes the pod of one of them: that member moves to the pod started in its
-place.
-
 ### The cluster for the application
 
 The application communicates with its other instances through the same component: messages to all the other nodes, and
@@ -1349,13 +1291,7 @@ tried.
 
 - Node.js does not capture, encode or decode audio and video: its tracks carry RTP packets, from an encoder or from
   another connection.
-- The throughput of one data channel between two Node.js processes on an Apple M4 is about 80 MiB/s for large
-  messages, and 626,000 messages of 100 bytes per second; in an arm64 Linux virtual machine (Docker Desktop) on the
-  same Mac, about 43 MiB/s, and 548,000 messages a second. `packages/webrtc/test-env/bench/engine.mjs` in the
-  repository measures it on another machine.
 - The media server does not transcode, and sends each video as it is published: there is no simulcast yet, so for a
-  member with little bandwidth the media server emits `congestion` events rather than sending a lower quality. Its
-  capacity on one machine is given in section 9; `packages/webrtc/test-env/bench/forward.mjs` in the repository measures
-  it on another.
+  member with little bandwidth the media server emits `congestion` events rather than sending a lower quality.
 - The media servers of a cluster send a track straight from its publisher's node to each node that wants it, which suits
   rooms spread over tens of nodes; beyond that, the nodes would have to forward through each other.

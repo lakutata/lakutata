@@ -209,7 +209,7 @@ await client.db().createCollection('events', {capped: true, size: 16 * 1024 * 10
 The package runs on macOS, Windows and Linux (glibc and musl), in Node.js, Bun and Electron's main process, and in
 applications built from the `mobile-react` template on Android, iOS and HarmonyOS. Applications packaged by
 `@lakutata/builder` (a bundle, an executable, an Electron or NW.js application) carry the addon and its ICU data.
-Without a JIT (iOS, HarmonyOS), the parts of a query that run in JavaScript are about 3.6 times slower.
+Without a JIT (iOS, HarmonyOS), the parts of a query that run in JavaScript are slower.
 
 ## 9. What it does not do
 

@@ -303,7 +303,7 @@ otherwise:
 |---|---|---|---|
 | `better-sqlite3` | Yes | Yes | Yes |
 | `sqljs`, its asm.js build | Yes | Yes | Yes |
-| `sqljs`, its WebAssembly | Yes | Yes, much slower (the polyfill: 1.5 s where the asm.js build took 0.09 s) | No: `ReferenceError: WebAssembly is not defined` |
+| `sqljs`, its WebAssembly | Yes | Yes, much slower (a polyfill) | No: `ReferenceError: WebAssembly is not defined` |
 | `mongo-embedded` | Yes | Yes | Yes |
 | `postgres`, `mysql`, `mongodb` (a server on the network) | Yes | Yes | Yes |
 

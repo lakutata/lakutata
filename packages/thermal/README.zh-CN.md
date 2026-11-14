@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-用于 Node.js 的热敏打印。以 HTML 和 CSS 编排小票、标签和腕带，由原生插件渲染为打印机自身的点阵，再编码为 ESC/POS、TSPL 或 ZPL 指令。渲染结果既是打印预览，也是发给打印机的数据，即同一张黑白点阵图，既可以导出为 PNG，也可以编码为打印指令。整个过程无需浏览器：排版使用 [litehtml](https://github.com/litehtml/litehtml)，字形使用 [FreeType](https://freetype.org) 的单色加微调渲染，图形使用 [plutovg](https://github.com/sammycage/plutovg)，SVG 使用 [lunasvg](https://github.com/sammycage/lunasvg)。在较新的机器上，渲染一张小票约需 2 毫秒。字体随包自带：思源黑体（Noto Sans SC）常规体和粗体。
+用于 Node.js 的热敏打印。以 HTML 和 CSS 编排小票、标签和腕带，由原生插件渲染为打印机自身的点阵，再编码为 ESC/POS、TSPL 或 ZPL 指令。渲染结果既是打印预览，也是发给打印机的数据，即同一张黑白点阵图，既可以导出为 PNG，也可以编码为打印指令。整个过程无需浏览器：排版使用 [litehtml](https://github.com/litehtml/litehtml)，字形使用 [FreeType](https://freetype.org) 的单色加微调渲染，图形使用 [plutovg](https://github.com/sammycage/plutovg)，SVG 使用 [lunasvg](https://github.com/sammycage/lunasvg)。字体随包自带：思源黑体（Noto Sans SC）常规体和粗体。
 
 本包负责渲染和编码；将指令发给打印机的组件位于 `@lakutata/thermal-printer` 包中。
 

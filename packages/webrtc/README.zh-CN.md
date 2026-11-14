@@ -321,8 +321,7 @@ TURN 服务器通过 `cluster` 选项和共用的 `secret` 加入集群。某个
 ## 限制
 
 - Node.js 端不采集、不编码，也不解码音视频。Node.js 端的轨道传输的是 RTP 包，来自编码器或另一条连接。
-- 两个 Node.js 进程之间单个数据通道的吞吐量（Apple M4）：大消息约 80 MiB/s，100 字节的消息每秒约 62.6 万条。在同一台 Mac 上的 arm64 Linux 虚拟机中，两者分别约为 43 MiB/s 和 54.8 万条。
-- 媒体服务器（Apple M4）：其主线程每秒约转发 87,000 个包（相当于 435 路 2 Mbit/s 的视频）。在一次测试中，4 个工作线程以 1.7 个核转发了全部的每秒 92,000 个包。媒体服务器不转码，按发布时的原样发送每路视频（尚不支持 simulcast）。
+- 媒体服务器不转码，按发布时的原样发送每路视频（尚不支持 simulcast）。
 
 ## API
 
@@ -375,22 +374,6 @@ TURN 服务器通过 `cluster` 选项和共用的 `secret` 加入集群。某个
 | `ClusterTransportNotFoundException` | 集群使用 NATS 或 Redis，但未安装 `nats` 或 `ioredis` 包 |
 | `SignalingRequestError` | 客户端上请求的错误，带有服务端异常的 `errno` |
 | `PeerServiceError` | 成员端 `PeerServiceProxy` 调用的错误，带有动作所抛错误的 `errno`，或者为 `E_PEER_SERVICE_TIMEOUT`、`E_PEER_SERVICE_CLOSED`、`E_PEER_SERVICE_TOO_LARGE` |
-
-## 测试
-
-`npm run test:unit` 运行协议、信令以及 Node.js 进程之间连接的测试。浏览器测试使用 Playwright：本机安装的 Chrome，以及 Playwright 自带的 Firefox 和 WebKit（`npx playwright install firefox webkit`）。这些测试在能够导入 `playwright` 包（或者在 `LAKUTATA_PLAYWRIGHT` 指定的目录中找到该包）时运行，未安装的浏览器，其测试会被跳过。将编码器输出的 H.264 发送给浏览器的那项测试，还需要带 `libx264` 的 `ffmpeg`，以及支持 H.264 的浏览器（Playwright 的 Firefox 不支持）；WHIP 的测试需要同时带有 WHIP 推流功能（FFmpeg 8 及以上）和 `libopus` 的 `ffmpeg`。Playwright 的 WebKit 不接受带传输方式的 TURN URL（`?transport=udp`），而 Safari 接受，因此 WebKit 只经中转的那项测试会被跳过。
-
-其他运行环境和实现的测试需要先编译（`npm run compile`）：
-
-- `npm run test:bun` 在 Bun 中运行测试（浏览器测试除外）。TURN 刷新的 4 项测试在 Bun 中会失败，因为测试所用的假时钟只能在 Node.js 中替换 `node:timers/promises` 的导入。
-- `npm run test:electron` 在 Electron 的主进程中运行测试（使用仓库中的 Electron）。
-- `npm run test:linux` 在 Linux（Docker 中的 `node:24-alpine`）中运行测试、性能目标检查，以及转发、TURN 服务器和连接工作线程的基准测试。
-- `npm run test:interop` 在 Docker 中让 Pion（Go）和 aiortc（Python）连接本包的信令、TURN 服务器和一个成员。测试内容为直连和只经中转的数据通道，以及 aiortc 对服务动作的调用；然后将该成员的连接引擎放到工作线程中，再测试一遍。
-- `node test-env/safari.mjs` 在 Safari（macOS）中打开一个页面，测试数据通道、服务调用和只经中转的连接。测试完成后请关闭该标签页。
-
-`npm run test:servers` 在 Docker 中启动 NATS 和 Redis，并运行集群基于二者的测试（`test-env/cluster.sh`）。`test-env/k3s/run.sh` 在 Docker 中运行有两个节点的 k3s，部署信令，并在每个节点上部署一个 TURN 服务器和一个媒体服务器。该脚本先让两个成员分别通过两个不同的 pod 连接，并且只经 TURN 服务器中转；再让两个成员分别连接到两个节点的媒体服务器，并删除其中一个媒体服务器的 pod。
-
-基准测试位于 `test-env/bench` 中，需先编译本包再运行。`targets.mjs` 将引擎的实测结果与性能目标对比（大消息 70 MiB/s，每 GiB 最多 40 秒 CPU；100 字节的消息每秒 5 万条；200 个连接在 2 秒内建立），任何一项未达到时退出码为 1，请在发布前运行该脚本。`engine.mjs` 测量数据通道、RTP 发送和连接的建立，两端各在一个进程中；`forward.mjs` 测量媒体服务器的转发能力，`turn.mjs` 测量 TURN 服务器的中转能力（`--idle` 先建立其他客户端的空闲分配，`--workers` 为工作线程数，`--parallel` 为同时中转的连接数）。`threads.mjs` 在一个进程中测量成对的连接，引擎位于主线程或工作线程中（`--pairs` 为对数，`--threads` 为线程数，`--size` 为消息大小）。`floor.mjs` 和 `send-modes.mjs` 无需编译。前者测量一个包在 JavaScript 中最少耗费多少 CPU（加密和 UDP 发送），后者测量发送 UDP 包的每种方式各耗费多少 CPU。
 
 ## 另见
 

@@ -25,8 +25,6 @@ NW.js 应用运行在其 `lakutata.nwjs` 所指定的 NW.js 版本中。`nwjsRel
 
 React Native 手机应用（Android、iOS、鸿蒙）运行在 libnode 中，libnode 由 lakutata/libnode 从 Node.js 源码编译而成。`downloadMobileNode()` 从 lakutata/libnode 的 Release 下载指定系统的 libnode，只下载一次（`LAKUTATA_LIBNODE_MIRROR` 指定镜像），使用 Release 的校验和验证后保存在缓存中（设置 `LAKUTATA_MOBILE_NODE_DIR` 时改用自行编译的 libnode）。`stageMobileApp()` 生成应用的 Node.js 项目：面向 libnode 中 Node.js 的单文件包（没有 libnode 时面向 Node.js 24.20.0，即 `MOBILE_NODE_VERSION`）、资源、清单，以及一个入口。没有 WebAssembly 时（鸿蒙），该入口移除 `fetch()`。该函数还会使用 libnode 的头文件和库，从源码为目标系统编译原生插件：Android 上每种架构生成一棵原生树（node-gyp 和 NDK）；iOS 上每个插件针对每个 SDK 编译为一个 framework（Xcode），放在 `frameworks` 指定的目录中；鸿蒙上每个插件编译为一个库（DevEco Studio 的原生 SDK），放在 `libraries` 指定的 HAP 库目录中。鸿蒙的 HAP 会从资源中去掉名称以点开头的文件，因此在鸿蒙上原生树打包进项目（`native.gz`、`native.json`），并在首次运行时解压到 `LAKUTATA_NATIVE_DIR` 指定的目录。
 
-Linux 安装包在容器（Docker）中测试：`npm run test:installer` 先在 Debian 和 Alpine 上制作安装包，再在 Debian、Fedora（systemd）和 Alpine（OpenRC）上安装、升级和卸载这些安装包。macOS 安装包在 macOS 虚拟机中测试安装（`npm run test:installer:mac`，使用 tart），Windows 安装包则在 Windows 上以管理员身份测试安装（`LAKUTATA_WINDOWS_INSTALL=1 npm run test:installer:windows`）。
-
 ## 另见
 
 - 网站上的指南：[打包](https://lakutata.com/zh/guide/Packaging)、[安装包](https://lakutata.com/zh/guide/Installers)。

@@ -433,7 +433,7 @@ import {httpServiceEntrypoint} from 'lakutata/com/entrypoint'
 export const service = httpServiceEntrypoint({port: 3000, interface: 'eth1'})
 ```
 
-In Bun, a connection passed to a server cannot be upgraded to a WebSocket (seen with Bun 1.4). JSON-RPC over WebSocket
+In Bun, a connection passed to a server cannot be upgraded to a WebSocket. JSON-RPC over WebSocket
 therefore fails to start in Bun, and so does Socket.IO unless it uses polling only
 (`options: {transports: ['polling']}`, and the same on the clients).
 

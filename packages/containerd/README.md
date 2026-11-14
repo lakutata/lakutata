@@ -411,6 +411,3 @@ examples.
 - `@lakutata/docker` (`lakutata/com/docker`): the same operations through a Docker daemon.
 - `@lakutata/grpc`: the gRPC client that the component and its builds use.
 - `@lakutata/core` (`lakutata`): components, `Application` and dependency injection.
-- `npm run test:engines` (in this package) runs the engine tests against containerd 1.6, 1.7 and 2.4 in privileged
-  Docker containers (`test-env/run.sh 2.4` for one version, `--build` to rebuild its image), with a local and a remote
-  BuildKit; see `test-env/README.md`.

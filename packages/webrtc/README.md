@@ -402,12 +402,7 @@ channels.
 
 - Node.js does not capture, encode or decode audio and video: its tracks carry RTP packets, from an encoder or from
   another connection.
-- Throughput of one data channel between two Node.js processes on an Apple M4: about 80 MiB/s for large messages,
-  626,000 messages of 100 bytes per second (in an arm64 Linux virtual machine on the same Mac, about 43 MiB/s and
-  548,000 messages).
-- The media server on an Apple M4: its main thread forwards about 87,000 packets per second (the equivalent of 435
-  videos of 2 Mbit/s), and 4 worker threads forwarded the 92,000 of a test on 1.7 cores. It does not transcode, and
-  sends each video as published (no simulcast yet).
+- The media server does not transcode, and sends each video as published (no simulcast yet).
 
 ## API
 
@@ -460,44 +455,6 @@ channels.
 | `ClusterTransportNotFoundException` | A cluster on NATS or Redis without the `nats` or `ioredis` package |
 | `SignalingRequestError` | On clients: a request's error, with the `errno` of the server's exception |
 | `PeerServiceError` | On members: the error of a `PeerServiceProxy` call, with the `errno` of the action's error, or `E_PEER_SERVICE_TIMEOUT`, `E_PEER_SERVICE_CLOSED`, `E_PEER_SERVICE_TOO_LARGE` |
-
-## Testing
-
-`npm run test:unit` runs the protocol and signaling tests and the tests of connections between Node.js processes. The
-browser tests use Playwright: the Chrome installed on the machine, and Playwright's Firefox and WebKit
-(`npx playwright install firefox webkit`). They run when the `playwright` package can be imported (or is found in the
-directory specified by `LAKUTATA_PLAYWRIGHT`); those for a browser that is not installed are skipped. The test that
-sends an encoder's H.264 also requires `ffmpeg` with `libx264` and a browser with H.264 (Playwright's Firefox has none),
-and the WHIP tests require an `ffmpeg` with its WHIP muxer (FFmpeg 8 and later) and `libopus`. Playwright's WebKit
-refuses TURN URLs with a transport (`?transport=udp`), which Safari accepts: its relay-only test is skipped.
-
-Other runtimes and implementations, with the package compiled first (`npm run compile`):
-
-- `npm run test:bun` runs the tests in Bun (except the browser tests). Four TURN refresh tests fail there: the tests'
-  fake clock reaches the `node:timers/promises` imports only in Node.js.
-- `npm run test:electron` runs them in Electron's main process (the repository's Electron).
-- `npm run test:linux` runs them, the performance targets and the benchmarks for forwarding, the TURN server and the
-  worker threads of the connections, in Linux (`node:24-alpine` in Docker).
-- `npm run test:interop` connects Pion (Go) and aiortc (Python), in Docker, to the signaling, the TURN server and a
-  member of this package: a data channel directly and through the relay only, and a service action call from aiortc;
-  then the same again, with the engines of the member's connections in worker threads.
-- `node test-env/safari.mjs` opens a page in Safari (macOS): a data channel, a service call, a connection through the
-  relay only. Close its tab afterwards.
-
-`npm run test:servers` runs the cluster tests on NATS and Redis, started in Docker (`test-env/cluster.sh`).
-`test-env/k3s/run.sh` runs k3s in Docker with two nodes, deploys the signaling, and a TURN server and a media server on
-each node. It connects two members through two different pods and the TURN servers only, then two members through the
-two nodes' media servers, and deletes the pod of one of these media servers.
-
-The benchmarks are in `test-env/bench` and run on the compiled package (`npm run compile` first). `targets.mjs` measures
-the engine against its performance targets (70 MiB/s for large messages, at 40 s of CPU per GiB at most; 50,000 messages
-of 100 bytes a second; 200 connections set up in 2 seconds) and exits with 1 when one is missed: run it before a
-release. `engine.mjs` measures data channels, RTP sending and connection setup, with each end in its own process;
-`forward.mjs` what the media server forwards; `turn.mjs` what the TURN server relays (with `--idle` allocations from
-other clients, `--workers` threads, `--parallel` connections at the same time); and `threads.mjs` what pairs of
-connections in one process carry, with their engines in the main thread or in worker threads (`--pairs`, `--threads`,
-`--size`). `floor.mjs` measures the minimum cost of a packet in JavaScript (encrypting it and sending it over UDP), and
-`send-modes.mjs` the cost of each way of sending a UDP packet; neither requires a build.
 
 ## See also
 

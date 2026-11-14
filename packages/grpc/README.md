@@ -159,9 +159,6 @@ response = stub.Invoke(pb.InvokeRequest(data=json.dumps({'cmd': 'order.get', 'id
 print(json.loads(response.payload) if response.success else json.loads(response.error))
 ```
 
-`npm run test:interop` tests the service with grpcio and grpcurl (built on gRPC for Go) in Docker: invocations,
-errors, gzip compression, deadlines, the size limit and events.
-
 ### The client
 
 `GRPCConnection` calls any gRPC server; messages are described by schemas (see [the codec](#the-protobuf-codec)).

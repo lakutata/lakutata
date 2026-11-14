@@ -134,7 +134,3 @@ console.log(await queue.result('image.extract', job.id, {timeout: '1m'}))
 - `@lakutata/entrypoint`：控制器和各种传输方式。
 - `@lakutata/cache`：一个 `Cacher`，为自身不保存结果的驱动保存结果（`results: {store: 'cache'}`）。
 - `@lakutata/nats`：服务之间的消息传递（至多一次）和远程调用。
-
-## 测试驱动
-
-`npm run test:unit` 测试内存驱动。`npm run test:servers`（`test-env/run.sh`）在 Docker 中启动各个服务端（支持的最旧和最新版本），逐一对这些服务端运行驱动的一致性测试，然后删除容器。`test-env/run.sh redis`、`nats`、`rabbitmq` 或 `kafka` 只启动一个驱动的服务端（Kafka 的 broker 使用 19092 和 19093 端口）。
