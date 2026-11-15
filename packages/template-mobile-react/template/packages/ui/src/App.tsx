@@ -32,7 +32,7 @@ function Home() {
     useEffect((): () => void => {
         //An event the application pushes
         const offGreeted = ipc.on('greeted', (name: string): void => setPushed(`Pushed by the application: ${name}`))
-        //Node.js ended (process.exit(), an uncaught exception): the mobile application keeps running
+        //Node.js ended (process.exit(), a failed launch): the mobile application keeps running
         const offExit = ipc.on('exit', (code: number): void => setEnded(code))
         //@if i18n
         //The languages of the device, which the messages of the application are in

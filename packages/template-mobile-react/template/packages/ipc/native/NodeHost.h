@@ -10,7 +10,7 @@ namespace lakutata {
 /**
  * The Node.js of the application, run in a thread of its own and talking over a socketpair: its end is given to
  * Node.js by the environment variable LAKUTATA_NODE_FD, the lines it writes are handed to the listener. When Node.js
- * ends (process.exit(), an uncaught exception) the listener gets {"type":"exit","code":<code>}, and Node.js may be
+ * ends (process.exit(), a failed launch) the listener gets {"type":"exit","code":<code>}, and Node.js may be
  * started again
  */
 class NodeHost {
