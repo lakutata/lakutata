@@ -476,7 +476,7 @@ window.addEventListener('message', async (event) => {
 
 - 宿主在应用开始监听之前写入的行会保留在 socket 中，不会丢失。界面收到订阅的回应，即表明应用已经就绪。
 - 在 iOS 上，宿主先向系统申请应用挂起前收尾的时间，再发送 `pause`，收到 `paused`（或时间耗尽）后才让应用挂起。
-- Node.js 结束时（`process.exit()`、未捕获的异常），手机应用仍然正常运行，原生模块会报告退出码，并且可以重新启动 Node.js。
+- Node.js 结束时（`process.exit()`、应用启动失败），手机应用仍然正常运行，原生模块会报告退出码，并且可以重新启动 Node.js。
 - `lakutata create` 的 `mobile-react` 模板包含此类原生模块，并为界面提供了与 Electron 模板相同的 `ipc`，两者均位于该模板的 `packages/ipc` 包中。
 
 ## 5. 客户端与事件

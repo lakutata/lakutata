@@ -381,7 +381,7 @@ function Expenses() {
         })
     }, [load, month])
 
-    //Node.js 结束了（process.exit()、未捕获的异常）：手机应用会继续运行
+    //Node.js 结束了（process.exit()、应用启动失败）：手机应用会继续运行
     useEffect((): () => void => ipc.on('exit', (code: number): void => setEnded(code)), [])
 
     const restart = (): void => {
@@ -456,7 +456,7 @@ const styles = StyleSheet.create({
 - `ipc` 来自模板的 `ipc` 包：`ipc.invoke()` 调用动作，返回动作的 `payload`，或者以动作的错误拒绝；`ipc.on()` 监听事件，并返回移除监听器的函数。
 - 收到 `expenses.changed` 时，如果发生变化的正是当前显示的月份，就重新加载该月份。
 - `keyboardShouldPersistTaps="handled"` 使键盘显示时也能点击按钮。默认情况下，此时的点击只会收起键盘，输入的支出不会被添加。
-- Node.js 结束时（未捕获的异常、`process.exit()`），手机应用会继续运行：`ipc` 发出 `exit`，`ipc.restart()` 重新启动 Node.js，与模板中相同。
+- Node.js 结束时（`process.exit()`、应用启动失败），手机应用会继续运行：`ipc` 发出 `exit`，`ipc.restart()` 重新启动 Node.js，与模板中相同。
 
 ## 9. 运行
 

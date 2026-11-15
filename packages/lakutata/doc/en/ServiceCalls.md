@@ -537,8 +537,8 @@ result that JSON cannot represent (a `bigint`, a cycle) produces an error respon
   subscription tells the interface that the application is ready.
 - On iOS, the host asks the system for time to finish before the application is suspended, sends `pause`, and lets the
   application be suspended once `paused` arrives (or when the time runs out).
-- When Node.js exits (`process.exit()`, an uncaught exception), the mobile application keeps running: the native module
-  reports the exit code and can start Node.js again.
+- When Node.js exits (`process.exit()`, a failed application launch), the mobile application keeps running: the native
+  module reports the exit code and can start Node.js again.
 - The `mobile-react` template from `lakutata create` contains such a native module, and an `ipc` for the interface like
   the one in the Electron templates, both in its `packages/ipc` package.
 

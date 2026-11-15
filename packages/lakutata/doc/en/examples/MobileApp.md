@@ -421,7 +421,7 @@ function Expenses() {
         })
     }, [load, month])
 
-    //Node.js ended (process.exit(), an uncaught exception): the mobile application keeps running
+    //Node.js ended (process.exit(), a failed application launch): the mobile application keeps running
     useEffect((): () => void => ipc.on('exit', (code: number): void => setEnded(code)), [])
 
     const restart = (): void => {
@@ -499,8 +499,8 @@ const styles = StyleSheet.create({
 - The displayed month is reloaded on `expenses.changed` when it is the month that changed.
 - `keyboardShouldPersistTaps="handled"` lets a tap on a button reach it while the keyboard is shown: by default, the tap
   only hides the keyboard, and the typed expense is not added.
-- When Node.js ends (an uncaught exception, `process.exit()`), the mobile application keeps running: `ipc` emits `exit`,
-  and `ipc.restart()` starts Node.js again, as in the template.
+- When Node.js ends (`process.exit()`, a failed application launch), the mobile application keeps running: `ipc` emits
+  `exit`, and `ipc.restart()` starts Node.js again, as in the template.
 
 ## 9. Run it
 
