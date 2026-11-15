@@ -5,31 +5,32 @@
 A [lakutata](https://github.com/lakutata/lakutata) application.
 
 ```bash
-npm run dev     # build and start, http://localhost:8080/example
-npm test        # build and run the tests
-npm run build   # compile into build/
+npm run dev     # build and start the application: http://localhost:8080/example
+npm test        # build the application and run its tests
+npm run build   # compile the application into build/
 npm start       # start the compiled application
 ```
 
-- `src/App.ts` starts the application;
-- `src/config/Config.ts` declares its components, the entrypoint and its adapters;
-- `src/controllers/` holds the controllers: their actions are served by the adapters of the entrypoint.
+- `src/App.ts` starts the application.
+- `src/config/Config.ts` declares its components, its entrypoint and the entrypoint's adapters.
+- `src/controllers/` holds the controllers, whose actions are served by the entrypoint's adapters.
 
-## Database migrations
+## The database migrations
 
 ```bash
-npm run migration:generate              # the migrations of the changes of the entities of the databases
-npm run migration:create -- seed-users  # an empty migration, written by hand
-npm run migration:show                  # the migrations run [X] and pending [ ]
+npm run migration:generate              # generate migrations from the changes to the entities
+npm run migration:create -- seed-users  # create an empty migration, to be written by hand
+npm run migration:show                  # list the migrations: run [X] and pending [ ]
 npm run migration:run                   # run the pending migrations
-npm run migration:revert                # revert the last migration run
+npm run migration:revert                # revert the last migration that was run
 ```
 
-The commands (`lakutata migration <action>`) build and start the application, which connects its databases with their
-options (without synchronizing their schemas), does the command and exits; `-- --database <name>` selects a database
-(required to revert when there are several), `-- --fake` marks the migrations as run or reverted without executing
-them. The migrations are written into `src/migrations`, compiled with the application and given to the options of the
-databases, run when they connect:
+These commands (`lakutata migration <action>`) build and start the application. The application connects to its
+databases with their options, without synchronizing their schemas, carries out the command and exits.
+`-- --database <name>` selects a database (required for `revert` when the application has several), and `-- --fake`
+marks migrations as run or reverted without executing them. Migrations are written to `src/migrations` and compiled with
+the application. Once they are listed in the `migrations` option of a database that has `migrationsRun: true`, they run
+when the database connects:
 
 ```typescript
 import {buildDatabaseOptions} from 'lakutata/com/database'

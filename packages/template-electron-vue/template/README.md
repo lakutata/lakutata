@@ -5,34 +5,35 @@
 A [lakutata](https://github.com/lakutata/lakutata) Electron application. The project is a workspace:
 
 - `packages/app`: the main process, a lakutata application. Its controllers serve their `@ServiceAction` actions to the
-  renderer over IPC (`electronIPCServiceEntrypoint`); `MainWindow` is its window;
-- `packages/ui`: the renderer, Vue built by Vite. It is isolated from Node.js and from Electron: `window.ipc`
-  (`packages/ui/src/ipc.ts`, through the preload script `packages/app/src/preload.cts`) invokes the actions of the main
-  process, `window.ipc.invoke({cmd: 'greet', name: 'you'})`, and listens to the events it pushes,
-  `window.ipc.on('greeted', listener)` (`once`, `off`);
-- `packages/resources`: the resources of the application, its icon (`logo.png`: the icons of its installers and of its
-  window).
+  renderer over IPC (`electronIPCServiceEntrypoint`), and `MainWindow` is its window.
+- `packages/ui`: the renderer, built with Vue and Vite. It is isolated from Node.js and from Electron: `window.ipc`
+  (`packages/ui/src/ipc.ts`, provided by the preload script `packages/app/src/preload.cts`) invokes the actions of the
+  main process, as in `window.ipc.invoke({cmd: 'greet', name: 'you'})`, and listens to the events the main process
+  pushes, as in `window.ipc.on('greeted', listener)` (with `once` and `off`).
+- `packages/resources`: the resources of the application, such as its icon (`logo.png`, from which the icons of the
+  installers and of the window are made).
 
 ```bash
-npm run dev            # the renderer served by Vite (hot reload) in the window of the application, with its DevTools
+npm run dev            # open the window of the application, its renderer served by Vite (hot reload), with DevTools
 npm test               # build the packages and run their tests (the actions of the main process, without Electron)
-npm run build          # build the packages, in the order of their dependencies (ui, then app)
+npm run build          # build the packages in the order of their dependencies (ui, then app)
 npm start              # start the built application
-npm run package:host      # the installers of this platform: dist/installer (deb, dmg, nsis…)
-npm run package:linux # the ones of Linux, in Docker (Dockerfile.installer): dist/installer
-npm run version:patch  # give the packages their next version
+npm run package:host   # make the installers for this platform in dist/installer (deb, dmg, nsis…)
+npm run package:linux  # make the installers for Linux in Docker (Dockerfile.installer), in dist/installer
+npm run version:patch  # give every package its next patch version
 ```
 
-A new action: a method of a controller of `packages/app/src/controllers` decorated by `@ServiceAction({cmd: 'name'}, DTO)`,
-invoked by the renderer with `window.ipc.invoke({cmd: 'name', ...input})`: its input is validated by its DTO, its result is
-given back, its errors are thrown in the renderer (with their `errno`). Each page is a client of the main process: its id
-is the `clientId` of the context of its requests, which the entrypoint pushes events to, `this.entrypoint.notify(clientId,
-'event', ...args)` (the id may be kept to push them later), or to every client, `this.entrypoint.broadcast('event',
-...args)`.
+To add an action, write a method in a controller of `packages/app/src/controllers` and decorate it with
+`@ServiceAction({cmd: 'name'}, DTO)`. The renderer invokes it with `window.ipc.invoke({cmd: 'name', ...input})`: the
+input is validated by the DTO, the result is returned, and errors are thrown in the renderer with their `errno`. Each
+page is a client of the main process. Its id is the `clientId` of its request context, and the entrypoint pushes events
+to it with `this.entrypoint.notify(clientId, 'event', ...args)` (the id can be kept to push events later), or to every
+client with `this.entrypoint.broadcast('event', ...args)`.
 
-In development (not packaged), the actions are also served over HTTP on the port `DEV_PORT` (9000 by default), for the
-tools such as Postman or curl: `POST /` with `{"cmd": "greet", "name": "you"}` answers the response of the action; the id
-of the client in the `id` header. `GET /events?id=<client>` streams the events pushed to the client (Server-Sent Events):
+In development (when the application is not packaged), the actions are also served over HTTP on port `DEV_PORT` (9000 by
+default), for tools such as Postman or curl. `POST /` with `{"cmd": "greet", "name": "you"}` returns the response of the
+action; the request carries the client id in its `id` header. `GET /events?id=<client>` streams the events pushed to
+that client (Server-Sent Events):
 
 ```bash
 curl -N 'http://localhost:9000/events?id=me' &
@@ -41,13 +42,14 @@ curl -X POST http://localhost:9000/ -H 'id: me' -H 'Content-Type: application/js
 
 ## The packaging
 
-`npm run package:host` builds the packages and makes the installers of the platform it runs on with
-`lakutata package installer` (electron-builder, configured by the `lakutata.installer` of `packages/app/package.json`):
-the main process bundled with its dependencies in the archive of the application, its native addons, the preload script
-and the built renderer (its `lakutata.resources`) next to it, in the resources of Electron. The installers of Windows
-are made on Windows, the ones of macOS on macOS, the ones of Linux on Linux: `npm run package:linux` makes them in
-Docker on any platform (`Dockerfile.installer`, whose system libraries are the ones the native addons need: add yours;
-`npm run package:linux -- --platform linux/amd64` makes the ones of another architecture).
+`npm run package:host` builds the packages and makes the installers for the platform it runs on with
+`lakutata package installer` (electron-builder, configured by `lakutata.installer` in `packages/app/package.json`). The
+main process is bundled with its dependencies into the archive of the application; its native addons, the preload script
+and the built renderer (its `lakutata.resources`) are placed next to it, in the Electron resources. The installers for
+Windows are made on Windows, those for macOS on macOS and those for Linux on Linux. `npm run package:linux` makes the
+installers for Linux in Docker on any platform (`Dockerfile.installer`, which installs the system libraries that the
+native addons need: add yours), and `npm run package:linux -- --platform linux/amd64` makes them for another
+architecture.
 
 ```json
 "installer": {
@@ -59,15 +61,16 @@ Docker on any platform (`Dockerfile.installer`, whose system libraries are the o
 }
 ```
 
-`electron` is the configuration of electron-builder (its icons, its file associations, its signature, its updates…),
-merged over the one made from `lakutata.installer`. The scripts of the installers (`scripts`) are the ones of
-`lakutata package installer`: its documentation in `@lakutata/cli` tells which installers run which scripts (the disk
-images of macOS and the portable executables of Windows run none).
+`electron` holds the electron-builder configuration (icons, file associations, signing, updates…), merged over the
+configuration made from `lakutata.installer`. The installer scripts (`scripts`) are those of
+`lakutata package installer`; its documentation in `@lakutata/cli` describes which installers run which scripts (the
+disk images for macOS and the portable executables for Windows run none).
 
-The deb packages take their maintainer from the `author` of `packages/app/package.json`, written `"Name <email>"`
-(without an email, `<name>@localhost` is given, with a warning), and their home page from its `homepage`.
+The deb packages take their maintainer from the `author` of `packages/app/package.json`, written as `"Name <email>"`
+(without an email, `<name>@localhost` is used and a warning is shown), and their home page from its `homepage`.
 
-The native addons built for Node.js (not with N-API) are rebuilt for Electron before packaging: `npx @electron/rebuild`
-(and `npm rebuild` to run the tests with Node.js again).
+Native addons built for Node.js rather than with N-API are rebuilt for Electron before packaging, with
+`npx @electron/rebuild`; `npm rebuild` rebuilds them for Node.js to run the tests again.
 
-Electron downloads its binary the first time it runs (`npx install-electron` downloads it ahead, for a CI caching it).
+Electron downloads its binary the first time it runs; `npx install-electron` downloads it in advance, for example for a
+CI cache.
