@@ -221,7 +221,7 @@ tsc 生成的代码（`(0, node_path_1.join)(__dirname, 'worker.js')`）也会�
 
 可执行文件的子进程运行的是可执行文件本身（`process.execPath`）。在两种布局下，如果启动可执行文件是为了运行其中的某个脚本（`fork(path.join(__dirname, 'child.js'))`、`spawn(process.execPath, [script])`），可执行文件会带着参数运行该脚本，而不是运行应用。以 Node.js 制作时，`require.main` 即为该脚本，与 node 相同；以 Bun 制作时则不然。
 
-macOS 的可执行文件使用临时签名（ad hoc）。用 Node.js 制作的 Windows 可执行文件保留了 `node.exe` 的签名，而该签名已不再匹配，因此发布前请重新签名。
+macOS 的可执行文件使用临时签名（ad hoc）。用 Node.js 制作的 Windows 可执行文件没有有效的签名（`node.exe` 的签名已不再匹配，设置图标时该签名还会被移除），因此发布前请对其签名。
 
 ### `lakutata package installer`
 
@@ -258,7 +258,7 @@ Linux 软件包由 nFPM 制作，输出到 `dist/installer`（`--outdir`）。nF
 
 macOS 的安装包使用 macOS 自带的工具（`pkgbuild`、`productbuild`）制作。`pkg` 软件包将应用安装在 `/usr/local/lib/<name>`，将程序放在 `/usr/local/bin`，只能安装在与程序架构相同的 Mac 上。macOS 没有卸载软件包的功能，因此由 `sudo /usr/local/lib/<name>/uninstall` 删除应用（保留应用的数据、环境变量文件、用户和日志）。`pkg` 软件包没有签名，其安装的可执行文件也只有临时签名（在组织以外的机器上分发需要 Developer ID 签名和公证，目前尚不支持）。
 
-Windows 的安装包在 Windows 上制作。NSIS 安装程序（`<name>-<version>-<arch>-setup.exe`）和 Windows Installer 安装包（`.msi`，由 WiX 制作，用于在组织中部署）将应用安装在 `C:\Program Files\<name>`，将数据放在 `C:\ProgramData\<name>`；卸载方式与其他 Windows 程序相同。制作工具只下载一次，保存在 Lakutata 的缓存中（NSIS 3、WiX 3、WinSW；`LAKUTATA_NSIS`、`LAKUTATA_WIX` 和 `LAKUTATA_WINSW` 可以指定其他副本）。用 Node.js 制作的可执行文件（`"runtime": "node"`）保留了 Node.js 的签名，而该签名已不再匹配，因此发布前请用 signtool 签名。
+Windows 的安装包在 Windows 上制作。NSIS 安装程序（`<name>-<version>-<arch>-setup.exe`）和 Windows Installer 安装包（`.msi`，由 WiX 制作，用于在组织中部署）将应用安装在 `C:\Program Files\<name>`，将数据放在 `C:\ProgramData\<name>`；卸载方式与其他 Windows 程序相同。制作工具只下载一次，保存在 Lakutata 的缓存中（NSIS 3、WiX 3、WinSW；`LAKUTATA_NSIS`、`LAKUTATA_WIX` 和 `LAKUTATA_WINSW` 可以指定其他副本）。用 Node.js 制作的可执行文件（`"runtime": "node"`）没有有效的签名（Node.js 的签名已不再匹配，设置图标时该签名还会被移除），因此发布前请用 signtool 签名。
 
 服务使应用随系统启动。服务由 systemd（`/usr/lib/systemd/system/<service>.service`）、Alpine 上的 OpenRC（`/etc/init.d/<service>`）或 macOS 上的 launchd（`/Library/LaunchDaemons/<appId>.plist`）运行，在 Windows 上则由 WinSW 运行（应用旁边的 `<name>-service.exe`，注册为 Windows 服务：`Restart-Service <service>`）。安装时启动服务，升级时重启服务，卸载前先停止并禁用服务。
 

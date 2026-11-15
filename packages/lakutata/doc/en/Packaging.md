@@ -153,8 +153,9 @@ container of each architecture (`docker run --platform linux/arm64`); the `cli` 
 - **No `.env`**: executables do not load the `.env` file in the directory they run in; use `LAKUTATA_ENV_FILE` (section
   6).
 - **Icon and signature**: `lakutata.icon` in the `package.json` (a square PNG of 256 px or more) becomes the icon of
-  Windows executables. macOS executables are signed ad hoc. Windows executables built with Node.js keep the signature of
-  `node.exe`, which no longer matches: sign them (signtool) before distributing them.
+  Windows executables. macOS executables are signed ad hoc. Windows executables built with Node.js have no valid
+  signature (the signature of `node.exe` no longer matches, and setting `lakutata.icon` removes it): sign them
+  (signtool) before distributing them.
 
 ## 6. At run time
 

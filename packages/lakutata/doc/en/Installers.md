@@ -207,7 +207,8 @@ fi
   only ad hoc. The Developer ID signature and notarization, which distribution outside the organization's machines
   requires, are not performed yet.
 - **Windows**: NSIS and MSI installers are not signed; sign them with signtool before distributing them. A program built
-  with Node.js keeps the signature of `node.exe`, which no longer matches, and the tool warns about it.
+  with Node.js has no valid signature (the signature of `node.exe` no longer matches, and setting an icon removes it),
+  and the tool warns about it.
 - **Linux**: the packages are not signed.
 
 ## 7. Other platforms

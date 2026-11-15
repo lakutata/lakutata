@@ -115,7 +115,7 @@ npx lakutata package exe --runtime bun     # 使用 Bun
 - **外部模块**：`--external` 指定的模块从可执行文件旁边的 `node_modules` 加载。
 - **子进程**：可执行文件被启动以运行其中的某个脚本时（`fork(path.join(import.meta.dirname, 'child.js'))`），会运行该脚本并传入其参数，两种布局均是如此。用 Node.js 制作时，`require.main` 即为该脚本，与 Node.js 中的行为一致；用 Bun 制作时则不然。
 - **不读取 `.env`**：可执行文件不会加载运行时所在目录中的 `.env`，请改用 `LAKUTATA_ENV_FILE`（第 6 节）。
-- **图标与签名**：`package.json` 中的 `lakutata.icon`（256 像素或更大的正方形 PNG）会用作 Windows 可执行文件的图标。macOS 的可执行文件使用临时签名（ad hoc）。用 Node.js 制作的 Windows 可执行文件保留了 `node.exe` 的签名，而该签名已不再匹配，因此发布前请用 signtool 重新签名。
+- **图标与签名**：`package.json` 中的 `lakutata.icon`（256 像素或更大的正方形 PNG）会用作 Windows 可执行文件的图标。macOS 的可执行文件使用临时签名（ad hoc）。用 Node.js 制作的 Windows 可执行文件没有有效的签名（`node.exe` 的签名已不再匹配，设置 `lakutata.icon` 时该签名还会被移除），因此发布前请用 signtool 签名。
 
 ## 6. 运行时
 

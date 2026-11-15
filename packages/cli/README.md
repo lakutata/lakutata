@@ -377,8 +377,8 @@ An executable's child processes run the executable itself (`process.execPath`). 
 for one of its scripts (`fork(path.join(__dirname, 'child.js'))`, `spawn(process.execPath, [script])`) runs that script
 with its arguments, not the application: with Node.js, `require.main` is that script, as with node; with Bun, it is not.
 
-macOS executables are signed ad hoc. Windows executables built with Node.js keep the signature of `node.exe`, which no
-longer matches: sign them before distributing them.
+macOS executables are signed ad hoc. Windows executables built with Node.js have no valid signature (the signature of
+`node.exe` no longer matches, and setting an icon removes it): sign them before distributing them.
 
 ### `lakutata package installer`
 
@@ -430,8 +430,8 @@ Windows installers are built on Windows: the NSIS installer (`<name>-<version>-<
 Installer package (`.msi`, built by WiX, for deployment in organizations) install the application in
 `C:\Program Files\<name>` and its data in `C:\ProgramData\<name>`; they are removed like other Windows programs. Their
 tools are downloaded once into Lakutata's cache (NSIS 3, WiX 3, WinSW; `LAKUTATA_NSIS`, `LAKUTATA_WIX` and
-`LAKUTATA_WINSW` name other copies). Executables built with Node.js (`"runtime": "node"`) keep the Node.js signature,
-which no longer matches: sign them (signtool) before distributing them.
+`LAKUTATA_WINSW` name other copies). Executables built with Node.js (`"runtime": "node"`) have no valid signature (the
+Node.js signature no longer matches, and setting an icon removes it): sign them (signtool) before distributing them.
 
 The service runs the application when the system starts: systemd (`/usr/lib/systemd/system/<service>.service`), OpenRC
 on Alpine (`/etc/init.d/<service>`), launchd on macOS (`/Library/LaunchDaemons/<appId>.plist`), or WinSW on Windows
