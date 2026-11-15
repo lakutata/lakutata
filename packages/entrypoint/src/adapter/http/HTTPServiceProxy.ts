@@ -106,7 +106,7 @@ type HTTPResponse = {
 
 /**
  * Whether fetch() can be used: the fetch of Node.js (undici) compiles its parser to WebAssembly once called. On a
- * runtime without WebAssembly (V8 run --jitless: Node.js on iOS and on HarmonyOS), it ends Node.js 18 at its first call
+ * runtime without WebAssembly (V8 run --jitless, such as Node.js on HarmonyOS), it ends Node.js 18 at its first call
  * (an error no catch receives), and Node.js 24 fails the call. The requests go through node:http then
  */
 function fetchUsable(): boolean {
@@ -205,7 +205,7 @@ async function* serverSentEvents(stream: AsyncIterable<Uint8Array>): AsyncGenera
  * The client of a lakutata service served over HTTP by `httpServiceEntrypoint`: it invokes the service's actions by
  * their patterns and listens to the events the service pushes to it. It is a component (a singleton), registered with
  * {@link buildHTTPServiceProxy}; it needs no package (it uses the `fetch()` of Node.js, and `node:http` on a runtime
- * without WebAssembly, where calling `fetch()` ends Node.js: Node.js on iOS and on HarmonyOS), and its event stream is
+ * without WebAssembly, such as Node.js on HarmonyOS, where `fetch()` cannot be used), and its event stream is
  * opened when the first listener is added.
  *
  * The failures of the remote actions are thrown as `ServiceInvokeException`, with the remote error's message and

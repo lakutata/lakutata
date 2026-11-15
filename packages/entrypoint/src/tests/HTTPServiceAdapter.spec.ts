@@ -318,7 +318,7 @@ describe('HTTP service proxy', (): void => {
         const {url, container, entrypoint} = await start()
         const fetchOfNode: typeof fetch = globalThis.fetch
         const webAssembly: PropertyDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'WebAssembly')!
-        //fetch() is not called: it ends the runtimes without WebAssembly (Node.js on iOS)
+        //fetch() is not called: it fails or ends the runtimes without WebAssembly (Node.js on HarmonyOS)
         let fetched: number = 0
         globalThis.fetch = ((...args: Parameters<typeof fetch>): Promise<Response> => {
             fetched++
