@@ -44,8 +44,8 @@ const host: NodeHost = TurboModuleRegistry.getEnforcing<NodeHost & import('react
 /**
  * The IPC of the application: its actions invoked, their results given and their errors thrown (with their errno), its
  * events listened to. Node.js runs in the mobile application, started with the user interface; when it ends
- * (process.exit(), a failed launch; the exceptions left uncaught after the launch are only logged), the actions in
- * progress fail, the event 'exit' gives its exit code, and restart() starts it again
+ * (process.exit(), a failed application launch; the exceptions left uncaught after the launch are only logged), the
+ * actions in progress fail, the event 'exit' gives its exit code, and restart() starts it again
  */
 export class IPC {
 
