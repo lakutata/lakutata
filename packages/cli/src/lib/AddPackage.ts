@@ -381,22 +381,22 @@ NODE_API_MODULE(${target}, Init)
 const NATIVE_GUIDES: Record<NativeBuild, string> = {
     gyp: `C++ with [node-addon-api](https://github.com/nodejs/node-addon-api), built by node-gyp from \`binding.gyp\`.
 
-The libraries and the options of the build are given in \`binding.gyp\`, whose comments show them: the libraries of
-the system (\`-lpcap\`, \`ws2_32.lib\`, the frameworks of macOS), the ones found by pkg-config, the static libraries
-of the package, the dynamic libraries shipped with the addon (copied next to it, found there at run time by its rpath:
-\`$ORIGIN\` on Linux, \`@loader_path\` on macOS), the standard of C++, the options of each platform (\`conditions\`).`,
+The libraries and the build options are set in \`binding.gyp\`, whose comments show how: system libraries
+(\`-lpcap\`, \`ws2_32.lib\`, macOS frameworks), libraries found by pkg-config, static libraries of the package, dynamic
+libraries shipped with the addon (copied next to it and found there at run time through its rpath: \`$ORIGIN\` on Linux,
+\`@loader_path\` on macOS), the C++ standard, and the options of each platform (\`conditions\`).`,
     cmake: `C++ with [node-addon-api](https://github.com/nodejs/node-addon-api), built by [cmake-js](https://github.com/cmake-js/cmake-js)
 from \`CMakeLists.txt\`.
 
-The libraries and the options of the build are given in \`CMakeLists.txt\`, whose comments show them: the libraries of
-the system, the ones found by pkg-config or by \`find_package\`, the static libraries of the package, the libraries built
-from their sources (\`add_subdirectory\`), the dynamic libraries shipped with the addon (copied next to it, found there
-at run time by its rpath). The headers of Node.js need C++20 (\`CMAKE_CXX_STANDARD\`).`,
+The libraries and the build options are set in \`CMakeLists.txt\`, whose comments show how: system libraries,
+libraries found by pkg-config or by \`find_package\`, static libraries of the package, libraries built from their sources
+(\`add_subdirectory\`), and dynamic libraries shipped with the addon (copied next to it and found there at run time
+through its rpath). The Node.js headers require C++20 (\`CMAKE_CXX_STANDARD\`).`,
     rust: `Rust with [napi-rs](https://napi.rs), built by cargo (\`Cargo.toml\`, \`build.rs\`, \`rust/lib.rs\`).
 
-The libraries of the addon are crates (\`Cargo.toml\`), their native libraries built and linked by cargo; the other
-native libraries are linked by \`build.rs\`, given by \`lakutata native link\`. The addon is built for the platform and the
-architecture of the machine (\`rustup target add\` builds the other ones).`
+The libraries of the addon are crates (\`Cargo.toml\`), whose native libraries cargo builds and links; other native
+libraries are linked by \`build.rs\`, which reads those that \`lakutata native link\` writes into \`.cargo/config.toml\`.
+The addon is built for the platform and the architecture of the machine (\`rustup target add\` adds the other targets).`
 }
 
 /**
@@ -511,7 +511,7 @@ describe('${name}', (): void => {
 
 A native addon: ${NATIVE_GUIDES[build]}
 
-Node-API is stable across the versions of Node.js and Electron: the same addon runs in both without being rebuilt.
+Node-API is stable across Node.js and Electron versions: the same addon runs in both without being rebuilt.
 \`lakutata package bundle\` and \`lakutata package exe\` ship it with the application.
 
 \`\`\`bash
@@ -519,10 +519,11 @@ ${`${packageManager} run rebuild`.padEnd(17)} # build the addon (build/Release) 
 ${`${packageManager} test`.padEnd(17)} # run the tests
 \`\`\`
 
-A library built by its own Makefile (or its own build) is built before the addon by a script, then linked by it:
-\`"build:deps": "make -C deps/foo"\`, \`"build:native": "${packageManager} run build:deps && ${chosen.buildNative}"\`.
+A library that has its own Makefile (or another build of its own) is built by a script before the addon, which then
+links it: \`"build:deps": "make -C deps/foo"\`,
+\`"build:native": "${packageManager} run build:deps && ${chosen.buildNative}"\`.
 
-Building the addon needs ${chosen.toolchain}.
+Building the addon requires ${chosen.toolchain}.
 `
     }
 }
