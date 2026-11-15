@@ -280,12 +280,12 @@ Windows 的安装包在 Windows 上制作。NSIS 安装程序（`<name>-<version
 ```json
 "installer": {
   "linux": {
-    "scripts": {"preinstall": "build/linux/preinstall.sh", "postinstall": "build/linux/postinstall.sh", "preremove": "build/linux/preremove.sh", "postremove": "build/linux/postremove.sh"},
-    "rpm": {"scripts": {"postinstall": "build/linux/rpm-postinstall.sh"}},
-    "deb": {"nativeScripts": {"postinstall": "build/linux/postinst.sh"}}
+    "scripts": {"preinstall": "scripts/linux/preinstall.sh", "postinstall": "scripts/linux/postinstall.sh", "preremove": "scripts/linux/preremove.sh", "postremove": "scripts/linux/postremove.sh"},
+    "rpm": {"scripts": {"postinstall": "scripts/linux/rpm-postinstall.sh"}},
+    "deb": {"nativeScripts": {"postinstall": "scripts/linux/postinst.sh"}}
   },
-  "mac": {"scripts": {"postinstall": "build/mac/postinstall.sh"}},
-  "win": {"scripts": {"postinstall": "build/win/postinstall.ps1"}, "nsis": {"include": "build/win/installer.nsh"}}
+  "mac": {"scripts": {"postinstall": "scripts/mac/postinstall.sh"}},
+  "win": {"scripts": {"postinstall": "scripts/win/postinstall.ps1"}, "nsis": {"include": "scripts/win/installer.nsh"}}
 }
 ```
 

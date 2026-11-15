@@ -159,12 +159,12 @@ script for the same stage), as native scripts of a Linux package, or as an NSIS 
   "lakutata": {
     "installer": {
       "linux": {
-        "scripts": {"postinstall": "build/linux/postinstall.sh", "preremove": "build/linux/preremove.sh"},
-        "rpm": {"scripts": {"postinstall": "build/linux/rpm-postinstall.sh"}},
-        "deb": {"nativeScripts": {"postinstall": "build/linux/postinst.sh"}}
+        "scripts": {"postinstall": "scripts/linux/postinstall.sh", "preremove": "scripts/linux/preremove.sh"},
+        "rpm": {"scripts": {"postinstall": "scripts/linux/rpm-postinstall.sh"}},
+        "deb": {"nativeScripts": {"postinstall": "scripts/linux/postinst.sh"}}
       },
-      "mac": {"scripts": {"postinstall": "build/mac/postinstall.sh"}},
-      "win": {"scripts": {"postinstall": "build/win/postinstall.ps1"}, "nsis": {"include": "build/win/installer.nsh"}}
+      "mac": {"scripts": {"postinstall": "scripts/mac/postinstall.sh"}},
+      "win": {"scripts": {"postinstall": "scripts/win/postinstall.ps1"}, "nsis": {"include": "scripts/win/installer.nsh"}}
     }
   }
 }
@@ -179,7 +179,7 @@ script for the same stage), as native scripts of a Linux package, or as an NSIS 
 
 ```sh
 #!/bin/sh
-# build/linux/postinstall.sh: $1 is install or upgrade
+# scripts/linux/postinstall.sh: $1 is install or upgrade
 if [ "$1" = install ]; then
     echo "Installed in $LAKUTATA_INSTALL_DIR"
 fi
