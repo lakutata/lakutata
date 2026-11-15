@@ -189,8 +189,8 @@ async function embedInNode(bundle: BundleResult, work: string, file: string, war
     if (process.platform === 'darwin') await must('codesign', ['--remove-signature', file], work)
     await quiet((): Promise<void> => inject(file, 'NODE_SEA_BLOB', readFileSync(blob), {sentinelFuse: SEA_FUSE, machoSegmentName: process.platform === 'darwin' ? 'NODE_SEA' : undefined}))
     if (process.platform === 'darwin') await must('codesign', ['--sign', '-', '--force', file], work)
-    //The Authenticode signature of node.exe does not match the executable anymore
-    if (process.platform === 'win32') warnings.push(`${path.basename(file)} has the signature of Node.js, which is not valid anymore: sign it (signtool) before distributing it`)
+    //No valid Authenticode signature: the one of node.exe does not match the executable anymore, and the icon removes it
+    if (process.platform === 'win32') warnings.push(`${path.basename(file)} has no valid signature: sign it (signtool) before distributing it`)
     return `Node.js ${node.version}`
 }
 
