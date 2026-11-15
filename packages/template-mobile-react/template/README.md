@@ -55,8 +55,9 @@ client (Server-Sent Events).
 
 The id of the application is `{$APP_BUNDLE_ID}` (`lakutata create --bundle-id` sets it). It is the `applicationId` of
 `android/app/build.gradle`, the `PRODUCT_BUNDLE_IDENTIFIER` of `ios/App.xcodeproj/project.pbxproj` and the `bundleName`
-of `harmony/AppScope/app.json5`: change it in all three places. The package of the Kotlin code (`dev.lakutata.mobile`)
-and the names of the projects (`App`) are not the id and can stay as they are.
+of `harmony/AppScope/app.json5`: change it in all three places. The package of the Kotlin code (`dev.lakutata.mobile`),
+the name of the projects of Android and iOS and the one of the component of React Native (`App`) are not the id and can
+stay as they are.
 
 ## The development
 
@@ -64,23 +65,25 @@ Android needs the Android SDK (`ANDROID_HOME`, with its NDK and an emulator, as 
 that Gradle runs on (`JAVA_HOME`, see [Problems](#problems)); iOS needs Xcode and CocoaPods on macOS; HarmonyOS needs
 DevEco Studio (its emulator, or a device).
 
-1. The libnode of the system is downloaded the first time `npm run android` (or `ios`, `harmony`) runs, or beforehand by
-   `npm run node:android` (or `node:ios`, `node:harmony`): from the releases of lakutata/libnode, checked with their
+1. The libnode of the system is downloaded the first time `npm run android` (or `ios`, `harmony`) runs, or beforehand
+   by `npm run node:android` (or `node:ios`, `node:harmony`): from the releases of lakutata/libnode, checked with their
    checksums, kept in the cache of lakutata and put into `packages/ipc/native/node/out/<platform>`, which the native
    projects build against. `LAKUTATA_LIBNODE_MIRROR` gives a mirror of the releases
-   (`<mirror>/v<version>/libnode_<platform>_<arch>.tar.gz`), and `LAKUTATA_MOBILE_NODE_DIR` a libnode of your own, built
-   with the repository of lakutata/libnode (a directory per system: `android`, `ios`, `harmony`).
+   (`<mirror>/v<version>/libnode_<platform>_<arch>.tar.gz` and `<mirror>/v<version>/SHA256SUMS`), and
+   `LAKUTATA_MOBILE_NODE_DIR` a libnode of your own, built with the repository of lakutata/libnode (a directory per
+   system: `android`, `ios`, `harmony`).
 2. Start Metro: `npm start`.
 3. Run the application: `npm run android` (or `ios`, `harmony`) builds the packages, makes the Node.js project of the
    application (`lakutata mobile stage`), builds the debug application, installs it and starts it
    (`lakutata mobile run`). The user interface comes from Metro: its changes show at once (Fast Refresh).
 4. Change the Node.js side: `npm run deploy:android` (or `deploy:ios`, `deploy:harmony`) builds it, puts it into the
    installed application and starts the application again, without installing it again;
-   `npm run deploy:android -- --watch` does so whenever `packages/app` changes.
+   `npm run deploy:android -- --watch` does so whenever `packages/app` changes. On HarmonyOS, the native addons are
+   libraries of the application: `npm run harmony` installs them.
 
-When Node.js ends (`process.exit()`, an uncaught exception), the mobile application keeps running: `ipc` rejects the
-actions in progress and emits `exit` with the exit code, and `ipc.restart()` starts Node.js again (the example shows a
-button for it).
+When Node.js ends (`process.exit()`, a launch that fails; an exception left uncaught after the launch is only logged),
+the mobile application keeps running: `ipc` rejects the actions in progress and emits `exit` with the exit code, and
+`ipc.restart()` starts Node.js again (the example shows a button for it).
 
 ## The Node.js of the application
 
@@ -105,8 +108,8 @@ gives the path of a file there in the options function that `App.ts` gives to `r
 `lakutata mobile stage` builds the native addons of the dependencies from their sources (their `binding.gyp`) against
 the libnode of the system: for Android with the NDK, for each architecture of the libnode; for iOS on macOS with Xcode,
 as frameworks in `ios/NodeAddons`, which the build of the application embeds and signs; for HarmonyOS with the native
-SDK of DevEco Studio, as libraries of the HAP (`harmony/entry/libs/arm64-v8a`). The first build of a package takes a
-while; the builds are kept in the cache of lakutata, and `npm run deploy:<platform>` builds for the device only.
+SDK of DevEco Studio, as libraries of the HAP (`harmony/entry/libs/arm64-v8a`). The builds are kept in the cache of
+lakutata, and `npm run deploy:<platform>` builds for the device only.
 
 ## The packaging
 
@@ -114,13 +117,15 @@ The release builds come from the native projects: `cd android && ./gradlew bundl
 Android, signed with the keystore `android/app/build.gradle` names: the debug keystore in the template, so give it your
 release keystore first), an archive of `ios/App.xcworkspace` in Xcode (Product, Archive, with your team in Signing &
 Capabilities), and `assembleApp` of DevEco Studio for HarmonyOS (signed with the profile of the application). Make the
-Node.js project first (`npm run stage:<platform>`); the release builds bundle the user interface themselves, compiled by
-Hermes on Android and iOS.
+Node.js project first (`npm run stage:<platform>`). The release builds of Android and iOS bundle the user interface
+themselves, compiled by Hermes; the application of HarmonyOS loads it from
+`harmony/entry/src/main/resources/rawfile/bundle.harmony.js`, which `npm run harmony` writes
+(`react-native bundle-harmony --dev false --bundle-output harmony/entry/src/main/resources/rawfile/bundle.harmony.js`).
 
 ## Problems
 
 - **Gradle refuses the JDK**: the JDK of `JAVA_HOME` (or of the `PATH`) is newer than the Gradle of the project (9.3)
-  runs on, as Java 27 is. Give `JAVA_HOME` an older one, such as JDK 21.
+  runs on. Give `JAVA_HOME` an older one, such as JDK 21.
 - **The application of HarmonyOS shows a blank screen, or `npm run harmony` stops with
   `[Fail]TCP Port listen failed at 8081`**: the emulator started from its snapshot, which keeps on the port the listener
   an earlier forward of Metro left there. Start the emulator again with a cold boot (Cold Boot in the Device Manager of

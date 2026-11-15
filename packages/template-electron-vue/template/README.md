@@ -41,31 +41,31 @@ curl -X POST http://localhost:9000/ -H 'id: me' -H 'Content-Type: application/js
 
 ## The packaging
 
-`npm run package:host` builds the packages and makes the installers of the platform it runs on with `lakutata package installer`
-(electron-builder, configured by the `lakutata.installer` of `packages/app/package.json`): the main process bundled with
-its dependencies in the archive of the application, its native addons, the preload script and the built renderer (its
-`lakutata.resources`) next to it, in the resources of Electron. The installers of Windows are made on Windows, the ones of
-macOS on macOS, the ones of Linux on Linux: `npm run package:linux` makes them in Docker on any platform
-(`Dockerfile.installer`, whose system libraries are the ones the native addons need: add yours; `docker buildx build
---platform linux/amd64` makes the ones of another architecture).
+`npm run package:host` builds the packages and makes the installers of the platform it runs on with
+`lakutata package installer` (electron-builder, configured by the `lakutata.installer` of `packages/app/package.json`):
+the main process bundled with its dependencies in the archive of the application, its native addons, the preload script
+and the built renderer (its `lakutata.resources`) next to it, in the resources of Electron. The installers of Windows
+are made on Windows, the ones of macOS on macOS, the ones of Linux on Linux: `npm run package:linux` makes them in
+Docker on any platform (`Dockerfile.installer`, whose system libraries are the ones the native addons need: add yours;
+`npm run package:linux -- --platform linux/amd64` makes the ones of another architecture).
 
 ```json
 "installer": {
   "runtime": "electron",
-  "linux": {"targets": ["deb"], "scripts": {"postinstall": "build/linux/postinstall.sh"}},
+  "linux": {"targets": ["deb"], "scripts": {"postinstall": "scripts/linux/postinstall.sh"}},
   "mac": {"targets": ["dmg"]},
-  "win": {"targets": ["nsis", "portable"], "scripts": {"postinstall": "build/win/postinstall.ps1"}},
+  "win": {"targets": ["nsis", "portable"], "scripts": {"postinstall": "scripts/win/postinstall.ps1"}},
   "electron": {"linux": {"category": "Utility"}}
 }
 ```
 
 `electron` is the configuration of electron-builder (its icons, its file associations, its signature, its updates…),
-merged over the one made from `lakutata.installer`. The scripts of the installers (`scripts`, run by the deb and rpm
-packages, the pkg package of macOS and the installer of NSIS) are the ones of `lakutata package installer` (its documentation in
-`@lakutata/cli`).
+merged over the one made from `lakutata.installer`. The scripts of the installers (`scripts`) are the ones of
+`lakutata package installer`: its documentation in `@lakutata/cli` tells which installers run which scripts (the disk
+images of macOS and the portable executables of Windows run none).
 
-The deb packages need the email of their maintainer: the `author` of `packages/app/package.json` is `"Name <email>"` (and
-its `homepage` is the one of the packages).
+The deb packages take their maintainer from the `author` of `packages/app/package.json`, written `"Name <email>"`
+(without an email, `<name>@localhost` is given, with a warning), and their home page from its `homepage`.
 
 The native addons built for Node.js (not with N-API) are rebuilt for Electron before packaging: `npx @electron/rebuild`
 (and `npm rebuild` to run the tests with Node.js again).

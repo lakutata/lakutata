@@ -16,8 +16,8 @@ npm run package:bundle                  # one JavaScript file with the dependenc
 ```
 
 - `packages/app/src/App.ts` starts the tool;
-- `packages/app/src/config/Config.ts` declares its components and the command line adapter (its name, its description
-  and its version come from `packages/app/package.json`);
+- `packages/app/src/config/Config.ts` declares its components and the command line adapter (the command `{$APP_ID}`,
+  whose description and version come from `packages/app/package.json`);
 - `packages/app/src/controllers/` holds the controllers: each `@CLIAction` is a command, whose options are the properties
   of its DTO (`packages/app/src/dtos/`), validated before the action runs. In a terminal, the missing required options
   are asked.
@@ -36,8 +36,8 @@ it.
   embedded in the executable, which extracts them at its first run into its cache directory (`LAKUTATA_NATIVE_DIR`
   changes it).
 - The bundle is a CommonJS module: no top-level `await` in the sources (await in an async function).
-- The executables of macOS are signed ad hoc. The executables of Windows keep the signature of Node.js, which does not
-  match anymore: sign them before distributing them.
+- The executables of macOS are signed ad hoc. The executables of Windows have no valid signature: sign them before
+  distributing them.
 
 <!-- @if installer -->
 ## The installers
@@ -45,10 +45,13 @@ it.
 `npm run package:host` makes the installers of the platform it runs on (`lakutata package installer`, configured by the
 `lakutata.installer` of `packages/app/package.json`) in `dist/installer`, the command `{$APP_ID}` in the PATH:
 
-- Linux: the deb, rpm and tar.gz packages installing the tool in `/opt/{$APP_ID}`; `npm run package:linux` makes them in
-  Docker (`Dockerfile.installer`) on any platform, `--platform linux/amd64` the ones of another architecture.
-- macOS: the pkg package installing it in `/usr/local/lib/{$APP_ID}` (`sudo /usr/local/lib/{$APP_ID}/uninstall` removes it).
-- Windows: the installer of NSIS and the package of Windows Installer (msi) installing it in `C:\Program Files\{$APP_ID}`.
+- Linux: the deb and rpm packages installing the tool in `/opt/{$APP_ID}`, and a tar.gz archive of it;
+  `npm run package:linux` makes them in Docker (`Dockerfile.installer`) on any platform,
+  `npm run package:linux -- --platform linux/amd64` the ones of another architecture.
+- macOS: the pkg package installing it in `/usr/local/lib/{$APP_ID}` (`sudo /usr/local/lib/{$APP_ID}/uninstall` removes
+  it), and a tar.gz archive.
+- Windows: the installer of NSIS and the package of Windows Installer (msi) installing it in
+  `C:\Program Files\{$APP_ID}`, and a zip archive.
 
 <!-- @end -->
 ## The other platforms

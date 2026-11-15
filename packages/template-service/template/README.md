@@ -15,7 +15,7 @@ DOCKER_REPOSITORY=registry.example.com/team/{$APP_ID} npm run docker:push   # bu
 ```
 
 The results are `{errno, errMsg, data}`, the errors too (with the status 200). The requests carry
-`Authorization: Bearer <API_TOKEN>` when the environment has an `API_TOKEN`
+`Authorization: Bearer <API_TOKEN>` when the environment has an `API_TOKEN`, except `/health`
 (`packages/app/src/middlewares/Authenticate.ts`). `/health` tells whether the process answers.
 
 `docker login <registry>` once before pushing: the credentials are kept by Docker.
@@ -28,13 +28,15 @@ The results are `{errno, errMsg, data}`, the errors too (with the status 200). T
 `{$APP_ID}` in the PATH, and its service started at the start of the system, with its environment (`PORT`, `MODE`…, kept by
 the upgrades) and its data:
 
-- Linux: the deb, rpm and tar.gz packages; the application in `/opt/{$APP_ID}`, its service run by systemd, its environment
-  `/etc/{$APP_ID}/{$APP_ID}.env` (`systemctl restart {$APP_ID}` after changing it), its data `/var/lib/{$APP_ID}`.
-  `npm run package:linux` makes them in Docker (`Dockerfile.installer`, in `dist/installer`) on any platform.
-- macOS: the pkg package; the application in `/usr/local/lib/{$APP_ID}`, its service run by launchd, its environment
-  `/usr/local/etc/{$APP_ID}/{$APP_ID}.env` (`sudo /usr/local/lib/{$APP_ID}/uninstall` removes it).
-- Windows: the installer of NSIS and the package of Windows Installer (msi); the application in
-  `C:\Program Files\{$APP_ID}`, its service run by WinSW, its environment `C:\ProgramData\{$APP_ID}\{$APP_ID}.env`
+- Linux: the deb and rpm packages, and a tar.gz archive of the application; the packages install it in
+  `/opt/{$APP_ID}`, its service run by systemd, its environment `/etc/{$APP_ID}/{$APP_ID}.env`
+  (`systemctl restart {$APP_ID}` after changing it), its data `/var/lib/{$APP_ID}`. `npm run package:linux` makes them
+  in Docker (`Dockerfile.installer`, in `dist/installer`) on any platform.
+- macOS: the pkg package, and a tar.gz archive; the package installs it in `/usr/local/lib/{$APP_ID}`, its service run
+  by launchd, its environment `/usr/local/etc/{$APP_ID}/{$APP_ID}.env` (`sudo /usr/local/lib/{$APP_ID}/uninstall`
+  removes the application and keeps its environment and its data).
+- Windows: the installer of NSIS, the package of Windows Installer (msi) and a zip archive; the installers install it
+  in `C:\Program Files\{$APP_ID}`, its service run by WinSW, its environment `C:\ProgramData\{$APP_ID}\{$APP_ID}.env`
   (`Restart-Service {$APP_ID}` after changing it).
 
 <!-- @end -->

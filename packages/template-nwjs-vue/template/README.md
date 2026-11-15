@@ -35,10 +35,10 @@ application: its id is the `clientId` of the context of its requests, which the 
 `this.entrypoint.notify(clientId, 'event', ...args)` (the id may be kept to push them later), or to every client,
 `this.entrypoint.broadcast('event', ...args)`.
 
-In development (under `lakutata nwjs run`), the actions are also served over HTTP on the port `DEV_PORT` (9000 by
-default), for the tools such as Postman or curl: `POST /` with `{"cmd": "greet", "name": "you"}` answers the response of
-the action; the id of the client in the `id` header. `GET /events?id=<client>` streams the events pushed to the client
-(Server-Sent Events):
+In development (in the sdk flavor of NW.js, which `lakutata nwjs run` uses), the actions are also served over HTTP on
+the port `DEV_PORT` (9000 by default), for the tools such as Postman or curl: `POST /` with
+`{"cmd": "greet", "name": "you"}` answers the response of the action; the id of the client in the `id` header.
+`GET /events?id=<client>` streams the events pushed to the client (Server-Sent Events):
 
 ```bash
 curl -N 'http://localhost:9000/events?id=me' &
@@ -49,10 +49,13 @@ curl -X POST http://localhost:9000/ -H 'id: me' -H 'Content-Type: application/js
 
 The application runs in the NW.js of the `lakutata.nwjs` of `packages/app/package.json`: in development, its sdk flavor
 (`lakutata nwjs run`, with the DevTools), in its installers, its normal one. `npm run nwjs:use -- <version>` gives it
-another version: `latest`, `win7` (0.72.0, the last one running on Windows 7, 8 and 8.1) or a version, which
-`npx lakutata nwjs versions` lists. It writes `packages/app/nwjs.json` too, the Node.js and the Chromium of the version:
-the application is bundled for that Node.js, the user interface built for that Chromium (`packages/ui/vite.config.ts`).
-The runtimes of NW.js are downloaded once into the cache of lakutata (`~/.cache/lakutata`, or `LAKUTATA_CACHE_DIR`).
+another version: `latest`, `win7` (0.72.0, the last one running on Windows 7, 8 and 8.1) or a version
+(`npx lakutata nwjs versions` lists the latest ten and 0.72.0, `--all` all of them). NW.js 0.72.0 has builds for x64 and
+ia32 only: macOS on Apple silicon uses its x64 build, Linux and Windows on arm64 have none, and on an arm64 machine its
+installers of Linux are made with `npm run package:linux -- --platform linux/amd64`. It writes `packages/app/nwjs.json`
+too, the Node.js and the Chromium of the version: the application is bundled for that Node.js, the user interface built
+for that Chromium (`packages/ui/vite.config.ts`). The runtimes of NW.js are downloaded once into the cache of lakutata
+(`~/.cache/lakutata`, or `LAKUTATA_CACHE_DIR`).
 <!-- @if win7 -->
 
 The application runs in NW.js 0.72.0 (Node.js 19.3, Chromium 109), the last release running on Windows 7, 8 and 8.1.
@@ -70,8 +73,9 @@ of Windows (`nsis`, `msi`) add the application to the start menu and to the desk
 holds it beside a link to /Applications to drag it to, and its `pkg` package installs it there; the packages of Linux
 (`deb`, `rpm`) add it to the menus of the desktops; the archives (`zip`, `tar.gz`) hold it as it is. The installers are
 made on their platform: `npm run package:linux` makes the ones of Linux in Docker on any platform
-(`Dockerfile.installer`, whose system libraries are the ones the native addons need: add yours; `docker buildx build
---platform linux/amd64` makes the ones of another architecture), and `--arch ia32` the ones of 32-bit Windows.
+(`Dockerfile.installer`, whose system libraries are the ones the native addons need: add yours;
+`npm run package:linux -- --platform linux/amd64` makes the ones of another architecture), and `--arch ia32` the ones of
+32-bit Windows.
 
 ```json
 "installer": {
@@ -87,6 +91,6 @@ ones built for another architecture than the one of the runtime, or using the AP
 sources (with the headers of NW.js for the ones using V8); on Windows, they load the Node.js of NW.js. The ones of the
 project are left as they are: its tests still run with Node.js.
 
-The deb packages need the email of their maintainer: the `author` of `packages/app/package.json` is `"Name <email>"` (and
-its `homepage` is the one of the packages). The application of macOS is signed ad hoc: the users of a downloaded one
-allow it in the settings of the system, until it is signed with a Developer ID and notarized.
+The deb packages take their maintainer from the `author` of `packages/app/package.json`, written `"Name <email>"`, and
+their home page from its `homepage`. The application of macOS is signed ad hoc: the users of a downloaded one allow it
+in the settings of the system, until it is signed with a Developer ID and notarized.
